@@ -2,7 +2,7 @@ The `valu-api` package enables developers to create custom iframe applications f
 
 # install
 ```
-npm install @arkeytyp/valu-dev
+npm install @arkeytyp/valu-api
 ```
 
 # Usage
