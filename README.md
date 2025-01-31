@@ -1,5 +1,10 @@
 The `valu-api` package enables developers to create custom iframe applications for Valu Social. It provides tools to invoke functions of registered Valu applications and subscribe to their events. With features like API versioning, event handling, and console command testing, developers can seamlessly integrate and extend functionality within the Valu Social ecosystem.
 
+# install
+```
+npm install @arkeytyp/valu-dev
+```
+
 # Usage
 
 ## 1. Initialize ValuApi
