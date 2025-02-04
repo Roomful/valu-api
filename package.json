@@ -1,6 +1,6 @@
 {
   "name": "@arkeytyp/valu-api",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A package for developing iframe applications for Valu Social. Allows invoking functions of registered Valu applications and subscribing to events, as well as other features that enable developers creating own ifram apps for the value social",
   "main": "src/ValuApi.js",
   "scripts": {
