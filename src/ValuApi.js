@@ -75,7 +75,7 @@ export class ValuApi {
   #postToValuApp(name, message) {
      const data = { name: name, message: message};
 
-     console.log('Posting to Valu: ', name, ' ', message, ' source: ', this.#valuApplication.source);
+    // console.log('Posting to Valu: ', name, ' ', message, ' source: ', this.#valuApplication.source);
      this.#valuApplication.source.postMessage(data, this.#valuApplication.origin);
   }
 
@@ -133,7 +133,7 @@ export class ValuApi {
     }
 
     const message = event.data.message;
-    console.log('Message From Valu: ', event.data.name, ' ', message);
+   // console.log('Message From Valu: ', event.data.name, ' ', message);
 
     switch (event.data.name) {
       case 'api:ready': {
