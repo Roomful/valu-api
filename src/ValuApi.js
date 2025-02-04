@@ -15,9 +15,11 @@ export class ValuApi {
 
   #eventEmitter;
   #valuApplication = {};
-  #apiRequests = {};
-  #consoleCommands = new Map();
+  #requests = new Map();
 
+  get connected() {
+    return this.#valuApplication.origin !== undefined;
+  }
 
   constructor() {
     globalThis.addEventListener('message', (event) => {
@@ -41,20 +43,33 @@ export class ValuApi {
    *
    * This method enables interaction with a specific version of an API module, allowing users to access its functionality and listen to events.
    */
-  getApi(apiName, version) {
-    const apiPointer = new APIPointer(apiName, version, (functionName, params, requestId, apiPointer) => {
+  async getApi(apiName, version) {
+    const guid = guid4();
+    const result = await this.#registerApiPointer(apiName, version, guid);
+
+    if(result.error) {
+      throw new Error(result.error);
+    }
+
+    const apiPointer = new APIPointer(apiName, result.version, guid,(functionName, params, requestId, apiPointer) => {
       this.#onApiRunRequest(functionName, params, requestId, apiPointer);
     });
-    this.#registerApiPointer(apiPointer);
+
     return apiPointer;
   }
 
-  #registerApiPointer(apiPointer) {
+  async #registerApiPointer(apiName, version, guid) {
+    let deferredPromise = this.#createDeferred();
+
     this.#postToValuApp('api:create-pointer', {
-      guid: apiPointer.guid,
-      api: apiPointer.apiName,
-      version: apiPointer.version,
+      guid: guid,
+      api: apiName,
+      version: version,
+      requestId: deferredPromise.id,
     });
+
+    this.#requests[deferredPromise.id] = deferredPromise;
+    return deferredPromise.promise;
   }
 
   #postToValuApp(name, message) {
@@ -65,9 +80,8 @@ export class ValuApi {
   }
 
   async #onApiRunRequest(functionName, params, requestId, apiPointer) {
-    console.log('onApiRunRequest', this);
 
-    this.#apiRequests[requestId] = apiPointer;
+    this.#requests[requestId] = apiPointer;
 
     this.#postToValuApp('api:run', {
       apiPointerId: apiPointer.guid,
@@ -92,7 +106,7 @@ export class ValuApi {
    */
   async runConsoleCommand(command) {
     let deferredPromise = this.#createDeferred();
-    this.#consoleCommands[deferredPromise.id] = deferredPromise;
+    this.#requests[deferredPromise.id] = deferredPromise;
 
     this.#postToValuApp('api:run-console', {
       requestId: deferredPromise.id,
@@ -135,27 +149,40 @@ export class ValuApi {
 
       case 'api:run-console-completed': {
         const requestId = event.data.requestId;
-        const deferred = this.#consoleCommands[requestId];
+        const deferred = this.#requests[requestId];
         if(deferred) {
           deferred.resolve(message);
         } else {
           console.log('Failed to locate console request with Id: ', requestId);
         }
 
-        delete this.#consoleCommands[requestId];
+        delete this.#requests[requestId];
         break;
       }
 
       case 'api:run-completed': {
         const requestId = event.data.requestId;
-        const apiPointer = this.#apiRequests[requestId];
+        const apiPointer = this.#requests[requestId];
         if(!apiPointer)  {
           console.error(`Failed to find Api Pointer for requestId: ${requestId}`);
           break
         }
 
         apiPointer.postRunResult(requestId, message);
-        delete this.#apiRequests[requestId];
+        delete this.#requests[requestId];
+        break;
+      }
+
+      case 'api:pointer-created': {
+        const requestId = event.data.requestId;
+        const deferred = this.#requests[requestId];
+        if(deferred) {
+          deferred.resolve(message);
+          delete this.#requests[requestId];
+        } else {
+          console.log('Failed to locate pointer create request with Id: ', requestId);
+        }
+
         break;
       }
     }

@@ -34,7 +34,6 @@ export class APIPointer {
   get apiName ()  {
     return this.#apiName;
   }
-
   /**
    * @private
    * @description Stores the version of the API.
@@ -44,11 +43,11 @@ export class APIPointer {
     return this.#version;
   }
 
-  constructor(apiName, version, runRequest) {
+  constructor(apiName, version, guid, runRequest) {
     this.#apiName = apiName
     this.#version = version;
     this.#eventEmitter = new EventEmitter();
-    this.#guid = guid4();
+    this.#guid = guid;
     this.#runRequest = runRequest;
   }
 
@@ -76,7 +75,6 @@ export class APIPointer {
 
     return deferredPromise.promise;
   }
-
 
   postRunResult(requestId, result) {
     let deferred = this.#apiCalls[requestId];
