@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"No test specified\" && exit 1"
   },
+  "types": "./types/valu-api.d.ts",
   "keywords": ["valu", "api", "iframe", "valu social", "multiverse"],
   "author": "Stanislav Osipov",
   "license": "MIT",

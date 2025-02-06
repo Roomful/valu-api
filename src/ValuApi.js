@@ -34,7 +34,7 @@ export class ValuApi {
   /**
    * Retrieves an APIPointer object for a specific API module.
    * @param {string} apiName The name of the API module to retrieve.
-   * @param {string} [version] The optional version of the API module. If not provided, the APIPointer will be bound to the latest available version.
+   * @param {number} [version] The optional version of the API module. If not provided, the APIPointer will be bound to the latest available version.
    * @returns {APIPointer} An APIPointer object bound to the specified API version (or the latest version if no version is specified).
    *
    * The APIPointer object provides the ability to:

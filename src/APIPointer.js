@@ -37,7 +37,7 @@ export class APIPointer {
   /**
    * @private
    * @description Stores the version of the API.
-   * @type {string}
+   * @type {number}
    */
   get version ()  {
     return this.#version;
