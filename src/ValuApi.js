@@ -17,6 +17,10 @@ export class ValuApi {
   #valuApplication = {};
   #requests = new Map();
 
+  /** @type ValuApplication */
+  #applicationInstance = null;
+
+
   get connected() {
     return this.#valuApplication.origin !== undefined;
   }
@@ -58,6 +62,17 @@ export class ValuApi {
     return apiPointer;
   }
 
+  /**
+   * Registers an application instance to handle lifecycle events.
+   *
+   * Developers should create a class that extends {@link ValuApplication} and implement
+   * its lifecycle methods.
+   * This instance will receive all lifecycle callbacks sent from the Valu Social host application.
+   */
+  setApplication(appInstance) {
+    this.#applicationInstance = appInstance;
+  }
+
   async #registerApiPointer(apiName, version, guid) {
     let deferredPromise = this.#createDeferred();
 
@@ -89,6 +104,37 @@ export class ValuApi {
       functionName: functionName,
       params: params,
     });
+  }
+
+  /**
+   * Sends an intent to the Valu application.
+   *
+   * This method posts the intent data to the Valu application and returns a promise
+   * that resolves or rejects when the corresponding response is received.
+   *
+   * Internally, it creates a deferred promise and assigns a unique `requestId` to track
+   * the response for this specific intent execution.
+   *
+   * @param {Intent} intent - The intent object containing the target application ID, action, and parameters.
+   * @returns {Promise<unknown>} A promise that resolves with the response from the Valu application.
+   *
+   * @example
+   * const intent = new Intent('chatApp', Intent.ACTION_OPEN, { roomId: '1234' });
+   * const result = await api.sendIntent(intent);
+   * console.log(result);
+   */
+  async sendIntent(intent) {
+    let deferredPromise = this.#createDeferred();
+
+    this.#postToValuApp('api:run-intent', {
+      applicationId: intent.applicationId,
+      action: intent.action,
+      params: intent.params,
+      requestId: deferredPromise.id,
+    });
+
+    this.#requests[deferredPromise.id] = deferredPromise;
+    return deferredPromise.promise;
   }
 
   /**
