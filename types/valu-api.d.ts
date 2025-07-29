@@ -83,7 +83,7 @@ declare module '@arkeytyp/valu-api' {
      * The Valu API will automatically call these lifecycle methods when the host
      * application sends corresponding events (e.g., app launch, new intent, destroy).
      */
-    export abstract class ValuApplication {
+    export class ValuApplication {
         /**
          * Called when the app is first launched with an Intent.
          *

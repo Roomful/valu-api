@@ -1,6 +1,11 @@
 import {EventEmitter} from "./EventEmitter.js";
 import {APIPointer} from "./APIPointer.js";
 import {guid4, nextId} from "./Utils.js";
+import {Intent} from "./Intent";
+
+export { ValuApplication } from "./ValuApplication.js";
+export { Intent } from "./Intent.js";
+export { APIPointer } from "./APIPointer.js";
 
 
 /**
@@ -16,6 +21,7 @@ export class ValuApi {
   #eventEmitter;
   #valuApplication = {};
   #requests = new Map();
+  #lastIntent;
 
   /** @type ValuApplication */
   #applicationInstance = null;
@@ -71,6 +77,10 @@ export class ValuApi {
    */
   setApplication(appInstance) {
     this.#applicationInstance = appInstance;
+
+    if(this.#lastIntent) {
+      this.#applicationInstance.onCreate(this.#lastIntent).catch(console.error);
+    }
   }
 
   async #registerApiPointer(apiName, version, guid) {
@@ -89,8 +99,6 @@ export class ValuApi {
 
   #postToValuApp(name, message) {
      const data = { name: name, message: message};
-
-    // console.log('Posting to Valu: ', name, ' ', message, ' source: ', this.#valuApplication.source);
      this.#valuApplication.source.postMessage(data, this.#valuApplication.origin);
   }
 
@@ -184,13 +192,22 @@ export class ValuApi {
     switch (event.data.name) {
       case 'api:ready': {
         this.#valuApplication = {
-          id : message,
+          id : message.applicationId,
           source: event.source,
           origin: event.origin,
         }
 
         this.#eventEmitter.emit(ValuApi.API_READY);
+
+        const intent = new Intent(message.applicationId, message.action, message.params);
+        this.#applicationInstance?.onCreate(intent);
+        this.#lastIntent = intent;
         break;
+      }
+
+      case 'api:new-intent': {
+        const intent = new Intent(message.applicationId, message.action, message.params);
+        this.#applicationInstance?.onNewIntent(intent);
       }
 
       case 'api:run-console-completed': {
