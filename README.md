@@ -1,18 +1,12 @@
-# Valu API
-
 The `valu-api` package enables developers to build custom iframe applications for Valu Social.  
 It provides tools to invoke functions on registered Valu applications, subscribe to their events, and communicate via intents.  
 With features like API versioning, event handling, and console command execution, you can seamlessly integrate and extend functionality within the Valu Social ecosystem.
-
----
 
 ## Installation
 
 ```bash
 npm install @arkeytyp/valu-api
 ```
-
----
 
 ## Usage
 
@@ -30,7 +24,6 @@ valuApi.addEventListener(ValuApi.API_READY, async (e) => {
 });
 ```
 
----
 
 ## Running Application Intents
 
@@ -70,7 +63,6 @@ const intent = new Intent('textchat', 'open-channel', { userId: currentUser.id }
 await valuApi.sendIntent(intent);
 ```
 
----
 
 ## Handling Application Lifecycle
 
@@ -121,7 +113,6 @@ valuApi.setApplication(new MyApp());
 [onCreate] → [onNewIntent] (0..N times) → [onDestroy]
 ```
 
----
 
 ## Using the System API
 
@@ -203,8 +194,6 @@ const reply = await valuApi.runConsoleCommand(
 );
 console.log(reply);
 ```
-
----
 
 ## Sample Project
 
