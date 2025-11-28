@@ -62,6 +62,36 @@ if (!currentUser) {
 const intent = new Intent('textchat', 'open-channel', { userId: currentUser.id });
 await valuApi.sendIntent(intent);
 ```
+# Invoking Services
+
+Invoking a Service works almost the same way as running an Application Intent.  
+You still use the same `Intent` object with `applicationId`, `action`, and optional `params` — the key difference is **what the `applicationId` points to and how the call affects the UI**.
+
+When calling a **Service Intent**:
+
+- **`applicationId`** refers to the **service name** (e.g., `ApplicationStorage`), not a visible UI application.
+- Services run entirely **in the background**.
+- Invoking a service **does not change** the currently opened applications.
+- Service Intents are ideal for performing background logic such as:
+  - Running searches  
+  - Fetching or processing data  
+  - Triggering non-visual workflows  
+  - Performing system-level operations
+
+This makes Services a parallel mechanism to Application Intents, with the difference that they target **non-UI services** instead of interactive apps.
+
+---
+
+### Example: Querying the `ApplicationStorage` Service
+
+Below is an example of using an `Intent` to query the `ApplicationStorage` service to search for resources:
+
+```ts
+const intent = new Intent('ApplicationStorage', 'resource-search', {
+  size: 10,
+});
+
+const result = await valuApi.callService(intent);
 
 
 ## Handling Application Lifecycle
