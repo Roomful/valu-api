@@ -145,6 +145,20 @@ export class ValuApi {
     return deferredPromise.promise;
   }
 
+  async callService(intent) {
+    let deferredPromise = this.#createDeferred();
+
+    this.#postToValuApp('api:service-intent', {
+      applicationId: intent.applicationId,
+      action: intent.action,
+      params: intent.params,
+      requestId: deferredPromise.id,
+    });
+
+    this.#requests[deferredPromise.id] = deferredPromise;
+    return deferredPromise.promise;
+  }
+
   /**
    * Executes a given console command and returns the result of an API function.
    *
@@ -187,7 +201,7 @@ export class ValuApi {
     }
 
     const message = event.data.message;
-   // console.log('Message From Valu: ', event.data.name, ' ', message);
+    //console.log('Message From Valu: ', event.data.name, ' ', message);
 
     switch (event.data.name) {
       case 'api:ready': {
@@ -213,6 +227,7 @@ export class ValuApi {
       case 'api:run-console-completed': {
         const requestId = event.data.requestId;
         const deferred = this.#requests[requestId];
+
         if(deferred) {
           deferred.resolve(message);
         } else {

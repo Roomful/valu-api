@@ -16,6 +16,7 @@ declare module '@arkeytyp/valu-api' {
          * @returns A promise resolving to the response from the target application.
          */
         sendIntent(intent: Intent): Promise<any>;
+        callService(intent: Intent): Promise<any>;
 
         addEventListener(event: string, callback: (data: any) => void): void;
         removeEventListener(event: string, callback: (data: any) => void): void;
