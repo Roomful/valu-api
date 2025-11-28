@@ -62,7 +62,7 @@ if (!currentUser) {
 const intent = new Intent('textchat', 'open-channel', { userId: currentUser.id });
 await valuApi.sendIntent(intent);
 ```
-# Invoking Services
+## Invoking Services
 
 Invoking a Service works almost the same way as running an Application Intent.  
 You still use the same `Intent` object with `applicationId`, `action`, and optional `params` — the key difference is **what the `applicationId` points to and how the call affects the UI**.
@@ -92,7 +92,7 @@ const intent = new Intent('ApplicationStorage', 'resource-search', {
 });
 
 const result = await valuApi.callService(intent);
-
+```
 
 ## Handling Application Lifecycle
 
