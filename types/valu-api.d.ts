@@ -1,6 +1,7 @@
 declare module '@arkeytyp/valu-api' {
     export class ValuApi {
         static API_READY: string;
+        static ON_ROUTE : string;
 
         get connected(): boolean;
 
@@ -22,6 +23,27 @@ declare module '@arkeytyp/valu-api' {
         removeEventListener(event: string, callback: (data: any) => void): void;
         getApi(apiName: string, version?: number): Promise<APIPointer>;
         runConsoleCommand(command: string): Promise<any | string>;
+
+        /**
+         * Pushes a new route onto the navigation stack.
+         *
+         * Use this when:
+         *   navigating forward
+         *   opening a new view
+         *   preserving back-navigation history
+         * @param path
+         */
+        pushRoute(path: string): void;
+
+        /**
+         * Replaces the current route without adding a new history entry.
+         * Use this when:
+         *    redirecting
+         *    normalizing URLs
+         *    preventing back-navigation to the previous route
+         * @param {string }path
+         */
+        replaceRoute(path: string): void;
     }
 
     export class APIPointer {
@@ -107,5 +129,15 @@ declare module '@arkeytyp/valu-api' {
          * Use this to clean up resources (e.g., closing connections, clearing timers).
          */
         onDestroy(): void;
+
+        /**
+         * Called when the application’s router context changes.
+         *
+         * This typically happens when:
+         *  the app moves between main / side / modal containers
+         *  the host updates routing or layout state
+         * @param context - updated application route
+         */
+        onUpdateRouterContext(context: string): void;
     }
 }

@@ -28,4 +28,15 @@ export class ValuApplication {
    * Called when the app is about to be destroyed.
    */
   async onDestroy() {}
+
+
+  /**
+   * Called when the application’s router context changes.
+   *
+   * This typically happens when:
+   *  the app moves between main / side / modal containers
+   *  the host updates routing or layout state
+   * @param {string} context
+   */
+  onUpdateRouterContext(context) {};
 }

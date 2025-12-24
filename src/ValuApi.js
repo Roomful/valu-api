@@ -17,6 +17,7 @@ export { APIPointer } from "./APIPointer.js";
 export class ValuApi {
 
   static API_READY = 'api:ready'
+  static ON_ROUTE = `on_route`;
 
   #eventEmitter;
   #valuApplication = {};
@@ -184,6 +185,40 @@ export class ValuApi {
     return deferredPromise.promise;
   }
 
+
+  #runCommand(name, data) {
+    this.#postToValuApp('api:run-command', {
+      command: name,
+      data: data,
+    });
+  }
+
+  /**
+   * Pushes a new route onto the navigation stack.
+   *
+   * Use this when:
+   *   navigating forward
+   *   opening a new view
+   *   preserving back-navigation history
+   * @param path
+   */
+  pushRoute = (path) => {
+    this.#runCommand('pushRoute', path);
+  }
+
+  /**
+   * Replaces the current route without adding a new history entry.
+   * Use this when:
+   *    redirecting
+   *    normalizing URLs
+   *    preventing back-navigation to the previous route
+   * @param {string }path
+   */
+  replaceRoute = (path) => {
+    this.#runCommand('replaceRoute', path);
+  }
+
+
   #createDeferred() {
     let resolve, reject;
     const promise = new Promise((res, rej) => {
@@ -219,9 +254,20 @@ export class ValuApi {
         break;
       }
 
+      case 'api:trigger': {
+        switch (message.action) {
+          case ValuApi.ON_ROUTE: {
+            this.#eventEmitter.emit(ValuApi.ON_ROUTE, message.data);
+            this.#applicationInstance?.onUpdateRouterContext(message.data);
+          }
+        }
+        break;
+      }
+
       case 'api:new-intent': {
         const intent = new Intent(message.applicationId, message.action, message.params);
         this.#applicationInstance?.onNewIntent(intent);
+        break;
       }
 
       case 'api:run-console-completed': {
