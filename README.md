@@ -225,6 +225,102 @@ const reply = await valuApi.runConsoleCommand(
 console.log(reply);
 ```
 
+# Routing in Valu iFrame Applications
+
+The application is embedded inside Valuverse and controlled by the host.
+
+- Valuverse owns the global routing context
+- Your app receives route updates from Valu
+- Your app should push navigation changes back to Valu
+
+---
+
+## Important Concept: Route Visibility
+
+There are **two different routing scopes**:
+
+### Local (App-only) Routing
+Routing handled only inside your application (e.g. React Router).
+
+- ✅ App works normally
+- ❌ Routes are **not visible** to Valuverse
+- ❌ No deep linking from the main application
+
+### Valu Routing (Host-aware)
+Routing handled through Valu API.
+
+- ✅ Routes appear in the main application
+- ✅ Deep linking works
+- ✅ Navigation state is shared with Valuverse
+
+---
+
+## Using React Router in an iFrame App
+
+Using **React Router inside an iFrame Valu app is totally fine**.
+
+Your application will:
+- render pages correctly
+- navigate normally
+- function as a self-contained UI
+
+However:
+
+- those routes are **internal only**
+- they **do not propagate** to Valuverse
+- the main application will not see or control them
+
+This approach is acceptable for:
+- demo applications
+- prototypes
+- isolated tools
+- apps that do not need host-level routing
+
+---
+
+## Best Practice for Valuverse Applications
+
+If your application is built to behave like a **native Valuverse app**, the recommended approach is:
+
+> **Use Valu routing instead of (or in addition to) local routing.**
+
+This ensures:
+- consistent navigation behavior
+- correct deep linking
+- visibility in the main application router
+- proper docking and context switching
+
+---
+
+## Valu Routing API
+
+### Subscribing to Route Changes
+
+Valu notifies your application when the route changes:
+
+```ts
+valuApi.addEventListener(ValuApi.ON_ROUTE, (route) => {
+  // route example:
+  // "/console"
+  // "/api/users/id/123"
+});
+```
+
+### Pushing a New Route
+
+Navigate forward:
+
+```ts
+valuApi.pushRoute("/documentation");
+```
+
+Replacing the Current Route
+Redirect without adding a history entry:
+
+```ts
+valuApi.replaceRoute("/console");
+```
+
 ## Sample Project
 
 We've created a sample application integrated with Valu API.  
