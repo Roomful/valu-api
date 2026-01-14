@@ -227,99 +227,187 @@ console.log(reply);
 
 # Routing in Valu iFrame Applications
 
-The application is embedded inside Valuverse and controlled by the host.
+Valu Social allows third‑party developers to register **mini‑applications** that are rendered inside the platform using **iframes**.
 
-- Valuverse owns the global routing context
-- Your app receives route updates from Valu
-- Your app should push navigation changes back to Valu
+Each mini‑app:
 
----
+* Has a unique **application ID / slug**
+* Is mounted under a dedicated URL namespace in Valu Social
+* Can manage its own internal routing (for example using React Router)
 
-## Important Concept: Route Visibility
+The host application (Valu Social) and the iframe application must stay **route‑synchronized** to ensure:
 
-There are **two different routing scopes**:
-
-### Local (App-only) Routing
-Routing handled only inside your application (e.g. React Router).
-
-- ✅ App works normally
-- ❌ Routes are **not visible** to Valuverse
-- ❌ No deep linking from the main application
-
-### Valu Routing (Host-aware)
-Routing handled through Valu API.
-
-- ✅ Routes appear in the main application
-- ✅ Deep linking works
-- ✅ Navigation state is shared with Valuverse
+* Correct deep‑linking
+* Proper browser navigation (back / forward)
+* Shareable URLs
 
 ---
 
-## Using React Router in an iFrame App
+## Application Configuration
 
-Using **React Router inside an iFrame Valu app is totally fine**.
+A mini‑application is registered with a configuration similar to the following:
 
-Your application will:
-- render pages correctly
-- navigate normally
-- function as a self-contained UI
+```json
+{
+  "id": "demo-app",
+  "slug": "demo-app",
+  "iframe": {
+    "url": "https://sample.texpo.io"
+  }
+}
+```
 
-However:
+Key fields:
 
-- those routes are **internal only**
-- they **do not propagate** to Valuverse
-- the main application will not see or control them
-
-This approach is acceptable for:
-- demo applications
-- prototypes
-- isolated tools
-- apps that do not need host-level routing
+* **id / slug** – determines the public URL under valu-social.com
+* **iframe.url** – the base URL loaded inside the iframe
 
 ---
 
-## Best Practice for Valuverse Applications
+## Host → Iframe Route Mapping
 
-If your application is built to behave like a **native Valuverse app**, the recommended approach is:
+Valu Social automatically maps routes from the host URL to the iframe URL.
 
-> **Use Valu routing instead of (or in addition to) local routing.**
+### Base Route
+
+When a user opens:
+
+```
+https://valu-social.com/demo-app
+```
+
+Valu Social loads the iframe at:
+
+```
+https://sample.texpo.io/
+```
+
+---
+
+### Nested Routes
+
+When a user opens:
+
+```
+https://valu-social.com/demo-app/page/1
+```
+
+Valu Social loads the iframe at:
+
+```
+https://sample.texpo.io/page/1
+```
+
+📌 **Rule:**
+
+```
+/valu-social/<app-slug>/<path>
+→
+<iframe-base-url>/<path>
+```
+
+No additional configuration is required for this behavior.
+
+---
+
+## Iframe → Host Route Synchronization
+
+If your mini‑application uses **client‑side routing** (for example React Router), route changes **inside the iframe** are not automatically reflected in the Valu Social URL.
+
+To keep the host URL in sync, your app must explicitly report route changes using:
+
+```ts
+valuApi.pushRoute(pathname);
+```
 
 This ensures:
-- consistent navigation behavior
-- correct deep linking
-- visibility in the main application router
-- proper docking and context switching
+
+* The browser URL updates correctly
+* Deep links work as expected
+* Page refresh restores the correct internal state
 
 ---
 
-## Valu Routing API
+## React Router Integration (Recommended)
 
-### Subscribing to Route Changes
+### Valu Router Bridge Component
 
-Valu notifies your application when the route changes:
-
-```ts
-valuApi.addEventListener(ValuApi.ON_ROUTE, (route) => {
-  // route example:
-  // "/console"
-  // "/api/users/id/123"
-});
-```
-
-### Pushing a New Route
-
-Navigate forward:
+Below is a small helper component that listens for route changes and reports them to Valu Social.
 
 ```ts
-valuApi.pushRoute("/documentation");
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { useValuAPI } from "@/Hooks/useValuApi";
+
+export function ValuRouterBridge() {
+  const valuApi = useValuAPI();
+  const { pathname } = useLocation();
+
+  // Iframe → Host
+  useEffect(() => {
+    if (!valuApi) return;
+    valuApi.pushRoute(pathname);
+  }, [valuApi, pathname]);
+
+  return null;
+}
 ```
 
-Replacing the Current Route
-Redirect without adding a history entry:
+What this does:
 
-```ts
-valuApi.replaceRoute("/console");
+* Listens to internal route changes via `useLocation()`
+* Pushes the current pathname to Valu Social
+* Keeps host and iframe URLs aligned
+
+---
+
+## Example Application Setup
+
+Below is an example of how the bridge is used inside a React application with React Router:
+
+```tsx
+export default function Home() {
+  return (
+    <BrowserRouter>
+      <ValuRouterBridge />
+
+      <div className="flex flex-col min-h-screen">
+        <TopBar isIFrame={false} />
+
+        <main className="flex-grow w-full px-4 py-8">
+          <div className="max-w-[1400px] mx-auto">
+            <Routes>
+              <Route path="/" element={<Navigate to="/console" replace />} />
+
+              <Route
+                path="/console"
+                element={
+                  <>
+                    <Console />
+                    <SampleApiCalls />
+                  </>
+                }
+              />
+
+              <Route path="/storage" element={<ApplicationStorage />} />
+              <Route path="/documentation" element={<Documentation />} />
+            </Routes>
+          </div>
+        </main>
+
+        <Footer />
+      </div>
+    </BrowserRouter>
+  );
+}
 ```
+---
+
+## Best Practices
+
+* Always report route changes using `valuApi.pushRoute`
+* Use relative paths (e.g. `/console`, `/page/1`)
+* Ensure your app can handle being opened directly on any route
 
 ## Sample Project
 
