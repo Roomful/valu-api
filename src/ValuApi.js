@@ -1,7 +1,7 @@
 import {EventEmitter} from "./EventEmitter.js";
 import {APIPointer} from "./APIPointer.js";
 import {guid4, nextId} from "./Utils.js";
-import {Intent} from "./Intent";
+import {Intent} from "./Intent.js";
 
 export { ValuApplication } from "./ValuApplication.js";
 export { Intent } from "./Intent.js";
