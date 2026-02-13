@@ -1,0 +1,17 @@
+name: Notify Docs Update                                                                                                                                                                                                         
+on:                                                                                                                                                                                                                              
+    push:
+      branches: [main]
+      paths: [README.md]
+
+  jobs:
+    notify:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Trigger valu-docs sync
+          run: |
+            curl -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${{ secrets.DOCS_DISPATCH_TOKEN }}" \
+              https://api.github.com/repos/Roomful/valu-docs/dispatches \
+              -d '{"event_type":"update-valu-api-docs"}'
