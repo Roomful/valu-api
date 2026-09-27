@@ -393,3 +393,5 @@ await api.callService(new Intent('AiGuru', 'open', { applicationId: 'cart' }));
   behaviour deltas (generated)
 - [docs/transition.md](docs/transition.md) — how Valu Social and the Valu Guru
   server adopt this
+- [valu-app-api.md](valu-app-api.md) — giving your app a REST API that other
+  Valuverse applications and AI agents can call while nobody has it open
