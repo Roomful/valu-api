@@ -44,7 +44,7 @@ token warm, and the first call after a gap pays a single acquisition.
 `await auth.revoke()` clears the token locally and calls the host's `revoke`
 hook when one was supplied. The next call acquires a fresh token.
 
-## Scope checking — advisory in Phase 1
+## Scope checking — advisory until Phase 3.3
 
 Every descriptor carries the scopes a caller needs (`users:read`,
 `commerce:write`, …). `AuthProvider.scopeAck()` refuses a call whose token

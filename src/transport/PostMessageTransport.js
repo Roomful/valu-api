@@ -42,6 +42,9 @@ export class PostMessageTransport extends Transport {
   /** True once `api:ready` has arrived — same test as ValuApi's old `connected`. */
   get connected() { return this.#host.origin !== undefined; }
 
+  /** This IS the host bridge. */
+  get supportsBridge() { return true; }
+
   /** Id the host gave this application on `api:ready`. */
   get applicationId() { return this.#host.id; }
 

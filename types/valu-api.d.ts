@@ -19,6 +19,8 @@ declare module '@arkeytyp/valu-api' {
          * scopes, cache and the callbacks policy, over this transport.
          */
         get services(): ServiceClient;
+        /** The fifteen host-bound intents, as a named API (Phase 2d). */
+        get frame(): FrameCommands;
 
         /**
          * Registers an application instance to handle lifecycle events.
@@ -215,6 +217,8 @@ declare module '@arkeytyp/valu-api' {
         static RESOURCE_UPDATED: string;
 
         get connected(): boolean;
+        /** Whether this transport speaks the host bridge at all. */
+        get supportsBridge(): boolean;
         get name(): string;
         open(): Promise<void>;
         request(name: string, message: object, requestId?: number): Promise<any>;
@@ -234,8 +238,26 @@ declare module '@arkeytyp/valu-api' {
 
     /** Declared functions over a ValuSocket. Does not speak the bridge. */
     export class SocketTransport extends Transport {
-        constructor(options: { socket: ValuSocket; registry?: ServiceRegistry });
+        constructor(options: {
+            socket: ValuSocket;
+            /** For the 11 `valuguru` functions. Absent means they answer 503. */
+            guru?: ValuGuruSocket;
+            /** For the 5 `host-state` functions. */
+            host?: HostState;
+            fetchImpl?: typeof fetch;
+            config?: Partial<ValuConfig>;
+            now?: () => Date;
+            /** The calling application — Commerce and ApplicationStorage need it. */
+            applicationId?: string | null;
+            registry?: ServiceRegistry;
+        });
         get socket(): ValuSocket;
+        get guru(): ValuGuruSocket | null;
+        get host(): HostState | null;
+        get config(): ValuConfig;
+        get applicationId(): string | null;
+        /** Which channels this transport can actually serve. */
+        get channels(): Record<string, boolean>;
         /** False means the transport cannot push — the consumer must poll. */
         get supportsPush(): boolean;
         /** Swap in a re-opened socket: re-attaches push, drops stale caches. */
@@ -268,6 +290,11 @@ declare module '@arkeytyp/valu-api' {
     }
 
     export type ServiceBinding = 'socket' | 'local' | 'host';
+    /**
+     * WHICH thing serves a function. `binding` says the kind; this says the
+     * one. Phase 2 found that "socket" was three different things.
+     */
+    export type ServiceChannel = 'roomful' | 'valuguru' | 'host-state' | 'local' | 'host';
     export type CacheMode = 'none' | 'read-through' | 'seeded';
 
     export interface DescriptorParam {
@@ -289,6 +316,7 @@ declare module '@arkeytyp/valu-api' {
         availability: string[];
         scopes: string[];
         binding: ServiceBinding;
+        channel: ServiceChannel;
         mutates: boolean;
         cache: { mode: CacheMode; ttlMs?: number; key?: string | null };
         returns: { type: string; description: string };
@@ -322,10 +350,34 @@ declare module '@arkeytyp/valu-api' {
         service?: string; binding?: ServiceBinding; availability?: string | null; mutates?: boolean;
     }): LlmToolDefinition[];
 
+    /** What a handler is given. Which fields it may rely on is its `channel`. */
+    export interface ServiceCallContext {
+        /** The Roomful socket. Always present. */
+        socket: ValuSocket;
+        /** The Valu Guru socket — present for `channel: 'valuguru'`. */
+        guru: ValuGuruSocket | null;
+        /** State only the host holds — needed by `channel: 'host-state'`. */
+        host: HostState | null;
+        /** `fetch`, for the local HTTP functions and the upload pipeline. */
+        fetchImpl: typeof fetch | null;
+        /** The origins the local resource-URL builders need. */
+        config: ValuConfig;
+        /** WHICH application is calling. The host stamps it; params never do. */
+        applicationId: string | null;
+        /** The clock, when one was injected. */
+        now?: () => Date;
+        descriptor: ServiceDescriptor;
+        timeoutMs: number;
+        attempt: number;
+    }
+
     export type ServiceHandler = (
         params: Record<string, any>,
-        ctx: { socket: ValuSocket; descriptor: ServiceDescriptor; timeoutMs: number; attempt: number },
+        ctx: ServiceCallContext,
     ) => Promise<ValuAck>;
+
+    /** Fill a registry with every implemented function. */
+    export function registerAll(registry?: ServiceRegistry): ServiceRegistry;
 
     /** Where a declared function's implementation is registered. */
     export class ServiceRegistry {
@@ -432,4 +484,117 @@ declare module '@arkeytyp/valu-api' {
         policy: ResolvedPolicy,
         hooks?: { sleep?: (ms: number) => Promise<void>; random?: () => number },
     ): Promise<ValuAck>;
+}
+
+declare module '@arkeytyp/valu-api' {
+    // ---------------------------------------------------------------------
+    // The SDK surface added in Phase 2 — the parity matrix implemented.
+    // See docs/parity.md for the function-by-function table.
+    // ---------------------------------------------------------------------
+
+    /**
+     * The Valu Guru server's request/response channel — a DIFFERENT socket
+     * from `ValuSocket`, with a different envelope and different auth. Commerce
+     * and the RAG search ride it.
+     */
+    export interface ValuGuruSocket {
+        readonly networkId?: string;
+        /** Run a `valuguru.*` op and resolve its response data. */
+        request(op: string, params?: object, options?: { timeoutMs?: number }): Promise<any>;
+        /** Send a typed catalogue message (e.g. `{type: 'rag_search'}`). */
+        send?(message: object, options?: { timeoutMs?: number }): Promise<any>;
+    }
+
+    /** Wrap an AiGuruService-shaped object as a ValuGuruSocket. */
+    export function guruAdapter(service: {
+        request(op: string, params?: object, options?: object): Promise<any>;
+        send?(message: object, options?: object): Promise<any>;
+        networkId?: string;
+    }): ValuGuruSocket;
+    export function guruAck(call: () => Promise<any>, what: string): Promise<ValuAck>;
+    export function isGuruSocket(guru: unknown): boolean;
+
+    /**
+     * State only the host holds. The five `host-state` functions read it;
+     * without it they answer 501 naming the capability they wanted.
+     */
+    export interface HostState {
+        getChatHistory?(chatId: string | null): Promise<{ session: any; messages: any[] } | null>;
+        getAgentHistory?(agentId: string): Promise<{ agent: any; messages: any[] } | null>;
+        listDeveloperApplications?(): Promise<any[]>;
+        createDeveloperApplication?(manifest: {
+            name: string; description?: string; url?: string; icon?: string;
+        }): Promise<any>;
+        getAgentWallet?(agentId: string): Promise<{
+            identityName: string; iAddress: string; balance?: number | null; status?: string; error?: string;
+        } | null>;
+        /** Optional: decrypt a channel message body (browser key material). */
+        decryptMessage?(body: string, message: any): Promise<string>;
+    }
+
+    export function noHostStateAck(descriptor: ServiceDescriptor, capability: string): ValuAck;
+
+    /** The two origins the local resource-URL builders need. */
+    export interface ValuConfig {
+        webBase: string;
+        apiGate: string;
+    }
+    export function resolveConfig(overrides?: Partial<ValuConfig>): ValuConfig;
+
+    /** Anything that can name itself and produce bytes. */
+    export interface UploadableFile {
+        name: string;
+        type?: string;
+        contentType?: string;
+        bytes?: Uint8Array | ArrayBuffer;
+        arrayBuffer?(): Promise<ArrayBuffer>;
+    }
+
+    export const MAX_UPLOAD_BYTES: number;
+    export function uploadResource(options: {
+        socket: ValuSocket; file: UploadableFile; belonging: string;
+        networkId?: string; grantToken?: string; fetchImpl?: typeof fetch;
+    }): Promise<{ ok: true; resourceId: string; fileName: string } | { ok: false; fileName: string; detail: string }>;
+    export function uploadResources(options: {
+        socket: ValuSocket; files: UploadableFile[] | ArrayLike<UploadableFile>; belonging: string;
+        networkId?: string; grantToken?: string; fetchImpl?: typeof fetch;
+    }): Promise<{ resolved: Array<{ id: string; fileName: string }>; failed: Array<{ fileName: string; error: string }> }>;
+    export function createUploadSession(socket: ValuSocket, userId: string): Promise<string>;
+
+    // --- Phase 2d: the fifteen host-bound intents, as a named API -----------
+
+    export const FRAME_COMMANDS: readonly string[];
+    export const FRAME_COMMAND_KINDS: Record<'window' | 'picker' | 'navigate' | 'hostState', readonly string[]>;
+    export function frameCommandKind(key: string): string | undefined;
+
+    export class FrameCommands {
+        constructor(transport: Transport);
+        static descriptors(): ServiceDescriptor[];
+        get transport(): Transport;
+        run(name: string, params?: object): Promise<ValuAck>;
+
+        openApplication(applicationId: string): Promise<ValuAck>;
+        closeApplication(applicationId: string): Promise<ValuAck>;
+        hasApplication(applicationId: string): Promise<ValuAck<{ hasApplication: boolean }>>;
+        isApplicationLoaded(applicationId: string): Promise<ValuAck<{ loaded: boolean }>>;
+        getApplications(): Promise<ValuAck<{ applications: any[] }>>;
+        expandSelf(): Promise<ValuAck>;
+        closeSelf(): Promise<ValuAck>;
+        closeAll(): Promise<ValuAck>;
+
+        pickSingle(params?: {
+            providers?: string[]; title?: string; width?: number; height?: number;
+        }): Promise<ValuAck>;
+        pickMultiple(params?: {
+            providers?: string[]; title?: string; confirmLabel?: string; confirmIcon?: string;
+            width?: number; height?: number;
+        }): Promise<ValuAck>;
+
+        openCart(): Promise<ValuAck>;
+        openPurchases(): Promise<ValuAck>;
+        openProducts(): Promise<ValuAck>;
+
+        getIdentityToken(): Promise<ValuAck<{ token: string }>>;
+        getLogs(format?: string): Promise<ValuAck>;
+    }
 }

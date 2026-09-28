@@ -1,11 +1,19 @@
 # Callbacks policy
 
-**Status: frozen (Phase 1.4).** 84 functions are written against this. Changing
-any of it after Phase 2c starts means touching 84 call sites, so a change here
-is a version bump, not a patch.
+**Status: frozen (Phase 1.4), and Phase 2 was written against it unchanged.**
+All 77 implemented functions obey it. A change here is a version bump, not a
+patch.
 
 Implemented in `src/CallPolicy.js`; the conformance suite asserts every clause
 below against both adapters.
+
+**One clarification Phase 2 added, not a change.** A function's `channel`
+(docs/parity.md) says which thing serves it, and a transport that lacks that
+channel refuses the function with `501 UNSUPPORTED` — deliberately NOT one of
+the retriable codes. A socket that was never supplied cannot appear between
+attempts, and retrying it would buy three attempts and two backoffs for an
+answer that cannot improve. The Valu Guru channel's own timeouts and
+disconnections map onto `408` / `503` like any other, and retry normally.
 
 ## 1. The shape of an answer
 
@@ -78,8 +86,7 @@ a caller may override per call.
 
 ## 6. Subscriptions
 
-`subscribe(event, handler)` returns an unsubscribe function. Two events exist
-in Phase 1:
+`subscribe(event, handler)` returns an unsubscribe function. Two events exist:
 
 - `resource:updated` — the platform push, forwarded verbatim. Also drives cache
   invalidation.

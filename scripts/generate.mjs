@@ -13,6 +13,13 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import {
   HOST_BOUND, LOCAL, SERVER_TOOLS, SERVER_ONLY_TOOLS, mutates, defaultCache,
 } from './bindings.js';
+import {
+  VALUGURU_CHANNEL, HOST_STATE_CHANNEL, RETURNS, SERVER_ONLY_RECONCILIATION, KNOWN_DELTAS,
+} from './functions.js';
+// The registry the SDK actually loads. Importing it is what lets the parity
+// matrix report implementation status instead of asserting it.
+import { serviceRegistry } from '../src/services/registry.js';
+import '../src/services/impl/index.js';
 
 const root = new URL('../', import.meta.url);
 const check = process.argv.includes('--check');
@@ -24,6 +31,20 @@ const snapshot = JSON.parse(
 const hostBound = new Set(HOST_BOUND);
 const local = new Set(LOCAL);
 const serverTools = new Set(SERVER_TOOLS);
+const valuguru = new Set(VALUGURU_CHANNEL);
+const hostState = new Set(HOST_STATE_CHANNEL);
+
+/**
+ * WHICH socket (or none) serves a declared function. `binding` says the kind
+ * of thing that answers; `channel` says the thing itself — the distinction
+ * Phase 2 had to make before a handler could be written (scripts/functions.js).
+ */
+function channelFor(key, binding) {
+  if (binding !== 'socket') return binding;
+  if (valuguru.has(key)) return 'valuguru';
+  if (hostState.has(key)) return 'host-state';
+  return 'roomful';
+}
 
 const snake = (action) => action.replace(/-/g, '_');
 const camel = (action) => action.replace(/[-_](\w)/g, (_, c) => c.toUpperCase());
@@ -33,6 +54,7 @@ for (const service of snapshot.services) {
   for (const intent of service.intents) {
     const key = `${service.id}.${intent.action}`;
     const binding = hostBound.has(key) ? 'host' : local.has(key) ? 'local' : 'socket';
+    const channel = channelFor(key, binding);
     const isMutation = mutates(key, intent.action);
     descriptors.push({
       key,
@@ -52,9 +74,9 @@ for (const service of snapshot.services) {
       scopes: [`${service.id.toLowerCase()}:${isMutation ? 'write' : 'read'}`],
       binding,
       mutates: isMutation,
-      cache: defaultCache(key, binding, isMutation, intent.params),
-      // Filled in per function during Phase 2 (definition of done: "descriptor").
-      returns: { type: 'unknown', description: '' },
+      cache: defaultCache(key, binding, isMutation, intent.params, channel),
+      channel,
+      returns: RETURNS[key] ?? { type: 'unknown', description: '' },
       params: intent.params,
       implementedBy: serverTools.has(key) ? `service__${service.id}__${snake(intent.action)}` : null,
     });
@@ -75,8 +97,11 @@ const catalogJs = `${banner}
 /** @type {ServiceDescriptor[]} */
 export const SERVICE_DESCRIPTORS = ${JSON.stringify(descriptors, null, 2)};
 
-/** Server tools that implement no declared intent — Phase 2b decides their fate. */
+/** Server tools that implement no declared intent. */
 export const SERVER_ONLY_TOOLS = ${JSON.stringify(SERVER_ONLY_TOOLS, null, 2)};
+
+/** Phase 2b — what happens to each of them, and why (scripts/functions.js). */
+export const SERVER_ONLY_RECONCILIATION = ${JSON.stringify(SERVER_ONLY_RECONCILIATION, null, 2)};
 `;
 
 // --- types/valu-services.d.ts ----------------------------------------------
@@ -101,16 +126,29 @@ for (const d of descriptors) {
 let dts = `${banner}
 // Typed surface of every declared Valu service function.
 
-import type { ValuAck } from './valu-api';
+// The package's hand-written declarations are an AMBIENT module, so this
+// names the package rather than the file: both are in the same program
+// (\`npm run typecheck\`), and a relative import of an ambient module does not
+// resolve.
+import type { ValuAck } from '@arkeytyp/valu-api';
 
 export type ServiceBinding = 'socket' | 'local' | 'host';
 export type IntentAvailability = 'ai' | 'developer';
 
 `;
 
+/** The declared return shape, as TypeScript. `object` is an open record. */
+const returnType = (returns) => (returns?.type && returns.type !== 'unknown'
+  ? returns.type.replace(/\bobject\b/g, 'Record<string, any>')
+  : 'any');
+
+const resultName = (d) => `${d.service}${d.method[0].toUpperCase()}${d.method.slice(1)}Result`;
+
 for (const [service, fns] of byService) {
   for (const d of fns) {
     const all = [...d.params.required.map((p) => [p, true]), ...d.params.optional.map((p) => [p, false])];
+    dts += `${jsdoc('', [`${d.key} — ${d.returns.description || d.description}`])}\n`;
+    dts += `export type ${resultName(d)} = ${returnType(d.returns)};\n\n`;
     dts += `${jsdoc('', [`${d.key} — ${d.description}`])}\n`;
     dts += `export interface ${service}${d.method[0].toUpperCase()}${d.method.slice(1)}Params {\n`;
     for (const [p, required] of all) {
@@ -128,8 +166,8 @@ for (const [service, fns] of byService) {
     const hasParams = d.params.required.length + d.params.optional.length > 0;
     const required = d.params.required.length > 0;
     const paramsName = `${service}${d.method[0].toUpperCase()}${d.method.slice(1)}Params`;
-    dts += `${jsdoc('    ', [d.description, `@binding ${d.binding}`, `@scope ${d.scopes.join(' ')}`])}\n`;
-    dts += `    ${d.method}(${hasParams ? `params${required ? '' : '?'}: ${paramsName}` : ''}): Promise<ValuAck>;\n`;
+    dts += `${jsdoc('    ', [d.description, `@binding ${d.binding}`, `@channel ${d.channel}`, `@scope ${d.scopes.join(' ')}`])}\n`;
+    dts += `    ${d.method}(${hasParams ? `params${required ? '' : '?'}: ${paramsName}` : ''}): Promise<ValuAck<${resultName(d)}>>;\n`;
   }
   dts += `  };\n`;
 }
@@ -159,7 +197,8 @@ for (const [service, fns] of byService) {
   md += `## ${service}\n\n${fns[0].serviceDescription}\n\nSource: \`${fns[0].source}\`\n\n`;
   for (const d of fns) {
     md += `### \`${d.key}\`\n\n${d.description}\n\n`;
-    md += `- binding: \`${d.binding}\`${d.implementedBy ? ` · server tool: \`${d.implementedBy}\`` : ''}\n`;
+    md += `- binding: \`${d.binding}\` · channel: \`${d.channel}\`${d.implementedBy ? ` · server tool: \`${d.implementedBy}\`` : ''}\n`;
+    md += `- returns: \`${d.returns.type}\`${d.returns.description ? ` — ${d.returns.description}` : ''}\n`;
     md += `- scope: \`${d.scopes.join('`, `')}\` · ${d.mutates ? 'mutates state' : 'read-only'}\n`;
     md += `- cache: \`${d.cache.mode}\`${d.cache.mode !== 'none' ? ` (ttl ${d.cache.ttlMs}ms, key \`${d.cache.key ?? 'service'}\`)` : ''}\n`;
     md += `- availability: ${d.availability.length ? d.availability.map((a) => `\`${a}\``).join(', ') : '_none_'}\n\n`;
@@ -177,11 +216,104 @@ for (const [service, fns] of byService) {
   }
 }
 
+// --- docs/parity.md + docs/parity-matrix.csv --------------------------------
+// THE PARITY MATRIX, generated rather than maintained. The plan shipped it as
+// a spreadsheet; a spreadsheet cannot notice that a function was implemented,
+// so this is built from the catalogue AND from the registry — `npm run
+// check:generated` fails when the two drift, which is the only way a parity
+// table stays true after the week it was written.
+const implemented = new Set(serviceRegistry.implemented());
+
+const STATUS = (d) => {
+  if (d.binding === 'host') return 'frame command';
+  return implemented.has(d.key) ? 'implemented' : 'declared only';
+};
+
+const byChannel = descriptors.reduce((acc, d) => ({ ...acc, [d.channel]: (acc[d.channel] ?? 0) + 1 }), {});
+const implementedCount = descriptors.filter((d) => implemented.has(d.key)).length;
+
+let parity = `<!-- GENERATED by scripts/generate.mjs. Do not edit: run \`npm run build\`. -->
+# Parity matrix
+
+Every declared function, what serves it, and whether this package implements
+it. Generated from the catalogue and from the registry the SDK actually loads,
+so a function listed \`implemented\` here has a handler — the two cannot drift
+without \`npm run check:generated\` failing.
+
+| | count |
+|---|---|
+| declared service intents | **${descriptors.length}** |
+| SDK-able (socket + local) | **${descriptors.length - counts.host}** |
+| implemented in this package | **${implementedCount}** |
+| frame commands (host-bound) | **${counts.host}** |
+| server tools with no declared intent | **${SERVER_ONLY_TOOLS.length}** |
+
+## Channels
+
+\`binding\` says the KIND of thing that answers; \`channel\` says which one.
+Phase 2 added the second column: "socket" turned out to be three different
+things, and a function written for the wrong one fails in a way the ack
+envelope cannot explain.
+
+| channel | count | what serves it |
+|---|---|---|
+| \`roomful\` | ${byChannel.roomful ?? 0} | the Roomful platform socket — \`ValuSocket.emit(ns, payload)\` |
+| \`valuguru\` | ${byChannel.valuguru ?? 0} | the Valu Guru server's \`data_request\` channel — \`valuguru.*\` ops |
+| \`host-state\` | ${byChannel['host-state'] ?? 0} | no RPC exists; the answer is in the host's memory |
+| \`local\` | ${byChannel.local ?? 0} | computed by the SDK |
+| \`host\` | ${byChannel.host ?? 0} | the frame bridge (\`src/frame/FrameCommands.js\`) |
+
+## Functions
+
+| service | function | binding | channel | mutates | cache | server tool | status |
+|---|---|---|---|---|---|---|---|
+`;
+for (const d of descriptors) {
+  parity += `| ${d.service} | \`${d.action}\` | ${d.binding} | \`${d.channel}\` | ${d.mutates ? 'write' : 'read'} `
+    + `| \`${d.cache.mode}\` | ${d.implementedBy ? `\`${d.implementedBy}\`` : '—'} | ${STATUS(d)} |\n`;
+}
+
+parity += `
+## Server-only tools — the Phase 2b decisions
+
+${SERVER_ONLY_TOOLS.length} tools in valu-guru-server implement no declared intent. Each one is
+resolved below rather than left as a gap.
+
+`;
+for (const entry of SERVER_ONLY_RECONCILIATION) {
+  parity += `### \`${entry.tool}\` — ${entry.disposition}\n\n${entry.decision}\n\n`;
+  if (entry.declared.length) {
+    parity += `Declared equivalent: ${entry.declared.map((k) => `\`${k}\``).join(', ')}.\n\n`;
+  }
+}
+
+parity += `## Known behaviour deltas
+
+Parity is not identical behaviour. These are the places this package knowingly
+differs from the app, each one a decision rather than an oversight.
+
+`;
+for (const entry of KNOWN_DELTAS) {
+  parity += `### \`${entry.key}\`\n\n${entry.delta}\n\n`;
+}
+
+// The same table as data, for anything that would rather diff than read.
+let csv = 'service,function,binding,channel,mutates,cache,scopes,server_tool,status,returns\n';
+for (const d of descriptors) {
+  const cell = (v) => `"${String(v).replace(/"/g, '""')}"`;
+  csv += [
+    d.service, d.action, d.binding, d.channel, d.mutates ? 'write' : 'read', d.cache.mode,
+    d.scopes.join(' '), d.implementedBy ?? '', STATUS(d), d.returns.type,
+  ].map(cell).join(',') + '\n';
+}
+
 // --- write or check --------------------------------------------------------
 const outputs = [
   ['src/services/catalog.generated.js', catalogJs],
   ['types/valu-services.d.ts', dts],
   ['docs/services.md', md],
+  ['docs/parity.md', parity],
+  ['docs/parity-matrix.csv', csv],
 ];
 
 let stale = 0;

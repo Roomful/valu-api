@@ -27,9 +27,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The application was closed."
     },
     "params": {
       "required": [
@@ -64,13 +65,12 @@ export const SERVICE_DESCRIPTORS = [
     "binding": "socket",
     "mutates": false,
     "cache": {
-      "mode": "read-through",
-      "ttlMs": 30000,
-      "key": "agentId"
+      "mode": "none"
     },
+    "channel": "host-state",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{agent: object, messages: object[]}",
+      "description": "The agent header and its in-memory messages."
     },
     "params": {
       "required": [
@@ -105,9 +105,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{applications: object[]}",
+      "description": "Applications the dock can open."
     },
     "params": {
       "required": [],
@@ -136,13 +137,12 @@ export const SERVICE_DESCRIPTORS = [
     "binding": "socket",
     "mutates": false,
     "cache": {
-      "mode": "read-through",
-      "ttlMs": 30000,
-      "key": null
+      "mode": "none"
     },
+    "channel": "host-state",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{session: object, messages: object[]}",
+      "description": "The session header and its in-memory messages."
     },
     "params": {
       "required": [],
@@ -177,9 +177,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{hasApplication: boolean}",
+      "description": "Whether the dock knows this application."
     },
     "params": {
       "required": [
@@ -214,9 +215,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{loaded: boolean}",
+      "description": "Whether the application is loaded in the dock."
     },
     "params": {
       "required": [
@@ -251,9 +253,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The application was opened."
     },
     "params": {
       "required": [
@@ -292,9 +295,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "valuguru",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{toolName: string, result: string}",
+      "description": "The RAG tool that answered and its raw result text."
     },
     "params": {
       "required": [
@@ -342,9 +346,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "Every open application was closed."
     },
     "params": {
       "required": [],
@@ -375,9 +380,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The calling application was closed."
     },
     "params": {
       "required": [],
@@ -408,9 +414,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The calling application was expanded."
     },
     "params": {
       "required": [],
@@ -441,9 +448,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{token: string}",
+      "description": "A short-lived identity token for the calling application."
     },
     "params": {
       "required": [],
@@ -474,9 +482,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The resource was deleted."
     },
     "params": {
       "required": [
@@ -515,9 +524,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{resources: object[], hasMore: boolean, cursor: string}",
+      "description": "A page of the application's stored resources."
     },
     "params": {
       "required": [],
@@ -564,9 +574,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{resolved: object[], failed: object[]}",
+      "description": "Resources created in the application's own storage, and the files that failed."
     },
     "params": {
       "required": [
@@ -603,9 +614,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{policy: object}",
+      "description": "The policy that was created."
     },
     "params": {
       "required": [
@@ -667,9 +679,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The policy was deleted."
     },
     "params": {
       "required": [
@@ -724,9 +737,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{badges: object[]}",
+      "description": "Badges visible to the caller, network-scoped and global."
     },
     "params": {
       "required": [],
@@ -759,9 +773,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{policies: object[]}",
+      "description": "Every badge policy on the target entity."
     },
     "params": {
       "required": [
@@ -811,9 +826,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "badgeId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{users: object[], total: number}",
+      "description": "A page of badge holders; total is the full match count."
     },
     "params": {
       "required": [
@@ -866,9 +882,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The resource was deleted, or detached from the prop/post that held it."
     },
     "params": {
       "required": [
@@ -934,9 +951,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "roomId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{resources: object[], hasMore: boolean, cursor: string}",
+      "description": "A page of resources in the addressed scope."
     },
     "params": {
       "required": [],
@@ -1013,9 +1031,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{resolved: object[], failed: object[], placed?: string}",
+      "description": "Resources created, and where they were placed (prop or post) when a scope was given."
     },
     "params": {
       "required": [
@@ -1084,9 +1103,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "valuguru",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{items: object[]}",
+      "description": "The cart after the addition."
     },
     "params": {
       "required": [
@@ -1132,9 +1152,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "valuguru",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{entitlements: object[]}",
+      "description": "What the buyer owns of the products asked about."
     },
     "params": {
       "required": [
@@ -1172,9 +1193,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "valuguru",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{product: object}",
+      "description": "The DRAFT product that was created. Publishing stays with the seller."
     },
     "params": {
       "required": [],
@@ -1258,9 +1280,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "valuguru",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{items: object[], count: number}",
+      "description": "The whole cart; count excludes saved-for-later rows."
     },
     "params": {
       "required": [],
@@ -1293,9 +1316,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "productId"
     },
+    "channel": "valuguru",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{product: object, items: object[]}",
+      "description": "One of the seller's products with its content tree."
     },
     "params": {
       "required": [
@@ -1335,9 +1359,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "productId"
     },
+    "channel": "valuguru",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{product: object}",
+      "description": "One catalogue product."
     },
     "params": {
       "required": [
@@ -1377,9 +1402,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "valuguru",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{categories: object[]}",
+      "description": "The platform category list."
     },
     "params": {
       "required": [],
@@ -1412,9 +1438,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "valuguru",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{hasStore: boolean, products: object[]}",
+      "description": "The seller's own catalogue, drafts included."
     },
     "params": {
       "required": [],
@@ -1465,9 +1492,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "valuguru",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{products: object[], total: number}",
+      "description": "The buyer-facing catalogue page for the calling application."
     },
     "params": {
       "required": [],
@@ -1541,9 +1569,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The cart surface was opened."
     },
     "params": {
       "required": [],
@@ -1574,9 +1603,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The merchant console was opened."
     },
     "params": {
       "required": [],
@@ -1607,9 +1637,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The purchases surface was opened."
     },
     "params": {
       "required": [],
@@ -1640,9 +1671,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "valuguru",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{product: object}",
+      "description": "The updated draft."
     },
     "params": {
       "required": [
@@ -1737,9 +1769,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "communityId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{communityId: string, channels: object[]}",
+      "description": "The community's channels, each stamped with rootChannelId."
     },
     "params": {
       "required": [
@@ -1785,9 +1818,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "communityId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{community: object}",
+      "description": "The community record; subscribes the caller as a side effect."
     },
     "params": {
       "required": [
@@ -1827,9 +1861,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "communityId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{rootChannelId: string, messages: object[]}",
+      "description": "A page of channel posts with engagement counts."
     },
     "params": {
       "required": [
@@ -1890,9 +1925,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{communities: object[]}",
+      "description": "Open communities matching the query."
     },
     "params": {
       "required": [],
@@ -1940,9 +1976,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{picked: object[]}",
+      "description": "What the user chose; empty when they cancelled."
     },
     "params": {
       "required": [
@@ -2006,9 +2043,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{picked: object|null}",
+      "description": "What the user chose, or null when they cancelled."
     },
     "params": {
       "required": [
@@ -2062,9 +2100,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host-state",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{appId: string, devId: string, name: string, slug: string, url: string}",
+      "description": "The application that was registered in the Developer Portal."
     },
     "params": {
       "required": [
@@ -2116,13 +2155,12 @@ export const SERVICE_DESCRIPTORS = [
     "binding": "socket",
     "mutates": false,
     "cache": {
-      "mode": "read-through",
-      "ttlMs": 30000,
-      "key": null
+      "mode": "none"
     },
+    "channel": "host-state",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{applications: object[]}",
+      "description": "The caller's own Developer Portal applications."
     },
     "params": {
       "required": [],
@@ -2154,9 +2192,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{meetingId: string, meeting: object}",
+      "description": "The meeting (or recurring series) that was created."
     },
     "params": {
       "required": [
@@ -2250,9 +2289,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{meetingId: string, meeting: object}",
+      "description": "The meeting after the update."
     },
     "params": {
       "required": [
@@ -2323,9 +2363,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "id"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{events: object[]}",
+      "description": "Meeting occurrences in the computed window, earliest first."
     },
     "params": {
       "required": [],
@@ -2380,9 +2421,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{groups: object[], hasMore: boolean, cursor: string}",
+      "description": "Groups the caller's badges let them join; joined ones are flagged."
     },
     "params": {
       "required": [],
@@ -2430,9 +2472,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The caller joined the group."
     },
     "params": {
       "required": [
@@ -2472,9 +2515,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "groupId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{participants: object[], hasMore: boolean, cursor: string}",
+      "description": "A page of a group's members."
     },
     "params": {
       "required": [
@@ -2530,9 +2574,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{groups: object[], hasMore: boolean, cursor: string}",
+      "description": "A page of the caller's own groups."
     },
     "params": {
       "required": [],
@@ -2579,9 +2624,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "local",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{ok: boolean, status: number, statusText: string, headers: object, body: any, bodyType: string, latency: number}",
+      "description": "The response, with the body parsed per responseType."
     },
     "params": {
       "required": [
@@ -2634,9 +2680,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "local",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{up: boolean, latency: number, status: number}",
+      "description": "Reachability of the URL, by HEAD."
     },
     "params": {
       "required": [
@@ -2679,9 +2726,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "local",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{ok: boolean, status: number, statusText: string, headers: object, body: any, bodyType: string, latency: number}",
+      "description": "The response, with the body parsed per responseType."
     },
     "params": {
       "required": [
@@ -2744,9 +2792,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "host",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{logs: string|object[]}",
+      "description": "The host's captured log buffer, in the requested format."
     },
     "params": {
       "required": [],
@@ -2786,9 +2835,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 300000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{networkId: string, name: string|null}",
+      "description": "The active network id and its human-readable name."
     },
     "params": {
       "required": [],
@@ -2822,9 +2872,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "userId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{badges: object[]}",
+      "description": "Badges assigned to the user in the requested network scope."
     },
     "params": {
       "required": [
@@ -2870,9 +2921,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "userId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{credentials: object[]}",
+      "description": "Verus credentials published on the user's profile."
     },
     "params": {
       "required": [
@@ -2916,9 +2968,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "local",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{url: string}",
+      "description": "The web-app \"best view\" URL."
     },
     "params": {
       "required": [
@@ -2956,9 +3009,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "local",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{url: string}",
+      "description": "The API URL that serves the raw bytes."
     },
     "params": {
       "required": [
@@ -2996,9 +3050,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "local",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{url: string}",
+      "description": "The web-app preview page URL."
     },
     "params": {
       "required": [
@@ -3035,9 +3090,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "local",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{url: string}",
+      "description": "The public downscaled URL for the resource."
     },
     "params": {
       "required": [
@@ -3083,9 +3139,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{avatars: object[]}",
+      "description": "Network-allowed bot avatars ({id, name, tags})."
     },
     "params": {
       "required": [],
@@ -3123,9 +3180,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{roomId: string, name: string, networkId: string, price: number, isFree: boolean, paymentRequired: boolean}",
+      "description": "The new room; paymentRequired says a paid template still has to be settled."
     },
     "params": {
       "required": [
@@ -3174,9 +3232,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The invitation was revoked."
     },
     "params": {
       "required": [
@@ -3226,9 +3285,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "roomId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{permissions: object}",
+      "description": "The caller's permission set for the room."
     },
     "params": {
       "required": [
@@ -3268,9 +3328,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "roomId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{prop: object|null, propOrder: object}",
+      "description": "One prop, read from the same ordered list."
     },
     "params": {
       "required": [
@@ -3320,9 +3381,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "roomId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{room: object}",
+      "description": "The room's basic model."
     },
     "params": {
       "required": [
@@ -3368,9 +3430,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "roomId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{roomId: string, networkId: string, propOrder: object, groupIds: string[], groups: object[]}",
+      "description": "Props grouped by their whole tag set, in navigation order."
     },
     "params": {
       "required": [
@@ -3416,9 +3479,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "roomId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{props: object[], propOrder: object}",
+      "description": "The room's props in navigation order, and where that order came from."
     },
     "params": {
       "required": [
@@ -3462,9 +3526,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{invitation: object|null}",
+      "description": "The invitation that was created."
     },
     "params": {
       "required": [
@@ -3525,9 +3590,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "roomId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{invitations: object[]}",
+      "description": "The prop's invitations."
     },
     "params": {
       "required": [
@@ -3572,9 +3638,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{templates: object[], hasMore: boolean, filteredOutCount: number}",
+      "description": "AI-approved room templates, with the group count each declares."
     },
     "params": {
       "required": [],
@@ -3627,9 +3694,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{roomId: string, propId: string, name: string, addedResourceIds: string[], failed: object[], removedTemplateStubs: string[], skippedAlreadyPresent: string[], sliderEnabled: boolean}",
+      "description": "What landed on the prop, and what it cost to put it there."
     },
     "params": {
       "required": [
@@ -3693,9 +3761,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{roomId: string, groupIds: string[], distribution: string, placements: object[], unplacedResourceIds: string[], eligiblePropCount: number, skippedProps: object[]}",
+      "description": "One placement per prop that took content, plus what was turned away."
     },
     "params": {
       "required": [
@@ -3764,9 +3833,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{roomId: string, groupId: string, name: string, hasLabels: boolean, renamedLabelPropIds: string[], failed: object[]}",
+      "description": "The section signs that were retitled."
     },
     "params": {
       "required": [
@@ -3822,9 +3892,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{rooms: object[]}",
+      "description": "Rooms the caller belongs to, or their invitations."
     },
     "params": {
       "required": [
@@ -3880,9 +3951,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{rooms: object[]}",
+      "description": "Public/discoverable rooms in the network."
     },
     "params": {
       "required": [],
@@ -3931,9 +4003,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "channelId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{channelId: string, messages: object[], hasPrevious: boolean, hasNext: boolean}",
+      "description": "A page of a channel's messages."
     },
     "params": {
       "required": [
@@ -3986,9 +4059,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{channelId: string, messageId: string, createdAt: string}",
+      "description": "The message that was posted into the owner's agent channel, authored by the agent."
     },
     "params": {
       "required": [
@@ -4046,9 +4120,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{channelId: string, messageId: string, createdAt: string}",
+      "description": "The message that was posted, authored by the current user."
     },
     "params": {
       "required": [
@@ -4106,9 +4181,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "local",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{iso: string, utcIso: string, timezone: string, offsetMinutes: number, dayOfWeek: string, localDate: string, localTime: string, locale: string}",
+      "description": "The caller's local clock, one instant in several forms."
     },
     "params": {
       "required": [],
@@ -4140,9 +4216,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The request was accepted."
     },
     "params": {
       "required": [
@@ -4180,9 +4257,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The outgoing request was cancelled."
     },
     "params": {
       "required": [
@@ -4222,9 +4300,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 300000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{user: object}",
+      "description": "The authenticated user."
     },
     "params": {
       "required": [],
@@ -4256,9 +4335,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The request was declined."
     },
     "params": {
       "required": [
@@ -4298,9 +4378,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{users: object[]}",
+      "description": "Suggested people across the network."
     },
     "params": {
       "required": [],
@@ -4350,9 +4431,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": "userId"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{user: object}",
+      "description": "One user's basic profile."
     },
     "params": {
       "required": [
@@ -4392,9 +4474,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 30000,
       "key": null
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{users: object[]}",
+      "description": "Matches WITHIN the caller's own connections."
     },
     "params": {
       "required": [
@@ -4448,9 +4531,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "void",
+      "description": "The request was sent."
     },
     "params": {
       "required": [
@@ -4490,9 +4574,10 @@ export const SERVICE_DESCRIPTORS = [
       "ttlMs": 15000,
       "key": "currency"
     },
+    "channel": "host-state",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{identityName: string, iAddress: string, balance: number|null}",
+      "description": "The agent wallet's last known balance. Read from host state, never the network."
     },
     "params": {
       "required": [
@@ -4530,9 +4615,10 @@ export const SERVICE_DESCRIPTORS = [
     "cache": {
       "mode": "none"
     },
+    "channel": "roomful",
     "returns": {
-      "type": "unknown",
-      "description": ""
+      "type": "{txid: string}",
+      "description": "The transaction that moved the funds."
     },
     "params": {
       "required": [
@@ -4569,7 +4655,7 @@ export const SERVICE_DESCRIPTORS = [
   }
 ];
 
-/** Server tools that implement no declared intent — Phase 2b decides their fate. */
+/** Server tools that implement no declared intent. */
 export const SERVER_ONLY_TOOLS = [
   "service__Torah__corpora",
   "service__Torah__search",
@@ -4578,4 +4664,56 @@ export const SERVER_ONLY_TOOLS = [
   "service__TextChat__message_user",
   "service__TextChat__send_card",
   "service__system__get_user_timezone"
+];
+
+/** Phase 2b — what happens to each of them, and why (scripts/functions.js). */
+export const SERVER_ONLY_RECONCILIATION = [
+  {
+    "tool": "service__Http__curl",
+    "disposition": "binding",
+    "declared": [
+      "Http.get",
+      "Http.post",
+      "Http.ping"
+    ],
+    "decision": "A curl command line is an INPUT FORMAT, not a capability: http.ts parses it (curl-parse.ts) and then performs exactly what Http.get / Http.post / Http.ping already declare — `curl -I` IS the ping. It stays a server-side binding that parses the command and calls the declared function; the SDK gains nothing by declaring a fourth way to say GET."
+  },
+  {
+    "tool": "service__system__get_user_timezone",
+    "disposition": "declared",
+    "declared": [
+      "Time.get-local-time"
+    ],
+    "decision": "Both answer the same question — what time is it where the user is. They differ only in who knows: in the browser the caller IS the user, so Time.get-local-time reads the local clock; headless it is a different user, so system.ts asks `user:getTimezone`. Time.get-local-time is canonical, and the SDK serves it from the host clock by default and from `user:getTimezone` when the caller asks about somebody else. The server tool becomes an alias."
+  },
+  {
+    "tool": "service__TextChat__message_user",
+    "disposition": "internal",
+    "declared": [],
+    "decision": "AGENT-AUTHORED, and that is the whole difference. TextChat.send-message posts as the current USER; message_user resolves (or spawns) the agent's own thread off a direct channel and posts as the AGENT. Only a runtime that HAS an agent identity can call it — an embedded third-party app has none — so declaring it would put a function in the manifest that no manifest caller can satisfy. Stays server-only until an agent identity is part of the SDK context."
+  },
+  {
+    "tool": "service__TextChat__send_card",
+    "disposition": "internal",
+    "declared": [],
+    "decision": "Agent-authored, for the same reason as message_user, and additionally server-resolved (meeting occurrences are looked up backend-side). Stays server-only."
+  },
+  {
+    "tool": "service__Torah__corpora",
+    "disposition": "internal",
+    "declared": [],
+    "decision": "A corpus-specific retrieval index that lives in the Valu Guru server and has no platform surface: no manifest entry, no browser path, no socket RPC. Declaring it would make the platform catalogue carry one deployment's content. Stays server-only."
+  },
+  {
+    "tool": "service__Torah__search",
+    "disposition": "internal",
+    "declared": [],
+    "decision": "Same index as Torah.corpora, same reason. Stays server-only."
+  },
+  {
+    "tool": "service__generate_image",
+    "disposition": "internal",
+    "declared": [],
+    "decision": "Image generation is a MODEL capability, not a platform service: it needs the server's provider credentials, and its result is written into the caller's CMS session folder. A declared intent would hand a third-party app the server's inference budget. Stays server-only."
+  }
 ];

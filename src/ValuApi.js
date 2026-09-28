@@ -5,6 +5,7 @@ import {Intent} from "./Intent.js";
 import {PostMessageTransport} from "./transport/PostMessageTransport.js";
 import {Transport} from "./transport/Transport.js";
 import {ServiceClient} from "./services/ServiceClient.js";
+import {FrameCommands} from "./frame/FrameCommands.js";
 
 export { ValuApplication } from "./ValuApplication.js";
 export { Intent } from "./Intent.js";
@@ -35,6 +36,21 @@ export {
   DEFAULT_TIMEOUT_MS, DEFAULT_POLICY, forDescriptor, runWithPolicy, isRetriable, backoffFor,
 } from "./CallPolicy.js";
 
+// The SDK surface added in Phase 2 — the parity matrix implemented.
+//
+// Importing `./services/impl/index.js` REGISTERS the 77 SDK-able functions
+// into the default registry, which is what a SocketTransport uses unless it is
+// given its own. It is imported for that effect, not for its exports.
+import "./services/impl/index.js";
+export { registerAll } from "./services/impl/index.js";
+export { FrameCommands, FRAME_COMMANDS, FRAME_COMMAND_KINDS, frameCommandKind } from "./frame/FrameCommands.js";
+export { guruAdapter, guruAck, isGuruSocket } from "./socket/ValuGuruSocket.js";
+export { noHostStateAck } from "./host/HostState.js";
+export { resolveConfig } from "./Config.js";
+export {
+  uploadResource, uploadResources, createUploadSession, MAX_UPLOAD_BYTES,
+} from "./upload/ResourceUpload.js";
+
 
 /**
  * Allows to invoke functions of a registered Valu application and subscribe to its events.
@@ -51,6 +67,7 @@ export class ValuApi {
   #transport;
   #lastIntent;
   #services;
+  #frame;
 
   /** @type ValuApplication */
   #applicationInstance = null;
@@ -80,6 +97,18 @@ export class ValuApi {
   get services() {
     if (!this.#services) this.#services = new ServiceClient({ transport: this.#transport });
     return this.#services;
+  }
+
+  /**
+   * The fifteen host-bound intents, as a named API — Phase 2d.
+   *
+   * They are not service functions and `services` answers all fifteen with the
+   * same 501. This is where they live: same bridge traffic, a method each.
+   * @returns {FrameCommands}
+   */
+  get frame() {
+    if (!this.#frame) this.#frame = new FrameCommands(this.#transport);
+    return this.#frame;
   }
 
   /**

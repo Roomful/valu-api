@@ -189,12 +189,28 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: a declared but unimplemented function says so`, async () => {
+    // This registry holds two handlers on purpose, so every other declared
+    // function is unimplemented in it. Phase 2 filled the DEFAULT registry;
+    // the answer for an empty slot still has to name itself.
     const { client } = setup();
 
-    const ack = await client.call('Commerce.list-products', {});
+    const ack = await client.call('Rooms.get-room', { roomId: 'r-1' });
 
     assert.equal(ack.error.code, ERROR_CODES.UNSUPPORTED);
     assert.match(ack.error.message, /no implementation registered/);
+  });
+
+  test(`${name}: a valuguru function with no Valu Guru socket is 503, not a Roomful call`, async () => {
+    // The Phase 2 finding, asserted: "socket" is three channels, and asking
+    // the wrong one is refused by name rather than failing somewhere deeper.
+    const { client, responder } = setup();
+
+    const ack = await client.call('Commerce.list-products', {});
+
+    assert.equal(ack.error.code, ERROR_CODES.UNSUPPORTED,
+      'not retriable — a missing socket cannot appear between attempts');
+    assert.match(ack.error.message, /Valu Guru socket/);
+    assert.equal(responder.calls.length, 0, 'the Roomful socket was never asked');
   });
 
   test(`${name}: a read is served from cache, a write bypasses and invalidates it`, async () => {

@@ -145,7 +145,90 @@ test('the registry refuses what is not declared, and what is host-bound', () => 
   assert.ok(registry.has('service__Users__get'), 'any name form resolves to the same registration');
 });
 
-test('Phase 1 registers no implementations — that is Phase 2', async () => {
-  const { serviceRegistry } = await import('../src/services/registry.js');
-  assert.deepEqual(serviceRegistry.implemented(), []);
+// ---------------------------------------------------------------------------
+// Phase 2 — the parity matrix implemented.
+// ---------------------------------------------------------------------------
+
+test('every SDK-able function is implemented, and no host one is', async () => {
+  const { serviceRegistry } = await import('../src/services/impl/index.js');
+  const implemented = new Set(serviceRegistry.implemented());
+
+  const sdkable = SERVICE_DESCRIPTORS.filter((d) => d.binding !== 'host');
+  assert.equal(sdkable.length, 77, 'the parity target: 69 socket + 8 local');
+
+  const missing = sdkable.map((d) => d.key).filter((key) => !implemented.has(key));
+  assert.deepEqual(missing, [], 'Phase 2 is not done while one of these is unimplemented');
+
+  for (const d of listDescriptors({ binding: 'host' })) {
+    assert.equal(implemented.has(d.key), false, `${d.key} is a frame command, not a service function`);
+  }
+  assert.equal(implemented.size, 77);
+});
+
+test('the channel says WHICH socket, and every socket function has one', () => {
+  const counts = { roomful: 0, valuguru: 0, 'host-state': 0, local: 0, host: 0 };
+  for (const d of SERVICE_DESCRIPTORS) {
+    assert.ok(d.channel in counts, `${d.key} has channel "${d.channel}"`);
+    counts[d.channel]++;
+    // A `local` or `host` function's channel restates its binding; only a
+    // socket one adds anything, and it must add something.
+    if (d.binding !== 'socket') assert.equal(d.channel, d.binding, d.key);
+    else assert.notEqual(d.channel, 'socket', `${d.key} must say which socket`);
+  }
+  assert.deepEqual(counts, { roomful: 53, valuguru: 11, 'host-state': 5, local: 8, host: 15 });
+  assert.equal(counts.roomful + counts.valuguru + counts['host-state'], 69, 'still 69 socket-bound');
+});
+
+test('Commerce rides the Valu Guru socket, not the Roomful one', () => {
+  // The finding that made `channel` necessary: ten Commerce intents and the
+  // RAG search are `valuguru.*` ops over a different socket entirely.
+  for (const d of listDescriptors({ service: 'Commerce', binding: 'socket' })) {
+    assert.equal(d.channel, 'valuguru', d.key);
+  }
+  assert.equal(findDescriptor('AiGuru.query-knowledge-base').channel, 'valuguru');
+  assert.equal(findDescriptor('Users.get').channel, 'roomful');
+});
+
+test('host-state functions are never cached — except the one that is only a cache', () => {
+  for (const d of SERVICE_DESCRIPTORS.filter((d) => d.channel === 'host-state')) {
+    if (d.key === 'VerusWallet.get-balance') {
+      assert.equal(d.cache.mode, 'seeded');
+      continue;
+    }
+    assert.equal(d.cache.mode, 'none', `${d.key} is already in memory; caching it only adds staleness`);
+  }
+});
+
+test('every function declares what it returns', () => {
+  for (const d of SERVICE_DESCRIPTORS) {
+    assert.notEqual(d.returns.type, 'unknown', `${d.key} has no declared return shape`);
+    assert.ok(d.returns.description.length > 0, `${d.key} does not say what it returns`);
+  }
+});
+
+test('the 7 server-only tools are each resolved, not left as a gap', async () => {
+  const { SERVER_ONLY_RECONCILIATION } = await import('../src/services/catalog.generated.js');
+  assert.equal(SERVER_ONLY_RECONCILIATION.length, SERVER_ONLY_TOOLS.length);
+
+  const tools = new Set(SERVER_ONLY_TOOLS);
+  for (const entry of SERVER_ONLY_RECONCILIATION) {
+    assert.ok(tools.has(entry.tool), `${entry.tool} is not a server-only tool`);
+    assert.ok(['binding', 'declared', 'internal'].includes(entry.disposition), entry.tool);
+    assert.ok(entry.decision.length > 40, `${entry.tool} has no stated reason`);
+    // A disposition that points at declared functions must point at real ones.
+    for (const key of entry.declared) {
+      assert.ok(findDescriptor(key), `${entry.tool} names ${key}, which is not declared`);
+    }
+    if (entry.disposition === 'internal') assert.deepEqual(entry.declared, []);
+    else assert.ok(entry.declared.length > 0, `${entry.tool} is ${entry.disposition} but names nothing`);
+  }
+});
+
+test('every known behaviour delta names a real function', async () => {
+  const { KNOWN_DELTAS } = await import('../scripts/functions.js');
+  assert.ok(KNOWN_DELTAS.length > 0);
+  for (const entry of KNOWN_DELTAS) {
+    assert.ok(findDescriptor(entry.key), `${entry.key} is not a declared function`);
+    assert.ok(entry.delta.length > 60, `${entry.key} does not say what differs`);
+  }
 });

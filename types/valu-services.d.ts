@@ -4,10 +4,19 @@
 
 // Typed surface of every declared Valu service function.
 
-import type { ValuAck } from './valu-api';
+// The package's hand-written declarations are an AMBIENT module, so this
+// names the package rather than the file: both are in the same program
+// (`npm run typecheck`), and a relative import of an ambient module does not
+// resolve.
+import type { ValuAck } from '@arkeytyp/valu-api';
 
 export type ServiceBinding = 'socket' | 'local' | 'host';
 export type IntentAvailability = 'ai' | 'developer';
+
+/**
+ * AiGuru.close — The application was closed.
+ */
+export type AiGuruCloseResult = void;
 
 /**
  * AiGuru.close — Closes (unloads) an application by its ID from the dock.
@@ -20,6 +29,11 @@ export interface AiGuruCloseParams {
 }
 
 /**
+ * AiGuru.get-agent-history — The agent header and its in-memory messages.
+ */
+export type AiGuruGetAgentHistoryResult = {agent: Record<string, any>, messages: Record<string, any>[]};
+
+/**
  * AiGuru.get-agent-history — Returns the in-memory message history for a background agent.
  */
 export interface AiGuruGetAgentHistoryParams {
@@ -30,10 +44,20 @@ export interface AiGuruGetAgentHistoryParams {
 }
 
 /**
+ * AiGuru.get-applications — Applications the dock can open.
+ */
+export type AiGuruGetApplicationsResult = {applications: Record<string, any>[]};
+
+/**
  * AiGuru.get-applications — Returns a list of all registered applications with their id, slug, icon, and title.
  */
 export interface AiGuruGetApplicationsParams {
 }
+
+/**
+ * AiGuru.get-chat-history — The session header and its in-memory messages.
+ */
+export type AiGuruGetChatHistoryResult = {session: Record<string, any>, messages: Record<string, any>[]};
 
 /**
  * AiGuru.get-chat-history — Returns the in-memory message history for a chat session. Omit chatId to get the currently active session.
@@ -46,6 +70,11 @@ export interface AiGuruGetChatHistoryParams {
 }
 
 /**
+ * AiGuru.has-application — Whether the dock knows this application.
+ */
+export type AiGuruHasApplicationResult = {hasApplication: boolean};
+
+/**
  * AiGuru.has-application — Checks whether an application with the given ID exists in the registry.
  */
 export interface AiGuruHasApplicationParams {
@@ -54,6 +83,11 @@ export interface AiGuruHasApplicationParams {
    */
   applicationId: string;
 }
+
+/**
+ * AiGuru.is-application-loaded — Whether the application is loaded in the dock.
+ */
+export type AiGuruIsApplicationLoadedResult = {loaded: boolean};
 
 /**
  * AiGuru.is-application-loaded — Checks whether an application with the given ID is currently loaded (open) in the dock.
@@ -66,6 +100,11 @@ export interface AiGuruIsApplicationLoadedParams {
 }
 
 /**
+ * AiGuru.open — The application was opened.
+ */
+export type AiGuruOpenResult = void;
+
+/**
  * AiGuru.open — Opens (loads) an application by its ID into the dock.
  */
 export interface AiGuruOpenParams {
@@ -74,6 +113,11 @@ export interface AiGuruOpenParams {
    */
   applicationId: string;
 }
+
+/**
+ * AiGuru.query-knowledge-base — The RAG tool that answered and its raw result text.
+ */
+export type AiGuruQueryKnowledgeBaseResult = {toolName: string, result: string};
 
 /**
  * AiGuru.query-knowledge-base — Queries the RAG knowledge base directly over the Valu Guru server's socket connection, bypassing chat entirely. Returns the raw tool result text.
@@ -94,10 +138,20 @@ export interface AiGuruQueryKnowledgeBaseParams {
 }
 
 /**
+ * Application.close_all — Every open application was closed.
+ */
+export type ApplicationCloseAllResult = void;
+
+/**
  * Application.close_all — Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed.
  */
 export interface ApplicationCloseAllParams {
 }
+
+/**
+ * Application.close-application — The calling application was closed.
+ */
+export type ApplicationCloseApplicationResult = void;
 
 /**
  * Application.close-application — Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Close Application" default header action for iframe apps that render their own context menu (header: false).
@@ -106,16 +160,31 @@ export interface ApplicationCloseApplicationParams {
 }
 
 /**
+ * Application.expand-application — The calling application was expanded.
+ */
+export type ApplicationExpandApplicationResult = void;
+
+/**
  * Application.expand-application — Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Expand Application" default header action for iframe apps that render their own context menu (header: false).
  */
 export interface ApplicationExpandApplicationParams {
 }
 
 /**
+ * Application.get-identity-token — A short-lived identity token for the calling application.
+ */
+export type ApplicationGetIdentityTokenResult = {token: string};
+
+/**
  * Application.get-identity-token — Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.
  */
 export interface ApplicationGetIdentityTokenParams {
 }
+
+/**
+ * ApplicationStorage.resource-delete — The resource was deleted.
+ */
+export type ApplicationStorageResourceDeleteResult = void;
 
 /**
  * ApplicationStorage.resource-delete — Deletes a resource from the calling application's storage.
@@ -126,6 +195,11 @@ export interface ApplicationStorageResourceDeleteParams {
    */
   resourceId: string;
 }
+
+/**
+ * ApplicationStorage.resource-search — A page of the application's stored resources.
+ */
+export type ApplicationStorageResourceSearchResult = {resources: Record<string, any>[], hasMore: boolean, cursor: string};
 
 /**
  * ApplicationStorage.resource-search — Searches resources in the calling application's storage for the current user.
@@ -146,6 +220,11 @@ export interface ApplicationStorageResourceSearchParams {
 }
 
 /**
+ * ApplicationStorage.resource-upload — Resources created in the application's own storage, and the files that failed.
+ */
+export type ApplicationStorageResourceUploadResult = {resolved: Record<string, any>[], failed: Record<string, any>[]};
+
+/**
  * ApplicationStorage.resource-upload — Uploads files to the calling application's storage for the current user.
  */
 export interface ApplicationStorageResourceUploadParams {
@@ -154,6 +233,11 @@ export interface ApplicationStorageResourceUploadParams {
    */
   files: FileList;
 }
+
+/**
+ * Cbac.create-policy — The policy that was created.
+ */
+export type CbacCreatePolicyResult = {policy: Record<string, any>};
 
 /**
  * Cbac.create-policy — Creates a CBAC policy on a target entity. Valid grantedPermission values depend on targetType: room → room.view / room.comment / room.contribute / room.edit; community → community.join; group → group.join. Requires manage permission on the target.
@@ -186,6 +270,11 @@ export interface CbacCreatePolicyParams {
 }
 
 /**
+ * Cbac.delete-policy — The policy was deleted.
+ */
+export type CbacDeletePolicyResult = void;
+
+/**
  * Cbac.delete-policy — Deletes a single CBAC policy by ID. Requires manage permission on the target.
  */
 export interface CbacDeletePolicyParams {
@@ -208,10 +297,20 @@ export interface CbacDeletePolicyParams {
 }
 
 /**
+ * Cbac.list-badges — Badges visible to the caller, network-scoped and global.
+ */
+export type CbacListBadgesResult = {badges: Record<string, any>[]};
+
+/**
  * Cbac.list-badges — Lists every badge visible to the current user — badges scoped to their networks plus global ones. Returns an array of `{networkId, badgeId, badgeName, badgeDescription, thumbnailId}`, where `networkId` is "all" for a global badge. Use this to resolve a badge name to the badgeId required by search-users-by-badge-id and the policy intents.
  */
 export interface CbacListBadgesParams {
 }
+
+/**
+ * Cbac.list-policies — Every badge policy on the target entity.
+ */
+export type CbacListPoliciesResult = {policies: Record<string, any>[]};
 
 /**
  * Cbac.list-policies — Lists all CBAC policies configured for a target entity.
@@ -230,6 +329,11 @@ export interface CbacListPoliciesParams {
    */
   targetId: string;
 }
+
+/**
+ * Cbac.search-users-by-badge-id — A page of badge holders; total is the full match count.
+ */
+export type CbacSearchUsersByBadgeIdResult = {users: Record<string, any>[], total: number};
 
 /**
  * Cbac.search-users-by-badge-id — Lists the users holding a given badge, optionally filtered by a name query. The reverse of looking up which badges a single user holds. Call list-badges first to resolve a badge name to its badgeId. Returns `{users, total}` where `total` is the full match count across all pages — page through it with offset/size rather than assuming the first page is everything.
@@ -252,6 +356,11 @@ export interface CbacSearchUsersByBadgeIdParams {
    */
   size?: number;
 }
+
+/**
+ * CMS.resource-delete — The resource was deleted, or detached from the prop/post that held it.
+ */
+export type CMSResourceDeleteResult = void;
 
 /**
  * CMS.resource-delete — Deletes a resource or removes it from a prop or post.
@@ -282,6 +391,11 @@ export interface CMSResourceDeleteParams {
    */
   propId?: string;
 }
+
+/**
+ * CMS.resource-search — A page of resources in the addressed scope.
+ */
+export type CMSResourceSearchResult = {resources: Record<string, any>[], hasMore: boolean, cursor: string};
 
 /**
  * CMS.resource-search — Searches for resources within a given scope (room, prop, community, channel, directory, or post). Each returned resource has an id (and a title/name) — tag every resource you reference in your reply as @[cms-resource:id|title].
@@ -326,6 +440,11 @@ export interface CMSResourceSearchParams {
 }
 
 /**
+ * CMS.resource-upload — Resources created, and where they were placed (prop or post) when a scope was given.
+ */
+export type CMSResourceUploadResult = {resolved: Record<string, any>[], failed: Record<string, any>[], placed?: string};
+
+/**
  * CMS.resource-upload — Uploads files to a resource storage scoped by belonging (room, prop, community, channel, directory, or post).
  */
 export interface CMSResourceUploadParams {
@@ -360,6 +479,11 @@ export interface CMSResourceUploadParams {
 }
 
 /**
+ * Commerce.add-to-cart — The cart after the addition.
+ */
+export type CommerceAddToCartResult = {items: Record<string, any>[]};
+
+/**
  * Commerce.add-to-cart — Put a product in the user's cart, credited to your app. The server re-checks that it can be bought here before accepting it, so a refusal comes back with a code to show.
  */
 export interface CommerceAddToCartParams {
@@ -374,6 +498,11 @@ export interface CommerceAddToCartParams {
 }
 
 /**
+ * Commerce.check-entitlements — What the buyer owns of the products asked about.
+ */
+export type CommerceCheckEntitlementsResult = {entitlements: Record<string, any>[]};
+
+/**
  * Commerce.check-entitlements — Which of these products the current user owns. This is how an app unlocks a ticket, a seat or an in-app good it sold through the shared cart.
  */
 export interface CommerceCheckEntitlementsParams {
@@ -382,6 +511,11 @@ export interface CommerceCheckEntitlementsParams {
    */
   productIds: any[];
 }
+
+/**
+ * Commerce.create-product — The DRAFT product that was created. Publishing stays with the seller.
+ */
+export type CommerceCreateProductResult = {product: Record<string, any>};
 
 /**
  * Commerce.create-product — Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, and stays with the seller in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
@@ -426,10 +560,20 @@ export interface CommerceCreateProductParams {
 }
 
 /**
+ * Commerce.get-cart — The whole cart; count excludes saved-for-later rows.
+ */
+export type CommerceGetCartResult = {items: Record<string, any>[], count: number};
+
+/**
  * Commerce.get-cart — Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Read-only: change the cart with `add-to-cart`, or send the user to it with `open-cart`.
  */
 export interface CommerceGetCartParams {
 }
+
+/**
+ * Commerce.get-my-product — One of the seller's products with its content tree.
+ */
+export type CommerceGetMyProductResult = {product: Record<string, any>, items: Record<string, any>[]};
 
 /**
  * Commerce.get-my-product — One of the seller's own products with its content, in exactly the shape update-product takes: `{product, items}`. Read it before changing the content — `items` in update-product REPLACES the whole tree, so edit this list and send it back rather than sending only the new files.
@@ -442,6 +586,11 @@ export interface CommerceGetMyProductParams {
 }
 
 /**
+ * Commerce.get-product — One catalogue product.
+ */
+export type CommerceGetProductResult = {product: Record<string, any>};
+
+/**
  * Commerce.get-product — One product with its price, its parts when it is a bundle, its store, its reviews and whether the current user already owns it.
  */
 export interface CommerceGetProductParams {
@@ -452,10 +601,20 @@ export interface CommerceGetProductParams {
 }
 
 /**
+ * Commerce.list-categories — The platform category list.
+ */
+export type CommerceListCategoriesResult = {categories: Record<string, any>[]};
+
+/**
  * Commerce.list-categories — The platform's product categories as `{categories: [{id, label}]}`. Every product is filed under exactly one; pass an `id` to list-products as `category`, and show the `label`.
  */
 export interface CommerceListCategoriesParams {
 }
+
+/**
+ * Commerce.list-my-products — The seller's own catalogue, drafts included.
+ */
+export type CommerceListMyProductsResult = {hasStore: boolean, products: Record<string, any>[]};
 
 /**
  * Commerce.list-my-products — List the SELLER's own products in their store — drafts, unlisted, live and archived — unlike list-products, which is the buyer's shelf and never shows drafts. Use it to find the productId to edit. Each product carries `editable`: true only for a draft (never published, or unlisted by the seller). Returns `{hasStore, products}`.
@@ -470,6 +629,11 @@ export interface CommerceListMyProductsParams {
    */
   limit?: number;
 }
+
+/**
+ * Commerce.list-products — The buyer-facing catalogue page for the calling application.
+ */
+export type CommerceListProductsResult = {products: Record<string, any>[], total: number};
 
 /**
  * Commerce.list-products — Search the products YOUR app lists that are available in the user's current network. Products the network or its admins have refused are simply absent from the answer.
@@ -506,10 +670,20 @@ export interface CommerceListProductsParams {
 }
 
 /**
+ * Commerce.open-cart — The cart surface was opened.
+ */
+export type CommerceOpenCartResult = void;
+
+/**
  * Commerce.open-cart — Open My Cart for the user, scoped to your app's items.
  */
 export interface CommerceOpenCartParams {
 }
+
+/**
+ * Commerce.open-products — The merchant console was opened.
+ */
+export type CommerceOpenProductsResult = void;
 
 /**
  * Commerce.open-products — Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it after `create-product`, or for a "My products" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's.
@@ -518,10 +692,20 @@ export interface CommerceOpenProductsParams {
 }
 
 /**
+ * Commerce.open-purchases — The purchases surface was opened.
+ */
+export type CommerceOpenPurchasesResult = void;
+
+/**
  * Commerce.open-purchases — Open the user's order history in My Cart.
  */
 export interface CommerceOpenPurchasesParams {
 }
+
+/**
+ * Commerce.update-product — The updated draft.
+ */
+export type CommerceUpdateProductResult = {product: Record<string, any>};
 
 /**
  * Commerce.update-product — Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted by the seller in the Merchant Console first). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`.
@@ -574,6 +758,11 @@ export interface CommerceUpdateProductParams {
 }
 
 /**
+ * Community.get-channels — The community's channels, each stamped with rootChannelId.
+ */
+export type CommunityGetChannelsResult = {communityId: string, channels: Record<string, any>[]};
+
+/**
  * Community.get-channels — Lists channels within a specific community. Returns {communityId, channels[]} where each channel has channelId, rootChannelId (same as channelId — use this for entity tags), title, and other properties.
  */
 export interface CommunityGetChannelsParams {
@@ -588,6 +777,11 @@ export interface CommunityGetChannelsParams {
 }
 
 /**
+ * Community.get-community-info — The community record; subscribes the caller as a side effect.
+ */
+export type CommunityGetCommunityInfoResult = {community: Record<string, any>};
+
+/**
  * Community.get-community-info — Retrieves detailed information about a specific community by its ID.
  */
 export interface CommunityGetCommunityInfoParams {
@@ -596,6 +790,11 @@ export interface CommunityGetCommunityInfoParams {
    */
   communityId: string;
 }
+
+/**
+ * Community.get-posts — A page of channel posts with engagement counts.
+ */
+export type CommunityGetPostsResult = {rootChannelId: string, messages: Record<string, any>[]};
 
 /**
  * Community.get-posts — Loads posts/messages in a specific channel or sub-channel. Returns {communityId?, rootChannelId, subChannelId?, messages[]}. The rootChannelId and subChannelId in the response are the exact values to use when constructing community-post or community-sub-channel-post entity tags — no need to track them separately.
@@ -624,6 +823,11 @@ export interface CommunityGetPostsParams {
 }
 
 /**
+ * Community.search-communities — Open communities matching the query.
+ */
+export type CommunitySearchCommunitiesResult = {communities: Record<string, any>[]};
+
+/**
  * Community.search-communities — Search for available communities. Returns community objects with communityId, name, description, and other properties.
  */
 export interface CommunitySearchCommunitiesParams {
@@ -640,6 +844,11 @@ export interface CommunitySearchCommunitiesParams {
    */
   afterCommunityId?: string;
 }
+
+/**
+ * DataProvider.pick-multiple — What the user chose; empty when they cancelled.
+ */
+export type DataProviderPickMultipleResult = {picked: Record<string, any>[]};
 
 /**
  * DataProvider.pick-multiple — Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"].
@@ -672,6 +881,11 @@ export interface DataProviderPickMultipleParams {
 }
 
 /**
+ * DataProvider.pick-single — What the user chose, or null when they cancelled.
+ */
+export type DataProviderPickSingleResult = {picked: Record<string, any>|null};
+
+/**
  * DataProvider.pick-single — Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that.
  */
 export interface DataProviderPickSingleParams {
@@ -692,6 +906,11 @@ export interface DataProviderPickSingleParams {
    */
   height?: string;
 }
+
+/**
+ * Developer.create-application — The application that was registered in the Developer Portal.
+ */
+export type DeveloperCreateApplicationResult = {appId: string, devId: string, name: string, slug: string, url: string};
 
 /**
  * Developer.create-application — Creates a new application in the Developer Portal. By default the application is served in an iframe from https://web.texpo.io/{userId}/{appSlug} (its slug is derived from the name — lowercased, dashes; deduplicated with -2, -3, … on collision) and that texpo page needs code deployed to it before it shows anything. Pass the optional `url` to instead point the app's iframe DIRECTLY at an existing external page (no code/build needed) — the created app then opens straight to that URL. Returns the created app's id, devId, slug, URL, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens the application inside the platform, paste that `tag` value verbatim into your reply (do NOT link the raw URL).
@@ -716,10 +935,20 @@ export interface DeveloperCreateApplicationParams {
 }
 
 /**
+ * Developer.list-applications — The caller's own Developer Portal applications.
+ */
+export type DeveloperListApplicationsResult = {applications: Record<string, any>[]};
+
+/**
  * Developer.list-applications — Lists the current user's applications in the Developer Portal. Returns each application's appId, devId, name, slug, url, description, createdAt timestamp, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens an application inside the platform, paste its `tag` value verbatim into your reply (do NOT link the raw URL).
  */
 export interface DeveloperListApplicationsParams {
 }
+
+/**
+ * Events.create-meeting — The meeting (or recurring series) that was created.
+ */
+export type EventsCreateMeetingResult = {meetingId: string, meeting: Record<string, any>};
 
 /**
  * Events.create-meeting — Creates a new meeting on the calendar with the specified title, type, time range, and optional participants, description, color, and recurrence.
@@ -776,6 +1005,11 @@ export interface EventsCreateMeetingParams {
 }
 
 /**
+ * Events.edit-meeting — The meeting after the update.
+ */
+export type EventsEditMeetingResult = {meetingId: string, meeting: Record<string, any>};
+
+/**
  * Events.edit-meeting — Updates an existing meeting's fields (title, description, time, participants, or color) by meeting ID.
  */
 export interface EventsEditMeetingParams {
@@ -810,6 +1044,11 @@ export interface EventsEditMeetingParams {
 }
 
 /**
+ * Events.list-events — Meeting occurrences in the computed window, earliest first.
+ */
+export type EventsListEventsResult = {events: Record<string, any>[]};
+
+/**
  * Events.list-events — Returns a list of calendar events for the specified date range and optional meeting filter, sorted by start time ascending.
  */
 export interface EventsListEventsParams {
@@ -832,6 +1071,11 @@ export interface EventsListEventsParams {
 }
 
 /**
+ * Groups.discover-groups — Groups the caller's badges let them join; joined ones are flagged.
+ */
+export type GroupsDiscoverGroupsResult = {groups: Record<string, any>[], hasMore: boolean, cursor: string};
+
+/**
  * Groups.discover-groups — Returns groups the current user can join via CBAC — groups whose badge policy is satisfied by the badges the user holds. Each result includes the cbacPolicies that grant access. Supports search and cursor-based pagination.
  */
 export interface GroupsDiscoverGroupsParams {
@@ -850,6 +1094,11 @@ export interface GroupsDiscoverGroupsParams {
 }
 
 /**
+ * Groups.join-group — The caller joined the group.
+ */
+export type GroupsJoinGroupResult = void;
+
+/**
  * Groups.join-group — Joins the current user to a group via CBAC. The user must hold a badge that satisfies a badge policy on the target group (use discover-groups to find eligible groups first).
  */
 export interface GroupsJoinGroupParams {
@@ -858,6 +1107,11 @@ export interface GroupsJoinGroupParams {
    */
   groupId: string;
 }
+
+/**
+ * Groups.list-group-participants — A page of a group's members.
+ */
+export type GroupsListGroupParticipantsResult = {participants: Record<string, any>[], hasMore: boolean, cursor: string};
 
 /**
  * Groups.list-group-participants — Returns participants of a specific group. Supports search and cursor-based pagination.
@@ -882,6 +1136,11 @@ export interface GroupsListGroupParticipantsParams {
 }
 
 /**
+ * Groups.list-groups — A page of the caller's own groups.
+ */
+export type GroupsListGroupsResult = {groups: Record<string, any>[], hasMore: boolean, cursor: string};
+
+/**
  * Groups.list-groups — Returns groups the current user belongs to. Supports search and cursor-based pagination.
  */
 export interface GroupsListGroupsParams {
@@ -898,6 +1157,11 @@ export interface GroupsListGroupsParams {
    */
   cursor?: string;
 }
+
+/**
+ * Http.get — The response, with the body parsed per responseType.
+ */
+export type HttpGetResult = {ok: boolean, status: number, statusText: string, headers: Record<string, any>, body: any, bodyType: string, latency: number};
 
 /**
  * Http.get — Performs an HTTP GET against the URL and returns the response. Body is auto-parsed as JSON when the response Content-Type is application/json (or *+json), otherwise as text. Returns: { ok: boolean, status: number, statusText: string, headers: object, body: any, bodyType: "json"|"text", latency: number, error?: string }.
@@ -922,6 +1186,11 @@ export interface HttpGetParams {
 }
 
 /**
+ * Http.ping — Reachability of the URL, by HEAD.
+ */
+export type HttpPingResult = {up: boolean, latency: number, status: number};
+
+/**
  * Http.ping — Pings a URL with HEAD and returns whether it is reachable, the response latency in ms, and the HTTP status code (0 for cross-origin or unreachable servers). Returns: { up: boolean, latency: number, status: number, error?: string }.
  */
 export interface HttpPingParams {
@@ -934,6 +1203,11 @@ export interface HttpPingParams {
    */
   timeout?: number;
 }
+
+/**
+ * Http.post — The response, with the body parsed per responseType.
+ */
+export type HttpPostResult = {ok: boolean, status: number, statusText: string, headers: Record<string, any>, body: any, bodyType: string, latency: number};
 
 /**
  * Http.post — Performs an HTTP POST against the URL with the given body and returns the response (same shape as get). If `body` is a plain object it is JSON-stringified and Content-Type defaults to application/json; strings are sent verbatim with the supplied or existing Content-Type.
@@ -966,6 +1240,11 @@ export interface HttpPostParams {
 }
 
 /**
+ * Logging.get-logs — The host's captured log buffer, in the requested format.
+ */
+export type LoggingGetLogsResult = {logs: string|Record<string, any>[]};
+
+/**
  * Logging.get-logs — Returns the captured console log buffer (log, info, warn, error) since app start. Choose the format: "text" returns { format: "text", text: <string> } with one line per entry; "file" returns { format: "file", filename, mimeType, size, file: File } — the File is for direct callers (upload/download) and is omitted in the AI/MCP serialized response, which still includes filename, mimeType, and size.
  */
 export interface LoggingGetLogsParams {
@@ -976,10 +1255,20 @@ export interface LoggingGetLogsParams {
 }
 
 /**
+ * Networks.get-current-network — The active network id and its human-readable name.
+ */
+export type NetworksGetCurrentNetworkResult = {networkId: string, name: string|null};
+
+/**
  * Networks.get-current-network — Returns the id and name of the network the user is currently in. Call this to get the current networkId before making any room or network-related calls.
  */
 export interface NetworksGetCurrentNetworkParams {
 }
+
+/**
+ * Profile.get-user-badges — Badges assigned to the user in the requested network scope.
+ */
+export type ProfileGetUserBadgesResult = {badges: Record<string, any>[]};
 
 /**
  * Profile.get-user-badges — Returns the badges assigned to a user by their userId. Each badge includes badgeId, badgeName, badgeDescription, thumbnailId, and networkId. Visibility is enforced by the backend against the current user.
@@ -996,6 +1285,11 @@ export interface ProfileGetUserBadgesParams {
 }
 
 /**
+ * Profile.get-user-credentials — Verus credentials published on the user's profile.
+ */
+export type ProfileGetUserCredentialsResult = {credentials: Record<string, any>[]};
+
+/**
  * Profile.get-user-credentials — Returns the Verus verifiable credentials published on a user's profile, by their userId. These are the attestation claims of type "credential" shown in the profile Credentials view. Revoked credentials are returned only when the userId is the current user. Visibility is enforced by the backend against the current user.
  */
 export interface ProfileGetUserCredentialsParams {
@@ -1010,6 +1304,11 @@ export interface ProfileGetUserCredentialsParams {
 }
 
 /**
+ * Resources.generate-best-view-url — The web-app "best view" URL.
+ */
+export type ResourcesGenerateBestViewUrlResult = {url: string};
+
+/**
  * Resources.generate-best-view-url — Generates an optimized view URL for a resource.
  */
 export interface ResourcesGenerateBestViewUrlParams {
@@ -1018,6 +1317,11 @@ export interface ResourcesGenerateBestViewUrlParams {
    */
   resourceId: string;
 }
+
+/**
+ * Resources.generate-direct-public-url — The API URL that serves the raw bytes.
+ */
+export type ResourcesGenerateDirectPublicUrlResult = {url: string};
 
 /**
  * Resources.generate-direct-public-url — Generates a direct public API URL for downloading a resource.
@@ -1030,6 +1334,11 @@ export interface ResourcesGenerateDirectPublicUrlParams {
 }
 
 /**
+ * Resources.generate-public-url — The web-app preview page URL.
+ */
+export type ResourcesGeneratePublicUrlResult = {url: string};
+
+/**
  * Resources.generate-public-url — Generates a public preview URL for a resource.
  */
 export interface ResourcesGeneratePublicUrlParams {
@@ -1038,6 +1347,11 @@ export interface ResourcesGeneratePublicUrlParams {
    */
   resourceId: string;
 }
+
+/**
+ * Resources.get-thumbnail-url — The public downscaled URL for the resource.
+ */
+export type ResourcesGetThumbnailUrlResult = {url: string};
 
 /**
  * Resources.get-thumbnail-url — Returns a thumbnail URL for a resource at the specified size.
@@ -1054,6 +1368,11 @@ export interface ResourcesGetThumbnailUrlParams {
 }
 
 /**
+ * Resources.list-bot-avatars — Network-allowed bot avatars ({id, name, tags}).
+ */
+export type ResourcesListBotAvatarsResult = {avatars: Record<string, any>[]};
+
+/**
  * Resources.list-bot-avatars — Returns the network-allowed bot avatar collection (id, name, tags) from the shared bot-avatars directory. Avatars carrying the current network's denied tags (same modesty/policy filter as the user avatar picker) are excluded. Use a returned `id` as a 3D avatar resource id (e.g. an agent's avatarResourceId).
  */
 export interface ResourcesListBotAvatarsParams {
@@ -1062,6 +1381,11 @@ export interface ResourcesListBotAvatarsParams {
    */
   limit?: number;
 }
+
+/**
+ * Rooms.create-room-from-template — The new room; paymentRequired says a paid template still has to be settled.
+ */
+export type RoomsCreateRoomFromTemplateResult = {roomId: string, name: string, networkId: string, price: number, isFree: boolean, paymentRequired: boolean};
 
 /**
  * Rooms.create-room-from-template — Creates a new 3D room in the current network from a room template — FREE or PAID. The tool looks the template up in the AI-approved list itself and uses the listed price (pass `price` too when you have it; it is the fallback if the lookup fails). For a paid template the room is created immediately with a one-time-payment plan and the platform keeps it only if the user completes the purchase within 15 minutes; this tool never pays anything. Returns { roomId, name, networkId, tag, price, isFree, paymentRequired } for the NEW room plus, when paymentRequired is true, paymentWindowMinutes (15) and paymentInstructions. When paymentRequired is true you MUST tell the user right away: the price, that the room is temporary until it is bought within 15 minutes, and how to pay (Valu web app -> Rooms -> open the new room -> "Pay for Room"); never claim it is paid. Creating the room and linking to it are two separate steps: to link, paste the returned `tag` (`@[room:networkId/roomId|Name]`) VERBATIM — never rebuild it from ids, never reuse a roomId from an earlier call or a template id, and never guess the networkId. Use list-room-templates first to find the template id and its price.
@@ -1082,6 +1406,11 @@ export interface RoomsCreateRoomFromTemplateParams {
 }
 
 /**
+ * Rooms.delete-prop-invitation — The invitation was revoked.
+ */
+export type RoomsDeletePropInvitationResult = void;
+
+/**
  * Rooms.delete-prop-invitation — Removes a user from a prop's team by deleting their invitation. Use list-prop-team-members first to confirm the user is currently a team member.
  */
 export interface RoomsDeletePropInvitationParams {
@@ -1100,6 +1429,11 @@ export interface RoomsDeletePropInvitationParams {
 }
 
 /**
+ * Rooms.get-permissions — The caller's permission set for the room.
+ */
+export type RoomsGetPermissionsResult = {permissions: Record<string, any>};
+
+/**
  * Rooms.get-permissions — Retrieves the current user permissions for a room (view, comment, contribute, edit, manage).
  */
 export interface RoomsGetPermissionsParams {
@@ -1108,6 +1442,11 @@ export interface RoomsGetPermissionsParams {
    */
   roomId: string;
 }
+
+/**
+ * Rooms.get-prop — One prop, read from the same ordered list.
+ */
+export type RoomsGetPropResult = {prop: Record<string, any>|null, propOrder: Record<string, any>};
 
 /**
  * Rooms.get-prop — Returns details for a single prop by ID (name, assetTitle, type, thumbnailCount, isPresentationBoard, contentCount, assetId, `navIndex` — the prop's 0-based position in the room's navigation order, null when a Next/Previous storyline override never visits it — and the ready-made entity link `tag` — same fields as get-room-props) with no navigation or UI side effects. Use this to read prop data. Only use preview-prop when the user explicitly asks to show, open, or navigate to a prop.
@@ -1128,6 +1467,11 @@ export interface RoomsGetPropParams {
 }
 
 /**
+ * Rooms.get-room — The room's basic model.
+ */
+export type RoomsGetRoomResult = {room: Record<string, any>};
+
+/**
  * Rooms.get-room — Retrieves basic room model data by room ID including name, description, settings, and metadata.
  */
 export interface RoomsGetRoomParams {
@@ -1140,6 +1484,11 @@ export interface RoomsGetRoomParams {
    */
   networkId?: string;
 }
+
+/**
+ * Rooms.get-room-prop-groups — Props grouped by their whole tag set, in navigation order.
+ */
+export type RoomsGetRoomPropGroupsResult = {roomId: string, networkId: string, propOrder: Record<string, any>, groupIds: string[], groups: Record<string, any>[]};
 
 /**
  * Rooms.get-room-prop-groups — Lists a room's props ALREADY GROUPED by their tag set, in the room's navigation order — use this (not get-room-props) whenever content is to be placed. Returns { roomId, networkId, propOrder, groupIds, groups } — groupIds is the ordered list of every group id, read it first. A group is the set of props whose normalized tags (lowercase, spaces -> "-") are identical; its `id` is those tags sorted and joined with "+" (e.g. "building1+floor0+team"), so multi-tag rooms yield one group per tag combination ("building1+floor0+team" and "building1+floor1+team" are different groups). A SINGLE tagged prop is a group of one — the lone "logo" frame is the group "logo". Props WITHOUT tags belong to no group and are skipped entirely (never listed, never filled). Each group carries id, tags, label, isLogoGroup (true when the tags include "logo": every logo frame shows EVERY logo, so paste-resources-into-prop-group replicates there by default), navIndex (the group's first position in the room's walk; null = outside it), propCount, eligiblePropCount (props that can take content), decorativePropCount (props with no content type — walls, plants, signs — counted but NOT listed), totalContentCount, labels — the section's SIGNS: Text props (recognised by an asset tag containing "Text", or as a titled prop with no content type) whose title is the text shown in the room, members of the group because they carry its tags (an untagged sign is invisible to these tools); each { propId, text } — and props — only the props that can hold content (presentation boards included, flagged), each as a compact entry: id, name (what the prop SHOWS: its own title, else the title of its FIRST resource, else the asset's catalog name, else the bare id when nothing names it — an id-only name means an empty, unnamed frame), assetTitle, type, thumbnailCount, logoCount, invokeType, isPresentationBoard, acceptsContent (true = type non-empty and not a presentation board), contentCount, navIndex, tag. Match the user's words against group tags/label first ("the team wall on floor 0" -> tags contain team and floor0), then against prop name/assetTitle when they mean one exact prop. Pass group ids to paste-resources-into-prop-group; when the user's content is coarser than the groups ("team" over per-floor team groups) pass every group whose tags contain the facet. The ready-made `tag` on each prop is pasted verbatim when linking to it — never assemble one. propOrder says where the order came from ({ source: "storyline" | "props-group", storylineId?, storylineTitle? }).
@@ -1156,6 +1505,11 @@ export interface RoomsGetRoomPropGroupsParams {
 }
 
 /**
+ * Rooms.get-room-props — The room's props in navigation order, and where that order came from.
+ */
+export type RoomsGetRoomPropsResult = {props: Record<string, any>[], propOrder: Record<string, any>};
+
+/**
  * Rooms.get-room-props — Lists all props (interactive objects) in a room. Returns prop objects with id, name (what the prop SHOWS, and the label on its tag: the prop's own title, else the title of its FIRST resource — a filled frame is named after its content, because a content prop carries no title of its own — else the asset's catalog name, else the bare id when nothing names it), assetTitle (the asset's catalog name, e.g. "Gold Picture Frame" or "Presentation Board" — tells you what kind of object the prop is even when the author renamed it), type (array of content types the prop can hold — empty means it cannot hold content), thumbnailCount (number of visual display canvases — a picture frame has thumbnailCount > 0), isPresentationBoard (true = a live screen-share board, NEVER a target for pasted content; null = unknown), invokeType (Default/Container/Bookshelf/FileCabinet), tags, contentCount, assetId, and `tag` — a ready-made entity link for the prop (`@[prop:networkId/roomId/propId|Name]`) that you paste verbatim when referring to it, never assembling one from ids yourself. Match the user's words against tags, name and assetTitle to find the prop they mean (e.g. "logo", "team", "the gold frame"). Each prop also carries `groupId` — the id of its prop group (props sharing the same tag set; see get-room-prop-groups). For PLACING content prefer get-room-prop-groups: it returns these same props already grouped, and paste-resources-into-prop-group spreads content over a group for you. Props are returned in the room's NAVIGATION ORDER and each carries `navIndex` (0-based position): normally that is the props-group order the room stores, but when the room's settings select a storyline to override Next/Previous navigation, THAT storyline's frame order is the source of truth for prop order — props the storyline never visits come last with `navIndex: null`.
  */
 export interface RoomsGetRoomPropsParams {
@@ -1168,6 +1522,11 @@ export interface RoomsGetRoomPropsParams {
    */
   networkId?: string;
 }
+
+/**
+ * Rooms.invite-to-prop — The invitation that was created.
+ */
+export type RoomsInviteToPropResult = {invitation: Record<string, any>|null};
 
 /**
  * Rooms.invite-to-prop — Adds a user to a prop's team, or updates an existing team member's permissions and metadata. When called for a user already in the team this acts as an update — the invitation is replaced with the new permissions and customParams. Use list-prop-team-members first to check current membership before inviting.
@@ -1196,6 +1555,11 @@ export interface RoomsInviteToPropParams {
 }
 
 /**
+ * Rooms.list-prop-team-members — The prop's invitations.
+ */
+export type RoomsListPropTeamMembersResult = {invitations: Record<string, any>[]};
+
+/**
  * Rooms.list-prop-team-members — Lists all team member invitations for a prop in a room. Returns an array of invitation records, each containing the invited user's ID, their permissions (view/comment/contribute/edit/manage), and any stored custom metadata. Agent assignments are stored id-only as `customParams.agentInfo.id` (string). Older rows may still carry the full snapshot `customParams.agentInfo: { id, name, description, avatarUrl }` — only `id` is read; everything else is resolved from the live agent.
  */
 export interface RoomsListPropTeamMembersParams {
@@ -1208,6 +1572,11 @@ export interface RoomsListPropTeamMembersParams {
    */
   propId: string;
 }
+
+/**
+ * Rooms.list-room-templates — AI-approved room templates, with the group count each declares.
+ */
+export type RoomsListRoomTemplatesResult = {templates: Record<string, any>[], hasMore: boolean, filteredOutCount: number};
 
 /**
  * Rooms.list-room-templates — Lists the room templates the AI is allowed to build from: ONLY templates tagged both "community" and "ai-friendly" are returned — every other template is skipped by design, never look for or suggest one (filteredOutCount says how many of the page were skipped). Each template has an id, name, tags (e.g. "office", "gallery", "community"), price in USD (0 or missing = free; paid templates CAN be created too — the room then has to be purchased by the user within 15 minutes, see create-room-from-template), subscriptionStatus, and groupCount — the number of prop groups (tagged sections of frames) the template's room contains, read from a tag of the form "prop-groups_N" (e.g. prop-groups_5; null when the template carries no such tag). Choose a template by groupCount: prefer the one equal to the number of content sections the user has, else the smallest larger one; a template with more groups than sections leaves the extra groups on their placeholders, one with fewer forces sections to be merged — say so when you propose it. Supports text search and server-side tag filtering with pagination. Use this before create-room-from-template to find a template id, its groupCount and its price.
@@ -1230,6 +1599,11 @@ export interface RoomsListRoomTemplatesParams {
    */
   size?: number;
 }
+
+/**
+ * Rooms.paste-resources-into-prop — What landed on the prop, and what it cost to put it there.
+ */
+export type RoomsPasteResourcesIntoPropResult = {roomId: string, propId: string, name: string, addedResourceIds: string[], failed: Record<string, any>[], removedTemplateStubs: string[], skippedAlreadyPresent: string[], sliderEnabled: boolean};
 
 /**
  * Rooms.paste-resources-into-prop — Places one or more existing CMS resources into a prop in a room. Resources are link-copied (the originals stay in their current folder) and added to the prop's content list. IDEMPOTENT: a resource already on the prop (itself, or as a link copy) is skipped and listed in skippedAlreadyPresent — so repeating a paste after a timeout can never duplicate content; when everything was already there the result carries alreadyPresent=true and nothing is changed. Template placeholder resources still sitting on the prop (from the room template) are removed first so they never mix with the user's content (removedTemplateStubs in the result lists them; set removeTemplateStubs=false to keep them). When the paste leaves more than one resource on a non-container prop, the tool automatically enables the prop's auto content slider so the items cycle as a slideshow (result field sliderEnabled reports it; sliderError appears if the paste succeeded but the slider toggle failed). The tool also CLEARS the prop's title (content props carry no caption — a section's name lives on its sign; titleCleared reports it, titleClearError if that save failed). Use this tool ONLY when the user named exactly one prop. When the target is a GROUP — a row of frames, a tagged section, several props — call paste-resources-into-prop-group instead: it spreads the content across the group's props in navigation order itself, so never hand-split content into per-prop calls. The prop must support content — check via get-room-props that its type array is non-empty and isPresentationBoard is false: presentation (screen-share) boards are rejected, they are reserved for live screen sharing. Prefer props with thumbnailCount > 0 (picture frames / display canvases). Use service__CMS__resource_search to find resource ids first. Returns the paste result plus `name` and `tag` read back AFTER the paste, so they name what the prop now shows (its first resource) — paste that `tag` verbatim when linking to the prop.
@@ -1260,6 +1634,11 @@ export interface RoomsPasteResourcesIntoPropParams {
    */
   networkId?: string;
 }
+
+/**
+ * Rooms.paste-resources-into-prop-group — One placement per prop that took content, plus what was turned away.
+ */
+export type RoomsPasteResourcesIntoPropGroupResult = {roomId: string, groupIds: string[], distribution: string, placements: Record<string, any>[], unplacedResourceIds: string[], eligiblePropCount: number, skippedProps: Record<string, any>[]};
 
 /**
  * Rooms.paste-resources-into-prop-group — Spreads existing CMS resources across the props of one or more prop GROUPS (ids from get-room-prop-groups), in the room's navigation order, as contiguous, order-preserving shares — one slideshow per prop. The tool does ALL the chunking (7 resources over 3 frames -> 3/2/2; 2 over 5 -> the first two frames get one each), so call it ONCE per content group with all of that group's resources — never once per prop, and never split the resources yourself. Pass several groupIds when the content is coarser than the room's groups (e.g. "team" photos over "building1+floor0+team" and "building1+floor1+team"); their props are pooled in walk order. Frames that still show only their template placeholder come FIRST (lowest navIndex first), frames that already hold user content come after — so a later top-up fills the empty slots before joining existing slideshows; each placement reports hadUserContent (true/false, null when the prop's content could not be read). distribution: "spread" (default — contiguous shares), "stack" (everything onto the first eligible prop as one slideshow — only when the user explicitly asked for a single slideshow) or "replicate" (EVERY resource onto EVERY eligible prop — the default when every selected group is a LOGO group, isLogoGroup true, so all logos show on all logo frames; never spread logos unless the user asks). Presentation boards are skipped automatically and listed in skippedProps; decorative members (walls, signs) are never candidates. Per prop this behaves exactly like paste-resources-into-prop: resources are link-copied (originals stay), a resource already on the prop (itself or as a link copy) is skipped rather than duplicated (per placement and top-level skippedAlreadyPresent — a repeat after a timeout is safe), template placeholder stubs are removed first, the auto content slider is enabled when a prop ends up with more than one item, and titles are cleared on EVERY content prop of the selected groups — the pasted ones and the untouched ones alike (content props carry no caption; the section's name lives on its sign; clearedTitlePropIds lists them, titleClearErrors any that failed). Returns { roomId, groupIds, distribution, placements: [{ groupId, propId, name, tag, navIndex, hadUserContent, resourceIds, addedResourceIds, failed, removedTemplateStubs, sliderEnabled, titleCleared, sliderError?, titleClearError?, stubCleanupError?, error? }], clearedTitlePropIds, titleClearErrors?, unplacedResourceIds (resources that landed on no prop at all), eligiblePropCount, skippedProps } — each placement's name and tag are read back AFTER the paste, so they name what the prop now shows (its first resource), not the empty frame it was. It throws only when nothing could be attempted: an unknown group id (the message lists the valid ids), no eligible prop in the selected groups, or empty input. Report failed/unplaced items honestly; paste each placement's `tag` verbatim when linking. Use paste-resources-into-prop only when the user named exactly one prop.
@@ -1296,6 +1675,11 @@ export interface RoomsPasteResourcesIntoPropGroupParams {
 }
 
 /**
+ * Rooms.rename-prop-group — The section signs that were retitled.
+ */
+export type RoomsRenamePropGroupResult = {roomId: string, groupId: string, name: string, hasLabels: boolean, renamedLabelPropIds: string[], failed: Record<string, any>[]};
+
+/**
  * Rooms.rename-prop-group — Gives a prop GROUP a display name by retitling its section SIGNS — the group's labels from get-room-prop-groups, i.e. the tagged Text props that show the section name in the room. Content props (frames, boards) are never touched: they carry no title at all (pasting clears any they had), the name lives on the sign. Use it in the guided build once the section's name is settled (listed by the user up front, self-evident from the tag, or confirmed from your proposal — or chosen by you when the user asked you to decide everything). The group id itself comes from tags and does not change. Returns { roomId, groupId, name, hasLabels, renamedLabelPropIds, failed } — hasLabels false means the group has no sign, so there was nothing to rename (say so); renamedLabelPropIds are the signs that now show the name; failed lists signs that could not be saved. Never rename a group the user did not name or ask you to name.
  */
 export interface RoomsRenamePropGroupParams {
@@ -1316,6 +1700,11 @@ export interface RoomsRenamePropGroupParams {
    */
   networkId?: string;
 }
+
+/**
+ * Rooms.search-my-rooms — Rooms the caller belongs to, or their invitations.
+ */
+export type RoomsSearchMyRoomsResult = {rooms: Record<string, any>[]};
 
 /**
  * Rooms.search-my-rooms — Searches rooms belonging to the current user within the current network — their joined rooms, favorites, or pending invitations. Use this when the user asks about their own rooms. Every room in the result carries a ready-made entity link in its `tag` field (`@[room:networkId/roomId|Name]`) plus the resolved `networkId` — paste that `tag` verbatim when linking to the room and NEVER assemble one from ids yourself.
@@ -1340,6 +1729,11 @@ export interface RoomsSearchMyRoomsParams {
 }
 
 /**
+ * Rooms.search-rooms — Public/discoverable rooms in the network.
+ */
+export type RoomsSearchRoomsResult = {rooms: Record<string, any>[]};
+
+/**
  * Rooms.search-rooms — Searches all public/discoverable rooms in the current network using the explorer service. Returns rooms anyone can find and join, regardless of membership. Use this when the user wants to discover or browse rooms. Every room in the result carries a ready-made entity link in its `tag` field (`@[room:networkId/roomId|Name]`) plus the resolved `networkId` — paste that `tag` verbatim when linking to the room and NEVER assemble one from ids yourself.
  */
 export interface RoomsSearchRoomsParams {
@@ -1356,6 +1750,11 @@ export interface RoomsSearchRoomsParams {
    */
   size?: number;
 }
+
+/**
+ * TextChat.get-channel-history — A page of a channel's messages.
+ */
+export type TextChatGetChannelHistoryResult = {channelId: string, messages: Record<string, any>[], hasPrevious: boolean, hasNext: boolean};
 
 /**
  * TextChat.get-channel-history — Fetches the most recent messages for a text-chat channel by channelId, decrypted and ready to read. Returns a plain list of messages with authorId, body, timestamp, and messageType. Does not open any UI or change the active channel.
@@ -1378,6 +1777,11 @@ export interface TextChatGetChannelHistoryParams {
    */
   afterMessageId?: string;
 }
+
+/**
+ * TextChat.message-owner — The message that was posted into the owner's agent channel, authored by the agent.
+ */
+export type TextChatMessageOwnerResult = {channelId: string, messageId: string, createdAt: string};
 
 /**
  * TextChat.message-owner — Delivers a message authored by the AI agent itself (NOT by the logged-in user) into a user's dedicated agent-to-user channel, resolved from source `userAIAgent:{userId}:{agentId}`. The recipient sees the agent as the author and the channel is created on first use. This is the INVASIVE owner-notification channel: use it to ping/notify the owner (pass the owner's userId) — or, occasionally, any other user. Unlike send-message (which sends as the logged-in user), this is authored by the agent. Silent toward the UI — does NOT open the TextChat application or change the active channel.
@@ -1406,6 +1810,11 @@ export interface TextChatMessageOwnerParams {
 }
 
 /**
+ * TextChat.send-message — The message that was posted, authored by the current user.
+ */
+export type TextChatSendMessageResult = {channelId: string, messageId: string, createdAt: string};
+
+/**
  * TextChat.send-message — Sends a text message to a text-chat channel. You must provide EITHER a channelId (preferred when you already have one) OR a userId (for a direct message — the service resolves the direct channel automatically). Silent — does NOT open the TextChat application, does NOT change the active channel, does NOT affect any UI. Encryption is handled automatically if the channel is encrypted.
  */
 export interface TextChatSendMessageParams {
@@ -1432,10 +1841,20 @@ export interface TextChatSendMessageParams {
 }
 
 /**
+ * Time.get-local-time — The caller's local clock, one instant in several forms.
+ */
+export type TimeGetLocalTimeResult = {iso: string, utcIso: string, timezone: string, offsetMinutes: number, dayOfWeek: string, localDate: string, localTime: string, locale: string};
+
+/**
  * Time.get-local-time — Returns an object describing the user's current local time: { iso: local ISO 8601 with offset (e.g. "2026-05-28T13:45:30.000+02:00"), utcIso: same instant in UTC (e.g. "2026-05-28T11:45:30.000Z"), timezone: IANA name (e.g. "Europe/Berlin"), offsetMinutes: integer minutes ahead of UTC (e.g. 120), dayOfWeek: long English day name (e.g. "Thursday"), localDate: "YYYY-MM-DD" in local time, localTime: "HH:MM" in local time, locale: resolved BCP 47 locale (e.g. "en-US") }. Takes no parameters.
  */
 export interface TimeGetLocalTimeParams {
 }
+
+/**
+ * Users.accept-connection-request — The request was accepted.
+ */
+export type UsersAcceptConnectionRequestResult = void;
 
 /**
  * Users.accept-connection-request — Accepts a pending connection request from a user.
@@ -1448,6 +1867,11 @@ export interface UsersAcceptConnectionRequestParams {
 }
 
 /**
+ * Users.cancel-connection-request — The outgoing request was cancelled.
+ */
+export type UsersCancelConnectionRequestResult = void;
+
+/**
  * Users.cancel-connection-request — Cancels a pending connection request that the current user previously sent.
  */
 export interface UsersCancelConnectionRequestParams {
@@ -1458,10 +1882,20 @@ export interface UsersCancelConnectionRequestParams {
 }
 
 /**
+ * Users.current — The authenticated user.
+ */
+export type UsersCurrentResult = {user: Record<string, any>};
+
+/**
  * Users.current — Returns the currently authenticated user info (id, firstName, lastName, etc.).
  */
 export interface UsersCurrentParams {
 }
+
+/**
+ * Users.decline-connection-request — The request was declined.
+ */
+export type UsersDeclineConnectionRequestResult = void;
 
 /**
  * Users.decline-connection-request — Declines a pending connection request from a user.
@@ -1472,6 +1906,11 @@ export interface UsersDeclineConnectionRequestParams {
    */
   userId: string;
 }
+
+/**
+ * Users.find-user — Suggested people across the network.
+ */
+export type UsersFindUserResult = {users: Record<string, any>[]};
 
 /**
  * Users.find-user — Discover new users to connect with by searching by name. Uses a suggestion engine — distinct from search-users which searches within existing connections.
@@ -1492,6 +1931,11 @@ export interface UsersFindUserParams {
 }
 
 /**
+ * Users.get — One user's basic profile.
+ */
+export type UsersGetResult = {user: Record<string, any>};
+
+/**
  * Users.get — Retrieves a user by their unique ID. Returns user object with id, firstName, lastName, etc.
  */
 export interface UsersGetParams {
@@ -1500,6 +1944,11 @@ export interface UsersGetParams {
    */
   userId: string;
 }
+
+/**
+ * Users.search-users — Matches WITHIN the caller's own connections.
+ */
+export type UsersSearchUsersResult = {users: Record<string, any>[]};
 
 /**
  * Users.search-users — Search for users within existing connections (contacts, followers, or following). Use this to find a user ID when you only know their name and they are already in your network. To discover new users outside your network, use find-user instead.
@@ -1524,6 +1973,11 @@ export interface UsersSearchUsersParams {
 }
 
 /**
+ * Users.send-connection-request — The request was sent.
+ */
+export type UsersSendConnectionRequestResult = void;
+
+/**
  * Users.send-connection-request — Sends a connection request to a user by their ID.
  */
 export interface UsersSendConnectionRequestParams {
@@ -1534,6 +1988,11 @@ export interface UsersSendConnectionRequestParams {
 }
 
 /**
+ * VerusWallet.get-balance — The agent wallet's last known balance. Read from host state, never the network.
+ */
+export type VerusWalletGetBalanceResult = {identityName: string, iAddress: string, balance: number|null};
+
+/**
  * VerusWallet.get-balance — Return the last-known balance of the wallet attached to the specified agent. Reads from the client cache — call verus:getAgentsBalance (via AiGuruStore.refreshAgentBalances) for a fresh value.
  */
 export interface VerusWalletGetBalanceParams {
@@ -1542,6 +2001,11 @@ export interface VerusWalletGetBalanceParams {
    */
   agentId: string;
 }
+
+/**
+ * VerusWallet.transfer — The transaction that moved the funds.
+ */
+export type VerusWalletTransferResult = {txid: string};
 
 /**
  * VerusWallet.transfer — Send currency from the agent's attached Verus wallet to a destination address or identity. Call this when the user or agent needs to move funds out of an agent wallet. Fails if the agent has no wallet attached, or if the wallet is still pending creation.
@@ -1578,51 +2042,59 @@ export interface ValuServices {
     /**
      * Closes (unloads) an application by its ID from the dock.
      * @binding host
+     * @channel host
      * @scope aiguru:write
      */
-    close(params: AiGuruCloseParams): Promise<ValuAck>;
+    close(params: AiGuruCloseParams): Promise<ValuAck<AiGuruCloseResult>>;
     /**
      * Returns the in-memory message history for a background agent.
      * @binding socket
+     * @channel host-state
      * @scope aiguru:read
      */
-    getAgentHistory(params: AiGuruGetAgentHistoryParams): Promise<ValuAck>;
+    getAgentHistory(params: AiGuruGetAgentHistoryParams): Promise<ValuAck<AiGuruGetAgentHistoryResult>>;
     /**
      * Returns a list of all registered applications with their id, slug, icon, and title.
      * @binding host
+     * @channel host
      * @scope aiguru:read
      */
-    getApplications(): Promise<ValuAck>;
+    getApplications(): Promise<ValuAck<AiGuruGetApplicationsResult>>;
     /**
      * Returns the in-memory message history for a chat session. Omit chatId to get the currently active session.
      * @binding socket
+     * @channel host-state
      * @scope aiguru:read
      */
-    getChatHistory(params?: AiGuruGetChatHistoryParams): Promise<ValuAck>;
+    getChatHistory(params?: AiGuruGetChatHistoryParams): Promise<ValuAck<AiGuruGetChatHistoryResult>>;
     /**
      * Checks whether an application with the given ID exists in the registry.
      * @binding host
+     * @channel host
      * @scope aiguru:read
      */
-    hasApplication(params: AiGuruHasApplicationParams): Promise<ValuAck>;
+    hasApplication(params: AiGuruHasApplicationParams): Promise<ValuAck<AiGuruHasApplicationResult>>;
     /**
      * Checks whether an application with the given ID is currently loaded (open) in the dock.
      * @binding host
+     * @channel host
      * @scope aiguru:read
      */
-    isApplicationLoaded(params: AiGuruIsApplicationLoadedParams): Promise<ValuAck>;
+    isApplicationLoaded(params: AiGuruIsApplicationLoadedParams): Promise<ValuAck<AiGuruIsApplicationLoadedResult>>;
     /**
      * Opens (loads) an application by its ID into the dock.
      * @binding host
+     * @channel host
      * @scope aiguru:write
      */
-    open(params: AiGuruOpenParams): Promise<ValuAck>;
+    open(params: AiGuruOpenParams): Promise<ValuAck<AiGuruOpenResult>>;
     /**
      * Queries the RAG knowledge base directly over the Valu Guru server's socket connection, bypassing chat entirely. Returns the raw tool result text.
      * @binding socket
+     * @channel valuguru
      * @scope aiguru:read
      */
-    queryKnowledgeBase(params: AiGuruQueryKnowledgeBaseParams): Promise<ValuAck>;
+    queryKnowledgeBase(params: AiGuruQueryKnowledgeBaseParams): Promise<ValuAck<AiGuruQueryKnowledgeBaseResult>>;
   };
   /**
    * Issues short-lived signed identity JWTs for iFrame (mini-app) applications. Allows an embedded application to obtain a signed token proving the current user's identity to the mini-app's own backend.
@@ -1631,27 +2103,31 @@ export interface ValuServices {
     /**
      * Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed.
      * @binding host
+     * @channel host
      * @scope application:read
      */
-    closeAll(): Promise<ValuAck>;
+    closeAll(): Promise<ValuAck<ApplicationCloseAllResult>>;
     /**
      * Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Close Application" default header action for iframe apps that render their own context menu (header: false).
      * @binding host
+     * @channel host
      * @scope application:write
      */
-    closeApplication(): Promise<ValuAck>;
+    closeApplication(): Promise<ValuAck<ApplicationCloseApplicationResult>>;
     /**
      * Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Expand Application" default header action for iframe apps that render their own context menu (header: false).
      * @binding host
+     * @channel host
      * @scope application:write
      */
-    expandApplication(): Promise<ValuAck>;
+    expandApplication(): Promise<ValuAck<ApplicationExpandApplicationResult>>;
     /**
      * Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.
      * @binding host
+     * @channel host
      * @scope application:read
      */
-    getIdentityToken(): Promise<ValuAck>;
+    getIdentityToken(): Promise<ValuAck<ApplicationGetIdentityTokenResult>>;
   };
   /**
    * Per-application file storage service for uploading, searching, and deleting resources scoped to the calling application and current user.
@@ -1660,21 +2136,24 @@ export interface ValuServices {
     /**
      * Deletes a resource from the calling application's storage.
      * @binding socket
+     * @channel roomful
      * @scope applicationstorage:write
      */
-    resourceDelete(params: ApplicationStorageResourceDeleteParams): Promise<ValuAck>;
+    resourceDelete(params: ApplicationStorageResourceDeleteParams): Promise<ValuAck<ApplicationStorageResourceDeleteResult>>;
     /**
      * Searches resources in the calling application's storage for the current user.
      * @binding socket
+     * @channel roomful
      * @scope applicationstorage:read
      */
-    resourceSearch(params?: ApplicationStorageResourceSearchParams): Promise<ValuAck>;
+    resourceSearch(params?: ApplicationStorageResourceSearchParams): Promise<ValuAck<ApplicationStorageResourceSearchResult>>;
     /**
      * Uploads files to the calling application's storage for the current user.
      * @binding socket
+     * @channel roomful
      * @scope applicationstorage:write
      */
-    resourceUpload(params: ApplicationStorageResourceUploadParams): Promise<ValuAck>;
+    resourceUpload(params: ApplicationStorageResourceUploadParams): Promise<ValuAck<ApplicationStorageResourceUploadResult>>;
   };
   /**
    * Badge-based access control (CBAC). Manages policies that grant a permission on a target entity (room, community, or group) to users holding specific badges. Policy mutations require manage permission on the target.
@@ -1683,33 +2162,38 @@ export interface ValuServices {
     /**
      * Creates a CBAC policy on a target entity. Valid grantedPermission values depend on targetType: room → room.view / room.comment / room.contribute / room.edit; community → community.join; group → group.join. Requires manage permission on the target.
      * @binding socket
+     * @channel roomful
      * @scope cbac:write
      */
-    createPolicy(params: CbacCreatePolicyParams): Promise<ValuAck>;
+    createPolicy(params: CbacCreatePolicyParams): Promise<ValuAck<CbacCreatePolicyResult>>;
     /**
      * Deletes a single CBAC policy by ID. Requires manage permission on the target.
      * @binding socket
+     * @channel roomful
      * @scope cbac:write
      */
-    deletePolicy(params: CbacDeletePolicyParams): Promise<ValuAck>;
+    deletePolicy(params: CbacDeletePolicyParams): Promise<ValuAck<CbacDeletePolicyResult>>;
     /**
      * Lists every badge visible to the current user — badges scoped to their networks plus global ones. Returns an array of `{networkId, badgeId, badgeName, badgeDescription, thumbnailId}`, where `networkId` is "all" for a global badge. Use this to resolve a badge name to the badgeId required by search-users-by-badge-id and the policy intents.
      * @binding socket
+     * @channel roomful
      * @scope cbac:read
      */
-    listBadges(): Promise<ValuAck>;
+    listBadges(): Promise<ValuAck<CbacListBadgesResult>>;
     /**
      * Lists all CBAC policies configured for a target entity.
      * @binding socket
+     * @channel roomful
      * @scope cbac:read
      */
-    listPolicies(params: CbacListPoliciesParams): Promise<ValuAck>;
+    listPolicies(params: CbacListPoliciesParams): Promise<ValuAck<CbacListPoliciesResult>>;
     /**
      * Lists the users holding a given badge, optionally filtered by a name query. The reverse of looking up which badges a single user holds. Call list-badges first to resolve a badge name to its badgeId. Returns `{users, total}` where `total` is the full match count across all pages — page through it with offset/size rather than assuming the first page is everything.
      * @binding socket
+     * @channel roomful
      * @scope cbac:read
      */
-    searchUsersByBadgeId(params: CbacSearchUsersByBadgeIdParams): Promise<ValuAck>;
+    searchUsersByBadgeId(params: CbacSearchUsersByBadgeIdParams): Promise<ValuAck<CbacSearchUsersByBadgeIdResult>>;
   };
   /**
    * Content management service for uploading, searching, and deleting resources scoped to rooms, props, communities, channels, and directories.
@@ -1718,21 +2202,24 @@ export interface ValuServices {
     /**
      * Deletes a resource or removes it from a prop or post.
      * @binding socket
+     * @channel roomful
      * @scope cms:write
      */
-    resourceDelete(params: CMSResourceDeleteParams): Promise<ValuAck>;
+    resourceDelete(params: CMSResourceDeleteParams): Promise<ValuAck<CMSResourceDeleteResult>>;
     /**
      * Searches for resources within a given scope (room, prop, community, channel, directory, or post). Each returned resource has an id (and a title/name) — tag every resource you reference in your reply as @[cms-resource:id|title].
      * @binding socket
+     * @channel roomful
      * @scope cms:read
      */
-    resourceSearch(params?: CMSResourceSearchParams): Promise<ValuAck>;
+    resourceSearch(params?: CMSResourceSearchParams): Promise<ValuAck<CMSResourceSearchResult>>;
     /**
      * Uploads files to a resource storage scoped by belonging (room, prop, community, channel, directory, or post).
      * @binding socket
+     * @channel roomful
      * @scope cms:write
      */
-    resourceUpload(params: CMSResourceUploadParams): Promise<ValuAck>;
+    resourceUpload(params: CMSResourceUploadParams): Promise<ValuAck<CMSResourceUploadResult>>;
   };
   /**
    * Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.
@@ -1741,81 +2228,94 @@ export interface ValuServices {
     /**
      * Put a product in the user's cart, credited to your app. The server re-checks that it can be bought here before accepting it, so a refusal comes back with a code to show.
      * @binding socket
+     * @channel valuguru
      * @scope commerce:write
      */
-    addToCart(params: CommerceAddToCartParams): Promise<ValuAck>;
+    addToCart(params: CommerceAddToCartParams): Promise<ValuAck<CommerceAddToCartResult>>;
     /**
      * Which of these products the current user owns. This is how an app unlocks a ticket, a seat or an in-app good it sold through the shared cart.
      * @binding socket
+     * @channel valuguru
      * @scope commerce:read
      */
-    checkEntitlements(params: CommerceCheckEntitlementsParams): Promise<ValuAck>;
+    checkEntitlements(params: CommerceCheckEntitlementsParams): Promise<ValuAck<CommerceCheckEntitlementsResult>>;
     /**
      * Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, and stays with the seller in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
      * @binding socket
+     * @channel valuguru
      * @scope commerce:write
      */
-    createProduct(params?: CommerceCreateProductParams): Promise<ValuAck>;
+    createProduct(params?: CommerceCreateProductParams): Promise<ValuAck<CommerceCreateProductResult>>;
     /**
      * Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Read-only: change the cart with `add-to-cart`, or send the user to it with `open-cart`.
      * @binding socket
+     * @channel valuguru
      * @scope commerce:read
      */
-    getCart(): Promise<ValuAck>;
+    getCart(): Promise<ValuAck<CommerceGetCartResult>>;
     /**
      * One of the seller's own products with its content, in exactly the shape update-product takes: `{product, items}`. Read it before changing the content — `items` in update-product REPLACES the whole tree, so edit this list and send it back rather than sending only the new files.
      * @binding socket
+     * @channel valuguru
      * @scope commerce:read
      */
-    getMyProduct(params: CommerceGetMyProductParams): Promise<ValuAck>;
+    getMyProduct(params: CommerceGetMyProductParams): Promise<ValuAck<CommerceGetMyProductResult>>;
     /**
      * One product with its price, its parts when it is a bundle, its store, its reviews and whether the current user already owns it.
      * @binding socket
+     * @channel valuguru
      * @scope commerce:read
      */
-    getProduct(params: CommerceGetProductParams): Promise<ValuAck>;
+    getProduct(params: CommerceGetProductParams): Promise<ValuAck<CommerceGetProductResult>>;
     /**
      * The platform's product categories as `{categories: [{id, label}]}`. Every product is filed under exactly one; pass an `id` to list-products as `category`, and show the `label`.
      * @binding socket
+     * @channel valuguru
      * @scope commerce:read
      */
-    listCategories(): Promise<ValuAck>;
+    listCategories(): Promise<ValuAck<CommerceListCategoriesResult>>;
     /**
      * List the SELLER's own products in their store — drafts, unlisted, live and archived — unlike list-products, which is the buyer's shelf and never shows drafts. Use it to find the productId to edit. Each product carries `editable`: true only for a draft (never published, or unlisted by the seller). Returns `{hasStore, products}`.
      * @binding socket
+     * @channel valuguru
      * @scope commerce:read
      */
-    listMyProducts(params?: CommerceListMyProductsParams): Promise<ValuAck>;
+    listMyProducts(params?: CommerceListMyProductsParams): Promise<ValuAck<CommerceListMyProductsResult>>;
     /**
      * Search the products YOUR app lists that are available in the user's current network. Products the network or its admins have refused are simply absent from the answer.
      * @binding socket
+     * @channel valuguru
      * @scope commerce:read
      */
-    listProducts(params?: CommerceListProductsParams): Promise<ValuAck>;
+    listProducts(params?: CommerceListProductsParams): Promise<ValuAck<CommerceListProductsResult>>;
     /**
      * Open My Cart for the user, scoped to your app's items.
      * @binding host
+     * @channel host
      * @scope commerce:write
      */
-    openCart(): Promise<ValuAck>;
+    openCart(): Promise<ValuAck<CommerceOpenCartResult>>;
     /**
      * Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it after `create-product`, or for a "My products" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's.
      * @binding host
+     * @channel host
      * @scope commerce:write
      */
-    openProducts(): Promise<ValuAck>;
+    openProducts(): Promise<ValuAck<CommerceOpenProductsResult>>;
     /**
      * Open the user's order history in My Cart.
      * @binding host
+     * @channel host
      * @scope commerce:write
      */
-    openPurchases(): Promise<ValuAck>;
+    openPurchases(): Promise<ValuAck<CommerceOpenPurchasesResult>>;
     /**
      * Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted by the seller in the Merchant Console first). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`.
      * @binding socket
+     * @channel valuguru
      * @scope commerce:write
      */
-    updateProduct(params: CommerceUpdateProductParams): Promise<ValuAck>;
+    updateProduct(params: CommerceUpdateProductParams): Promise<ValuAck<CommerceUpdateProductResult>>;
   };
   /**
    * Community service for browsing communities, listing channels, and loading posts within channels.
@@ -1824,27 +2324,31 @@ export interface ValuServices {
     /**
      * Lists channels within a specific community. Returns {communityId, channels[]} where each channel has channelId, rootChannelId (same as channelId — use this for entity tags), title, and other properties.
      * @binding socket
+     * @channel roomful
      * @scope community:read
      */
-    getChannels(params: CommunityGetChannelsParams): Promise<ValuAck>;
+    getChannels(params: CommunityGetChannelsParams): Promise<ValuAck<CommunityGetChannelsResult>>;
     /**
      * Retrieves detailed information about a specific community by its ID.
      * @binding socket
+     * @channel roomful
      * @scope community:read
      */
-    getCommunityInfo(params: CommunityGetCommunityInfoParams): Promise<ValuAck>;
+    getCommunityInfo(params: CommunityGetCommunityInfoParams): Promise<ValuAck<CommunityGetCommunityInfoResult>>;
     /**
      * Loads posts/messages in a specific channel or sub-channel. Returns {communityId?, rootChannelId, subChannelId?, messages[]}. The rootChannelId and subChannelId in the response are the exact values to use when constructing community-post or community-sub-channel-post entity tags — no need to track them separately.
      * @binding socket
+     * @channel roomful
      * @scope community:read
      */
-    getPosts(params: CommunityGetPostsParams): Promise<ValuAck>;
+    getPosts(params: CommunityGetPostsParams): Promise<ValuAck<CommunityGetPostsResult>>;
     /**
      * Search for available communities. Returns community objects with communityId, name, description, and other properties.
      * @binding socket
+     * @channel roomful
      * @scope community:read
      */
-    searchCommunities(params?: CommunitySearchCommunitiesParams): Promise<ValuAck>;
+    searchCommunities(params?: CommunitySearchCommunitiesParams): Promise<ValuAck<CommunitySearchCommunitiesResult>>;
   };
   /**
    * Picker service for selecting items from data providers (rooms, contacts, etc.) via modal or inline overlay.
@@ -1853,15 +2357,17 @@ export interface ValuServices {
     /**
      * Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"].
      * @binding host
+     * @channel host
      * @scope dataprovider:read
      */
-    pickMultiple(params: DataProviderPickMultipleParams): Promise<ValuAck>;
+    pickMultiple(params: DataProviderPickMultipleParams): Promise<ValuAck<DataProviderPickMultipleResult>>;
     /**
      * Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that.
      * @binding host
+     * @channel host
      * @scope dataprovider:read
      */
-    pickSingle(params: DataProviderPickSingleParams): Promise<ValuAck>;
+    pickSingle(params: DataProviderPickSingleParams): Promise<ValuAck<DataProviderPickSingleResult>>;
   };
   /**
    * Developer Portal service for creating and listing the current user's applications.
@@ -1870,15 +2376,17 @@ export interface ValuServices {
     /**
      * Creates a new application in the Developer Portal. By default the application is served in an iframe from https://web.texpo.io/{userId}/{appSlug} (its slug is derived from the name — lowercased, dashes; deduplicated with -2, -3, … on collision) and that texpo page needs code deployed to it before it shows anything. Pass the optional `url` to instead point the app's iframe DIRECTLY at an existing external page (no code/build needed) — the created app then opens straight to that URL. Returns the created app's id, devId, slug, URL, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens the application inside the platform, paste that `tag` value verbatim into your reply (do NOT link the raw URL).
      * @binding socket
+     * @channel host-state
      * @scope developer:write
      */
-    createApplication(params: DeveloperCreateApplicationParams): Promise<ValuAck>;
+    createApplication(params: DeveloperCreateApplicationParams): Promise<ValuAck<DeveloperCreateApplicationResult>>;
     /**
      * Lists the current user's applications in the Developer Portal. Returns each application's appId, devId, name, slug, url, description, createdAt timestamp, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens an application inside the platform, paste its `tag` value verbatim into your reply (do NOT link the raw URL).
      * @binding socket
+     * @channel host-state
      * @scope developer:read
      */
-    listApplications(): Promise<ValuAck>;
+    listApplications(): Promise<ValuAck<DeveloperListApplicationsResult>>;
   };
   /**
    * Calendar service for listing, creating, and editing meetings.
@@ -1887,21 +2395,24 @@ export interface ValuServices {
     /**
      * Creates a new meeting on the calendar with the specified title, type, time range, and optional participants, description, color, and recurrence.
      * @binding socket
+     * @channel roomful
      * @scope events:write
      */
-    createMeeting(params: EventsCreateMeetingParams): Promise<ValuAck>;
+    createMeeting(params: EventsCreateMeetingParams): Promise<ValuAck<EventsCreateMeetingResult>>;
     /**
      * Updates an existing meeting's fields (title, description, time, participants, or color) by meeting ID.
      * @binding socket
+     * @channel roomful
      * @scope events:write
      */
-    editMeeting(params: EventsEditMeetingParams): Promise<ValuAck>;
+    editMeeting(params: EventsEditMeetingParams): Promise<ValuAck<EventsEditMeetingResult>>;
     /**
      * Returns a list of calendar events for the specified date range and optional meeting filter, sorted by start time ascending.
      * @binding socket
+     * @channel roomful
      * @scope events:read
      */
-    listEvents(params?: EventsListEventsParams): Promise<ValuAck>;
+    listEvents(params?: EventsListEventsParams): Promise<ValuAck<EventsListEventsResult>>;
   };
   /**
    * Group management service for listing groups the current user belongs to and their participants.
@@ -1910,27 +2421,31 @@ export interface ValuServices {
     /**
      * Returns groups the current user can join via CBAC — groups whose badge policy is satisfied by the badges the user holds. Each result includes the cbacPolicies that grant access. Supports search and cursor-based pagination.
      * @binding socket
+     * @channel roomful
      * @scope groups:read
      */
-    discoverGroups(params?: GroupsDiscoverGroupsParams): Promise<ValuAck>;
+    discoverGroups(params?: GroupsDiscoverGroupsParams): Promise<ValuAck<GroupsDiscoverGroupsResult>>;
     /**
      * Joins the current user to a group via CBAC. The user must hold a badge that satisfies a badge policy on the target group (use discover-groups to find eligible groups first).
      * @binding socket
+     * @channel roomful
      * @scope groups:write
      */
-    joinGroup(params: GroupsJoinGroupParams): Promise<ValuAck>;
+    joinGroup(params: GroupsJoinGroupParams): Promise<ValuAck<GroupsJoinGroupResult>>;
     /**
      * Returns participants of a specific group. Supports search and cursor-based pagination.
      * @binding socket
+     * @channel roomful
      * @scope groups:read
      */
-    listGroupParticipants(params: GroupsListGroupParticipantsParams): Promise<ValuAck>;
+    listGroupParticipants(params: GroupsListGroupParticipantsParams): Promise<ValuAck<GroupsListGroupParticipantsResult>>;
     /**
      * Returns groups the current user belongs to. Supports search and cursor-based pagination.
      * @binding socket
+     * @channel roomful
      * @scope groups:read
      */
-    listGroups(params?: GroupsListGroupsParams): Promise<ValuAck>;
+    listGroups(params?: GroupsListGroupsParams): Promise<ValuAck<GroupsListGroupsResult>>;
   };
   /**
    * Generic HTTP utility: reachability ping, GET, and POST against any URL. Requests are sent without user credentials (cookies are stripped); responses include status, headers, and body. Timeouts are capped server-side.
@@ -1939,21 +2454,24 @@ export interface ValuServices {
     /**
      * Performs an HTTP GET against the URL and returns the response. Body is auto-parsed as JSON when the response Content-Type is application/json (or *+json), otherwise as text. Returns: { ok: boolean, status: number, statusText: string, headers: object, body: any, bodyType: "json"|"text", latency: number, error?: string }.
      * @binding local
+     * @channel local
      * @scope http:read
      */
-    get(params: HttpGetParams): Promise<ValuAck>;
+    get(params: HttpGetParams): Promise<ValuAck<HttpGetResult>>;
     /**
      * Pings a URL with HEAD and returns whether it is reachable, the response latency in ms, and the HTTP status code (0 for cross-origin or unreachable servers). Returns: { up: boolean, latency: number, status: number, error?: string }.
      * @binding local
+     * @channel local
      * @scope http:read
      */
-    ping(params: HttpPingParams): Promise<ValuAck>;
+    ping(params: HttpPingParams): Promise<ValuAck<HttpPingResult>>;
     /**
      * Performs an HTTP POST against the URL with the given body and returns the response (same shape as get). If `body` is a plain object it is JSON-stringified and Content-Type defaults to application/json; strings are sent verbatim with the supplied or existing Content-Type.
      * @binding local
+     * @channel local
      * @scope http:write
      */
-    post(params: HttpPostParams): Promise<ValuAck>;
+    post(params: HttpPostParams): Promise<ValuAck<HttpPostResult>>;
   };
   /**
    * Exposes the in-memory console log buffer captured by ConsoleLogCapture for diagnostics and bug reporting.
@@ -1962,9 +2480,10 @@ export interface ValuServices {
     /**
      * Returns the captured console log buffer (log, info, warn, error) since app start. Choose the format: "text" returns { format: "text", text: <string> } with one line per entry; "file" returns { format: "file", filename, mimeType, size, file: File } — the File is for direct callers (upload/download) and is omitted in the AI/MCP serialized response, which still includes filename, mimeType, and size.
      * @binding host
+     * @channel host
      * @scope logging:read
      */
-    getLogs(params?: LoggingGetLogsParams): Promise<ValuAck>;
+    getLogs(params?: LoggingGetLogsParams): Promise<ValuAck<LoggingGetLogsResult>>;
   };
   /**
    * Network management service for retrieving information about the current network.
@@ -1973,9 +2492,10 @@ export interface ValuServices {
     /**
      * Returns the id and name of the network the user is currently in. Call this to get the current networkId before making any room or network-related calls.
      * @binding socket
+     * @channel roomful
      * @scope networks:read
      */
-    getCurrentNetwork(): Promise<ValuAck>;
+    getCurrentNetwork(): Promise<ValuAck<NetworksGetCurrentNetworkResult>>;
   };
   /**
    * Read-only access to a user's public profile artifacts — Verus verifiable credentials and network badges — addressed by userId. No UI side effects.
@@ -1984,15 +2504,17 @@ export interface ValuServices {
     /**
      * Returns the badges assigned to a user by their userId. Each badge includes badgeId, badgeName, badgeDescription, thumbnailId, and networkId. Visibility is enforced by the backend against the current user.
      * @binding socket
+     * @channel roomful
      * @scope profile:read
      */
-    getUserBadges(params: ProfileGetUserBadgesParams): Promise<ValuAck>;
+    getUserBadges(params: ProfileGetUserBadgesParams): Promise<ValuAck<ProfileGetUserBadgesResult>>;
     /**
      * Returns the Verus verifiable credentials published on a user's profile, by their userId. These are the attestation claims of type "credential" shown in the profile Credentials view. Revoked credentials are returned only when the userId is the current user. Visibility is enforced by the backend against the current user.
      * @binding socket
+     * @channel roomful
      * @scope profile:read
      */
-    getUserCredentials(params: ProfileGetUserCredentialsParams): Promise<ValuAck>;
+    getUserCredentials(params: ProfileGetUserCredentialsParams): Promise<ValuAck<ProfileGetUserCredentialsResult>>;
   };
   /**
    * Low-level resource service for generating URLs (thumbnails, public links, direct downloads) for resources.
@@ -2001,33 +2523,38 @@ export interface ValuServices {
     /**
      * Generates an optimized view URL for a resource.
      * @binding local
+     * @channel local
      * @scope resources:read
      */
-    generateBestViewUrl(params: ResourcesGenerateBestViewUrlParams): Promise<ValuAck>;
+    generateBestViewUrl(params: ResourcesGenerateBestViewUrlParams): Promise<ValuAck<ResourcesGenerateBestViewUrlResult>>;
     /**
      * Generates a direct public API URL for downloading a resource.
      * @binding local
+     * @channel local
      * @scope resources:read
      */
-    generateDirectPublicUrl(params: ResourcesGenerateDirectPublicUrlParams): Promise<ValuAck>;
+    generateDirectPublicUrl(params: ResourcesGenerateDirectPublicUrlParams): Promise<ValuAck<ResourcesGenerateDirectPublicUrlResult>>;
     /**
      * Generates a public preview URL for a resource.
      * @binding local
+     * @channel local
      * @scope resources:read
      */
-    generatePublicUrl(params: ResourcesGeneratePublicUrlParams): Promise<ValuAck>;
+    generatePublicUrl(params: ResourcesGeneratePublicUrlParams): Promise<ValuAck<ResourcesGeneratePublicUrlResult>>;
     /**
      * Returns a thumbnail URL for a resource at the specified size.
      * @binding local
+     * @channel local
      * @scope resources:read
      */
-    getThumbnailUrl(params: ResourcesGetThumbnailUrlParams): Promise<ValuAck>;
+    getThumbnailUrl(params: ResourcesGetThumbnailUrlParams): Promise<ValuAck<ResourcesGetThumbnailUrlResult>>;
     /**
      * Returns the network-allowed bot avatar collection (id, name, tags) from the shared bot-avatars directory. Avatars carrying the current network's denied tags (same modesty/policy filter as the user avatar picker) are excluded. Use a returned `id` as a 3D avatar resource id (e.g. an agent's avatarResourceId).
      * @binding socket
+     * @channel roomful
      * @scope resources:read
      */
-    listBotAvatars(params?: ResourcesListBotAvatarsParams): Promise<ValuAck>;
+    listBotAvatars(params?: ResourcesListBotAvatarsParams): Promise<ValuAck<ResourcesListBotAvatarsResult>>;
   };
   /**
    * Room management service for searching rooms, browsing room templates, creating rooms from templates, retrieving room details, managing prop content, and checking permissions.
@@ -2036,93 +2563,108 @@ export interface ValuServices {
     /**
      * Creates a new 3D room in the current network from a room template — FREE or PAID. The tool looks the template up in the AI-approved list itself and uses the listed price (pass `price` too when you have it; it is the fallback if the lookup fails). For a paid template the room is created immediately with a one-time-payment plan and the platform keeps it only if the user completes the purchase within 15 minutes; this tool never pays anything. Returns { roomId, name, networkId, tag, price, isFree, paymentRequired } for the NEW room plus, when paymentRequired is true, paymentWindowMinutes (15) and paymentInstructions. When paymentRequired is true you MUST tell the user right away: the price, that the room is temporary until it is bought within 15 minutes, and how to pay (Valu web app -> Rooms -> open the new room -> "Pay for Room"); never claim it is paid. Creating the room and linking to it are two separate steps: to link, paste the returned `tag` (`@[room:networkId/roomId|Name]`) VERBATIM — never rebuild it from ids, never reuse a roomId from an earlier call or a template id, and never guess the networkId. Use list-room-templates first to find the template id and its price.
      * @binding socket
+     * @channel roomful
      * @scope rooms:write
      */
-    createRoomFromTemplate(params: RoomsCreateRoomFromTemplateParams): Promise<ValuAck>;
+    createRoomFromTemplate(params: RoomsCreateRoomFromTemplateParams): Promise<ValuAck<RoomsCreateRoomFromTemplateResult>>;
     /**
      * Removes a user from a prop's team by deleting their invitation. Use list-prop-team-members first to confirm the user is currently a team member.
      * @binding socket
+     * @channel roomful
      * @scope rooms:write
      */
-    deletePropInvitation(params: RoomsDeletePropInvitationParams): Promise<ValuAck>;
+    deletePropInvitation(params: RoomsDeletePropInvitationParams): Promise<ValuAck<RoomsDeletePropInvitationResult>>;
     /**
      * Retrieves the current user permissions for a room (view, comment, contribute, edit, manage).
      * @binding socket
+     * @channel roomful
      * @scope rooms:read
      */
-    getPermissions(params: RoomsGetPermissionsParams): Promise<ValuAck>;
+    getPermissions(params: RoomsGetPermissionsParams): Promise<ValuAck<RoomsGetPermissionsResult>>;
     /**
      * Returns details for a single prop by ID (name, assetTitle, type, thumbnailCount, isPresentationBoard, contentCount, assetId, `navIndex` — the prop's 0-based position in the room's navigation order, null when a Next/Previous storyline override never visits it — and the ready-made entity link `tag` — same fields as get-room-props) with no navigation or UI side effects. Use this to read prop data. Only use preview-prop when the user explicitly asks to show, open, or navigate to a prop.
      * @binding socket
+     * @channel roomful
      * @scope rooms:read
      */
-    getProp(params: RoomsGetPropParams): Promise<ValuAck>;
+    getProp(params: RoomsGetPropParams): Promise<ValuAck<RoomsGetPropResult>>;
     /**
      * Retrieves basic room model data by room ID including name, description, settings, and metadata.
      * @binding socket
+     * @channel roomful
      * @scope rooms:read
      */
-    getRoom(params: RoomsGetRoomParams): Promise<ValuAck>;
+    getRoom(params: RoomsGetRoomParams): Promise<ValuAck<RoomsGetRoomResult>>;
     /**
      * Lists a room's props ALREADY GROUPED by their tag set, in the room's navigation order — use this (not get-room-props) whenever content is to be placed. Returns { roomId, networkId, propOrder, groupIds, groups } — groupIds is the ordered list of every group id, read it first. A group is the set of props whose normalized tags (lowercase, spaces -> "-") are identical; its `id` is those tags sorted and joined with "+" (e.g. "building1+floor0+team"), so multi-tag rooms yield one group per tag combination ("building1+floor0+team" and "building1+floor1+team" are different groups). A SINGLE tagged prop is a group of one — the lone "logo" frame is the group "logo". Props WITHOUT tags belong to no group and are skipped entirely (never listed, never filled). Each group carries id, tags, label, isLogoGroup (true when the tags include "logo": every logo frame shows EVERY logo, so paste-resources-into-prop-group replicates there by default), navIndex (the group's first position in the room's walk; null = outside it), propCount, eligiblePropCount (props that can take content), decorativePropCount (props with no content type — walls, plants, signs — counted but NOT listed), totalContentCount, labels — the section's SIGNS: Text props (recognised by an asset tag containing "Text", or as a titled prop with no content type) whose title is the text shown in the room, members of the group because they carry its tags (an untagged sign is invisible to these tools); each { propId, text } — and props — only the props that can hold content (presentation boards included, flagged), each as a compact entry: id, name (what the prop SHOWS: its own title, else the title of its FIRST resource, else the asset's catalog name, else the bare id when nothing names it — an id-only name means an empty, unnamed frame), assetTitle, type, thumbnailCount, logoCount, invokeType, isPresentationBoard, acceptsContent (true = type non-empty and not a presentation board), contentCount, navIndex, tag. Match the user's words against group tags/label first ("the team wall on floor 0" -> tags contain team and floor0), then against prop name/assetTitle when they mean one exact prop. Pass group ids to paste-resources-into-prop-group; when the user's content is coarser than the groups ("team" over per-floor team groups) pass every group whose tags contain the facet. The ready-made `tag` on each prop is pasted verbatim when linking to it — never assemble one. propOrder says where the order came from ({ source: "storyline" | "props-group", storylineId?, storylineTitle? }).
      * @binding socket
+     * @channel roomful
      * @scope rooms:read
      */
-    getRoomPropGroups(params: RoomsGetRoomPropGroupsParams): Promise<ValuAck>;
+    getRoomPropGroups(params: RoomsGetRoomPropGroupsParams): Promise<ValuAck<RoomsGetRoomPropGroupsResult>>;
     /**
      * Lists all props (interactive objects) in a room. Returns prop objects with id, name (what the prop SHOWS, and the label on its tag: the prop's own title, else the title of its FIRST resource — a filled frame is named after its content, because a content prop carries no title of its own — else the asset's catalog name, else the bare id when nothing names it), assetTitle (the asset's catalog name, e.g. "Gold Picture Frame" or "Presentation Board" — tells you what kind of object the prop is even when the author renamed it), type (array of content types the prop can hold — empty means it cannot hold content), thumbnailCount (number of visual display canvases — a picture frame has thumbnailCount > 0), isPresentationBoard (true = a live screen-share board, NEVER a target for pasted content; null = unknown), invokeType (Default/Container/Bookshelf/FileCabinet), tags, contentCount, assetId, and `tag` — a ready-made entity link for the prop (`@[prop:networkId/roomId/propId|Name]`) that you paste verbatim when referring to it, never assembling one from ids yourself. Match the user's words against tags, name and assetTitle to find the prop they mean (e.g. "logo", "team", "the gold frame"). Each prop also carries `groupId` — the id of its prop group (props sharing the same tag set; see get-room-prop-groups). For PLACING content prefer get-room-prop-groups: it returns these same props already grouped, and paste-resources-into-prop-group spreads content over a group for you. Props are returned in the room's NAVIGATION ORDER and each carries `navIndex` (0-based position): normally that is the props-group order the room stores, but when the room's settings select a storyline to override Next/Previous navigation, THAT storyline's frame order is the source of truth for prop order — props the storyline never visits come last with `navIndex: null`.
      * @binding socket
+     * @channel roomful
      * @scope rooms:read
      */
-    getRoomProps(params: RoomsGetRoomPropsParams): Promise<ValuAck>;
+    getRoomProps(params: RoomsGetRoomPropsParams): Promise<ValuAck<RoomsGetRoomPropsResult>>;
     /**
      * Adds a user to a prop's team, or updates an existing team member's permissions and metadata. When called for a user already in the team this acts as an update — the invitation is replaced with the new permissions and customParams. Use list-prop-team-members first to check current membership before inviting.
      * @binding socket
+     * @channel roomful
      * @scope rooms:write
      */
-    inviteToProp(params: RoomsInviteToPropParams): Promise<ValuAck>;
+    inviteToProp(params: RoomsInviteToPropParams): Promise<ValuAck<RoomsInviteToPropResult>>;
     /**
      * Lists all team member invitations for a prop in a room. Returns an array of invitation records, each containing the invited user's ID, their permissions (view/comment/contribute/edit/manage), and any stored custom metadata. Agent assignments are stored id-only as `customParams.agentInfo.id` (string). Older rows may still carry the full snapshot `customParams.agentInfo: { id, name, description, avatarUrl }` — only `id` is read; everything else is resolved from the live agent.
      * @binding socket
+     * @channel roomful
      * @scope rooms:read
      */
-    listPropTeamMembers(params: RoomsListPropTeamMembersParams): Promise<ValuAck>;
+    listPropTeamMembers(params: RoomsListPropTeamMembersParams): Promise<ValuAck<RoomsListPropTeamMembersResult>>;
     /**
      * Lists the room templates the AI is allowed to build from: ONLY templates tagged both "community" and "ai-friendly" are returned — every other template is skipped by design, never look for or suggest one (filteredOutCount says how many of the page were skipped). Each template has an id, name, tags (e.g. "office", "gallery", "community"), price in USD (0 or missing = free; paid templates CAN be created too — the room then has to be purchased by the user within 15 minutes, see create-room-from-template), subscriptionStatus, and groupCount — the number of prop groups (tagged sections of frames) the template's room contains, read from a tag of the form "prop-groups_N" (e.g. prop-groups_5; null when the template carries no such tag). Choose a template by groupCount: prefer the one equal to the number of content sections the user has, else the smallest larger one; a template with more groups than sections leaves the extra groups on their placeholders, one with fewer forces sections to be merged — say so when you propose it. Supports text search and server-side tag filtering with pagination. Use this before create-room-from-template to find a template id, its groupCount and its price.
      * @binding socket
+     * @channel roomful
      * @scope rooms:read
      */
-    listRoomTemplates(params?: RoomsListRoomTemplatesParams): Promise<ValuAck>;
+    listRoomTemplates(params?: RoomsListRoomTemplatesParams): Promise<ValuAck<RoomsListRoomTemplatesResult>>;
     /**
      * Places one or more existing CMS resources into a prop in a room. Resources are link-copied (the originals stay in their current folder) and added to the prop's content list. IDEMPOTENT: a resource already on the prop (itself, or as a link copy) is skipped and listed in skippedAlreadyPresent — so repeating a paste after a timeout can never duplicate content; when everything was already there the result carries alreadyPresent=true and nothing is changed. Template placeholder resources still sitting on the prop (from the room template) are removed first so they never mix with the user's content (removedTemplateStubs in the result lists them; set removeTemplateStubs=false to keep them). When the paste leaves more than one resource on a non-container prop, the tool automatically enables the prop's auto content slider so the items cycle as a slideshow (result field sliderEnabled reports it; sliderError appears if the paste succeeded but the slider toggle failed). The tool also CLEARS the prop's title (content props carry no caption — a section's name lives on its sign; titleCleared reports it, titleClearError if that save failed). Use this tool ONLY when the user named exactly one prop. When the target is a GROUP — a row of frames, a tagged section, several props — call paste-resources-into-prop-group instead: it spreads the content across the group's props in navigation order itself, so never hand-split content into per-prop calls. The prop must support content — check via get-room-props that its type array is non-empty and isPresentationBoard is false: presentation (screen-share) boards are rejected, they are reserved for live screen sharing. Prefer props with thumbnailCount > 0 (picture frames / display canvases). Use service__CMS__resource_search to find resource ids first. Returns the paste result plus `name` and `tag` read back AFTER the paste, so they name what the prop now shows (its first resource) — paste that `tag` verbatim when linking to the prop.
      * @binding socket
+     * @channel roomful
      * @scope rooms:write
      */
-    pasteResourcesIntoProp(params: RoomsPasteResourcesIntoPropParams): Promise<ValuAck>;
+    pasteResourcesIntoProp(params: RoomsPasteResourcesIntoPropParams): Promise<ValuAck<RoomsPasteResourcesIntoPropResult>>;
     /**
      * Spreads existing CMS resources across the props of one or more prop GROUPS (ids from get-room-prop-groups), in the room's navigation order, as contiguous, order-preserving shares — one slideshow per prop. The tool does ALL the chunking (7 resources over 3 frames -> 3/2/2; 2 over 5 -> the first two frames get one each), so call it ONCE per content group with all of that group's resources — never once per prop, and never split the resources yourself. Pass several groupIds when the content is coarser than the room's groups (e.g. "team" photos over "building1+floor0+team" and "building1+floor1+team"); their props are pooled in walk order. Frames that still show only their template placeholder come FIRST (lowest navIndex first), frames that already hold user content come after — so a later top-up fills the empty slots before joining existing slideshows; each placement reports hadUserContent (true/false, null when the prop's content could not be read). distribution: "spread" (default — contiguous shares), "stack" (everything onto the first eligible prop as one slideshow — only when the user explicitly asked for a single slideshow) or "replicate" (EVERY resource onto EVERY eligible prop — the default when every selected group is a LOGO group, isLogoGroup true, so all logos show on all logo frames; never spread logos unless the user asks). Presentation boards are skipped automatically and listed in skippedProps; decorative members (walls, signs) are never candidates. Per prop this behaves exactly like paste-resources-into-prop: resources are link-copied (originals stay), a resource already on the prop (itself or as a link copy) is skipped rather than duplicated (per placement and top-level skippedAlreadyPresent — a repeat after a timeout is safe), template placeholder stubs are removed first, the auto content slider is enabled when a prop ends up with more than one item, and titles are cleared on EVERY content prop of the selected groups — the pasted ones and the untouched ones alike (content props carry no caption; the section's name lives on its sign; clearedTitlePropIds lists them, titleClearErrors any that failed). Returns { roomId, groupIds, distribution, placements: [{ groupId, propId, name, tag, navIndex, hadUserContent, resourceIds, addedResourceIds, failed, removedTemplateStubs, sliderEnabled, titleCleared, sliderError?, titleClearError?, stubCleanupError?, error? }], clearedTitlePropIds, titleClearErrors?, unplacedResourceIds (resources that landed on no prop at all), eligiblePropCount, skippedProps } — each placement's name and tag are read back AFTER the paste, so they name what the prop now shows (its first resource), not the empty frame it was. It throws only when nothing could be attempted: an unknown group id (the message lists the valid ids), no eligible prop in the selected groups, or empty input. Report failed/unplaced items honestly; paste each placement's `tag` verbatim when linking. Use paste-resources-into-prop only when the user named exactly one prop.
      * @binding socket
+     * @channel roomful
      * @scope rooms:write
      */
-    pasteResourcesIntoPropGroup(params: RoomsPasteResourcesIntoPropGroupParams): Promise<ValuAck>;
+    pasteResourcesIntoPropGroup(params: RoomsPasteResourcesIntoPropGroupParams): Promise<ValuAck<RoomsPasteResourcesIntoPropGroupResult>>;
     /**
      * Gives a prop GROUP a display name by retitling its section SIGNS — the group's labels from get-room-prop-groups, i.e. the tagged Text props that show the section name in the room. Content props (frames, boards) are never touched: they carry no title at all (pasting clears any they had), the name lives on the sign. Use it in the guided build once the section's name is settled (listed by the user up front, self-evident from the tag, or confirmed from your proposal — or chosen by you when the user asked you to decide everything). The group id itself comes from tags and does not change. Returns { roomId, groupId, name, hasLabels, renamedLabelPropIds, failed } — hasLabels false means the group has no sign, so there was nothing to rename (say so); renamedLabelPropIds are the signs that now show the name; failed lists signs that could not be saved. Never rename a group the user did not name or ask you to name.
      * @binding socket
+     * @channel roomful
      * @scope rooms:write
      */
-    renamePropGroup(params: RoomsRenamePropGroupParams): Promise<ValuAck>;
+    renamePropGroup(params: RoomsRenamePropGroupParams): Promise<ValuAck<RoomsRenamePropGroupResult>>;
     /**
      * Searches rooms belonging to the current user within the current network — their joined rooms, favorites, or pending invitations. Use this when the user asks about their own rooms. Every room in the result carries a ready-made entity link in its `tag` field (`@[room:networkId/roomId|Name]`) plus the resolved `networkId` — paste that `tag` verbatim when linking to the room and NEVER assemble one from ids yourself.
      * @binding socket
+     * @channel roomful
      * @scope rooms:read
      */
-    searchMyRooms(params: RoomsSearchMyRoomsParams): Promise<ValuAck>;
+    searchMyRooms(params: RoomsSearchMyRoomsParams): Promise<ValuAck<RoomsSearchMyRoomsResult>>;
     /**
      * Searches all public/discoverable rooms in the current network using the explorer service. Returns rooms anyone can find and join, regardless of membership. Use this when the user wants to discover or browse rooms. Every room in the result carries a ready-made entity link in its `tag` field (`@[room:networkId/roomId|Name]`) plus the resolved `networkId` — paste that `tag` verbatim when linking to the room and NEVER assemble one from ids yourself.
      * @binding socket
+     * @channel roomful
      * @scope rooms:read
      */
-    searchRooms(params?: RoomsSearchRoomsParams): Promise<ValuAck>;
+    searchRooms(params?: RoomsSearchRoomsParams): Promise<ValuAck<RoomsSearchRoomsResult>>;
   };
   /**
    * Headless text-chat I/O for non-UI callers (agents, sub-agents, scripts). Read channel history and send messages without opening the TextChat application or changing the active channel. Encryption and decryption are handled automatically.
@@ -2131,21 +2673,24 @@ export interface ValuServices {
     /**
      * Fetches the most recent messages for a text-chat channel by channelId, decrypted and ready to read. Returns a plain list of messages with authorId, body, timestamp, and messageType. Does not open any UI or change the active channel.
      * @binding socket
+     * @channel roomful
      * @scope textchat:read
      */
-    getChannelHistory(params: TextChatGetChannelHistoryParams): Promise<ValuAck>;
+    getChannelHistory(params: TextChatGetChannelHistoryParams): Promise<ValuAck<TextChatGetChannelHistoryResult>>;
     /**
      * Delivers a message authored by the AI agent itself (NOT by the logged-in user) into a user's dedicated agent-to-user channel, resolved from source `userAIAgent:{userId}:{agentId}`. The recipient sees the agent as the author and the channel is created on first use. This is the INVASIVE owner-notification channel: use it to ping/notify the owner (pass the owner's userId) — or, occasionally, any other user. Unlike send-message (which sends as the logged-in user), this is authored by the agent. Silent toward the UI — does NOT open the TextChat application or change the active channel.
      * @binding socket
+     * @channel roomful
      * @scope textchat:write
      */
-    messageOwner(params: TextChatMessageOwnerParams): Promise<ValuAck>;
+    messageOwner(params: TextChatMessageOwnerParams): Promise<ValuAck<TextChatMessageOwnerResult>>;
     /**
      * Sends a text message to a text-chat channel. You must provide EITHER a channelId (preferred when you already have one) OR a userId (for a direct message — the service resolves the direct channel automatically). Silent — does NOT open the TextChat application, does NOT change the active channel, does NOT affect any UI. Encryption is handled automatically if the channel is encrypted.
      * @binding socket
+     * @channel roomful
      * @scope textchat:write
      */
-    sendMessage(params: TextChatSendMessageParams): Promise<ValuAck>;
+    sendMessage(params: TextChatSendMessageParams): Promise<ValuAck<TextChatSendMessageResult>>;
   };
   /**
    * Returns the current user's local clock context — local ISO with offset, UTC ISO for the same instant, IANA timezone, offset in minutes, day-of-week, and resolved locale. Use this before any "today"/"tomorrow"/"now" reasoning or when converting natural-language times to ISO strings.
@@ -2154,9 +2699,10 @@ export interface ValuServices {
     /**
      * Returns an object describing the user's current local time: { iso: local ISO 8601 with offset (e.g. "2026-05-28T13:45:30.000+02:00"), utcIso: same instant in UTC (e.g. "2026-05-28T11:45:30.000Z"), timezone: IANA name (e.g. "Europe/Berlin"), offsetMinutes: integer minutes ahead of UTC (e.g. 120), dayOfWeek: long English day name (e.g. "Thursday"), localDate: "YYYY-MM-DD" in local time, localTime: "HH:MM" in local time, locale: resolved BCP 47 locale (e.g. "en-US") }. Takes no parameters.
      * @binding local
+     * @channel local
      * @scope time:read
      */
-    getLocalTime(): Promise<ValuAck>;
+    getLocalTime(): Promise<ValuAck<TimeGetLocalTimeResult>>;
   };
   /**
    * User management service for getting current user info, looking up users by ID, searching contacts/followers/following, and managing connection requests.
@@ -2165,51 +2711,59 @@ export interface ValuServices {
     /**
      * Accepts a pending connection request from a user.
      * @binding socket
+     * @channel roomful
      * @scope users:write
      */
-    acceptConnectionRequest(params: UsersAcceptConnectionRequestParams): Promise<ValuAck>;
+    acceptConnectionRequest(params: UsersAcceptConnectionRequestParams): Promise<ValuAck<UsersAcceptConnectionRequestResult>>;
     /**
      * Cancels a pending connection request that the current user previously sent.
      * @binding socket
+     * @channel roomful
      * @scope users:write
      */
-    cancelConnectionRequest(params: UsersCancelConnectionRequestParams): Promise<ValuAck>;
+    cancelConnectionRequest(params: UsersCancelConnectionRequestParams): Promise<ValuAck<UsersCancelConnectionRequestResult>>;
     /**
      * Returns the currently authenticated user info (id, firstName, lastName, etc.).
      * @binding socket
+     * @channel roomful
      * @scope users:read
      */
-    current(): Promise<ValuAck>;
+    current(): Promise<ValuAck<UsersCurrentResult>>;
     /**
      * Declines a pending connection request from a user.
      * @binding socket
+     * @channel roomful
      * @scope users:write
      */
-    declineConnectionRequest(params: UsersDeclineConnectionRequestParams): Promise<ValuAck>;
+    declineConnectionRequest(params: UsersDeclineConnectionRequestParams): Promise<ValuAck<UsersDeclineConnectionRequestResult>>;
     /**
      * Discover new users to connect with by searching by name. Uses a suggestion engine — distinct from search-users which searches within existing connections.
      * @binding socket
+     * @channel roomful
      * @scope users:read
      */
-    findUser(params?: UsersFindUserParams): Promise<ValuAck>;
+    findUser(params?: UsersFindUserParams): Promise<ValuAck<UsersFindUserResult>>;
     /**
      * Retrieves a user by their unique ID. Returns user object with id, firstName, lastName, etc.
      * @binding socket
+     * @channel roomful
      * @scope users:read
      */
-    get(params: UsersGetParams): Promise<ValuAck>;
+    get(params: UsersGetParams): Promise<ValuAck<UsersGetResult>>;
     /**
      * Search for users within existing connections (contacts, followers, or following). Use this to find a user ID when you only know their name and they are already in your network. To discover new users outside your network, use find-user instead.
      * @binding socket
+     * @channel roomful
      * @scope users:read
      */
-    searchUsers(params: UsersSearchUsersParams): Promise<ValuAck>;
+    searchUsers(params: UsersSearchUsersParams): Promise<ValuAck<UsersSearchUsersResult>>;
     /**
      * Sends a connection request to a user by their ID.
      * @binding socket
+     * @channel roomful
      * @scope users:write
      */
-    sendConnectionRequest(params: UsersSendConnectionRequestParams): Promise<ValuAck>;
+    sendConnectionRequest(params: UsersSendConnectionRequestParams): Promise<ValuAck<UsersSendConnectionRequestResult>>;
   };
   /**
    * Executes on-chain transfers from an AI agent's attached Verus wallet identity. Every call takes an agentId — the client resolves which wallet is attached to that agent. Returns an error if the agent has no wallet attached or the wallet has not finished being provisioned on-chain.
@@ -2218,15 +2772,17 @@ export interface ValuServices {
     /**
      * Return the last-known balance of the wallet attached to the specified agent. Reads from the client cache — call verus:getAgentsBalance (via AiGuruStore.refreshAgentBalances) for a fresh value.
      * @binding socket
+     * @channel host-state
      * @scope veruswallet:read
      */
-    getBalance(params: VerusWalletGetBalanceParams): Promise<ValuAck>;
+    getBalance(params: VerusWalletGetBalanceParams): Promise<ValuAck<VerusWalletGetBalanceResult>>;
     /**
      * Send currency from the agent's attached Verus wallet to a destination address or identity. Call this when the user or agent needs to move funds out of an agent wallet. Fails if the agent has no wallet attached, or if the wallet is still pending creation.
      * @binding socket
+     * @channel roomful
      * @scope veruswallet:write
      */
-    transfer(params: VerusWalletTransferParams): Promise<ValuAck>;
+    transfer(params: VerusWalletTransferParams): Promise<ValuAck<VerusWalletTransferResult>>;
   };
 }
 

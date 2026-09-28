@@ -26,6 +26,16 @@ export class Transport {
   /** @returns {boolean} */
   get connected() { return false; }
 
+  /**
+   * Whether this transport speaks the host bridge at all.
+   *
+   * `request`/`notify` exist on every transport — they throw where they are
+   * not supported — so "has a request method" does not answer the question.
+   * FrameCommands asks this one instead: there is no frame behind a socket,
+   * and finding that out per call would be fifteen identical surprises.
+   */
+  get supportsBridge() { return false; }
+
   /** Human name, for error messages that have to say which transport refused. */
   get name() { return this.constructor.name; }
 

@@ -24,7 +24,8 @@ Source: `src/Services/AiGuru/AiGuruService.js`
 
 Closes (unloads) an application by its ID from the dock.
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `void` — The application was closed.
 - scope: `aiguru:write` · mutates state
 - cache: `none`
 - availability: _none_
@@ -37,9 +38,10 @@ Closes (unloads) an application by its ID from the dock.
 
 Returns the in-memory message history for a background agent.
 
-- binding: `socket`
+- binding: `socket` · channel: `host-state`
+- returns: `{agent: object, messages: object[]}` — The agent header and its in-memory messages.
 - scope: `aiguru:read` · read-only
-- cache: `read-through` (ttl 30000ms, key `agentId`)
+- cache: `none`
 - availability: `developer`
 
 | param | type | required | description |
@@ -50,7 +52,8 @@ Returns the in-memory message history for a background agent.
 
 Returns a list of all registered applications with their id, slug, icon, and title.
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `{applications: object[]}` — Applications the dock can open.
 - scope: `aiguru:read` · read-only
 - cache: `none`
 - availability: _none_
@@ -61,9 +64,10 @@ Takes no parameters.
 
 Returns the in-memory message history for a chat session. Omit chatId to get the currently active session.
 
-- binding: `socket`
+- binding: `socket` · channel: `host-state`
+- returns: `{session: object, messages: object[]}` — The session header and its in-memory messages.
 - scope: `aiguru:read` · read-only
-- cache: `read-through` (ttl 30000ms, key `service`)
+- cache: `none`
 - availability: `developer`
 
 | param | type | required | description |
@@ -74,7 +78,8 @@ Returns the in-memory message history for a chat session. Omit chatId to get the
 
 Checks whether an application with the given ID exists in the registry.
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `{hasApplication: boolean}` — Whether the dock knows this application.
 - scope: `aiguru:read` · read-only
 - cache: `none`
 - availability: _none_
@@ -87,7 +92,8 @@ Checks whether an application with the given ID exists in the registry.
 
 Checks whether an application with the given ID is currently loaded (open) in the dock.
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `{loaded: boolean}` — Whether the application is loaded in the dock.
 - scope: `aiguru:read` · read-only
 - cache: `none`
 - availability: _none_
@@ -100,7 +106,8 @@ Checks whether an application with the given ID is currently loaded (open) in th
 
 Opens (loads) an application by its ID into the dock.
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `void` — The application was opened.
 - scope: `aiguru:write` · mutates state
 - cache: `none`
 - availability: _none_
@@ -113,7 +120,8 @@ Opens (loads) an application by its ID into the dock.
 
 Queries the RAG knowledge base directly over the Valu Guru server's socket connection, bypassing chat entirely. Returns the raw tool result text.
 
-- binding: `socket`
+- binding: `socket` · channel: `valuguru`
+- returns: `{toolName: string, result: string}` — The RAG tool that answered and its raw result text.
 - scope: `aiguru:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `developer`
@@ -134,7 +142,8 @@ Source: `src/Services/Application/ApplicationService.js`
 
 Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed.
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `void` — Every open application was closed.
 - scope: `application:read` · read-only
 - cache: `none`
 - availability: `developer`
@@ -145,7 +154,8 @@ Takes no parameters.
 
 Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Close Application" default header action for iframe apps that render their own context menu (header: false).
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `void` — The calling application was closed.
 - scope: `application:write` · mutates state
 - cache: `none`
 - availability: `developer`
@@ -156,7 +166,8 @@ Takes no parameters.
 
 Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Expand Application" default header action for iframe apps that render their own context menu (header: false).
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `void` — The calling application was expanded.
 - scope: `application:write` · mutates state
 - cache: `none`
 - availability: `developer`
@@ -167,7 +178,8 @@ Takes no parameters.
 
 Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `{token: string}` — A short-lived identity token for the calling application.
 - scope: `application:read` · read-only
 - cache: `none`
 - availability: `developer`
@@ -184,7 +196,8 @@ Source: `src/Services/UploadManager/ApplicationStorageService.js`
 
 Deletes a resource from the calling application's storage.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `void` — The resource was deleted.
 - scope: `applicationstorage:write` · mutates state
 - cache: `none`
 - availability: `developer`
@@ -197,7 +210,8 @@ Deletes a resource from the calling application's storage.
 
 Searches resources in the calling application's storage for the current user.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{resources: object[], hasMore: boolean, cursor: string}` — A page of the application's stored resources.
 - scope: `applicationstorage:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `developer`
@@ -212,7 +226,8 @@ Searches resources in the calling application's storage for the current user.
 
 Uploads files to the calling application's storage for the current user.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{resolved: object[], failed: object[]}` — Resources created in the application's own storage, and the files that failed.
 - scope: `applicationstorage:write` · mutates state
 - cache: `none`
 - availability: `developer`
@@ -231,7 +246,8 @@ Source: `src/Services/Cbac/CbacService.js`
 
 Creates a CBAC policy on a target entity. Valid grantedPermission values depend on targetType: room → room.view / room.comment / room.contribute / room.edit; community → community.join; group → group.join. Requires manage permission on the target.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{policy: object}` — The policy that was created.
 - scope: `cbac:write` · mutates state
 - cache: `none`
 - availability: `developer`
@@ -249,7 +265,8 @@ Creates a CBAC policy on a target entity. Valid grantedPermission values depend 
 
 Deletes a single CBAC policy by ID. Requires manage permission on the target.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `void` — The policy was deleted.
 - scope: `cbac:write` · mutates state
 - cache: `none`
 - availability: `developer`
@@ -265,7 +282,8 @@ Deletes a single CBAC policy by ID. Requires manage permission on the target.
 
 Lists every badge visible to the current user — badges scoped to their networks plus global ones. Returns an array of `{networkId, badgeId, badgeName, badgeDescription, thumbnailId}`, where `networkId` is "all" for a global badge. Use this to resolve a badge name to the badgeId required by search-users-by-badge-id and the policy intents.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{badges: object[]}` — Badges visible to the caller, network-scoped and global.
 - scope: `cbac:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -276,7 +294,8 @@ Takes no parameters.
 
 Lists all CBAC policies configured for a target entity.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{policies: object[]}` — Every badge policy on the target entity.
 - scope: `cbac:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `developer`
@@ -291,7 +310,8 @@ Lists all CBAC policies configured for a target entity.
 
 Lists the users holding a given badge, optionally filtered by a name query. The reverse of looking up which badges a single user holds. Call list-badges first to resolve a badge name to its badgeId. Returns `{users, total}` where `total` is the full match count across all pages — page through it with offset/size rather than assuming the first page is everything.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{users: object[], total: number}` — A page of badge holders; total is the full match count.
 - scope: `cbac:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `badgeId`)
 - availability: `ai`, `developer`
@@ -313,7 +333,8 @@ Source: `src/Services/CMS/CMSService.js`
 
 Deletes a resource or removes it from a prop or post.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `void` — The resource was deleted, or detached from the prop/post that held it.
 - scope: `cms:write` · mutates state
 - cache: `none`
 - availability: `developer`
@@ -331,7 +352,8 @@ Deletes a resource or removes it from a prop or post.
 
 Searches for resources within a given scope (room, prop, community, channel, directory, or post). Each returned resource has an id (and a title/name) — tag every resource you reference in your reply as @[cms-resource:id|title].
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{resources: object[], hasMore: boolean, cursor: string}` — A page of resources in the addressed scope.
 - scope: `cms:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `roomId`)
 - availability: `ai`, `developer`
@@ -352,7 +374,8 @@ Searches for resources within a given scope (room, prop, community, channel, dir
 
 Uploads files to a resource storage scoped by belonging (room, prop, community, channel, directory, or post).
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{resolved: object[], failed: object[], placed?: string}` — Resources created, and where they were placed (prop or post) when a scope was given.
 - scope: `cms:write` · mutates state
 - cache: `none`
 - availability: `developer`
@@ -377,7 +400,8 @@ Source: `src/Services/Commerce/CommerceService.js`
 
 Put a product in the user's cart, credited to your app. The server re-checks that it can be bought here before accepting it, so a refusal comes back with a code to show.
 
-- binding: `socket`
+- binding: `socket` · channel: `valuguru`
+- returns: `{items: object[]}` — The cart after the addition.
 - scope: `commerce:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -391,7 +415,8 @@ Put a product in the user's cart, credited to your app. The server re-checks tha
 
 Which of these products the current user owns. This is how an app unlocks a ticket, a seat or an in-app good it sold through the shared cart.
 
-- binding: `socket`
+- binding: `socket` · channel: `valuguru`
+- returns: `{entitlements: object[]}` — What the buyer owns of the products asked about.
 - scope: `commerce:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -404,7 +429,8 @@ Which of these products the current user owns. This is how an app unlocks a tick
 
 Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, and stays with the seller in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
 
-- binding: `socket`
+- binding: `socket` · channel: `valuguru`
+- returns: `{product: object}` — The DRAFT product that was created. Publishing stays with the seller.
 - scope: `commerce:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -425,7 +451,8 @@ Create a product for the seller, as a DRAFT. Two ways in. With no params it open
 
 Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Read-only: change the cart with `add-to-cart`, or send the user to it with `open-cart`.
 
-- binding: `socket`
+- binding: `socket` · channel: `valuguru`
+- returns: `{items: object[], count: number}` — The whole cart; count excludes saved-for-later rows.
 - scope: `commerce:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -436,7 +463,8 @@ Takes no parameters.
 
 One of the seller's own products with its content, in exactly the shape update-product takes: `{product, items}`. Read it before changing the content — `items` in update-product REPLACES the whole tree, so edit this list and send it back rather than sending only the new files.
 
-- binding: `socket`
+- binding: `socket` · channel: `valuguru`
+- returns: `{product: object, items: object[]}` — One of the seller's products with its content tree.
 - scope: `commerce:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `productId`)
 - availability: `ai`
@@ -449,7 +477,8 @@ One of the seller's own products with its content, in exactly the shape update-p
 
 One product with its price, its parts when it is a bundle, its store, its reviews and whether the current user already owns it.
 
-- binding: `socket`
+- binding: `socket` · channel: `valuguru`
+- returns: `{product: object}` — One catalogue product.
 - scope: `commerce:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `productId`)
 - availability: `ai`, `developer`
@@ -462,7 +491,8 @@ One product with its price, its parts when it is a bundle, its store, its review
 
 The platform's product categories as `{categories: [{id, label}]}`. Every product is filed under exactly one; pass an `id` to list-products as `category`, and show the `label`.
 
-- binding: `socket`
+- binding: `socket` · channel: `valuguru`
+- returns: `{categories: object[]}` — The platform category list.
 - scope: `commerce:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -473,7 +503,8 @@ Takes no parameters.
 
 List the SELLER's own products in their store — drafts, unlisted, live and archived — unlike list-products, which is the buyer's shelf and never shows drafts. Use it to find the productId to edit. Each product carries `editable`: true only for a draft (never published, or unlisted by the seller). Returns `{hasStore, products}`.
 
-- binding: `socket`
+- binding: `socket` · channel: `valuguru`
+- returns: `{hasStore: boolean, products: object[]}` — The seller's own catalogue, drafts included.
 - scope: `commerce:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`
@@ -487,7 +518,8 @@ List the SELLER's own products in their store — drafts, unlisted, live and arc
 
 Search the products YOUR app lists that are available in the user's current network. Products the network or its admins have refused are simply absent from the answer.
 
-- binding: `socket`
+- binding: `socket` · channel: `valuguru`
+- returns: `{products: object[], total: number}` — The buyer-facing catalogue page for the calling application.
 - scope: `commerce:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -506,7 +538,8 @@ Search the products YOUR app lists that are available in the user's current netw
 
 Open My Cart for the user, scoped to your app's items.
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `void` — The cart surface was opened.
 - scope: `commerce:write` · mutates state
 - cache: `none`
 - availability: `developer`
@@ -517,7 +550,8 @@ Takes no parameters.
 
 Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it after `create-product`, or for a "My products" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's.
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `void` — The merchant console was opened.
 - scope: `commerce:write` · mutates state
 - cache: `none`
 - availability: `developer`
@@ -528,7 +562,8 @@ Takes no parameters.
 
 Open the user's order history in My Cart.
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `void` — The purchases surface was opened.
 - scope: `commerce:write` · mutates state
 - cache: `none`
 - availability: `developer`
@@ -539,7 +574,8 @@ Takes no parameters.
 
 Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted by the seller in the Merchant Console first). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`.
 
-- binding: `socket`
+- binding: `socket` · channel: `valuguru`
+- returns: `{product: object}` — The updated draft.
 - scope: `commerce:write` · mutates state
 - cache: `none`
 - availability: `ai`
@@ -568,7 +604,8 @@ Source: `src/Services/Community/CommunityService.js`
 
 Lists channels within a specific community. Returns {communityId, channels[]} where each channel has channelId, rootChannelId (same as channelId — use this for entity tags), title, and other properties.
 
-- binding: `socket` · server tool: `service__Community__get_channels`
+- binding: `socket` · channel: `roomful` · server tool: `service__Community__get_channels`
+- returns: `{communityId: string, channels: object[]}` — The community's channels, each stamped with rootChannelId.
 - scope: `community:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `communityId`)
 - availability: `ai`, `developer`
@@ -582,7 +619,8 @@ Lists channels within a specific community. Returns {communityId, channels[]} wh
 
 Retrieves detailed information about a specific community by its ID.
 
-- binding: `socket` · server tool: `service__Community__get_community_info`
+- binding: `socket` · channel: `roomful` · server tool: `service__Community__get_community_info`
+- returns: `{community: object}` — The community record; subscribes the caller as a side effect.
 - scope: `community:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `communityId`)
 - availability: `ai`, `developer`
@@ -595,7 +633,8 @@ Retrieves detailed information about a specific community by its ID.
 
 Loads posts/messages in a specific channel or sub-channel. Returns {communityId?, rootChannelId, subChannelId?, messages[]}. The rootChannelId and subChannelId in the response are the exact values to use when constructing community-post or community-sub-channel-post entity tags — no need to track them separately.
 
-- binding: `socket` · server tool: `service__Community__get_posts`
+- binding: `socket` · channel: `roomful` · server tool: `service__Community__get_posts`
+- returns: `{rootChannelId: string, messages: object[]}` — A page of channel posts with engagement counts.
 - scope: `community:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `communityId`)
 - availability: `ai`, `developer`
@@ -612,7 +651,8 @@ Loads posts/messages in a specific channel or sub-channel. Returns {communityId?
 
 Search for available communities. Returns community objects with communityId, name, description, and other properties.
 
-- binding: `socket` · server tool: `service__Community__search_communities`
+- binding: `socket` · channel: `roomful` · server tool: `service__Community__search_communities`
+- returns: `{communities: object[]}` — Open communities matching the query.
 - scope: `community:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -633,7 +673,8 @@ Source: `src/Services/DataProvider/DataProviderService.js`
 
 Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"].
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `{picked: object[]}` — What the user chose; empty when they cancelled.
 - scope: `dataprovider:read` · read-only
 - cache: `none`
 - availability: `ai`, `developer`
@@ -651,7 +692,8 @@ Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS unti
 
 Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that.
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `{picked: object|null}` — What the user chose, or null when they cancelled.
 - scope: `dataprovider:read` · read-only
 - cache: `none`
 - availability: `ai`, `developer`
@@ -673,7 +715,8 @@ Source: `src/Applications/DeveloperPortal/Services/DeveloperService.js`
 
 Creates a new application in the Developer Portal. By default the application is served in an iframe from https://web.texpo.io/{userId}/{appSlug} (its slug is derived from the name — lowercased, dashes; deduplicated with -2, -3, … on collision) and that texpo page needs code deployed to it before it shows anything. Pass the optional `url` to instead point the app's iframe DIRECTLY at an existing external page (no code/build needed) — the created app then opens straight to that URL. Returns the created app's id, devId, slug, URL, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens the application inside the platform, paste that `tag` value verbatim into your reply (do NOT link the raw URL).
 
-- binding: `socket`
+- binding: `socket` · channel: `host-state`
+- returns: `{appId: string, devId: string, name: string, slug: string, url: string}` — The application that was registered in the Developer Portal.
 - scope: `developer:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -689,9 +732,10 @@ Creates a new application in the Developer Portal. By default the application is
 
 Lists the current user's applications in the Developer Portal. Returns each application's appId, devId, name, slug, url, description, createdAt timestamp, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens an application inside the platform, paste its `tag` value verbatim into your reply (do NOT link the raw URL).
 
-- binding: `socket`
+- binding: `socket` · channel: `host-state`
+- returns: `{applications: object[]}` — The caller's own Developer Portal applications.
 - scope: `developer:read` · read-only
-- cache: `read-through` (ttl 30000ms, key `service`)
+- cache: `none`
 - availability: `ai`, `developer`
 
 Takes no parameters.
@@ -706,7 +750,8 @@ Source: `src/Applications/EventsApplication/Services/EventsService.js`
 
 Creates a new meeting on the calendar with the specified title, type, time range, and optional participants, description, color, and recurrence.
 
-- binding: `socket` · server tool: `service__Events__create_meeting`
+- binding: `socket` · channel: `roomful` · server tool: `service__Events__create_meeting`
+- returns: `{meetingId: string, meeting: object}` — The meeting (or recurring series) that was created.
 - scope: `events:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -730,7 +775,8 @@ Creates a new meeting on the calendar with the specified title, type, time range
 
 Updates an existing meeting's fields (title, description, time, participants, or color) by meeting ID.
 
-- binding: `socket` · server tool: `service__Events__edit_meeting`
+- binding: `socket` · channel: `roomful` · server tool: `service__Events__edit_meeting`
+- returns: `{meetingId: string, meeting: object}` — The meeting after the update.
 - scope: `events:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -749,7 +795,8 @@ Updates an existing meeting's fields (title, description, time, participants, or
 
 Returns a list of calendar events for the specified date range and optional meeting filter, sorted by start time ascending.
 
-- binding: `socket` · server tool: `service__Events__list_events`
+- binding: `socket` · channel: `roomful` · server tool: `service__Events__list_events`
+- returns: `{events: object[]}` — Meeting occurrences in the computed window, earliest first.
 - scope: `events:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `id`)
 - availability: `ai`, `developer`
@@ -771,7 +818,8 @@ Source: `src/Services/Groups/GroupsService.js`
 
 Returns groups the current user can join via CBAC — groups whose badge policy is satisfied by the badges the user holds. Each result includes the cbacPolicies that grant access. Supports search and cursor-based pagination.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{groups: object[], hasMore: boolean, cursor: string}` — Groups the caller's badges let them join; joined ones are flagged.
 - scope: `groups:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -786,7 +834,8 @@ Returns groups the current user can join via CBAC — groups whose badge policy 
 
 Joins the current user to a group via CBAC. The user must hold a badge that satisfies a badge policy on the target group (use discover-groups to find eligible groups first).
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `void` — The caller joined the group.
 - scope: `groups:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -799,7 +848,8 @@ Joins the current user to a group via CBAC. The user must hold a badge that sati
 
 Returns participants of a specific group. Supports search and cursor-based pagination.
 
-- binding: `socket` · server tool: `service__Groups__list_group_participants`
+- binding: `socket` · channel: `roomful` · server tool: `service__Groups__list_group_participants`
+- returns: `{participants: object[], hasMore: boolean, cursor: string}` — A page of a group's members.
 - scope: `groups:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `groupId`)
 - availability: `ai`, `developer`
@@ -815,7 +865,8 @@ Returns participants of a specific group. Supports search and cursor-based pagin
 
 Returns groups the current user belongs to. Supports search and cursor-based pagination.
 
-- binding: `socket` · server tool: `service__Groups__list_groups`
+- binding: `socket` · channel: `roomful` · server tool: `service__Groups__list_groups`
+- returns: `{groups: object[], hasMore: boolean, cursor: string}` — A page of the caller's own groups.
 - scope: `groups:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -836,7 +887,8 @@ Source: `src/Services/Http/HttpService.js`
 
 Performs an HTTP GET against the URL and returns the response. Body is auto-parsed as JSON when the response Content-Type is application/json (or *+json), otherwise as text. Returns: { ok: boolean, status: number, statusText: string, headers: object, body: any, bodyType: "json"|"text", latency: number, error?: string }.
 
-- binding: `local`
+- binding: `local` · channel: `local`
+- returns: `{ok: boolean, status: number, statusText: string, headers: object, body: any, bodyType: string, latency: number}` — The response, with the body parsed per responseType.
 - scope: `http:read` · read-only
 - cache: `none`
 - availability: `developer`
@@ -852,7 +904,8 @@ Performs an HTTP GET against the URL and returns the response. Body is auto-pars
 
 Pings a URL with HEAD and returns whether it is reachable, the response latency in ms, and the HTTP status code (0 for cross-origin or unreachable servers). Returns: { up: boolean, latency: number, status: number, error?: string }.
 
-- binding: `local`
+- binding: `local` · channel: `local`
+- returns: `{up: boolean, latency: number, status: number}` — Reachability of the URL, by HEAD.
 - scope: `http:read` · read-only
 - cache: `none`
 - availability: `developer`
@@ -866,7 +919,8 @@ Pings a URL with HEAD and returns whether it is reachable, the response latency 
 
 Performs an HTTP POST against the URL with the given body and returns the response (same shape as get). If `body` is a plain object it is JSON-stringified and Content-Type defaults to application/json; strings are sent verbatim with the supplied or existing Content-Type.
 
-- binding: `local`
+- binding: `local` · channel: `local`
+- returns: `{ok: boolean, status: number, statusText: string, headers: object, body: any, bodyType: string, latency: number}` — The response, with the body parsed per responseType.
 - scope: `http:write` · mutates state
 - cache: `none`
 - availability: `developer`
@@ -890,7 +944,8 @@ Source: `src/Services/Logging/LoggingService.js`
 
 Returns the captured console log buffer (log, info, warn, error) since app start. Choose the format: "text" returns { format: "text", text: <string> } with one line per entry; "file" returns { format: "file", filename, mimeType, size, file: File } — the File is for direct callers (upload/download) and is omitted in the AI/MCP serialized response, which still includes filename, mimeType, and size.
 
-- binding: `host`
+- binding: `host` · channel: `host`
+- returns: `{logs: string|object[]}` — The host's captured log buffer, in the requested format.
 - scope: `logging:read` · read-only
 - cache: `none`
 - availability: `developer`
@@ -909,7 +964,8 @@ Source: `src/Applications/NetworksApplication/Services/NetworksService.js`
 
 Returns the id and name of the network the user is currently in. Call this to get the current networkId before making any room or network-related calls.
 
-- binding: `socket` · server tool: `service__Networks__get_current_network`
+- binding: `socket` · channel: `roomful` · server tool: `service__Networks__get_current_network`
+- returns: `{networkId: string, name: string|null}` — The active network id and its human-readable name.
 - scope: `networks:read` · read-only
 - cache: `read-through` (ttl 300000ms, key `service`)
 - availability: `ai`, `developer`
@@ -926,7 +982,8 @@ Source: `src/Services/Profile/ProfileService.js`
 
 Returns the badges assigned to a user by their userId. Each badge includes badgeId, badgeName, badgeDescription, thumbnailId, and networkId. Visibility is enforced by the backend against the current user.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{badges: object[]}` — Badges assigned to the user in the requested network scope.
 - scope: `profile:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `userId`)
 - availability: `ai`, `developer`
@@ -940,7 +997,8 @@ Returns the badges assigned to a user by their userId. Each badge includes badge
 
 Returns the Verus verifiable credentials published on a user's profile, by their userId. These are the attestation claims of type "credential" shown in the profile Credentials view. Revoked credentials are returned only when the userId is the current user. Visibility is enforced by the backend against the current user.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{credentials: object[]}` — Verus credentials published on the user's profile.
 - scope: `profile:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `userId`)
 - availability: `ai`, `developer`
@@ -960,7 +1018,8 @@ Source: `src/Services/Resources/ResourceService.js`
 
 Generates an optimized view URL for a resource.
 
-- binding: `local` · server tool: `service__Resources__generate_best_view_url`
+- binding: `local` · channel: `local` · server tool: `service__Resources__generate_best_view_url`
+- returns: `{url: string}` — The web-app "best view" URL.
 - scope: `resources:read` · read-only
 - cache: `none`
 - availability: `ai`, `developer`
@@ -973,7 +1032,8 @@ Generates an optimized view URL for a resource.
 
 Generates a direct public API URL for downloading a resource.
 
-- binding: `local` · server tool: `service__Resources__generate_direct_public_url`
+- binding: `local` · channel: `local` · server tool: `service__Resources__generate_direct_public_url`
+- returns: `{url: string}` — The API URL that serves the raw bytes.
 - scope: `resources:read` · read-only
 - cache: `none`
 - availability: `ai`, `developer`
@@ -986,7 +1046,8 @@ Generates a direct public API URL for downloading a resource.
 
 Generates a public preview URL for a resource.
 
-- binding: `local` · server tool: `service__Resources__generate_public_url`
+- binding: `local` · channel: `local` · server tool: `service__Resources__generate_public_url`
+- returns: `{url: string}` — The web-app preview page URL.
 - scope: `resources:read` · read-only
 - cache: `none`
 - availability: `ai`, `developer`
@@ -999,7 +1060,8 @@ Generates a public preview URL for a resource.
 
 Returns a thumbnail URL for a resource at the specified size.
 
-- binding: `local`
+- binding: `local` · channel: `local`
+- returns: `{url: string}` — The public downscaled URL for the resource.
 - scope: `resources:read` · read-only
 - cache: `none`
 - availability: `developer`
@@ -1013,7 +1075,8 @@ Returns a thumbnail URL for a resource at the specified size.
 
 Returns the network-allowed bot avatar collection (id, name, tags) from the shared bot-avatars directory. Avatars carrying the current network's denied tags (same modesty/policy filter as the user avatar picker) are excluded. Use a returned `id` as a 3D avatar resource id (e.g. an agent's avatarResourceId).
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{avatars: object[]}` — Network-allowed bot avatars ({id, name, tags}).
 - scope: `resources:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -1032,7 +1095,8 @@ Source: `src/Applications/RoomsApplication/Services/RoomsService.js`
 
 Creates a new 3D room in the current network from a room template — FREE or PAID. The tool looks the template up in the AI-approved list itself and uses the listed price (pass `price` too when you have it; it is the fallback if the lookup fails). For a paid template the room is created immediately with a one-time-payment plan and the platform keeps it only if the user completes the purchase within 15 minutes; this tool never pays anything. Returns { roomId, name, networkId, tag, price, isFree, paymentRequired } for the NEW room plus, when paymentRequired is true, paymentWindowMinutes (15) and paymentInstructions. When paymentRequired is true you MUST tell the user right away: the price, that the room is temporary until it is bought within 15 minutes, and how to pay (Valu web app -> Rooms -> open the new room -> "Pay for Room"); never claim it is paid. Creating the room and linking to it are two separate steps: to link, paste the returned `tag` (`@[room:networkId/roomId|Name]`) VERBATIM — never rebuild it from ids, never reuse a roomId from an earlier call or a template id, and never guess the networkId. Use list-room-templates first to find the template id and its price.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{roomId: string, name: string, networkId: string, price: number, isFree: boolean, paymentRequired: boolean}` — The new room; paymentRequired says a paid template still has to be settled.
 - scope: `rooms:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -1047,7 +1111,8 @@ Creates a new 3D room in the current network from a room template — FREE or PA
 
 Removes a user from a prop's team by deleting their invitation. Use list-prop-team-members first to confirm the user is currently a team member.
 
-- binding: `socket` · server tool: `service__Rooms__delete_prop_invitation`
+- binding: `socket` · channel: `roomful` · server tool: `service__Rooms__delete_prop_invitation`
+- returns: `void` — The invitation was revoked.
 - scope: `rooms:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -1062,7 +1127,8 @@ Removes a user from a prop's team by deleting their invitation. Use list-prop-te
 
 Retrieves the current user permissions for a room (view, comment, contribute, edit, manage).
 
-- binding: `socket` · server tool: `service__Rooms__get_permissions`
+- binding: `socket` · channel: `roomful` · server tool: `service__Rooms__get_permissions`
+- returns: `{permissions: object}` — The caller's permission set for the room.
 - scope: `rooms:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `roomId`)
 - availability: `ai`, `developer`
@@ -1075,7 +1141,8 @@ Retrieves the current user permissions for a room (view, comment, contribute, ed
 
 Returns details for a single prop by ID (name, assetTitle, type, thumbnailCount, isPresentationBoard, contentCount, assetId, `navIndex` — the prop's 0-based position in the room's navigation order, null when a Next/Previous storyline override never visits it — and the ready-made entity link `tag` — same fields as get-room-props) with no navigation or UI side effects. Use this to read prop data. Only use preview-prop when the user explicitly asks to show, open, or navigate to a prop.
 
-- binding: `socket` · server tool: `service__Rooms__get_prop`
+- binding: `socket` · channel: `roomful` · server tool: `service__Rooms__get_prop`
+- returns: `{prop: object|null, propOrder: object}` — One prop, read from the same ordered list.
 - scope: `rooms:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `roomId`)
 - availability: `ai`, `developer`
@@ -1090,7 +1157,8 @@ Returns details for a single prop by ID (name, assetTitle, type, thumbnailCount,
 
 Retrieves basic room model data by room ID including name, description, settings, and metadata.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{room: object}` — The room's basic model.
 - scope: `rooms:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `roomId`)
 - availability: `developer`
@@ -1104,7 +1172,8 @@ Retrieves basic room model data by room ID including name, description, settings
 
 Lists a room's props ALREADY GROUPED by their tag set, in the room's navigation order — use this (not get-room-props) whenever content is to be placed. Returns { roomId, networkId, propOrder, groupIds, groups } — groupIds is the ordered list of every group id, read it first. A group is the set of props whose normalized tags (lowercase, spaces -> "-") are identical; its `id` is those tags sorted and joined with "+" (e.g. "building1+floor0+team"), so multi-tag rooms yield one group per tag combination ("building1+floor0+team" and "building1+floor1+team" are different groups). A SINGLE tagged prop is a group of one — the lone "logo" frame is the group "logo". Props WITHOUT tags belong to no group and are skipped entirely (never listed, never filled). Each group carries id, tags, label, isLogoGroup (true when the tags include "logo": every logo frame shows EVERY logo, so paste-resources-into-prop-group replicates there by default), navIndex (the group's first position in the room's walk; null = outside it), propCount, eligiblePropCount (props that can take content), decorativePropCount (props with no content type — walls, plants, signs — counted but NOT listed), totalContentCount, labels — the section's SIGNS: Text props (recognised by an asset tag containing "Text", or as a titled prop with no content type) whose title is the text shown in the room, members of the group because they carry its tags (an untagged sign is invisible to these tools); each { propId, text } — and props — only the props that can hold content (presentation boards included, flagged), each as a compact entry: id, name (what the prop SHOWS: its own title, else the title of its FIRST resource, else the asset's catalog name, else the bare id when nothing names it — an id-only name means an empty, unnamed frame), assetTitle, type, thumbnailCount, logoCount, invokeType, isPresentationBoard, acceptsContent (true = type non-empty and not a presentation board), contentCount, navIndex, tag. Match the user's words against group tags/label first ("the team wall on floor 0" -> tags contain team and floor0), then against prop name/assetTitle when they mean one exact prop. Pass group ids to paste-resources-into-prop-group; when the user's content is coarser than the groups ("team" over per-floor team groups) pass every group whose tags contain the facet. The ready-made `tag` on each prop is pasted verbatim when linking to it — never assemble one. propOrder says where the order came from ({ source: "storyline" | "props-group", storylineId?, storylineTitle? }).
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{roomId: string, networkId: string, propOrder: object, groupIds: string[], groups: object[]}` — Props grouped by their whole tag set, in navigation order.
 - scope: `rooms:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `roomId`)
 - availability: `ai`, `developer`
@@ -1118,7 +1187,8 @@ Lists a room's props ALREADY GROUPED by their tag set, in the room's navigation 
 
 Lists all props (interactive objects) in a room. Returns prop objects with id, name (what the prop SHOWS, and the label on its tag: the prop's own title, else the title of its FIRST resource — a filled frame is named after its content, because a content prop carries no title of its own — else the asset's catalog name, else the bare id when nothing names it), assetTitle (the asset's catalog name, e.g. "Gold Picture Frame" or "Presentation Board" — tells you what kind of object the prop is even when the author renamed it), type (array of content types the prop can hold — empty means it cannot hold content), thumbnailCount (number of visual display canvases — a picture frame has thumbnailCount > 0), isPresentationBoard (true = a live screen-share board, NEVER a target for pasted content; null = unknown), invokeType (Default/Container/Bookshelf/FileCabinet), tags, contentCount, assetId, and `tag` — a ready-made entity link for the prop (`@[prop:networkId/roomId/propId|Name]`) that you paste verbatim when referring to it, never assembling one from ids yourself. Match the user's words against tags, name and assetTitle to find the prop they mean (e.g. "logo", "team", "the gold frame"). Each prop also carries `groupId` — the id of its prop group (props sharing the same tag set; see get-room-prop-groups). For PLACING content prefer get-room-prop-groups: it returns these same props already grouped, and paste-resources-into-prop-group spreads content over a group for you. Props are returned in the room's NAVIGATION ORDER and each carries `navIndex` (0-based position): normally that is the props-group order the room stores, but when the room's settings select a storyline to override Next/Previous navigation, THAT storyline's frame order is the source of truth for prop order — props the storyline never visits come last with `navIndex: null`.
 
-- binding: `socket` · server tool: `service__Rooms__get_room_props`
+- binding: `socket` · channel: `roomful` · server tool: `service__Rooms__get_room_props`
+- returns: `{props: object[], propOrder: object}` — The room's props in navigation order, and where that order came from.
 - scope: `rooms:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `roomId`)
 - availability: `ai`, `developer`
@@ -1132,7 +1202,8 @@ Lists all props (interactive objects) in a room. Returns prop objects with id, n
 
 Adds a user to a prop's team, or updates an existing team member's permissions and metadata. When called for a user already in the team this acts as an update — the invitation is replaced with the new permissions and customParams. Use list-prop-team-members first to check current membership before inviting.
 
-- binding: `socket` · server tool: `service__Rooms__invite_to_prop`
+- binding: `socket` · channel: `roomful` · server tool: `service__Rooms__invite_to_prop`
+- returns: `{invitation: object|null}` — The invitation that was created.
 - scope: `rooms:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -1149,7 +1220,8 @@ Adds a user to a prop's team, or updates an existing team member's permissions a
 
 Lists all team member invitations for a prop in a room. Returns an array of invitation records, each containing the invited user's ID, their permissions (view/comment/contribute/edit/manage), and any stored custom metadata. Agent assignments are stored id-only as `customParams.agentInfo.id` (string). Older rows may still carry the full snapshot `customParams.agentInfo: { id, name, description, avatarUrl }` — only `id` is read; everything else is resolved from the live agent.
 
-- binding: `socket` · server tool: `service__Rooms__list_prop_team_members`
+- binding: `socket` · channel: `roomful` · server tool: `service__Rooms__list_prop_team_members`
+- returns: `{invitations: object[]}` — The prop's invitations.
 - scope: `rooms:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `roomId`)
 - availability: `ai`, `developer`
@@ -1163,7 +1235,8 @@ Lists all team member invitations for a prop in a room. Returns an array of invi
 
 Lists the room templates the AI is allowed to build from: ONLY templates tagged both "community" and "ai-friendly" are returned — every other template is skipped by design, never look for or suggest one (filteredOutCount says how many of the page were skipped). Each template has an id, name, tags (e.g. "office", "gallery", "community"), price in USD (0 or missing = free; paid templates CAN be created too — the room then has to be purchased by the user within 15 minutes, see create-room-from-template), subscriptionStatus, and groupCount — the number of prop groups (tagged sections of frames) the template's room contains, read from a tag of the form "prop-groups_N" (e.g. prop-groups_5; null when the template carries no such tag). Choose a template by groupCount: prefer the one equal to the number of content sections the user has, else the smallest larger one; a template with more groups than sections leaves the extra groups on their placeholders, one with fewer forces sections to be merged — say so when you propose it. Supports text search and server-side tag filtering with pagination. Use this before create-room-from-template to find a template id, its groupCount and its price.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{templates: object[], hasMore: boolean, filteredOutCount: number}` — AI-approved room templates, with the group count each declares.
 - scope: `rooms:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -1179,7 +1252,8 @@ Lists the room templates the AI is allowed to build from: ONLY templates tagged 
 
 Places one or more existing CMS resources into a prop in a room. Resources are link-copied (the originals stay in their current folder) and added to the prop's content list. IDEMPOTENT: a resource already on the prop (itself, or as a link copy) is skipped and listed in skippedAlreadyPresent — so repeating a paste after a timeout can never duplicate content; when everything was already there the result carries alreadyPresent=true and nothing is changed. Template placeholder resources still sitting on the prop (from the room template) are removed first so they never mix with the user's content (removedTemplateStubs in the result lists them; set removeTemplateStubs=false to keep them). When the paste leaves more than one resource on a non-container prop, the tool automatically enables the prop's auto content slider so the items cycle as a slideshow (result field sliderEnabled reports it; sliderError appears if the paste succeeded but the slider toggle failed). The tool also CLEARS the prop's title (content props carry no caption — a section's name lives on its sign; titleCleared reports it, titleClearError if that save failed). Use this tool ONLY when the user named exactly one prop. When the target is a GROUP — a row of frames, a tagged section, several props — call paste-resources-into-prop-group instead: it spreads the content across the group's props in navigation order itself, so never hand-split content into per-prop calls. The prop must support content — check via get-room-props that its type array is non-empty and isPresentationBoard is false: presentation (screen-share) boards are rejected, they are reserved for live screen sharing. Prefer props with thumbnailCount > 0 (picture frames / display canvases). Use service__CMS__resource_search to find resource ids first. Returns the paste result plus `name` and `tag` read back AFTER the paste, so they name what the prop now shows (its first resource) — paste that `tag` verbatim when linking to the prop.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{roomId: string, propId: string, name: string, addedResourceIds: string[], failed: object[], removedTemplateStubs: string[], skippedAlreadyPresent: string[], sliderEnabled: boolean}` — What landed on the prop, and what it cost to put it there.
 - scope: `rooms:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -1197,7 +1271,8 @@ Places one or more existing CMS resources into a prop in a room. Resources are l
 
 Spreads existing CMS resources across the props of one or more prop GROUPS (ids from get-room-prop-groups), in the room's navigation order, as contiguous, order-preserving shares — one slideshow per prop. The tool does ALL the chunking (7 resources over 3 frames -> 3/2/2; 2 over 5 -> the first two frames get one each), so call it ONCE per content group with all of that group's resources — never once per prop, and never split the resources yourself. Pass several groupIds when the content is coarser than the room's groups (e.g. "team" photos over "building1+floor0+team" and "building1+floor1+team"); their props are pooled in walk order. Frames that still show only their template placeholder come FIRST (lowest navIndex first), frames that already hold user content come after — so a later top-up fills the empty slots before joining existing slideshows; each placement reports hadUserContent (true/false, null when the prop's content could not be read). distribution: "spread" (default — contiguous shares), "stack" (everything onto the first eligible prop as one slideshow — only when the user explicitly asked for a single slideshow) or "replicate" (EVERY resource onto EVERY eligible prop — the default when every selected group is a LOGO group, isLogoGroup true, so all logos show on all logo frames; never spread logos unless the user asks). Presentation boards are skipped automatically and listed in skippedProps; decorative members (walls, signs) are never candidates. Per prop this behaves exactly like paste-resources-into-prop: resources are link-copied (originals stay), a resource already on the prop (itself or as a link copy) is skipped rather than duplicated (per placement and top-level skippedAlreadyPresent — a repeat after a timeout is safe), template placeholder stubs are removed first, the auto content slider is enabled when a prop ends up with more than one item, and titles are cleared on EVERY content prop of the selected groups — the pasted ones and the untouched ones alike (content props carry no caption; the section's name lives on its sign; clearedTitlePropIds lists them, titleClearErrors any that failed). Returns { roomId, groupIds, distribution, placements: [{ groupId, propId, name, tag, navIndex, hadUserContent, resourceIds, addedResourceIds, failed, removedTemplateStubs, sliderEnabled, titleCleared, sliderError?, titleClearError?, stubCleanupError?, error? }], clearedTitlePropIds, titleClearErrors?, unplacedResourceIds (resources that landed on no prop at all), eligiblePropCount, skippedProps } — each placement's name and tag are read back AFTER the paste, so they name what the prop now shows (its first resource), not the empty frame it was. It throws only when nothing could be attempted: an unknown group id (the message lists the valid ids), no eligible prop in the selected groups, or empty input. Report failed/unplaced items honestly; paste each placement's `tag` verbatim when linking. Use paste-resources-into-prop only when the user named exactly one prop.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{roomId: string, groupIds: string[], distribution: string, placements: object[], unplacedResourceIds: string[], eligiblePropCount: number, skippedProps: object[]}` — One placement per prop that took content, plus what was turned away.
 - scope: `rooms:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -1216,7 +1291,8 @@ Spreads existing CMS resources across the props of one or more prop GROUPS (ids 
 
 Gives a prop GROUP a display name by retitling its section SIGNS — the group's labels from get-room-prop-groups, i.e. the tagged Text props that show the section name in the room. Content props (frames, boards) are never touched: they carry no title at all (pasting clears any they had), the name lives on the sign. Use it in the guided build once the section's name is settled (listed by the user up front, self-evident from the tag, or confirmed from your proposal — or chosen by you when the user asked you to decide everything). The group id itself comes from tags and does not change. Returns { roomId, groupId, name, hasLabels, renamedLabelPropIds, failed } — hasLabels false means the group has no sign, so there was nothing to rename (say so); renamedLabelPropIds are the signs that now show the name; failed lists signs that could not be saved. Never rename a group the user did not name or ask you to name.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{roomId: string, groupId: string, name: string, hasLabels: boolean, renamedLabelPropIds: string[], failed: object[]}` — The section signs that were retitled.
 - scope: `rooms:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -1232,7 +1308,8 @@ Gives a prop GROUP a display name by retitling its section SIGNS — the group's
 
 Searches rooms belonging to the current user within the current network — their joined rooms, favorites, or pending invitations. Use this when the user asks about their own rooms. Every room in the result carries a ready-made entity link in its `tag` field (`@[room:networkId/roomId|Name]`) plus the resolved `networkId` — paste that `tag` verbatim when linking to the room and NEVER assemble one from ids yourself.
 
-- binding: `socket` · server tool: `service__Rooms__search_my_rooms`
+- binding: `socket` · channel: `roomful` · server tool: `service__Rooms__search_my_rooms`
+- returns: `{rooms: object[]}` — Rooms the caller belongs to, or their invitations.
 - scope: `rooms:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -1248,7 +1325,8 @@ Searches rooms belonging to the current user within the current network — thei
 
 Searches all public/discoverable rooms in the current network using the explorer service. Returns rooms anyone can find and join, regardless of membership. Use this when the user wants to discover or browse rooms. Every room in the result carries a ready-made entity link in its `tag` field (`@[room:networkId/roomId|Name]`) plus the resolved `networkId` — paste that `tag` verbatim when linking to the room and NEVER assemble one from ids yourself.
 
-- binding: `socket` · server tool: `service__Rooms__search_rooms`
+- binding: `socket` · channel: `roomful` · server tool: `service__Rooms__search_rooms`
+- returns: `{rooms: object[]}` — Public/discoverable rooms in the network.
 - scope: `rooms:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -1269,7 +1347,8 @@ Source: `src/Services/TextChat/TextChatService.js`
 
 Fetches the most recent messages for a text-chat channel by channelId, decrypted and ready to read. Returns a plain list of messages with authorId, body, timestamp, and messageType. Does not open any UI or change the active channel.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{channelId: string, messages: object[], hasPrevious: boolean, hasNext: boolean}` — A page of a channel's messages.
 - scope: `textchat:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `channelId`)
 - availability: `developer`
@@ -1285,7 +1364,8 @@ Fetches the most recent messages for a text-chat channel by channelId, decrypted
 
 Delivers a message authored by the AI agent itself (NOT by the logged-in user) into a user's dedicated agent-to-user channel, resolved from source `userAIAgent:{userId}:{agentId}`. The recipient sees the agent as the author and the channel is created on first use. This is the INVASIVE owner-notification channel: use it to ping/notify the owner (pass the owner's userId) — or, occasionally, any other user. Unlike send-message (which sends as the logged-in user), this is authored by the agent. Silent toward the UI — does NOT open the TextChat application or change the active channel.
 
-- binding: `socket` · server tool: `service__TextChat__message_owner`
+- binding: `socket` · channel: `roomful` · server tool: `service__TextChat__message_owner`
+- returns: `{channelId: string, messageId: string, createdAt: string}` — The message that was posted into the owner's agent channel, authored by the agent.
 - scope: `textchat:write` · mutates state
 - cache: `none`
 - availability: `ai`
@@ -1302,7 +1382,8 @@ Delivers a message authored by the AI agent itself (NOT by the logged-in user) i
 
 Sends a text message to a text-chat channel. You must provide EITHER a channelId (preferred when you already have one) OR a userId (for a direct message — the service resolves the direct channel automatically). Silent — does NOT open the TextChat application, does NOT change the active channel, does NOT affect any UI. Encryption is handled automatically if the channel is encrypted.
 
-- binding: `socket`
+- binding: `socket` · channel: `roomful`
+- returns: `{channelId: string, messageId: string, createdAt: string}` — The message that was posted, authored by the current user.
 - scope: `textchat:write` · mutates state
 - cache: `none`
 - availability: `developer`
@@ -1325,7 +1406,8 @@ Source: `src/Services/Time/TimeService.js`
 
 Returns an object describing the user's current local time: { iso: local ISO 8601 with offset (e.g. "2026-05-28T13:45:30.000+02:00"), utcIso: same instant in UTC (e.g. "2026-05-28T11:45:30.000Z"), timezone: IANA name (e.g. "Europe/Berlin"), offsetMinutes: integer minutes ahead of UTC (e.g. 120), dayOfWeek: long English day name (e.g. "Thursday"), localDate: "YYYY-MM-DD" in local time, localTime: "HH:MM" in local time, locale: resolved BCP 47 locale (e.g. "en-US") }. Takes no parameters.
 
-- binding: `local`
+- binding: `local` · channel: `local`
+- returns: `{iso: string, utcIso: string, timezone: string, offsetMinutes: number, dayOfWeek: string, localDate: string, localTime: string, locale: string}` — The caller's local clock, one instant in several forms.
 - scope: `time:read` · read-only
 - cache: `none`
 - availability: `developer`
@@ -1342,7 +1424,8 @@ Source: `src/Services/Users/UsersService.js`
 
 Accepts a pending connection request from a user.
 
-- binding: `socket` · server tool: `service__Users__accept_connection_request`
+- binding: `socket` · channel: `roomful` · server tool: `service__Users__accept_connection_request`
+- returns: `void` — The request was accepted.
 - scope: `users:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -1355,7 +1438,8 @@ Accepts a pending connection request from a user.
 
 Cancels a pending connection request that the current user previously sent.
 
-- binding: `socket` · server tool: `service__Users__cancel_connection_request`
+- binding: `socket` · channel: `roomful` · server tool: `service__Users__cancel_connection_request`
+- returns: `void` — The outgoing request was cancelled.
 - scope: `users:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -1368,7 +1452,8 @@ Cancels a pending connection request that the current user previously sent.
 
 Returns the currently authenticated user info (id, firstName, lastName, etc.).
 
-- binding: `socket` · server tool: `service__Users__current`
+- binding: `socket` · channel: `roomful` · server tool: `service__Users__current`
+- returns: `{user: object}` — The authenticated user.
 - scope: `users:read` · read-only
 - cache: `read-through` (ttl 300000ms, key `service`)
 - availability: `ai`, `developer`
@@ -1379,7 +1464,8 @@ Takes no parameters.
 
 Declines a pending connection request from a user.
 
-- binding: `socket` · server tool: `service__Users__decline_connection_request`
+- binding: `socket` · channel: `roomful` · server tool: `service__Users__decline_connection_request`
+- returns: `void` — The request was declined.
 - scope: `users:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -1392,7 +1478,8 @@ Declines a pending connection request from a user.
 
 Discover new users to connect with by searching by name. Uses a suggestion engine — distinct from search-users which searches within existing connections.
 
-- binding: `socket` · server tool: `service__Users__find_user`
+- binding: `socket` · channel: `roomful` · server tool: `service__Users__find_user`
+- returns: `{users: object[]}` — Suggested people across the network.
 - scope: `users:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -1407,7 +1494,8 @@ Discover new users to connect with by searching by name. Uses a suggestion engin
 
 Retrieves a user by their unique ID. Returns user object with id, firstName, lastName, etc.
 
-- binding: `socket` · server tool: `service__Users__get`
+- binding: `socket` · channel: `roomful` · server tool: `service__Users__get`
+- returns: `{user: object}` — One user's basic profile.
 - scope: `users:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `userId`)
 - availability: `ai`, `developer`
@@ -1420,7 +1508,8 @@ Retrieves a user by their unique ID. Returns user object with id, firstName, las
 
 Search for users within existing connections (contacts, followers, or following). Use this to find a user ID when you only know their name and they are already in your network. To discover new users outside your network, use find-user instead.
 
-- binding: `socket` · server tool: `service__Users__search_users`
+- binding: `socket` · channel: `roomful` · server tool: `service__Users__search_users`
+- returns: `{users: object[]}` — Matches WITHIN the caller's own connections.
 - scope: `users:read` · read-only
 - cache: `read-through` (ttl 30000ms, key `service`)
 - availability: `ai`, `developer`
@@ -1436,7 +1525,8 @@ Search for users within existing connections (contacts, followers, or following)
 
 Sends a connection request to a user by their ID.
 
-- binding: `socket` · server tool: `service__Users__send_connection_request`
+- binding: `socket` · channel: `roomful` · server tool: `service__Users__send_connection_request`
+- returns: `void` — The request was sent.
 - scope: `users:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`
@@ -1455,7 +1545,8 @@ Source: `src/Services/AiGuru/VerusWalletService.js`
 
 Return the last-known balance of the wallet attached to the specified agent. Reads from the client cache — call verus:getAgentsBalance (via AiGuruStore.refreshAgentBalances) for a fresh value.
 
-- binding: `socket` · server tool: `service__VerusWallet__get_balance`
+- binding: `socket` · channel: `host-state` · server tool: `service__VerusWallet__get_balance`
+- returns: `{identityName: string, iAddress: string, balance: number|null}` — The agent wallet's last known balance. Read from host state, never the network.
 - scope: `veruswallet:read` · read-only
 - cache: `seeded` (ttl 15000ms, key `currency`)
 - availability: `ai`, `developer`
@@ -1468,7 +1559,8 @@ Return the last-known balance of the wallet attached to the specified agent. Rea
 
 Send currency from the agent's attached Verus wallet to a destination address or identity. Call this when the user or agent needs to move funds out of an agent wallet. Fails if the agent has no wallet attached, or if the wallet is still pending creation.
 
-- binding: `socket` · server tool: `service__VerusWallet__transfer`
+- binding: `socket` · channel: `roomful` · server tool: `service__VerusWallet__transfer`
+- returns: `{txid: string}` — The transaction that moved the funds.
 - scope: `veruswallet:write` · mutates state
 - cache: `none`
 - availability: `ai`, `developer`

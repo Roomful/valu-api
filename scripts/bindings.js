@@ -98,9 +98,14 @@ const KEY_PARAMS = [
   'resourceId', 'productId', 'orderId', 'agentId', 'applicationId', 'badgeId',
 ];
 
-export function defaultCache(key, binding, isMutation, params) {
+export function defaultCache(key, binding, isMutation, params, channel) {
   if (key in CACHE_OVERRIDES) return CACHE_OVERRIDES[key];
   if (binding !== 'socket' || isMutation) return { mode: 'none' };
+  // Host state is already in memory: caching it buys nothing and costs
+  // staleness — a chat history 30 seconds behind is a chat history missing the
+  // message the caller asked about. (VerusWallet.get-balance is the exception,
+  // and says so in CACHE_OVERRIDES.)
+  if (channel === 'host-state') return { mode: 'none' };
   const names = [...params.required, ...params.optional].map((p) => p.name);
   const entityKey = KEY_PARAMS.find((k) => names.includes(k)) ?? null;
   return { mode: 'read-through', ttlMs: 30_000, key: entityKey };
