@@ -6,9 +6,11 @@
 // `utcIso` the same moment in UTC. A model that has to guess "now" from its
 // training data guesses wrong, which is the whole reason this exists.
 //
-// Phase 2b folds the server's `system__get_user_timezone` in here: it answers
-// the same question about a DIFFERENT user, so the id is optional and, when
-// given, the answer comes from `user:getTimezone` instead of the local clock.
+// Phase 2b reconciled the server's `system__get_user_timezone` against this
+// one: same question, different clock. This intent declares NO params, so it
+// answers about the caller and only the caller; asking about another user is
+// not declared anywhere, and widening the intent is the app's manifest to
+// change rather than this package's. See docs/parity.md.
 // ===========================================================================
 import { ok } from './support.js';
 

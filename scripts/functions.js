@@ -247,12 +247,14 @@ export const SERVER_ONLY_RECONCILIATION = [
     disposition: 'declared',
     declared: ['Time.get-local-time'],
     decision:
-      'Both answer the same question — what time is it where the user is. They differ '
-      + 'only in who knows: in the browser the caller IS the user, so Time.get-local-time '
-      + 'reads the local clock; headless it is a different user, so system.ts asks '
-      + '`user:getTimezone`. Time.get-local-time is canonical, and the SDK serves it from '
-      + 'the host clock by default and from `user:getTimezone` when the caller asks about '
-      + 'somebody else. The server tool becomes an alias.',
+      'Both answer the same question — what time is it where the user is — and differ only '
+      + 'in WHOSE clock: in the browser the caller IS the user, so Time.get-local-time reads '
+      + 'the local one; headless the user is somebody else, so system.ts asks '
+      + '`user:getTimezone`. Time.get-local-time is canonical for the caller\'s own clock and '
+      + 'the SDK implements exactly that. Asking about ANOTHER user is not declared anywhere: '
+      + 'the intent takes no params, and widening it is the app\'s manifest to change, not '
+      + 'this package\'s. So the server tool stays a binding over `user:getTimezone` until '
+      + 'the manifest grows an optional userId — noted for Phase 3, not smuggled in here.',
   },
   {
     tool: 'service__TextChat__message_user',
