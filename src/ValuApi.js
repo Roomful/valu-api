@@ -1,11 +1,39 @@
 import {EventEmitter} from "./EventEmitter.js";
 import {APIPointer} from "./APIPointer.js";
-import {guid4, nextId} from "./Utils.js";
+import {guid4} from "./Utils.js";
 import {Intent} from "./Intent.js";
+import {PostMessageTransport} from "./transport/PostMessageTransport.js";
+import {Transport} from "./transport/Transport.js";
+import {ServiceClient} from "./services/ServiceClient.js";
 
 export { ValuApplication } from "./ValuApplication.js";
 export { Intent } from "./Intent.js";
 export { APIPointer } from "./APIPointer.js";
+
+// The SDK surface added in Phase 1. Re-exported from the package entry point
+// so `import { ... } from '@arkeytyp/valu-api'` reaches all of it.
+export { Transport } from "./transport/Transport.js";
+export { PostMessageTransport } from "./transport/PostMessageTransport.js";
+export { SocketTransport } from "./transport/SocketTransport.js";
+export { BrowserSocketAdapter } from "./socket/BrowserSocketAdapter.js";
+export { NodeSocketAdapter } from "./socket/NodeSocketAdapter.js";
+export {
+  isAckError, ackErrorMessage, unwrapAck, dataAck, normalizeAck,
+} from "./socket/ValuSocket.js";
+export { ValuServiceError, ERROR_CODES, errorAck } from "./Errors.js";
+export { ServiceClient } from "./services/ServiceClient.js";
+export {
+  SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, findDescriptor, listDescriptors,
+  listServices, catalogSummary,
+} from "./services/descriptors.js";
+export { validateParams, validationAck } from "./services/validate.js";
+export { toolDefinition, toolDefinitions } from "./services/toolDefs.js";
+export { ServiceRegistry, serviceRegistry } from "./services/registry.js";
+export { ServiceCache } from "./cache/ServiceCache.js";
+export { AuthProvider, TokenStore, assertNoCredentialLeak } from "./auth/AuthProvider.js";
+export {
+  DEFAULT_TIMEOUT_MS, DEFAULT_POLICY, forDescriptor, runWithPolicy, isRetriable, backoffFor,
+} from "./CallPolicy.js";
 
 
 /**
@@ -20,23 +48,68 @@ export class ValuApi {
   static ON_ROUTE = `on_route`;
 
   #eventEmitter;
-  #valuApplication = {};
-  #requests = new Map();
+  #transport;
   #lastIntent;
+  #services;
 
   /** @type ValuApplication */
   #applicationInstance = null;
 
 
   get connected() {
-    return this.#valuApplication.origin !== undefined;
+    return this.#transport.connected;
   }
 
-  constructor() {
-    globalThis.addEventListener('message', (event) => {
-      this.#handleParentMessage(event);
-    });
+  /**
+   * The transport this instance speaks over.
+   *
+   * `ValuApi` used to be its own transport — it bound the window's `message`
+   * listener and called `postMessage` itself. Both now live behind
+   * {@link Transport}; the default is still the host bridge, byte for byte.
+   * @returns {Transport}
+   */
+  get transport() {
+    return this.#transport;
+  }
+
+  /**
+   * The declared-service surface: descriptor lookup, param validation, scopes,
+   * cache and the callbacks policy, over this instance's transport.
+   * @returns {ServiceClient}
+   */
+  get services() {
+    if (!this.#services) this.#services = new ServiceClient({ transport: this.#transport });
+    return this.#services;
+  }
+
+  /**
+   * @param {{transport?: Transport}} [options] Defaults to the host bridge.
+   *   A socket-backed client is built with {@link ServiceClient} over a
+   *   {@link SocketTransport} instead.
+   */
+  constructor(options = {}) {
     this.#eventEmitter = new EventEmitter();
+    this.#transport = options.transport ?? new PostMessageTransport();
+
+    this.#transport.addEventListener(Transport.READY, (message) => {
+      this.#eventEmitter.emit(ValuApi.API_READY);
+
+      const intent = new Intent(message.applicationId, message.action, message.params);
+      this.#applicationInstance?.onCreate(intent);
+      this.#lastIntent = intent;
+    });
+
+    this.#transport.addEventListener(Transport.TRIGGER, (message) => {
+      if (message.action === ValuApi.ON_ROUTE) {
+        this.#eventEmitter.emit(ValuApi.ON_ROUTE, message.data);
+        this.#applicationInstance?.onUpdateRouterContext(message.data);
+      }
+    });
+
+    this.#transport.addEventListener(Transport.NEW_INTENT, (message) => {
+      const intent = new Intent(message.applicationId, message.action, message.params);
+      this.#applicationInstance?.onNewIntent(intent);
+    });
   }
 
   addEventListener = (...parameters) => this.#eventEmitter.addEventListener(...parameters);
@@ -56,17 +129,19 @@ export class ValuApi {
    */
   async getApi(apiName, version) {
     const guid = guid4();
-    const result = await this.#registerApiPointer(apiName, version, guid);
+    const result = await this.#transport.request('api:create-pointer', {
+      guid: guid,
+      api: apiName,
+      version: version,
+    });
 
     if(result.error) {
       throw new Error(result.error);
     }
 
-    const apiPointer = new APIPointer(apiName, result.version, guid,(functionName, params, requestId, apiPointer) => {
+    return new APIPointer(apiName, result.version, guid, (functionName, params, requestId, apiPointer) => {
       this.#onApiRunRequest(functionName, params, requestId, apiPointer);
     });
-
-    return apiPointer;
   }
 
   /**
@@ -84,35 +159,17 @@ export class ValuApi {
     }
   }
 
-  async #registerApiPointer(apiName, version, guid) {
-    let deferredPromise = this.#createDeferred();
-
-    this.#postToValuApp('api:create-pointer', {
-      guid: guid,
-      api: apiName,
-      version: version,
-      requestId: deferredPromise.id,
-    });
-
-    this.#requests[deferredPromise.id] = deferredPromise;
-    return deferredPromise.promise;
-  }
-
-  #postToValuApp(name, message) {
-     const data = { name: name, message: message};
-     this.#valuApplication.source.postMessage(data, this.#valuApplication.origin);
-  }
-
   async #onApiRunRequest(functionName, params, requestId, apiPointer) {
-
-    this.#requests[requestId] = apiPointer;
-
-    this.#postToValuApp('api:run', {
-      apiPointerId: apiPointer.guid,
-      requestId: requestId,
-      functionName: functionName,
-      params: params,
-    });
+    try {
+      const result = await this.#transport.request('api:run', {
+        apiPointerId: apiPointer.guid,
+        functionName: functionName,
+        params: params,
+      }, requestId);
+      apiPointer.postRunResult(requestId, result);
+    } catch (error) {
+      apiPointer.postRunResult(requestId, { error: error?.message ?? String(error) });
+    }
   }
 
   /**
@@ -133,31 +190,24 @@ export class ValuApi {
    * console.log(result);
    */
   async sendIntent(intent) {
-    let deferredPromise = this.#createDeferred();
-
-    this.#postToValuApp('api:run-intent', {
+    return this.#transport.request('api:run-intent', {
       applicationId: intent.applicationId,
       action: intent.action,
       params: intent.params,
-      requestId: deferredPromise.id,
     });
-
-    this.#requests[deferredPromise.id] = deferredPromise;
-    return deferredPromise.promise;
   }
 
+  /**
+   * Runs a service intent and resolves with the host's raw result.
+   *
+   * Unchanged. The typed, validated, cached path is {@link ValuApi#services}.
+   */
   async callService(intent) {
-    let deferredPromise = this.#createDeferred();
-
-    this.#postToValuApp('api:service-intent', {
+    return this.#transport.request('api:service-intent', {
       applicationId: intent.applicationId,
       action: intent.action,
       params: intent.params,
-      requestId: deferredPromise.id,
     });
-
-    this.#requests[deferredPromise.id] = deferredPromise;
-    return deferredPromise.promise;
   }
 
   /**
@@ -174,20 +224,14 @@ export class ValuApi {
    *                                fails or throws an exception, it resolves to an error message string.
    */
   async runConsoleCommand(command) {
-    let deferredPromise = this.#createDeferred();
-    this.#requests[deferredPromise.id] = deferredPromise;
-
-    this.#postToValuApp('api:run-console', {
-      requestId: deferredPromise.id,
+    return this.#transport.request('api:run-console', {
       command: command,
     });
-
-    return deferredPromise.promise;
   }
 
 
   #runCommand(name, data) {
-    this.#postToValuApp('api:run-command', {
+    this.#transport.notify('api:run-command', {
       command: name,
       data: data,
     });
@@ -216,99 +260,5 @@ export class ValuApi {
    */
   replaceRoute = (path) => {
     this.#runCommand('replaceRoute', path);
-  }
-
-
-  #createDeferred() {
-    let resolve, reject;
-    const promise = new Promise((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
-
-    return { id: nextId(), promise, resolve, reject };
-  }
-
-  #handleParentMessage(event) {
-    if(event.data?.target !== 'valuApi') {
-      //console.log('Skipped non valu event: ');
-       return;
-    }
-
-    const message = event.data.message;
-    //console.log('Message From Valu: ', event.data.name, ' ', message);
-
-    switch (event.data.name) {
-      case 'api:ready': {
-        this.#valuApplication = {
-          id : message.applicationId,
-          source: event.source,
-          origin: event.origin,
-        }
-
-        this.#eventEmitter.emit(ValuApi.API_READY);
-
-        const intent = new Intent(message.applicationId, message.action, message.params);
-        this.#applicationInstance?.onCreate(intent);
-        this.#lastIntent = intent;
-        break;
-      }
-
-      case 'api:trigger': {
-        switch (message.action) {
-          case ValuApi.ON_ROUTE: {
-            this.#eventEmitter.emit(ValuApi.ON_ROUTE, message.data);
-            this.#applicationInstance?.onUpdateRouterContext(message.data);
-          }
-        }
-        break;
-      }
-
-      case 'api:new-intent': {
-        const intent = new Intent(message.applicationId, message.action, message.params);
-        this.#applicationInstance?.onNewIntent(intent);
-        break;
-      }
-
-      case 'api:run-console-completed': {
-        const requestId = event.data.requestId;
-        const deferred = this.#requests[requestId];
-
-        if(deferred) {
-          deferred.resolve(message);
-        } else {
-          console.log('Failed to locate console request with Id: ', requestId);
-        }
-
-        delete this.#requests[requestId];
-        break;
-      }
-
-      case 'api:run-completed': {
-        const requestId = event.data.requestId;
-        const apiPointer = this.#requests[requestId];
-        if(!apiPointer)  {
-          console.error(`Failed to find Api Pointer for requestId: ${requestId}`);
-          break
-        }
-
-        apiPointer.postRunResult(requestId, message);
-        delete this.#requests[requestId];
-        break;
-      }
-
-      case 'api:pointer-created': {
-        const requestId = event.data.requestId;
-        const deferred = this.#requests[requestId];
-        if(deferred) {
-          deferred.resolve(message);
-          delete this.#requests[requestId];
-        } else {
-          console.log('Failed to locate pointer create request with Id: ', requestId);
-        }
-
-        break;
-      }
-    }
   }
 }

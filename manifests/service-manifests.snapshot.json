@@ -1,0 +1,2716 @@
+{
+  "sourceFile": "src/Configs/Service_Manifests.js",
+  "services": [
+    {
+      "id": "AiGuru",
+      "title": "Valu Guru Service",
+      "description": "System service for managing applications via AI. Provides tools to open, close, list, and check application status.",
+      "source": "src/Services/AiGuru/AiGuruService.js",
+      "intents": [
+        {
+          "action": "open",
+          "description": "Opens (loads) an application by its ID into the dock.",
+          "availability": [],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "applicationId",
+                "type": "string",
+                "description": "The unique identifier of the application to open."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "close",
+          "description": "Closes (unloads) an application by its ID from the dock.",
+          "availability": [],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "applicationId",
+                "type": "string",
+                "description": "The unique identifier of the application to close."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "has-application",
+          "description": "Checks whether an application with the given ID exists in the registry.",
+          "availability": [],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "applicationId",
+                "type": "string",
+                "description": "The unique identifier of the application to check."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "get-applications",
+          "description": "Returns a list of all registered applications with their id, slug, icon, and title.",
+          "availability": [],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        },
+        {
+          "action": "is-application-loaded",
+          "description": "Checks whether an application with the given ID is currently loaded (open) in the dock.",
+          "availability": [],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "applicationId",
+                "type": "string",
+                "description": "The unique identifier of the application to check."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "get-chat-history",
+          "description": "Returns the in-memory message history for a chat session. Omit chatId to get the currently active session.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "chatId",
+                "type": "string",
+                "description": "ID of the chat session. Omit to use the currently active session."
+              }
+            ]
+          }
+        },
+        {
+          "action": "get-agent-history",
+          "description": "Returns the in-memory message history for a background agent.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "agentId",
+                "type": "string",
+                "description": "ID of the background agent whose message history to retrieve."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "query-knowledge-base",
+          "description": "Queries the RAG knowledge base directly over the Valu Guru server's socket connection, bypassing chat entirely. Returns the raw tool result text.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "query",
+                "type": "string",
+                "description": "The search query text."
+              }
+            ],
+            "optional": [
+              {
+                "name": "toolName",
+                "type": "string",
+                "description": "Name of the RAG tool to call. Only needed if the RAG server exposes more than one tool — omit to auto-pick the sole registered tool."
+              },
+              {
+                "name": "args",
+                "type": "object",
+                "description": "Extra arguments merged into the RAG tool call alongside `query` (tool-specific, e.g. scope filters)."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "Application",
+      "title": "Application Service",
+      "description": "Issues short-lived signed identity JWTs for iFrame (mini-app) applications. Allows an embedded application to obtain a signed token proving the current user's identity to the mini-app's own backend.",
+      "source": "src/Services/Application/ApplicationService.js",
+      "intents": [
+        {
+          "action": "get-identity-token",
+          "description": "Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        },
+        {
+          "action": "close_all",
+          "description": "Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        },
+        {
+          "action": "expand-application",
+          "description": "Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the \"Expand Application\" default header action for iframe apps that render their own context menu (header: false).",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        },
+        {
+          "action": "close-application",
+          "description": "Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the \"Close Application\" default header action for iframe apps that render their own context menu (header: false).",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "ApplicationStorage",
+      "title": "Application Storage Service",
+      "description": "Per-application file storage service for uploading, searching, and deleting resources scoped to the calling application and current user.",
+      "source": "src/Services/UploadManager/ApplicationStorageService.js",
+      "intents": [
+        {
+          "action": "resource-upload",
+          "description": "Uploads files to the calling application's storage for the current user.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "files",
+                "type": "FileList",
+                "description": "The files to upload."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "resource-search",
+          "description": "Searches resources in the calling application's storage for the current user.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "limit",
+                "type": "number",
+                "description": "Maximum number of results to return. Defaults to 10."
+              },
+              {
+                "name": "query",
+                "type": "string",
+                "description": "Search query string."
+              },
+              {
+                "name": "cursor",
+                "type": "string",
+                "description": "Pagination cursor for fetching the next page of results."
+              }
+            ]
+          }
+        },
+        {
+          "action": "resource-delete",
+          "description": "Deletes a resource from the calling application's storage.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "resourceId",
+                "type": "string",
+                "description": "The unique identifier of the resource to delete."
+              }
+            ],
+            "optional": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "Cbac",
+      "title": "CBAC Service",
+      "description": "Badge-based access control (CBAC). Manages policies that grant a permission on a target entity (room, community, or group) to users holding specific badges. Policy mutations require manage permission on the target.",
+      "source": "src/Services/Cbac/CbacService.js",
+      "intents": [
+        {
+          "action": "list-policies",
+          "description": "Lists all CBAC policies configured for a target entity.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "networkId",
+                "type": "string",
+                "description": "ID of the network the target belongs to."
+              },
+              {
+                "name": "targetType",
+                "type": "string",
+                "description": "Type of the target entity: \"room\", \"community\", or \"group\"."
+              },
+              {
+                "name": "targetId",
+                "type": "string",
+                "description": "ID of the target entity."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "create-policy",
+          "description": "Creates a CBAC policy on a target entity. Valid grantedPermission values depend on targetType: room → room.view / room.comment / room.contribute / room.edit; community → community.join; group → group.join. Requires manage permission on the target.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "networkId",
+                "type": "string",
+                "description": "ID of the network the target belongs to."
+              },
+              {
+                "name": "targetType",
+                "type": "string",
+                "description": "Type of the target entity: \"room\", \"community\", or \"group\"."
+              },
+              {
+                "name": "targetId",
+                "type": "string",
+                "description": "ID of the target entity."
+              },
+              {
+                "name": "badgeIds",
+                "type": "array",
+                "description": "One or more badge IDs required to gain access; must not be empty."
+              },
+              {
+                "name": "badgeMatchMode",
+                "type": "string",
+                "description": "How badges are evaluated: \"any\" (one badge suffices) or \"all\" (every badge required)."
+              },
+              {
+                "name": "grantedPermission",
+                "type": "string",
+                "description": "Permission granted when the badge requirement is met. Must be valid for the targetType (see intent description)."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "delete-policy",
+          "description": "Deletes a single CBAC policy by ID. Requires manage permission on the target.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "policyId",
+                "type": "string",
+                "description": "ID of the policy to delete."
+              },
+              {
+                "name": "networkId",
+                "type": "string",
+                "description": "ID of the network the target belongs to."
+              },
+              {
+                "name": "targetType",
+                "type": "string",
+                "description": "Type of the target entity: \"room\", \"community\", or \"group\"."
+              },
+              {
+                "name": "targetId",
+                "type": "string",
+                "description": "ID of the target entity."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "list-badges",
+          "description": "Lists every badge visible to the current user — badges scoped to their networks plus global ones. Returns an array of `{networkId, badgeId, badgeName, badgeDescription, thumbnailId}`, where `networkId` is \"all\" for a global badge. Use this to resolve a badge name to the badgeId required by search-users-by-badge-id and the policy intents.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        },
+        {
+          "action": "search-users-by-badge-id",
+          "description": "Lists the users holding a given badge, optionally filtered by a name query. The reverse of looking up which badges a single user holds. Call list-badges first to resolve a badge name to its badgeId. Returns `{users, total}` where `total` is the full match count across all pages — page through it with offset/size rather than assuming the first page is everything.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "badgeId",
+                "type": "string",
+                "description": "ID of the badge whose holders are returned."
+              }
+            ],
+            "optional": [
+              {
+                "name": "query",
+                "type": "string",
+                "description": "Search query to filter badge holders by name. Defaults to an empty string, which returns all holders."
+              },
+              {
+                "name": "offset",
+                "type": "number",
+                "description": "Pagination offset. Defaults to 0."
+              },
+              {
+                "name": "size",
+                "type": "number",
+                "description": "Number of results to return. Defaults to 10."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "CMS",
+      "title": "CMS Service",
+      "description": "Content management service for uploading, searching, and deleting resources scoped to rooms, props, communities, channels, and directories.",
+      "source": "src/Services/CMS/CMSService.js",
+      "intents": [
+        {
+          "action": "resource-upload",
+          "description": "Uploads files to a resource storage scoped by belonging (room, prop, community, channel, directory, or post).",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "files",
+                "type": "FileList",
+                "description": "The files to upload."
+              }
+            ],
+            "optional": [
+              {
+                "name": "communityId",
+                "type": "string",
+                "description": "The community to associate the uploaded resources with."
+              },
+              {
+                "name": "channelId",
+                "type": "string",
+                "description": "The channel to associate the uploaded resources with."
+              },
+              {
+                "name": "directoryId",
+                "type": "string",
+                "description": "The directory to associate the uploaded resources with. If omitted and channelId is provided, it is resolved automatically from the channel's contentDirectoryId."
+              },
+              {
+                "name": "postId",
+                "type": "string",
+                "description": "The post to attach the uploaded resources to."
+              },
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room to associate the uploaded resources with."
+              },
+              {
+                "name": "propId",
+                "type": "string",
+                "description": "The prop to move the uploaded resources into."
+              }
+            ]
+          }
+        },
+        {
+          "action": "resource-search",
+          "description": "Searches for resources within a given scope (room, prop, community, channel, directory, or post). Each returned resource has an id (and a title/name) — tag every resource you reference in your reply as @[cms-resource:id|title].",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "communityId",
+                "type": "string",
+                "description": "The community to search resources in."
+              },
+              {
+                "name": "channelId",
+                "type": "string",
+                "description": "The channel to search resources in."
+              },
+              {
+                "name": "directoryId",
+                "type": "string",
+                "description": "The directory to search resources in. If omitted and channelId is provided, it is resolved automatically from the channel's contentDirectoryId."
+              },
+              {
+                "name": "postId",
+                "type": "string",
+                "description": "The post to load resources for."
+              },
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room to search resources in."
+              },
+              {
+                "name": "propId",
+                "type": "string",
+                "description": "The prop to search resources in."
+              },
+              {
+                "name": "limit",
+                "type": "number",
+                "description": "Maximum number of results to return. Defaults to 10."
+              },
+              {
+                "name": "query",
+                "type": "string",
+                "description": "Search query string."
+              },
+              {
+                "name": "cursor",
+                "type": "string",
+                "description": "Pagination cursor for fetching the next page of results."
+              }
+            ]
+          }
+        },
+        {
+          "action": "resource-delete",
+          "description": "Deletes a resource or removes it from a prop or post.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "resourceId",
+                "type": "string",
+                "description": "The unique identifier of the resource to delete."
+              }
+            ],
+            "optional": [
+              {
+                "name": "communityId",
+                "type": "string",
+                "description": "The community the resource belongs to."
+              },
+              {
+                "name": "channelId",
+                "type": "string",
+                "description": "The channel the resource belongs to."
+              },
+              {
+                "name": "postId",
+                "type": "string",
+                "description": "The post to remove the resource from (removes association, does not delete the resource)."
+              },
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room the resource belongs to."
+              },
+              {
+                "name": "propId",
+                "type": "string",
+                "description": "The prop to remove the resource from (removes association, does not delete the resource)."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "Commerce",
+      "title": "Commerce",
+      "description": "Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.",
+      "source": "src/Services/Commerce/CommerceService.js",
+      "intents": [
+        {
+          "action": "list-products",
+          "description": "Search the products YOUR app lists that are available in the user's current network. Products the network or its admins have refused are simply absent from the answer.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "query",
+                "type": "string",
+                "description": "free-text search over the product title, or a whole tag"
+              },
+              {
+                "name": "category",
+                "type": "string",
+                "description": "one of the platform's category ids — see list-categories"
+              },
+              {
+                "name": "tag",
+                "type": "string",
+                "description": "one tag, matched exactly (case and spacing do not matter)"
+              },
+              {
+                "name": "attributes",
+                "type": "object",
+                "description": "app-defined facets to filter by, e.g. {\"subject\": \"Mathematics\"}"
+              },
+              {
+                "name": "sort",
+                "type": "string",
+                "description": "newest | popular | priceAsc | priceDesc | rating",
+                "options": [
+                  "newest",
+                  "popular",
+                  "priceAsc",
+                  "priceDesc",
+                  "rating"
+                ]
+              },
+              {
+                "name": "limit",
+                "type": "number",
+                "description": "page size, up to 100 (default 24)"
+              },
+              {
+                "name": "offset",
+                "type": "number",
+                "description": "where the page starts"
+              }
+            ]
+          }
+        },
+        {
+          "action": "get-product",
+          "description": "One product with its price, its parts when it is a bundle, its store, its reviews and whether the current user already owns it.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "productId",
+                "type": "string",
+                "description": "the product to read"
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "list-categories",
+          "description": "The platform's product categories as `{categories: [{id, label}]}`. Every product is filed under exactly one; pass an `id` to list-products as `category`, and show the `label`.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        },
+        {
+          "action": "add-to-cart",
+          "description": "Put a product in the user's cart, credited to your app. The server re-checks that it can be bought here before accepting it, so a refusal comes back with a code to show.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "productId",
+                "type": "string",
+                "description": "the product to add"
+              }
+            ],
+            "optional": [
+              {
+                "name": "qty",
+                "type": "number",
+                "description": "how many, at least 1 (default 1)"
+              }
+            ]
+          }
+        },
+        {
+          "action": "check-entitlements",
+          "description": "Which of these products the current user owns. This is how an app unlocks a ticket, a seat or an in-app good it sold through the shared cart.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "productIds",
+                "type": "array",
+                "description": "the product ids to check"
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "get-cart",
+          "description": "Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Read-only: change the cart with `add-to-cart`, or send the user to it with `open-cart`.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        },
+        {
+          "action": "create-product",
+          "description": "Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, and stays with the seller in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "title",
+                "type": "string",
+                "description": "the product's name; giving one creates the draft directly instead of opening the form"
+              },
+              {
+                "name": "description",
+                "type": "string",
+                "description": "what a buyer reads before paying"
+              },
+              {
+                "name": "priceAmount",
+                "type": "number",
+                "description": "the price; 0 or omitted is a free product. When items include other products, this is the price ON TOP of theirs"
+              },
+              {
+                "name": "priceCurrency",
+                "type": "string",
+                "description": "VRSC (default) or USD",
+                "options": [
+                  "VRSC",
+                  "USD"
+                ]
+              },
+              {
+                "name": "category",
+                "type": "string",
+                "description": "one of the platform's category ids — see list-categories; required before the seller can publish"
+              },
+              {
+                "name": "tags",
+                "type": "array",
+                "description": "up to 10 tags of up to 24 characters; normalised (lowercase, trimmed)"
+              },
+              {
+                "name": "imageResourceId",
+                "type": "string",
+                "description": "the cover: a resource id in the seller's own Media, e.g. one you generated"
+              },
+              {
+                "name": "items",
+                "type": "array",
+                "description": "the content a buyer receives: resource ids (\"res_1\"), named files ({resourceId, title}), folders ({folder: \"Unit 1\", items: […]}) or other products ({productId}) for a bundle"
+              },
+              {
+                "name": "stock",
+                "type": "number",
+                "description": "how many may be sold; omit for unlimited"
+              }
+            ]
+          }
+        },
+        {
+          "action": "list-my-products",
+          "description": "List the SELLER's own products in their store — drafts, unlisted, live and archived — unlike list-products, which is the buyer's shelf and never shows drafts. Use it to find the productId to edit. Each product carries `editable`: true only for a draft (never published, or unlisted by the seller). Returns `{hasStore, products}`.",
+          "availability": [
+            "ai"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "status",
+                "type": "string",
+                "description": "only products in this state",
+                "options": [
+                  "draft",
+                  "active",
+                  "archived",
+                  "broken"
+                ]
+              },
+              {
+                "name": "limit",
+                "type": "number",
+                "description": "how many to return"
+              }
+            ]
+          }
+        },
+        {
+          "action": "get-my-product",
+          "description": "One of the seller's own products with its content, in exactly the shape update-product takes: `{product, items}`. Read it before changing the content — `items` in update-product REPLACES the whole tree, so edit this list and send it back rather than sending only the new files.",
+          "availability": [
+            "ai"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "productId",
+                "type": "string",
+                "description": "the product, from list-my-products"
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "update-product",
+          "description": "Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted by the seller in the Merchant Console first). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`.",
+          "availability": [
+            "ai"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "productId",
+                "type": "string",
+                "description": "the draft to edit, from list-my-products"
+              }
+            ],
+            "optional": [
+              {
+                "name": "title",
+                "type": "string",
+                "description": "the product's name"
+              },
+              {
+                "name": "description",
+                "type": "string",
+                "description": "what a buyer reads before paying; an empty string clears it"
+              },
+              {
+                "name": "priceAmount",
+                "type": "number",
+                "description": "the price; 0 makes it free. On a product that includes other products this is the price ON TOP of theirs (a buyer pays the included products plus this)"
+              },
+              {
+                "name": "priceCurrency",
+                "type": "string",
+                "description": "VRSC or USD",
+                "options": [
+                  "VRSC",
+                  "USD"
+                ]
+              },
+              {
+                "name": "stock",
+                "type": "number",
+                "description": "how many may be sold (the quantity on sale)"
+              },
+              {
+                "name": "unlimitedStock",
+                "type": "boolean",
+                "description": "true removes the quantity limit"
+              },
+              {
+                "name": "category",
+                "type": "string",
+                "description": "one of the platform's category ids — see list-categories; an empty string clears it"
+              },
+              {
+                "name": "tags",
+                "type": "array",
+                "description": "the full tag list (replaces the current one): up to 10 tags of up to 24 characters"
+              },
+              {
+                "name": "imageResourceId",
+                "type": "string",
+                "description": "the cover: a resource id in the seller's own Media"
+              },
+              {
+                "name": "items",
+                "type": "array",
+                "description": "the WHOLE new content: resource ids (\"res_1\"), named files ({resourceId, title}), folders ({folder: \"Unit 1\", items: […]}) or other products ({productId}) for a bundle"
+              }
+            ]
+          }
+        },
+        {
+          "action": "open-cart",
+          "description": "Open My Cart for the user, scoped to your app's items.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        },
+        {
+          "action": "open-purchases",
+          "description": "Open the user's order history in My Cart.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        },
+        {
+          "action": "open-products",
+          "description": "Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it after `create-product`, or for a \"My products\" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "Community",
+      "title": "Community Service",
+      "description": "Community service for browsing communities, listing channels, and loading posts within channels.",
+      "source": "src/Services/Community/CommunityService.js",
+      "intents": [
+        {
+          "action": "search-communities",
+          "description": "Search for available communities. Returns community objects with communityId, name, description, and other properties.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "query",
+                "type": "string",
+                "description": "Search query to filter communities by name."
+              },
+              {
+                "name": "limit",
+                "type": "number",
+                "description": "Number of results to return. Defaults to 10."
+              },
+              {
+                "name": "afterCommunityId",
+                "type": "string",
+                "description": "Pagination cursor — ID of the last community from previous page."
+              }
+            ]
+          }
+        },
+        {
+          "action": "get-community-info",
+          "description": "Retrieves detailed information about a specific community by its ID.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "communityId",
+                "type": "string",
+                "description": "The unique community identifier."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "get-channels",
+          "description": "Lists channels within a specific community. Returns {communityId, channels[]} where each channel has channelId, rootChannelId (same as channelId — use this for entity tags), title, and other properties.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "communityId",
+                "type": "string",
+                "description": "The unique community identifier."
+              }
+            ],
+            "optional": [
+              {
+                "name": "limit",
+                "type": "number",
+                "description": "Maximum number of channels to return. Defaults to 100."
+              }
+            ]
+          }
+        },
+        {
+          "action": "get-posts",
+          "description": "Loads posts/messages in a specific channel or sub-channel. Returns {communityId?, rootChannelId, subChannelId?, messages[]}. The rootChannelId and subChannelId in the response are the exact values to use when constructing community-post or community-sub-channel-post entity tags — no need to track them separately.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "channelId",
+                "type": "string",
+                "description": "The root channel ID (use rootChannelId from get-channels result)."
+              }
+            ],
+            "optional": [
+              {
+                "name": "communityId",
+                "type": "string",
+                "description": "The community ID. Pass this so the response echoes it back for entity tag construction."
+              },
+              {
+                "name": "subChannelId",
+                "type": "string",
+                "description": "Sub-channel ID when loading posts from a nested channel. Use the subChannelId field from the app context sub-channel entry."
+              },
+              {
+                "name": "limit",
+                "type": "number",
+                "description": "Number of posts to return. Defaults to 10."
+              },
+              {
+                "name": "afterMessageId",
+                "type": "string",
+                "description": "Pagination cursor — ID of the last message from previous page."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "DataProvider",
+      "title": "Data Provider Service",
+      "description": "Picker service for selecting items from data providers (rooms, contacts, etc.) via modal or inline overlay.",
+      "source": "src/Services/DataProvider/DataProviderService.js",
+      "intents": [
+        {
+          "action": "pick-single",
+          "description": "Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. \"share this in a group\" without naming the group → call with providers: [\"groups\"]. Do not use to search programmatically; use the provider's own search/list service intent for that.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "providers",
+                "type": "string[]",
+                "description": "Provider IDs to show as picker sources. Available IDs include: \"rooms\", \"contacts\", \"groups\", \"communities\", \"props\", \"events\". Pass one entry for a single-source picker, or multiple to let the user switch sources via tabs. Example: [\"rooms\"] or [\"contacts\", \"groups\"]."
+              }
+            ],
+            "optional": [
+              {
+                "name": "title",
+                "type": "string",
+                "description": "Dialog title shown above the picker. Defaults to the provider's built-in title."
+              },
+              {
+                "name": "width",
+                "type": "string",
+                "description": "CSS width for the modal (desktop only)."
+              },
+              {
+                "name": "height",
+                "type": "string",
+                "description": "CSS height for the modal (desktop only)."
+              }
+            ]
+          }
+        },
+        {
+          "action": "pick-multiple",
+          "description": "Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. \"invite some people to the room\" → call with providers: [\"contacts\"].",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "providers",
+                "type": "string[]",
+                "description": "Provider IDs to show. Same set as pick-single."
+              }
+            ],
+            "optional": [
+              {
+                "name": "title",
+                "type": "string",
+                "description": "Dialog title."
+              },
+              {
+                "name": "confirmLabel",
+                "type": "string",
+                "description": "Confirm button label (e.g. \"Invite\", \"Share with\"). Defaults to \"Select\"."
+              },
+              {
+                "name": "confirmIcon",
+                "type": "string",
+                "description": "Confirm button icon class (Font Awesome, e.g. \"fa-light fa-paper-plane-top\")."
+              },
+              {
+                "name": "width",
+                "type": "string",
+                "description": "CSS width for the modal (desktop only)."
+              },
+              {
+                "name": "height",
+                "type": "string",
+                "description": "CSS height for the modal (desktop only)."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "Developer",
+      "title": "Developer Service",
+      "description": "Developer Portal service for creating and listing the current user's applications.",
+      "source": "src/Applications/DeveloperPortal/Services/DeveloperService.js",
+      "intents": [
+        {
+          "action": "create-application",
+          "description": "Creates a new application in the Developer Portal. By default the application is served in an iframe from https://web.texpo.io/{userId}/{appSlug} (its slug is derived from the name — lowercased, dashes; deduplicated with -2, -3, … on collision) and that texpo page needs code deployed to it before it shows anything. Pass the optional `url` to instead point the app's iframe DIRECTLY at an existing external page (no code/build needed) — the created app then opens straight to that URL. Returns the created app's id, devId, slug, URL, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens the application inside the platform, paste that `tag` value verbatim into your reply (do NOT link the raw URL).",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "name",
+                "type": "string",
+                "description": "Human-readable name for the application. Also used to derive the URL slug."
+              }
+            ],
+            "optional": [
+              {
+                "name": "description",
+                "type": "string",
+                "description": "Short description of what the application does."
+              },
+              {
+                "name": "url",
+                "type": "string",
+                "description": "Optional external URL (http/https) to embed directly in the app's iframe, e.g. https://example.com. When provided, the app frames this page as-is with no build/deploy — the created app opens straight to it. The target site MUST allow third-party framing: many major sites (news portals, Google, most social networks) send X-Frame-Options or a CSP frame-ancestors directive that forbids embedding, and the browser will render them blank. Prefer a site known to permit framing."
+              },
+              {
+                "name": "icon",
+                "type": "string",
+                "description": "Font Awesome icon for the application, in the \"fa-light fa-<name>\" format (e.g. \"fa-light fa-newspaper\"). Set this for EVERY app you create, choosing an icon that represents what the app does — if omitted it falls back to a generic lightbulb. Pick the best match from this set: fa-light fa-robot, fa-light fa-brain-circuit, fa-light fa-microchip-ai, fa-light fa-user-robot, fa-light fa-message-bot, fa-light fa-cpu, fa-light fa-binary, fa-light fa-code, fa-light fa-terminal, fa-light fa-database, fa-light fa-network-wired, fa-light fa-satellite-dish, fa-light fa-palette, fa-light fa-pen-fancy, fa-light fa-paintbrush, fa-light fa-music, fa-light fa-camera, fa-light fa-film, fa-light fa-photo-film, fa-light fa-wand-magic-sparkles, fa-light fa-sparkles, fa-light fa-stars, fa-light fa-hat-wizard, fa-light fa-crystal-ball, fa-light fa-graduation-cap, fa-light fa-book-open, fa-light fa-books, fa-light fa-lightbulb, fa-light fa-magnifying-glass-chart, fa-light fa-chart-mixed, fa-light fa-flask, fa-light fa-microscope, fa-light fa-atom, fa-light fa-dna, fa-light fa-briefcase, fa-light fa-user-tie, fa-light fa-user-astronaut, fa-light fa-user-secret, fa-light fa-user-ninja, fa-light fa-users, fa-light fa-handshake, fa-light fa-comments, fa-light fa-bullhorn, fa-light fa-headset, fa-light fa-shield-check, fa-light fa-dragon, fa-light fa-unicorn, fa-light fa-cat, fa-light fa-dog, fa-light fa-rocket, fa-light fa-planet-ringed, fa-light fa-fire-flame-curved, fa-light fa-bolt, fa-light fa-leaf, fa-light fa-gem, fa-light fa-trophy. Any other valid Font Awesome 6 icon name is accepted too — always keep the \"fa-light\" weight."
+              }
+            ]
+          }
+        },
+        {
+          "action": "list-applications",
+          "description": "Lists the current user's applications in the Developer Portal. Returns each application's appId, devId, name, slug, url, description, createdAt timestamp, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens an application inside the platform, paste its `tag` value verbatim into your reply (do NOT link the raw URL).",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "Events",
+      "title": "Events Service",
+      "description": "Calendar service for listing, creating, and editing meetings.",
+      "source": "src/Applications/EventsApplication/Services/EventsService.js",
+      "intents": [
+        {
+          "action": "list-events",
+          "description": "Returns a list of calendar events for the specified date range and optional meeting filter, sorted by start time ascending.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "range",
+                "type": "string",
+                "description": "Date range to fetch. Must be one of: day, week, month, year. Defaults to month."
+              },
+              {
+                "name": "startDate",
+                "type": "string",
+                "description": "ISO 8601 anchor date (e.g. \"2026-04-07\"). Defaults to today."
+              },
+              {
+                "name": "filter",
+                "type": "string",
+                "description": "Meeting source filter. Must be one of: all, room, group, user, community. Defaults to all."
+              },
+              {
+                "name": "id",
+                "type": "string",
+                "description": "ID of the room, group, user, or community. Used when filter is not all."
+              }
+            ]
+          }
+        },
+        {
+          "action": "create-meeting",
+          "description": "Creates a new meeting on the calendar with the specified title, type, time range, and optional participants, description, color, and recurrence.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "title",
+                "type": "string",
+                "description": "The title of the meeting."
+              },
+              {
+                "name": "type",
+                "type": "string",
+                "description": "The meeting type. Must be one of: room, group, community, direct (private)."
+              }
+            ],
+            "optional": [
+              {
+                "name": "startDate",
+                "type": "string",
+                "description": "The meeting start date/time as a UTC ISO 8601 string (e.g. \"2026-04-10T14:00:00.000Z\"). Always use UTC — convert from local time if needed. Defaults to today's current time rounded up to the next 15-minute mark."
+              },
+              {
+                "name": "endDate",
+                "type": "string",
+                "description": "The meeting end date/time as a UTC ISO 8601 string (e.g. \"2026-04-10T15:00:00.000Z\"). Always use UTC — convert from local time if needed. Defaults to 1 hour after startDate."
+              },
+              {
+                "name": "description",
+                "type": "string",
+                "description": "An optional description for the meeting."
+              },
+              {
+                "name": "color",
+                "type": "string",
+                "description": "Hex color code for the meeting (e.g. \"#4299f5\"). Defaults to the type's default color when omitted."
+              },
+              {
+                "name": "participants",
+                "type": "string[]",
+                "description": "Array of user IDs to invite to the meeting. For private meetings with multiple participants, a group is created automatically."
+              },
+              {
+                "name": "recurringWeekly",
+                "type": "boolean",
+                "description": "If true, the meeting repeats every week at the same time. Not supported for community meetings."
+              },
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room ID. Required when type is \"room\"."
+              },
+              {
+                "name": "groupId",
+                "type": "string",
+                "description": "The group ID. Required when type is \"group\"."
+              },
+              {
+                "name": "communityId",
+                "type": "string",
+                "description": "The community ID. Required when type is \"community\"."
+              },
+              {
+                "name": "globalEventId",
+                "type": "string",
+                "description": "The community global event ID. Required when type is \"community\"."
+              }
+            ]
+          }
+        },
+        {
+          "action": "edit-meeting",
+          "description": "Updates an existing meeting's fields (title, description, time, participants, or color) by meeting ID.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "meetingId",
+                "type": "string",
+                "description": "The unique identifier of the meeting to update."
+              }
+            ],
+            "optional": [
+              {
+                "name": "title",
+                "type": "string",
+                "description": "New title for the meeting."
+              },
+              {
+                "name": "description",
+                "type": "string",
+                "description": "New description for the meeting."
+              },
+              {
+                "name": "startDate",
+                "type": "string",
+                "description": "New start date/time as a UTC ISO 8601 string (e.g. \"2026-04-10T14:00:00.000Z\"). Always use UTC — convert from local time if needed."
+              },
+              {
+                "name": "endDate",
+                "type": "string",
+                "description": "New end date/time as a UTC ISO 8601 string (e.g. \"2026-04-10T15:00:00.000Z\"). Always use UTC — convert from local time if needed."
+              },
+              {
+                "name": "color",
+                "type": "string",
+                "description": "New hex color code for the meeting (e.g. \"#4299f5\")."
+              },
+              {
+                "name": "participants",
+                "type": "string[]",
+                "description": "Updated list of invited participant user IDs."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "Groups",
+      "title": "Groups Service",
+      "description": "Group management service for listing groups the current user belongs to and their participants.",
+      "source": "src/Services/Groups/GroupsService.js",
+      "intents": [
+        {
+          "action": "list-groups",
+          "description": "Returns groups the current user belongs to. Supports search and cursor-based pagination.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "query",
+                "type": "string",
+                "description": "Search query to filter groups by name."
+              },
+              {
+                "name": "limit",
+                "type": "number",
+                "description": "Maximum number of groups to return. Defaults to 20."
+              },
+              {
+                "name": "cursor",
+                "type": "string",
+                "description": "Pagination cursor for fetching the next page of results."
+              }
+            ]
+          }
+        },
+        {
+          "action": "list-group-participants",
+          "description": "Returns participants of a specific group. Supports search and cursor-based pagination.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "groupId",
+                "type": "string",
+                "description": "The unique identifier of the group."
+              }
+            ],
+            "optional": [
+              {
+                "name": "query",
+                "type": "string",
+                "description": "Search query to filter participants by name."
+              },
+              {
+                "name": "limit",
+                "type": "number",
+                "description": "Maximum number of participants to return. Defaults to 20."
+              },
+              {
+                "name": "cursor",
+                "type": "string",
+                "description": "Pagination cursor for fetching the next page of results."
+              }
+            ]
+          }
+        },
+        {
+          "action": "discover-groups",
+          "description": "Returns groups the current user can join via CBAC — groups whose badge policy is satisfied by the badges the user holds. Each result includes the cbacPolicies that grant access. Supports search and cursor-based pagination.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "query",
+                "type": "string",
+                "description": "Search query to filter groups by name."
+              },
+              {
+                "name": "limit",
+                "type": "number",
+                "description": "Maximum number of groups to return. Defaults to 20."
+              },
+              {
+                "name": "cursor",
+                "type": "string",
+                "description": "Pagination cursor for fetching the next page of results."
+              }
+            ]
+          }
+        },
+        {
+          "action": "join-group",
+          "description": "Joins the current user to a group via CBAC. The user must hold a badge that satisfies a badge policy on the target group (use discover-groups to find eligible groups first).",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "groupId",
+                "type": "string",
+                "description": "The unique identifier of the group to join."
+              }
+            ],
+            "optional": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "Http",
+      "title": "HTTP Service",
+      "description": "Generic HTTP utility: reachability ping, GET, and POST against any URL. Requests are sent without user credentials (cookies are stripped); responses include status, headers, and body. Timeouts are capped server-side.",
+      "source": "src/Services/Http/HttpService.js",
+      "intents": [
+        {
+          "action": "ping",
+          "description": "Pings a URL with HEAD and returns whether it is reachable, the response latency in ms, and the HTTP status code (0 for cross-origin or unreachable servers). Returns: { up: boolean, latency: number, status: number, error?: string }.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "url",
+                "type": "string",
+                "description": "The URL to ping."
+              }
+            ],
+            "optional": [
+              {
+                "name": "timeout",
+                "type": "number",
+                "description": "Request timeout in milliseconds. Defaults to 10000, max 60000."
+              }
+            ]
+          }
+        },
+        {
+          "action": "get",
+          "description": "Performs an HTTP GET against the URL and returns the response. Body is auto-parsed as JSON when the response Content-Type is application/json (or *+json), otherwise as text. Returns: { ok: boolean, status: number, statusText: string, headers: object, body: any, bodyType: \"json\"|\"text\", latency: number, error?: string }.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "url",
+                "type": "string",
+                "description": "Absolute URL to GET."
+              }
+            ],
+            "optional": [
+              {
+                "name": "headers",
+                "type": "object",
+                "description": "Map of request headers to send (e.g. { \"Accept\": \"application/json\" })."
+              },
+              {
+                "name": "timeout",
+                "type": "number",
+                "description": "Request timeout in milliseconds. Defaults to 30000, max 60000."
+              },
+              {
+                "name": "responseType",
+                "type": "string",
+                "description": "How to parse the response body: \"auto\" (default — JSON if Content-Type matches, else text), \"json\", or \"text\"."
+              }
+            ]
+          }
+        },
+        {
+          "action": "post",
+          "description": "Performs an HTTP POST against the URL with the given body and returns the response (same shape as get). If `body` is a plain object it is JSON-stringified and Content-Type defaults to application/json; strings are sent verbatim with the supplied or existing Content-Type.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "url",
+                "type": "string",
+                "description": "Absolute URL to POST to."
+              }
+            ],
+            "optional": [
+              {
+                "name": "body",
+                "type": "object",
+                "description": "Request body. Plain object → JSON-stringified; string → sent verbatim. Omit for an empty-body POST."
+              },
+              {
+                "name": "headers",
+                "type": "object",
+                "description": "Map of request headers to send."
+              },
+              {
+                "name": "contentType",
+                "type": "string",
+                "description": "Override the Content-Type header (defaults to application/json when `body` is an object)."
+              },
+              {
+                "name": "timeout",
+                "type": "number",
+                "description": "Request timeout in milliseconds. Defaults to 30000, max 60000."
+              },
+              {
+                "name": "responseType",
+                "type": "string",
+                "description": "How to parse the response body: \"auto\" (default), \"json\", or \"text\"."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "Logging",
+      "title": "Logging Service",
+      "description": "Exposes the in-memory console log buffer captured by ConsoleLogCapture for diagnostics and bug reporting.",
+      "source": "src/Services/Logging/LoggingService.js",
+      "intents": [
+        {
+          "action": "get-logs",
+          "description": "Returns the captured console log buffer (log, info, warn, error) since app start. Choose the format: \"text\" returns { format: \"text\", text: <string> } with one line per entry; \"file\" returns { format: \"file\", filename, mimeType, size, file: File } — the File is for direct callers (upload/download) and is omitted in the AI/MCP serialized response, which still includes filename, mimeType, and size.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "format",
+                "type": "string",
+                "description": "Output format. Must be one of: \"text\", \"file\". Defaults to \"text\"."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "Networks",
+      "title": "Networks Service",
+      "description": "Network management service for retrieving information about the current network.",
+      "source": "src/Applications/NetworksApplication/Services/NetworksService.js",
+      "intents": [
+        {
+          "action": "get-current-network",
+          "description": "Returns the id and name of the network the user is currently in. Call this to get the current networkId before making any room or network-related calls.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "Profile",
+      "title": "Profile Service",
+      "description": "Read-only access to a user's public profile artifacts — Verus verifiable credentials and network badges — addressed by userId. No UI side effects.",
+      "source": "src/Services/Profile/ProfileService.js",
+      "intents": [
+        {
+          "action": "get-user-credentials",
+          "description": "Returns the Verus verifiable credentials published on a user's profile, by their userId. These are the attestation claims of type \"credential\" shown in the profile Credentials view. Revoked credentials are returned only when the userId is the current user. Visibility is enforced by the backend against the current user.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "The unique identifier of the user whose credentials to list."
+              }
+            ],
+            "optional": [
+              {
+                "name": "status",
+                "type": "string",
+                "description": "Optional claim status filter (e.g. \"Verified And Persisted\"). Omit to return credentials of all statuses the caller may see."
+              }
+            ]
+          }
+        },
+        {
+          "action": "get-user-badges",
+          "description": "Returns the badges assigned to a user by their userId. Each badge includes badgeId, badgeName, badgeDescription, thumbnailId, and networkId. Visibility is enforced by the backend against the current user.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "The unique identifier of the user whose badges to list."
+              }
+            ],
+            "optional": [
+              {
+                "name": "networkId",
+                "type": "string",
+                "description": "Network scope for the badges. Defaults to \"all\", which fetches badges from every network shared with the target user."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "Resources",
+      "title": "Resource Service",
+      "description": "Low-level resource service for generating URLs (thumbnails, public links, direct downloads) for resources.",
+      "source": "src/Services/Resources/ResourceService.js",
+      "intents": [
+        {
+          "action": "get-thumbnail-url",
+          "description": "Returns a thumbnail URL for a resource at the specified size.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "resourceId",
+                "type": "string",
+                "description": "The unique identifier of the resource."
+              }
+            ],
+            "optional": [
+              {
+                "name": "thumbnailSize",
+                "type": "number",
+                "description": "The desired thumbnail size in pixels. Defaults to 256."
+              }
+            ]
+          }
+        },
+        {
+          "action": "generate-public-url",
+          "description": "Generates a public preview URL for a resource.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "resourceId",
+                "type": "string",
+                "description": "The unique identifier of the resource."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "generate-best-view-url",
+          "description": "Generates an optimized view URL for a resource.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "resourceId",
+                "type": "string",
+                "description": "The unique identifier of the resource."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "generate-direct-public-url",
+          "description": "Generates a direct public API URL for downloading a resource.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "resourceId",
+                "type": "string",
+                "description": "The unique identifier of the resource."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "list-bot-avatars",
+          "description": "Returns the network-allowed bot avatar collection (id, name, tags) from the shared bot-avatars directory. Avatars carrying the current network's denied tags (same modesty/policy filter as the user avatar picker) are excluded. Use a returned `id` as a 3D avatar resource id (e.g. an agent's avatarResourceId).",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "limit",
+                "type": "number",
+                "description": "Max avatars to return. Defaults to 50."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "Rooms",
+      "title": "Rooms Service",
+      "description": "Room management service for searching rooms, browsing room templates, creating rooms from templates, retrieving room details, managing prop content, and checking permissions.",
+      "source": "src/Applications/RoomsApplication/Services/RoomsService.js",
+      "intents": [
+        {
+          "action": "search-rooms",
+          "description": "Searches all public/discoverable rooms in the current network using the explorer service. Returns rooms anyone can find and join, regardless of membership. Use this when the user wants to discover or browse rooms. Every room in the result carries a ready-made entity link in its `tag` field (`@[room:networkId/roomId|Name]`) plus the resolved `networkId` — paste that `tag` verbatim when linking to the room and NEVER assemble one from ids yourself.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "query",
+                "type": "string",
+                "description": "Search query to filter rooms by name."
+              },
+              {
+                "name": "offset",
+                "type": "number",
+                "description": "Pagination offset. Defaults to 0."
+              },
+              {
+                "name": "size",
+                "type": "number",
+                "description": "Number of results to return. Defaults to 10."
+              }
+            ]
+          }
+        },
+        {
+          "action": "search-my-rooms",
+          "description": "Searches rooms belonging to the current user within the current network — their joined rooms, favorites, or pending invitations. Use this when the user asks about their own rooms. Every room in the result carries a ready-made entity link in its `tag` field (`@[room:networkId/roomId|Name]`) plus the resolved `networkId` — paste that `tag` verbatim when linking to the room and NEVER assemble one from ids yourself.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "filter",
+                "type": "string",
+                "description": "Room filter. Must be one of: \"all\" — all rooms the current user belongs to; \"favourite\" — user's favorite rooms only; \"invites\" — rooms the user has been invited to but not yet joined."
+              }
+            ],
+            "optional": [
+              {
+                "name": "query",
+                "type": "string",
+                "description": "Search query to filter rooms by name."
+              },
+              {
+                "name": "offset",
+                "type": "number",
+                "description": "Pagination offset. Defaults to 0."
+              },
+              {
+                "name": "size",
+                "type": "number",
+                "description": "Number of results to return. Defaults to 10."
+              }
+            ]
+          }
+        },
+        {
+          "action": "get-room",
+          "description": "Retrieves basic room model data by room ID including name, description, settings, and metadata.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The unique room identifier."
+              }
+            ],
+            "optional": [
+              {
+                "name": "networkId",
+                "type": "string",
+                "description": "Network ID the room belongs to."
+              }
+            ]
+          }
+        },
+        {
+          "action": "get-permissions",
+          "description": "Retrieves the current user permissions for a room (view, comment, contribute, edit, manage).",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The unique room identifier."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "get-room-props",
+          "description": "Lists all props (interactive objects) in a room. Returns prop objects with id, name (what the prop SHOWS, and the label on its tag: the prop's own title, else the title of its FIRST resource — a filled frame is named after its content, because a content prop carries no title of its own — else the asset's catalog name, else the bare id when nothing names it), assetTitle (the asset's catalog name, e.g. \"Gold Picture Frame\" or \"Presentation Board\" — tells you what kind of object the prop is even when the author renamed it), type (array of content types the prop can hold — empty means it cannot hold content), thumbnailCount (number of visual display canvases — a picture frame has thumbnailCount > 0), isPresentationBoard (true = a live screen-share board, NEVER a target for pasted content; null = unknown), invokeType (Default/Container/Bookshelf/FileCabinet), tags, contentCount, assetId, and `tag` — a ready-made entity link for the prop (`@[prop:networkId/roomId/propId|Name]`) that you paste verbatim when referring to it, never assembling one from ids yourself. Match the user's words against tags, name and assetTitle to find the prop they mean (e.g. \"logo\", \"team\", \"the gold frame\"). Each prop also carries `groupId` — the id of its prop group (props sharing the same tag set; see get-room-prop-groups). For PLACING content prefer get-room-prop-groups: it returns these same props already grouped, and paste-resources-into-prop-group spreads content over a group for you. Props are returned in the room's NAVIGATION ORDER and each carries `navIndex` (0-based position): normally that is the props-group order the room stores, but when the room's settings select a storyline to override Next/Previous navigation, THAT storyline's frame order is the source of truth for prop order — props the storyline never visits come last with `navIndex: null`.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The unique room identifier."
+              }
+            ],
+            "optional": [
+              {
+                "name": "networkId",
+                "type": "string",
+                "description": "Network ID the room belongs to."
+              }
+            ]
+          }
+        },
+        {
+          "action": "get-prop",
+          "description": "Returns details for a single prop by ID (name, assetTitle, type, thumbnailCount, isPresentationBoard, contentCount, assetId, `navIndex` — the prop's 0-based position in the room's navigation order, null when a Next/Previous storyline override never visits it — and the ready-made entity link `tag` — same fields as get-room-props) with no navigation or UI side effects. Use this to read prop data. Only use preview-prop when the user explicitly asks to show, open, or navigate to a prop.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "propId",
+                "type": "string",
+                "description": "The unique prop identifier."
+              },
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room the prop belongs to."
+              }
+            ],
+            "optional": [
+              {
+                "name": "networkId",
+                "type": "string",
+                "description": "Network ID the room belongs to."
+              }
+            ]
+          }
+        },
+        {
+          "action": "list-prop-team-members",
+          "description": "Lists all team member invitations for a prop in a room. Returns an array of invitation records, each containing the invited user's ID, their permissions (view/comment/contribute/edit/manage), and any stored custom metadata. Agent assignments are stored id-only as `customParams.agentInfo.id` (string). Older rows may still carry the full snapshot `customParams.agentInfo: { id, name, description, avatarUrl }` — only `id` is read; everything else is resolved from the live agent.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room the prop belongs to."
+              },
+              {
+                "name": "propId",
+                "type": "string",
+                "description": "The prop whose team members to list."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "invite-to-prop",
+          "description": "Adds a user to a prop's team, or updates an existing team member's permissions and metadata. When called for a user already in the team this acts as an update — the invitation is replaced with the new permissions and customParams. Use list-prop-team-members first to check current membership before inviting.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room the prop belongs to."
+              },
+              {
+                "name": "propId",
+                "type": "string",
+                "description": "The prop to invite the user to."
+              },
+              {
+                "name": "invitedUser",
+                "type": "string",
+                "description": "User ID of the person to invite or update."
+              }
+            ],
+            "optional": [
+              {
+                "name": "permissions",
+                "type": "object",
+                "description": "Permission flags for the team member: { view: boolean, comment: boolean, contribute: boolean, edit: boolean, manage: boolean }. Defaults to view-only (view: true, all others false) when omitted."
+              },
+              {
+                "name": "customParams",
+                "type": "object",
+                "description": "Arbitrary metadata stored on the invitation. To assign an AI agent to this team member, pass `customParams: { agentInfo: { id: \"<agent-id>\", avatarResourceId: \"<picked-3d-avatar-resource-id>\" | null } }` (id-only — do NOT include name/description/avatarUrl, those are resolved from the live agent). `avatarResourceId` is the team member's picked 3D avatar for this prop, or `null` when nothing has been picked — readers fall back to the user's own 3D profile avatar in that case. Pass `customParams: null` to clear a previously assigned agent. The full-snapshot shape `agentInfo: { id, name, description, avatarUrl }` is still read for backwards compatibility but only `id` is used."
+              }
+            ]
+          }
+        },
+        {
+          "action": "delete-prop-invitation",
+          "description": "Removes a user from a prop's team by deleting their invitation. Use list-prop-team-members first to confirm the user is currently a team member.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room the prop belongs to."
+              },
+              {
+                "name": "propId",
+                "type": "string",
+                "description": "The prop to remove the user from."
+              },
+              {
+                "name": "invitedUser",
+                "type": "string",
+                "description": "User ID of the team member to remove."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "list-room-templates",
+          "description": "Lists the room templates the AI is allowed to build from: ONLY templates tagged both \"community\" and \"ai-friendly\" are returned — every other template is skipped by design, never look for or suggest one (filteredOutCount says how many of the page were skipped). Each template has an id, name, tags (e.g. \"office\", \"gallery\", \"community\"), price in USD (0 or missing = free; paid templates CAN be created too — the room then has to be purchased by the user within 15 minutes, see create-room-from-template), subscriptionStatus, and groupCount — the number of prop groups (tagged sections of frames) the template's room contains, read from a tag of the form \"prop-groups_N\" (e.g. prop-groups_5; null when the template carries no such tag). Choose a template by groupCount: prefer the one equal to the number of content sections the user has, else the smallest larger one; a template with more groups than sections leaves the extra groups on their placeholders, one with fewer forces sections to be merged — say so when you propose it. Supports text search and server-side tag filtering with pagination. Use this before create-room-from-template to find a template id, its groupCount and its price.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "query",
+                "type": "string",
+                "description": "Search query to filter templates by name."
+              },
+              {
+                "name": "tags",
+                "type": "string[]",
+                "description": "Filter templates by tags (server-side), e.g. [\"community\"]."
+              },
+              {
+                "name": "offset",
+                "type": "number",
+                "description": "Pagination offset. Defaults to 0."
+              },
+              {
+                "name": "size",
+                "type": "number",
+                "description": "Number of results to return. Defaults to 20."
+              }
+            ]
+          }
+        },
+        {
+          "action": "create-room-from-template",
+          "description": "Creates a new 3D room in the current network from a room template — FREE or PAID. The tool looks the template up in the AI-approved list itself and uses the listed price (pass `price` too when you have it; it is the fallback if the lookup fails). For a paid template the room is created immediately with a one-time-payment plan and the platform keeps it only if the user completes the purchase within 15 minutes; this tool never pays anything. Returns { roomId, name, networkId, tag, price, isFree, paymentRequired } for the NEW room plus, when paymentRequired is true, paymentWindowMinutes (15) and paymentInstructions. When paymentRequired is true you MUST tell the user right away: the price, that the room is temporary until it is bought within 15 minutes, and how to pay (Valu web app -> Rooms -> open the new room -> \"Pay for Room\"); never claim it is paid. Creating the room and linking to it are two separate steps: to link, paste the returned `tag` (`@[room:networkId/roomId|Name]`) VERBATIM — never rebuild it from ids, never reuse a roomId from an earlier call or a template id, and never guess the networkId. Use list-room-templates first to find the template id and its price.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "templateId",
+                "type": "string",
+                "description": "The room template id (from list-room-templates)."
+              },
+              {
+                "name": "roomName",
+                "type": "string",
+                "description": "Name for the new room."
+              }
+            ],
+            "optional": [
+              {
+                "name": "price",
+                "type": "number",
+                "description": "The template's price in USD as list-room-templates returned it (0 = free). Optional: the tool resolves the price from the approved list itself and only falls back to this value when the template cannot be found there. A price above 0 creates a PAID room that the user must purchase within 15 minutes to keep."
+              }
+            ]
+          }
+        },
+        {
+          "action": "paste-resources-into-prop",
+          "description": "Places one or more existing CMS resources into a prop in a room. Resources are link-copied (the originals stay in their current folder) and added to the prop's content list. IDEMPOTENT: a resource already on the prop (itself, or as a link copy) is skipped and listed in skippedAlreadyPresent — so repeating a paste after a timeout can never duplicate content; when everything was already there the result carries alreadyPresent=true and nothing is changed. Template placeholder resources still sitting on the prop (from the room template) are removed first so they never mix with the user's content (removedTemplateStubs in the result lists them; set removeTemplateStubs=false to keep them). When the paste leaves more than one resource on a non-container prop, the tool automatically enables the prop's auto content slider so the items cycle as a slideshow (result field sliderEnabled reports it; sliderError appears if the paste succeeded but the slider toggle failed). The tool also CLEARS the prop's title (content props carry no caption — a section's name lives on its sign; titleCleared reports it, titleClearError if that save failed). Use this tool ONLY when the user named exactly one prop. When the target is a GROUP — a row of frames, a tagged section, several props — call paste-resources-into-prop-group instead: it spreads the content across the group's props in navigation order itself, so never hand-split content into per-prop calls. The prop must support content — check via get-room-props that its type array is non-empty and isPresentationBoard is false: presentation (screen-share) boards are rejected, they are reserved for live screen sharing. Prefer props with thumbnailCount > 0 (picture frames / display canvases). Use service__CMS__resource_search to find resource ids first. Returns the paste result plus `name` and `tag` read back AFTER the paste, so they name what the prop now shows (its first resource) — paste that `tag` verbatim when linking to the prop.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room the prop belongs to."
+              },
+              {
+                "name": "propId",
+                "type": "string",
+                "description": "The prop to place the resources into."
+              },
+              {
+                "name": "resourceIds",
+                "type": "string[]",
+                "description": "CMS resource ids to place into the prop, in display order."
+              }
+            ],
+            "optional": [
+              {
+                "name": "appendToListEnd",
+                "type": "boolean",
+                "description": "When true (default) new resources are appended to the end of the prop's content list; when false they are inserted at the front."
+              },
+              {
+                "name": "removeTemplateStubs",
+                "type": "boolean",
+                "description": "When true (default) placeholder resources the prop inherited from the room template are removed before pasting. Pass false only when the user explicitly wants to keep the template content."
+              },
+              {
+                "name": "networkId",
+                "type": "string",
+                "description": "Network ID the room belongs to. Defaults to the current network."
+              }
+            ]
+          }
+        },
+        {
+          "action": "get-room-prop-groups",
+          "description": "Lists a room's props ALREADY GROUPED by their tag set, in the room's navigation order — use this (not get-room-props) whenever content is to be placed. Returns { roomId, networkId, propOrder, groupIds, groups } — groupIds is the ordered list of every group id, read it first. A group is the set of props whose normalized tags (lowercase, spaces -> \"-\") are identical; its `id` is those tags sorted and joined with \"+\" (e.g. \"building1+floor0+team\"), so multi-tag rooms yield one group per tag combination (\"building1+floor0+team\" and \"building1+floor1+team\" are different groups). A SINGLE tagged prop is a group of one — the lone \"logo\" frame is the group \"logo\". Props WITHOUT tags belong to no group and are skipped entirely (never listed, never filled). Each group carries id, tags, label, isLogoGroup (true when the tags include \"logo\": every logo frame shows EVERY logo, so paste-resources-into-prop-group replicates there by default), navIndex (the group's first position in the room's walk; null = outside it), propCount, eligiblePropCount (props that can take content), decorativePropCount (props with no content type — walls, plants, signs — counted but NOT listed), totalContentCount, labels — the section's SIGNS: Text props (recognised by an asset tag containing \"Text\", or as a titled prop with no content type) whose title is the text shown in the room, members of the group because they carry its tags (an untagged sign is invisible to these tools); each { propId, text } — and props — only the props that can hold content (presentation boards included, flagged), each as a compact entry: id, name (what the prop SHOWS: its own title, else the title of its FIRST resource, else the asset's catalog name, else the bare id when nothing names it — an id-only name means an empty, unnamed frame), assetTitle, type, thumbnailCount, logoCount, invokeType, isPresentationBoard, acceptsContent (true = type non-empty and not a presentation board), contentCount, navIndex, tag. Match the user's words against group tags/label first (\"the team wall on floor 0\" -> tags contain team and floor0), then against prop name/assetTitle when they mean one exact prop. Pass group ids to paste-resources-into-prop-group; when the user's content is coarser than the groups (\"team\" over per-floor team groups) pass every group whose tags contain the facet. The ready-made `tag` on each prop is pasted verbatim when linking to it — never assemble one. propOrder says where the order came from ({ source: \"storyline\" | \"props-group\", storylineId?, storylineTitle? }).",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The unique room identifier."
+              }
+            ],
+            "optional": [
+              {
+                "name": "networkId",
+                "type": "string",
+                "description": "Network ID the room belongs to."
+              }
+            ]
+          }
+        },
+        {
+          "action": "paste-resources-into-prop-group",
+          "description": "Spreads existing CMS resources across the props of one or more prop GROUPS (ids from get-room-prop-groups), in the room's navigation order, as contiguous, order-preserving shares — one slideshow per prop. The tool does ALL the chunking (7 resources over 3 frames -> 3/2/2; 2 over 5 -> the first two frames get one each), so call it ONCE per content group with all of that group's resources — never once per prop, and never split the resources yourself. Pass several groupIds when the content is coarser than the room's groups (e.g. \"team\" photos over \"building1+floor0+team\" and \"building1+floor1+team\"); their props are pooled in walk order. Frames that still show only their template placeholder come FIRST (lowest navIndex first), frames that already hold user content come after — so a later top-up fills the empty slots before joining existing slideshows; each placement reports hadUserContent (true/false, null when the prop's content could not be read). distribution: \"spread\" (default — contiguous shares), \"stack\" (everything onto the first eligible prop as one slideshow — only when the user explicitly asked for a single slideshow) or \"replicate\" (EVERY resource onto EVERY eligible prop — the default when every selected group is a LOGO group, isLogoGroup true, so all logos show on all logo frames; never spread logos unless the user asks). Presentation boards are skipped automatically and listed in skippedProps; decorative members (walls, signs) are never candidates. Per prop this behaves exactly like paste-resources-into-prop: resources are link-copied (originals stay), a resource already on the prop (itself or as a link copy) is skipped rather than duplicated (per placement and top-level skippedAlreadyPresent — a repeat after a timeout is safe), template placeholder stubs are removed first, the auto content slider is enabled when a prop ends up with more than one item, and titles are cleared on EVERY content prop of the selected groups — the pasted ones and the untouched ones alike (content props carry no caption; the section's name lives on its sign; clearedTitlePropIds lists them, titleClearErrors any that failed). Returns { roomId, groupIds, distribution, placements: [{ groupId, propId, name, tag, navIndex, hadUserContent, resourceIds, addedResourceIds, failed, removedTemplateStubs, sliderEnabled, titleCleared, sliderError?, titleClearError?, stubCleanupError?, error? }], clearedTitlePropIds, titleClearErrors?, unplacedResourceIds (resources that landed on no prop at all), eligiblePropCount, skippedProps } — each placement's name and tag are read back AFTER the paste, so they name what the prop now shows (its first resource), not the empty frame it was. It throws only when nothing could be attempted: an unknown group id (the message lists the valid ids), no eligible prop in the selected groups, or empty input. Report failed/unplaced items honestly; paste each placement's `tag` verbatim when linking. Use paste-resources-into-prop only when the user named exactly one prop.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room the groups belong to."
+              },
+              {
+                "name": "groupIds",
+                "type": "string[]",
+                "description": "One or more prop group ids from get-room-prop-groups (e.g. [\"building1+floor0+team\"]). Several ids pool their props into one navigation-ordered row."
+              },
+              {
+                "name": "resourceIds",
+                "type": "string[]",
+                "description": "CMS resource ids to place, in display order. The tool splits them across the props itself."
+              }
+            ],
+            "optional": [
+              {
+                "name": "distribution",
+                "type": "string",
+                "description": "\"spread\": contiguous, order-preserving shares across the eligible props in navigation order (default for every group except logo groups). \"stack\": everything onto the first eligible prop as a single slideshow — only when the user asked for one. \"replicate\": every resource onto every eligible prop (default for a logo group). Omit to get the default for the selected groups."
+              },
+              {
+                "name": "appendToListEnd",
+                "type": "boolean",
+                "description": "When true (default) new resources are appended to the end of each prop's content list; when false they are inserted at the front."
+              },
+              {
+                "name": "removeTemplateStubs",
+                "type": "boolean",
+                "description": "When true (default) placeholder resources a prop inherited from the room template are removed before pasting. Pass false only when the user explicitly wants to keep the template content."
+              },
+              {
+                "name": "networkId",
+                "type": "string",
+                "description": "Network ID the room belongs to. Defaults to the current network."
+              }
+            ]
+          }
+        },
+        {
+          "action": "rename-prop-group",
+          "description": "Gives a prop GROUP a display name by retitling its section SIGNS — the group's labels from get-room-prop-groups, i.e. the tagged Text props that show the section name in the room. Content props (frames, boards) are never touched: they carry no title at all (pasting clears any they had), the name lives on the sign. Use it in the guided build once the section's name is settled (listed by the user up front, self-evident from the tag, or confirmed from your proposal — or chosen by you when the user asked you to decide everything). The group id itself comes from tags and does not change. Returns { roomId, groupId, name, hasLabels, renamedLabelPropIds, failed } — hasLabels false means the group has no sign, so there was nothing to rename (say so); renamedLabelPropIds are the signs that now show the name; failed lists signs that could not be saved. Never rename a group the user did not name or ask you to name.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room the group belongs to."
+              },
+              {
+                "name": "groupId",
+                "type": "string",
+                "description": "The prop group id from get-room-prop-groups (e.g. \"team\" or \"building1+floor0+team\")."
+              },
+              {
+                "name": "name",
+                "type": "string",
+                "description": "The display name for the section; becomes the text of the group's signs."
+              }
+            ],
+            "optional": [
+              {
+                "name": "networkId",
+                "type": "string",
+                "description": "Network ID the room belongs to. Defaults to the current network."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "TextChat",
+      "title": "Text Chat Service",
+      "description": "Headless text-chat I/O for non-UI callers (agents, sub-agents, scripts). Read channel history and send messages without opening the TextChat application or changing the active channel. Encryption and decryption are handled automatically.",
+      "source": "src/Services/TextChat/TextChatService.js",
+      "intents": [
+        {
+          "action": "get-channel-history",
+          "description": "Fetches the most recent messages for a text-chat channel by channelId, decrypted and ready to read. Returns a plain list of messages with authorId, body, timestamp, and messageType. Does not open any UI or change the active channel.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "channelId",
+                "type": "string",
+                "description": "The text-chat channel ID to load messages from."
+              }
+            ],
+            "optional": [
+              {
+                "name": "limit",
+                "type": "number",
+                "description": "Maximum number of messages to return. Defaults to 20."
+              },
+              {
+                "name": "beforeMessageId",
+                "type": "string",
+                "description": "Load messages older than this messageId (for paginating backwards)."
+              },
+              {
+                "name": "afterMessageId",
+                "type": "string",
+                "description": "Load messages newer than this messageId (for paginating forwards)."
+              }
+            ]
+          }
+        },
+        {
+          "action": "send-message",
+          "description": "Sends a text message to a text-chat channel. You must provide EITHER a channelId (preferred when you already have one) OR a userId (for a direct message — the service resolves the direct channel automatically). Silent — does NOT open the TextChat application, does NOT change the active channel, does NOT affect any UI. Encryption is handled automatically if the channel is encrypted.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "text",
+                "type": "string",
+                "description": "The message body to send."
+              }
+            ],
+            "optional": [
+              {
+                "name": "channelId",
+                "type": "string",
+                "description": "Target channel ID. Use this when you already know the channel (e.g. from a platform event). Takes precedence over userId."
+              },
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "Target user ID for a direct message. The service resolves the direct channel by calling channel:getDirectChannel under the hood. Ignored if channelId is also provided."
+              },
+              {
+                "name": "buttons",
+                "type": "object[]",
+                "description": "Optional interactive buttons rendered below the message body. Pass a real JSON array (NOT a JSON-stringified array). Each entry MUST be an object with this exact NESTED shape: `{text: string, intent: {applicationId: string, action: string, params?: object}}`. Do NOT flatten `applicationId`/`action` onto the button itself — `intent` is a sub-object. `text` is the visible label. Clicking dispatches `intent` via Application.run on the recipient's client (use an `applicationId` + `action` the recipient's app exposes — see other service manifests for valid pairs). Entries that are malformed are repaired-or-dropped by the service and reported back in `buttonWarnings`; check that field on the response and use the canonical shape going forward. Example: `[{\"text\":\"Open profile\",\"intent\":{\"applicationId\":\"valuguru\",\"action\":\"open-agent\",\"params\":{\"agentId\":\"agent_xxx\"}}}]`."
+              },
+              {
+                "name": "customParams",
+                "type": "object",
+                "description": "Optional message customParams. Only the key `open-thread` is accepted (any other key is dropped by the service). Pass `{\"open-thread\": true}` ONLY when the recipient explicitly expects your outreach (e.g. you are responding to their team-member avatar click) — it force-opens the chat thread on their screen, which is invasive."
+              }
+            ]
+          }
+        },
+        {
+          "action": "message-owner",
+          "description": "Delivers a message authored by the AI agent itself (NOT by the logged-in user) into a user's dedicated agent-to-user channel, resolved from source `userAIAgent:{userId}:{agentId}`. The recipient sees the agent as the author and the channel is created on first use. This is the INVASIVE owner-notification channel: use it to ping/notify the owner (pass the owner's userId) — or, occasionally, any other user. Unlike send-message (which sends as the logged-in user), this is authored by the agent. Silent toward the UI — does NOT open the TextChat application or change the active channel.",
+          "availability": [
+            "ai"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "Recipient user ID. The user who will receive the message in their agent channel."
+              },
+              {
+                "name": "agentId",
+                "type": "string",
+                "description": "The calling agent's own ID. Used to address the dedicated `userAIAgent:{userId}:{agentId}` channel so the message is authored by this agent."
+              },
+              {
+                "name": "text",
+                "type": "string",
+                "description": "The message body to send."
+              }
+            ],
+            "optional": [
+              {
+                "name": "buttons",
+                "type": "object[]",
+                "description": "Optional interactive buttons rendered below the message body. Pass a real JSON array (NOT a JSON-stringified array). Each entry MUST be an object with this exact NESTED shape: `{text: string, intent: {applicationId: string, action: string, params?: object}}`. Do NOT flatten `applicationId`/`action` onto the button itself — `intent` is a sub-object. `text` is the visible label. Clicking dispatches `intent` via Application.run on the recipient's client (use an `applicationId` + `action` the recipient's app exposes — see other service manifests for valid pairs). Entries that are malformed are repaired-or-dropped by the service and reported back in `buttonWarnings`; check that field on the response and use the canonical shape going forward. Example: `[{\"text\":\"Open profile\",\"intent\":{\"applicationId\":\"valuguru\",\"action\":\"open-agent\",\"params\":{\"agentId\":\"agent_xxx\"}}}]`."
+              },
+              {
+                "name": "customParams",
+                "type": "object",
+                "description": "Optional message customParams. Only the key `open-thread` is accepted (any other key is dropped by the service). Pass `{\"open-thread\": true}` ONLY when the recipient explicitly expects your outreach (e.g. you are responding to their team-member avatar click) — it force-opens the chat thread on their screen, which is invasive."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "Time",
+      "title": "Time Service",
+      "description": "Returns the current user's local clock context — local ISO with offset, UTC ISO for the same instant, IANA timezone, offset in minutes, day-of-week, and resolved locale. Use this before any \"today\"/\"tomorrow\"/\"now\" reasoning or when converting natural-language times to ISO strings.",
+      "source": "src/Services/Time/TimeService.js",
+      "intents": [
+        {
+          "action": "get-local-time",
+          "description": "Returns an object describing the user's current local time: { iso: local ISO 8601 with offset (e.g. \"2026-05-28T13:45:30.000+02:00\"), utcIso: same instant in UTC (e.g. \"2026-05-28T11:45:30.000Z\"), timezone: IANA name (e.g. \"Europe/Berlin\"), offsetMinutes: integer minutes ahead of UTC (e.g. 120), dayOfWeek: long English day name (e.g. \"Thursday\"), localDate: \"YYYY-MM-DD\" in local time, localTime: \"HH:MM\" in local time, locale: resolved BCP 47 locale (e.g. \"en-US\") }. Takes no parameters.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "Users",
+      "title": "Users Service",
+      "description": "User management service for getting current user info, looking up users by ID, searching contacts/followers/following, and managing connection requests.",
+      "source": "src/Services/Users/UsersService.js",
+      "intents": [
+        {
+          "action": "current",
+          "description": "Returns the currently authenticated user info (id, firstName, lastName, etc.).",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        },
+        {
+          "action": "get",
+          "description": "Retrieves a user by their unique ID. Returns user object with id, firstName, lastName, etc.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "The unique user identifier."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "search-users",
+          "description": "Search for users within existing connections (contacts, followers, or following). Use this to find a user ID when you only know their name and they are already in your network. To discover new users outside your network, use find-user instead.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "filter",
+                "type": "string",
+                "description": "User filter. Must be one of: \"contacts\" — current user's friends/connections; \"followers\" — users who follow the current user; \"following\" — users the current user follows."
+              }
+            ],
+            "optional": [
+              {
+                "name": "query",
+                "type": "string",
+                "description": "Search query to filter users by name."
+              },
+              {
+                "name": "offset",
+                "type": "number",
+                "description": "Pagination offset. Defaults to 0."
+              },
+              {
+                "name": "size",
+                "type": "number",
+                "description": "Number of results to return. Defaults to 10."
+              }
+            ]
+          }
+        },
+        {
+          "action": "find-user",
+          "description": "Discover new users to connect with by searching by name. Uses a suggestion engine — distinct from search-users which searches within existing connections.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": [
+              {
+                "name": "query",
+                "type": "string",
+                "description": "Search query to filter users by name."
+              },
+              {
+                "name": "offset",
+                "type": "number",
+                "description": "Pagination offset. Defaults to 0."
+              },
+              {
+                "name": "size",
+                "type": "number",
+                "description": "Number of results to return. Defaults to 10."
+              }
+            ]
+          }
+        },
+        {
+          "action": "send-connection-request",
+          "description": "Sends a connection request to a user by their ID.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "The unique identifier of the user to send a connection request to."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "accept-connection-request",
+          "description": "Accepts a pending connection request from a user.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "The unique identifier of the user whose connection request to accept."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "decline-connection-request",
+          "description": "Declines a pending connection request from a user.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "The unique identifier of the user whose connection request to decline."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "cancel-connection-request",
+          "description": "Cancels a pending connection request that the current user previously sent.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "The unique identifier of the user to whom the connection request was sent."
+              }
+            ],
+            "optional": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "VerusWallet",
+      "title": "Verus Wallet Service",
+      "description": "Executes on-chain transfers from an AI agent's attached Verus wallet identity. Every call takes an agentId — the client resolves which wallet is attached to that agent. Returns an error if the agent has no wallet attached or the wallet has not finished being provisioned on-chain.",
+      "source": "src/Services/AiGuru/VerusWalletService.js",
+      "intents": [
+        {
+          "action": "transfer",
+          "description": "Send currency from the agent's attached Verus wallet to a destination address or identity. Call this when the user or agent needs to move funds out of an agent wallet. Fails if the agent has no wallet attached, or if the wallet is still pending creation.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "agentId",
+                "type": "string",
+                "description": "ID of the AI agent performing the transfer. The service looks up which wallet identity is attached to this agent — NEVER pass a wallet ID or i-address here."
+              },
+              {
+                "name": "destination",
+                "type": "string",
+                "description": "Recipient address, i-address, or Verus identity (e.g. \"alice@\")."
+              },
+              {
+                "name": "amount",
+                "type": "number",
+                "description": "Amount to send (positive number). Interpreted in the selected currency — defaults to VRSC when currency is omitted."
+              }
+            ],
+            "optional": [
+              {
+                "name": "currency",
+                "type": "string",
+                "description": "Currency ticker or identity (e.g. \"VRSC\", \"VRSC-BTC\"). Defaults to the native chain currency."
+              },
+              {
+                "name": "memo",
+                "type": "string",
+                "description": "Optional memo attached to the transaction."
+              }
+            ]
+          }
+        },
+        {
+          "action": "get-balance",
+          "description": "Return the last-known balance of the wallet attached to the specified agent. Reads from the client cache — call verus:getAgentsBalance (via AiGuruStore.refreshAgentBalances) for a fresh value.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "agentId",
+                "type": "string",
+                "description": "ID of the AI agent whose wallet balance should be returned."
+              }
+            ],
+            "optional": []
+          }
+        }
+      ]
+    }
+  ]
+}

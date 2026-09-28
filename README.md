@@ -334,3 +334,42 @@ We've created a sample application integrated with Valu API.
 Check out the repository here and feel free to leave comments or feedback:
 
 [https://github.com/Roomful/ValuSampleApp](https://github.com/Roomful/ValuSampleApp)
+
+---
+
+## The service SDK
+
+Alongside the application bridge, the package carries the **declared-service
+surface**: every function the platform declares, with its parameters, the
+scope it needs, and one call path that validates, caches and retries the same
+way whichever transport serves it.
+
+```javascript
+const api = new ValuApi();
+
+// Resolves {data} or {error} — never rejects.
+const ack = await api.services.call('Users.get', { userId });
+
+// Same call, unwrapped: returns the data, throws ValuServiceError.
+const user = await api.services.invoke('Users.get', { userId });
+```
+
+A function resolves by any name the platform already writes for it —
+`Users.get`, `Users.get_user`, `Users.getUser` or `service__Users__get`.
+
+The same client runs over a socket instead of the frame bridge, in the browser
+or headless:
+
+```javascript
+import { ServiceClient, SocketTransport, BrowserSocketAdapter } from '@arkeytyp/valu-api';
+
+const socket = new BrowserSocketAdapter({ socket: webSocketService, userId, networkId });
+const client = new ServiceClient({ transport: new SocketTransport({ socket }) });
+```
+
+- [docs/sdk.md](docs/sdk.md) — architecture, and how to add a function
+- [docs/callbacks-policy.md](docs/callbacks-policy.md) — the answer shape,
+  timeouts, retry, ordering and reconnect. **Frozen.**
+- [docs/authorization.md](docs/authorization.md) — app tokens, scopes, and why
+  an application never receives the user's session
+- [docs/services.md](docs/services.md) — every declared function (generated)
