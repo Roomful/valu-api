@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { ValuApi } from '../src/ValuApi.js';
 import { Intent } from '../src/Intent.js';
 import { PostMessageTransport } from '../src/transport/PostMessageTransport.js';
+import { ServiceClient } from '../src/services/ServiceClient.js';
 import { FakeWindow } from './helpers/fakes.js';
 
 const setup = () => {
@@ -226,79 +227,49 @@ test('posting before api:ready rejects with a message that says why', async () =
   await assert.rejects(() => api.runConsoleCommand('/x'), /has not sent api:ready/);
 });
 
-test('api.services is the function surface over this instance\'s transport', async () => {
+test('callService asks the application for any intent, by name', async () => {
   const { api, target } = setup();
   target.ready();
 
-  assert.equal(api.services.transport, api.transport);
-  assert.equal(api.services, api.services, 'one surface per api instance');
-
-  // Both ways of saying it are the same call: the name resolved early, or late.
-  for (const call of [
-    () => api.services.call('Users.current', {}),
-    () => api.services.Users.current(),
-  ]) {
-    const pending = call();
-    const posted = target.lastPost();
-    assert.equal(posted.name, 'api:service-intent');
-    assert.equal(posted.message.applicationId, 'Users');
-    assert.equal(posted.message.action, 'current');
-
-    target.deliver({ name: 'api:run-console-completed', message: { user: { id: 'u-1' } }, requestId: posted.message.requestId });
-    assert.deepEqual((await pending).data, { user: { id: 'u-1' } });
-  }
-});
-
-test('an application intent is not on the function surface, even over the bridge', async () => {
-  const { api, target } = setup();
-  target.ready();
-
-  // The application WOULD answer this one — it is the transport that can. It is
-  // refused anyway, because a function on `services` is a promise the SDK can
-  // run it anywhere, and nothing here can open a picker.
-  const ack = await api.services.call('DataProvider.pick-single', { providers: ['contacts'] });
-
-  assert.equal(ack.error.code, 501);
-  assert.match(ack.error.message, /is an application intent, not a service function/);
-  assert.match(ack.error.description, /intents\.run/);
-  assert.equal(target.posted.length, 0, 'nothing reached the bridge');
-});
-
-test('api.intents runs one by name, with the same message on the wire', async () => {
-  const { api, target } = setup();
-  target.ready();
-
-  const pending = api.intents.run('DataProvider.pick-single', { providers: ['contacts'] });
+  // Nothing is declared on this side. The name is a string, the application
+  // resolves it against its own runtime registry, and an intent it registered
+  // after this package was published works exactly as well as one that
+  // predates it — which is why this package declares no application intents.
+  const pending = api.callService(new Intent('DataProvider', 'pick-single', { providers: ['contacts'] }));
   const posted = target.lastPost();
   assert.equal(posted.name, 'api:service-intent');
   assert.equal(posted.message.applicationId, 'DataProvider');
   assert.equal(posted.message.action, 'pick-single');
+  assert.deepEqual(posted.message.params, { providers: ['contacts'] });
 
-  target.deliver({ name: 'api:run-console-completed', message: { error: 'user cancelled' }, requestId: posted.message.requestId });
-  const ack = await pending;
-  assert.equal(ack.error.status, true);
-  assert.equal(ack.error.message, 'user cancelled');
+  target.deliver({ name: 'api:run-console-completed', message: { picked: ['u-1'] }, requestId: posted.message.requestId });
+  assert.deepEqual(await pending, { picked: ['u-1'] });
 });
 
-test('api.intents runs an intent this package has never heard of', async () => {
+test('callService runs an intent this package has never heard of', async () => {
   const { api, target } = setup();
   target.ready();
 
-  // The whole reason there is no method per intent: the application registers
-  // them at runtime and may know names newer than this release.
-  const pending = api.intents.run('Weather.forecast-tomorrow', { city: 'Kyiv' });
+  const pending = api.callService(new Intent('Weather', 'forecast-tomorrow', { city: 'Kyiv' }));
   const posted = target.lastPost();
   assert.equal(posted.message.applicationId, 'Weather');
   assert.equal(posted.message.action, 'forecast-tomorrow');
 
   target.deliver({ name: 'api:run-console-completed', message: { c: 21 }, requestId: posted.message.requestId });
-  assert.deepEqual((await pending).data, { c: 21 });
+  assert.deepEqual(await pending, { c: 21 });
 });
 
-test('a call made before api:ready resolves 503 rather than throwing', async () => {
+test('the bridge does not serve service functions', async () => {
   const { api } = setup();
-  const ack = await api.services.call('Users.current', {});
-  assert.equal(ack.error.code, 503);
+
+  // It could: the application answers `api:service-intent` for everything it
+  // declares. Refused at the wiring, once, rather than per call — a service
+  // function is one a CONNECTION answers, so it behaves the same in an iframe,
+  // in a Valu Social build and on the Valu Guru server.
+  assert.equal(api.transport.servesServiceFunctions, false);
+  assert.throws(() => new ServiceClient({ transport: api.transport }), /does not serve service functions/);
+  assert.equal(api.services, undefined, 'there is no services surface on the bridge');
+  assert.equal(api.intents, undefined, 'and no intents surface either — callService is the call');
 });
 
 test('close() releases the window listener and fails what was in flight', async () => {

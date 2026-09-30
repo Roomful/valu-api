@@ -1,10 +1,9 @@
 // ===========================================================================
 // Application state — the five functions no RPC can answer.
 //
-// The manifest declares them like any other service intent, and Phase 1
-// counted them as socket-backed because that is what the manifest says. Phase
-// 2 went looking for the RPC and there is none: the answer lives in the Valu
-// Social application's own memory.
+// The manifest declares them like any other service intent, so they look
+// socket-backed. There is no RPC: the answer lives in the memory of whatever
+// is running the application.
 //
 //   AiGuru.get-chat-history    the session's in-memory message list
 //   AiGuru.get-agent-history   the agent's in-memory message list
@@ -12,11 +11,10 @@
 //   Developer.create-application  the same store, plus the app registry
 //   VerusWallet.get-balance    the balance AiGuruStore cached off a push
 //
-// These five are the reason `channel: 'app-state'` is not named after a
-// transport the way `postmessage` is: in a frame they arrive over the
-// postMessage bridge like everything else, but a headless runtime has no bridge
-// and must hold the state itself. The channel names the SOURCE of the answer;
-// `binding` still names how you reach it.
+// `channel` names the SOURCE of an answer, which for these five is not a
+// connection at all — so the runtime supplies it. The Valu Social application
+// holds it in a browser; a headless runtime (the Valu Guru server, say, which
+// has its own chat history and its own application rows) holds its own.
 //
 // The SDK does NOT invent a network call for them. A runtime that holds the
 // state implements this interface and passes it to `SocketTransport` as
@@ -53,10 +51,9 @@ import { ERROR_CODES, errorAck } from '../Errors.js';
 export const noAppStateAck = (descriptor, capability) => errorAck(
   ERROR_CODES.UNSUPPORTED,
   `${descriptor.key} needs application state (${capability}), and this runtime has none`,
-  `${descriptor.key} is answered from state the Valu Social application holds, not `
-  + `from an RPC — there is no socket call that can produce it. Pass { appState } with `
-  + `a ${capability}() to the SocketTransport, or call it over the postMessage bridge, `
-  + `where the application itself answers.`,
+  `${descriptor.key} is answered from state the runtime holds, not from an RPC — `
+  + `there is no socket call that can produce it. Pass { appState } with a `
+  + `${capability}() to createValuServices.`,
 );
 
 /**

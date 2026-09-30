@@ -282,11 +282,51 @@ Prefer the module's own name over an alias for exactly this reason.
 - One behaviour did change, because it was broken: `sendIntent` never settled,
   because its `api:run-completed` reply was routed as if it belonged to an
   `APIPointer`. It resolves now.
-- **Nothing in the service SDK uses a pointer.** `ServiceClient` and
-  `ApplicationIntents` both send `api:service-intent`.
+- **Nothing in the service SDK uses a pointer.** `ServiceClient` speaks a
+  socket; `ValuApi.callService(intent)` sends `api:service-intent`.
 - There is no plan in Phases 1–2 to wrap them. A pointer function that deserves
   to be callable from an agent should be **declared as an intent** and
   implemented here; the 41 above are the candidate list.
 
-"Over the bridge" in all of this means the same postMessage channel every other
-doc here means — [postmessage-vs-socket.md](postmessage-vs-socket.md).
+## Application intents: the other thing the bridge carries
+
+A pointer is one of two name-based mechanisms on the same bridge. The other is
+an **application intent** — `{applicationId, action, params}`, sent as
+`api:service-intent`:
+
+```javascript
+const api = new ValuApi();
+await api.callService(new Intent('AiGuru', 'open', { applicationId: 'my-app' }));
+await api.sendIntent(new Intent('chatApp', Intent.ACTION_OPEN, { roomId }));
+```
+
+Nothing has to be declared for this to work. The name is a string, the
+application resolves it against **its own runtime registry**, and an intent
+registered after this package was published works exactly as well as one that
+predates it. That is why this package declares no application intents: a method
+per intent would be a copy of a list that moves without us.
+
+15 intents in the manifest snapshot can ONLY be run this way — no RPC
+serves them, so [socket-functions.md](socket-functions.md) has no function for
+any of them:
+
+| intent | params | what it does |
+|---|---|---|
+| `AiGuru.close` | `{applicationId}` | Closes (unloads) an application by its ID from the dock. |
+| `AiGuru.get-applications` | — | Returns a list of all registered applications with their id, slug, icon, and title. |
+| `AiGuru.has-application` | `{applicationId}` | Checks whether an application with the given ID exists in the registry. |
+| `AiGuru.is-application-loaded` | `{applicationId}` | Checks whether an application with the given ID is currently loaded (open) in the dock. |
+| `AiGuru.open` | `{applicationId}` | Opens (loads) an application by its ID into the dock. |
+| `Application.close_all` | — | Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed. |
+| `Application.close-application` | — | Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Close Application" default header action for iframe apps that render their own context menu (header: false). |
+| `Application.expand-application` | — | Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Expand Application" default header action for iframe apps that render their own context menu (header: false). |
+| `Application.get-identity-token` | — | Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min. |
+| `Commerce.open-cart` | — | Open My Cart for the user, scoped to your app's items. |
+| `Commerce.open-products` | — | Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it after `create-product`, or for a "My products" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's. |
+| `Commerce.open-purchases` | — | Open the user's order history in My Cart. |
+| `DataProvider.pick-multiple` | `{providers, title?, confirmLabel?, confirmIcon?, width?, height?}` | Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"]. |
+| `DataProvider.pick-single` | `{providers, title?, width?, height?}` | Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that. |
+| `Logging.get-logs` | `{format?}` | Returns the captured console log buffer (log, info, warn, error) since app start. Choose the format: "text" returns { format: "text", text: <string> } with one line per entry; "file" returns { format: "file", filename, mimeType, size, file: File } — the File is for direct callers (upload/download) and is omitted in the AI/MCP serialized response, which still includes filename, mimeType, and size. |
+
+The snapshot is a snapshot, not the authority. Ask the application for anything
+it registers.

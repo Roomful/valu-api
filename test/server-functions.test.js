@@ -1,6 +1,6 @@
 // The server-functions reference, held to the handlers.
 //
-// docs/server-functions.md tells an integrator what a runtime must supply
+// docs/socket-functions.md tells an integrator what a runtime must supply
 // before each function can succeed — an application identity, a piece of
 // application state, a fetch, an origin. Those requirements are metadata
 // (scripts/functions.js REQUIREMENTS), and metadata rots: a handler that stops

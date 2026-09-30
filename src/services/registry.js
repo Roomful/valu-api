@@ -37,11 +37,6 @@ export class ServiceRegistry {
     if (!descriptor) {
       throw new Error(`Cannot implement "${name}": it is not a declared service function`);
     }
-    if (descriptor.binding === 'postmessage') {
-      throw new Error(
-        `Cannot implement "${descriptor.key}": it is postMessage-bound and stays on the postMessage bridge`,
-      );
-    }
     if (typeof handler !== 'function') {
       throw new TypeError(`Handler for "${descriptor.key}" must be a function`);
     }
@@ -74,5 +69,5 @@ export const serviceRegistry = new ServiceRegistry();
 export const notImplementedAck = (descriptor) => errorAck(
   ERROR_CODES.UNSUPPORTED,
   `${descriptor.key} has no implementation registered`,
-  `${descriptor.key} is declared (binding: ${descriptor.binding}) but not yet implemented — see the Phase 2 parity list.`,
+  `${descriptor.key} is declared (channel: ${descriptor.channel}) but not yet implemented — see docs/parity.md.`,
 );

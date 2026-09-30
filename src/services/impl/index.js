@@ -1,13 +1,13 @@
 // ===========================================================================
 // Every implemented function, in one registry.
 //
-// Phase 1 shipped the registry empty and an unimplemented declared function
-// answered 501 naming itself. This is what fills it: the 78 service functions
-// — 70 socket (54 roomful, 11 valuguru, 5 app-state) and 8 local. Seventy-seven
-// are the parity matrix; the seventy-eighth is declared by this package
-// (scripts/extensions.js). The 15 postMessage-bound intents are NOT here; they are application
-// intents, which only the Valu Social application can serve and which it is
-// asked for by name (src/intents/ApplicationIntents.js).
+// The 78 service functions — 65 socket (54 roomful, 11 valuguru), 5 app-state
+// and 8 local. Seventy-seven come from the application's manifest; the
+// seventy-eighth is declared by this package (scripts/extensions.js).
+//
+// Every one of them is a function a CONNECTION answers. Declared intents that
+// only the Valu Social application can serve are not in the catalogue at all,
+// so there is nothing here to leave out (scripts/bindings.js).
 //
 // Importing this module registers into the DEFAULT registry, which is what a
 // SocketTransport uses unless it is given its own. `registerAll(registry)`

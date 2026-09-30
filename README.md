@@ -341,48 +341,55 @@ Check out the repository here and feel free to leave comments or feedback:
 
 Alongside the application bridge, the package carries **78 service functions** —
 users, rooms, communities, commerce, chat, resources — as functions you call.
-The same 78 work from a Valu Social build, from a frame application and from a
-headless agent, because the package runs them itself over whichever connection
-it was given.
-
-```javascript
-const api = new ValuApi();
-
-const ack = await api.services.Users.get({ userId });      // {data} | {error}, never rejects
-const user = await api.services.data.Users.get({ userId }); // the payload, throws on error
-const ack2 = await api.services.call('Users.get', { userId }); // by name, for a tool call
-```
-
-A name resolves by any form the platform already writes — `Users.get`,
-`Users.get_user`, `Users.getUser` or `service__Users__get`.
-
-The same functions over a socket instead of the frame bridge, in the browser or
-headless:
+Every one of them runs over a **socket**, so the same 78 work from a Valu Social
+build, from the Valu Guru server, from a Node script and from an iframe
+application that has a socket.
 
 ```javascript
 import { createValuServices, BrowserSocketAdapter } from '@arkeytyp/valu-api';
 
 const socket = new BrowserSocketAdapter({ socket: webSocketService, userId, networkId });
 const valu = createValuServices({ socket });
+
+const ack   = await valu.Users.get({ userId });        // {data} | {error}, never rejects
+const user  = await valu.data.Users.get({ userId });   // the payload, throws on error
+const same  = await valu.call('Users.get', { userId }); // by name, for a tool call
 const rooms = await valu.data.Rooms.searchRooms({ query: 'design' });
 ```
 
-Fifteen declared intents are **not** functions: opening a dock, expanding a
-pane, showing a picker. Only the Valu Social application can serve those, and it
-registers its intents at runtime, so they are asked for by name rather than
-wrapped:
+Headless it is the same call with the other adapter:
 
 ```javascript
-await api.intents.run('AiGuru.open', { applicationId: 'cart' });
+import { createValuServices, NodeSocketAdapter } from '@arkeytyp/valu-api';
+
+const valu = createValuServices({ socket: new NodeSocketAdapter({ connection }) });
 ```
 
-- [docs/sdk-structure.md](docs/sdk-structure.md) — the two surfaces, and why
-  `close` is not a function. **Start here.**
-- [docs/service-api.md](docs/service-api.md) — every function, as the call you
-  would write (generated)
-- [docs/sdk.md](docs/sdk.md) — architecture, and how to add a function
+A name resolves by any form the platform already writes — `Users.get`,
+`Users.get_user`, `Users.getUser` or `service__Users__get`.
+
+**Anything only the Valu Social application can do is not a function here** —
+opening a dock, expanding a pane, showing a picker. The application registers
+its intents at runtime, so this package declares none of them and you ask for
+one by name instead, over the bridge above:
+
+```javascript
+await api.callService(new Intent('AiGuru', 'open', { applicationId: 'cart' }));
+```
+
+- [docs/socket-functions.md](docs/socket-functions.md) — every function, the
+  feature it provides and what it needs. **Start here.** (generated)
+- [docs/service-api.md](docs/service-api.md) — the same functions, as the call
+  you would write (generated)
+- [docs/sdk.md](docs/sdk.md) — what the package is, the architecture, and how to
+  add a function
+- [docs/api-pointers.md](docs/api-pointers.md) — the bridge: API pointers, and
+  any application intent by name (generated)
 - [docs/callbacks-policy.md](docs/callbacks-policy.md) — the answer shape,
   timeouts, retry, ordering and reconnect. **Frozen.**
 - [docs/authorization.md](docs/authorization.md) — app tokens, scopes, and why
   an application never receives the user's session
-- [docs/services.md](docs/services.md) — every declared intent (generated)
+- [docs/parity.md](docs/parity.md) — who implements what, and the known
+  behaviour deltas (generated)
+- [docs/transition.md](docs/transition.md) — how Valu Social and the Valu Guru
+  server adopt this

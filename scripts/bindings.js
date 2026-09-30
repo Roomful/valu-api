@@ -2,25 +2,46 @@
 // Bindings — the decisions the manifest does not carry.
 //
 // SERVICE_MANIFESTS says what a service declares. It does not say HOW a
-// declared intent is served: over the socket, computed locally, or handed over
-// the postMessage bridge to the Valu Social application. Nor does it say whether a call mutates state, which is what
-// decides the cache and retry policy. Those are decisions; they live here, in
-// one table, and the generator stamps them onto every descriptor.
+// declared intent is served: over a socket, computed locally, or only by the
+// Valu Social application itself. Nor does it say whether a call mutates
+// state, which is what decides the cache and retry policy. Those are
+// decisions; they live here, in one table, and the generator stamps them onto
+// every descriptor.
 //
-// Counts asserted by test/catalog.test.js — 92 declared intents =
-// 15 postmessage + 8 local + 69 socket.
+// APPLICATION_ONLY is the one that REMOVES functions rather than labelling
+// them: this package is a library of socket functions, so an intent only the
+// application can serve gets no descriptor, no method and no tool definition.
+// It is still reachable — by name, over the postMessage bridge, like any other
+// intent the application registers (docs/api-pointers.md). That is the whole
+// argument for not declaring it here: the application's registry is the
+// authority and it moves without this package.
+//
+// Counts asserted by test/catalog.test.js — 77 catalogue functions from the
+// manifest (92 declared − 15 application-only) + 1 this package declares.
 // ===========================================================================
 
-/** Served by the Valu Social application over the postMessage bridge. Never
- * SDK-able: there is no RPC behind any of them. */
-export const POSTMESSAGE_BOUND = [
+/**
+ * Declared intents this package does NOT put in its catalogue.
+ *
+ * No RPC serves any of them: they are window management, pickers that render
+ * application UI, and reads of the application's own memory. A socket cannot
+ * answer one, so a function here would be a method that fails everywhere this
+ * library is meant to run.
+ *
+ * Kept as a list (rather than deleted) for three reasons: the generator
+ * excludes by it, docs/api-pointers.md prints it so a frame app can see what
+ * to ask for, and test/catalog.test.js fails when the app declares a NEW
+ * intent that is on neither side — a new intent must be classified, never
+ * silently dropped.
+ */
+export const APPLICATION_ONLY = [
   // The app dock / AI Guru surface — window management, not data.
   'AiGuru.open',
   'AiGuru.close',
   'AiGuru.has-application',
   'AiGuru.get-applications',
   'AiGuru.is-application-loaded',
-  // Frame commands proper (Phase 2d turns these into a named frame API).
+  // Application lifecycle — the frame asking the app about the frame.
   'Application.get-identity-token',
   'Application.close_all',
   'Application.expand-application',
@@ -36,7 +57,7 @@ export const POSTMESSAGE_BOUND = [
   'Commerce.open-products',
 ];
 
-/** Answered by the SDK itself — no socket, no bridge. */
+/** Answered by the SDK itself — no socket, no server. */
 export const LOCAL = [
   // Pure URL builders over a resource id + the network's CDN host.
   'Resources.get-thumbnail-url',
@@ -58,8 +79,8 @@ export const LOCAL = [
 const MUTATING_PREFIXES = [
   'create', 'update', 'edit', 'delete', 'remove', 'set', 'add', 'send',
   'message', 'invite', 'join', 'leave', 'paste', 'rename', 'transfer',
-  'accept', 'decline', 'cancel', 'upload', 'post', 'open', 'close', 'expand',
-  'pick', 'resource-upload', 'resource-delete',
+  'accept', 'decline', 'cancel', 'upload', 'post',
+  'resource-upload', 'resource-delete',
 ];
 
 /** Explicit overrides where the prefix rule reads the wrong way. */
@@ -67,10 +88,6 @@ const MUTATES_OVERRIDE = {
   'Http.post': true,
   'Http.get': false,
   'Http.ping': false,
-  // A picker does not mutate platform state, but its result is never cacheable.
-  'DataProvider.pick-single': false,
-  'DataProvider.pick-multiple': false,
-  'Logging.get-logs': false,
 };
 
 export function mutates(key, action) {
@@ -99,9 +116,9 @@ const KEY_PARAMS = [
   'resourceId', 'productId', 'orderId', 'agentId', 'applicationId', 'badgeId',
 ];
 
-export function defaultCache(key, binding, isMutation, params, channel) {
+export function defaultCache(key, isMutation, params, channel) {
   if (key in CACHE_OVERRIDES) return CACHE_OVERRIDES[key];
-  if (binding !== 'socket' || isMutation) return { mode: 'none' };
+  if (channel === 'local' || isMutation) return { mode: 'none' };
   // Application state is already in memory: caching it buys nothing and costs
   // staleness — a chat history 30 seconds behind is a chat history missing the
   // message the caller asked about. (VerusWallet.get-balance is the exception,

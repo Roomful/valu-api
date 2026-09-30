@@ -8,125 +8,136 @@ without `npm run check:generated` failing.
 
 | | count |
 |---|---|
-| declared by the application's manifest | **92** |
-| declared by this package (scripts/extensions.js) | **1** |
-| service functions (socket + local) | **78** |
+| functions in the catalogue | **78** |
+| — of them declared by the application's manifest | 77 |
+| — of them declared by this package (scripts/extensions.js) | 1 |
 | implemented in this package | **78** |
-| application intents (postMessage-bound) | **15** |
+| declared intents excluded (only the application can serve them) | **15** |
 | server tools with no declared intent | **7** |
 
 ## Channels
 
-`binding` says the KIND of thing that answers; `channel` says which one.
-Phase 2 added the second column: "socket" turned out to be three different
-things, and a function written for the wrong one fails in a way the ack
-envelope cannot explain.
+Every function in this catalogue is one this package runs itself, given a
+connection. `channel` says WHICH connection — the distinction a handler needs,
+and the one a caller has to satisfy before the call can work.
 
 | channel | count | what serves it |
 |---|---|---|
 | `roomful` | 54 | the Roomful platform socket — `ValuSocket.emit(ns, payload)` |
 | `valuguru` | 11 | the Valu Guru server's `data_request` channel — `valuguru.*` ops |
-| `app-state` | 5 | no RPC exists; the answer is in the Valu Social application's own memory |
+| `app-state` | 5 | no RPC exists; the runtime holding that state supplies it |
 | `local` | 8 | computed by the SDK |
-| `postmessage` | 15 | the Valu Social application, asked by name (`src/intents/ApplicationIntents.js`) |
 
 ## Functions
 
-| service | function | binding | channel | mutates | cache | server tool | status |
-|---|---|---|---|---|---|---|---|
-| AiGuru | `close` | postmessage | `postmessage` | write | `none` | — | application intent |
-| AiGuru | `get-agent-history` | socket | `app-state` | read | `none` | — | implemented |
-| AiGuru | `get-applications` | postmessage | `postmessage` | read | `none` | — | application intent |
-| AiGuru | `get-chat-history` | socket | `app-state` | read | `none` | — | implemented |
-| AiGuru | `has-application` | postmessage | `postmessage` | read | `none` | — | application intent |
-| AiGuru | `is-application-loaded` | postmessage | `postmessage` | read | `none` | — | application intent |
-| AiGuru | `open` | postmessage | `postmessage` | write | `none` | — | application intent |
-| AiGuru | `query-knowledge-base` | socket | `valuguru` | read | `read-through` | — | implemented |
-| Application | `close_all` | postmessage | `postmessage` | read | `none` | — | application intent |
-| Application | `close-application` | postmessage | `postmessage` | write | `none` | — | application intent |
-| Application | `expand-application` | postmessage | `postmessage` | write | `none` | — | application intent |
-| Application | `get-identity-token` | postmessage | `postmessage` | read | `none` | — | application intent |
-| ApplicationStorage | `resource-delete` | socket | `roomful` | write | `none` | — | implemented |
-| ApplicationStorage | `resource-search` | socket | `roomful` | read | `read-through` | — | implemented |
-| ApplicationStorage | `resource-upload` | socket | `roomful` | write | `none` | — | implemented |
-| Cbac | `create-policy` | socket | `roomful` | write | `none` | — | implemented |
-| Cbac | `delete-policy` | socket | `roomful` | write | `none` | — | implemented |
-| Cbac | `list-badges` | socket | `roomful` | read | `read-through` | — | implemented |
-| Cbac | `list-policies` | socket | `roomful` | read | `read-through` | — | implemented |
-| Cbac | `search-users-by-badge-id` | socket | `roomful` | read | `read-through` | — | implemented |
-| CMS | `resource-delete` | socket | `roomful` | write | `none` | — | implemented |
-| CMS | `resource-search` | socket | `roomful` | read | `read-through` | — | implemented |
-| CMS | `resource-upload` | socket | `roomful` | write | `none` | — | implemented |
-| Commerce | `add-to-cart` | socket | `valuguru` | write | `none` | — | implemented |
-| Commerce | `check-entitlements` | socket | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `create-product` | socket | `valuguru` | write | `none` | — | implemented |
-| Commerce | `get-cart` | socket | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `get-my-product` | socket | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `get-product` | socket | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `list-categories` | socket | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `list-my-products` | socket | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `list-products` | socket | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `open-cart` | postmessage | `postmessage` | write | `none` | — | application intent |
-| Commerce | `open-products` | postmessage | `postmessage` | write | `none` | — | application intent |
-| Commerce | `open-purchases` | postmessage | `postmessage` | write | `none` | — | application intent |
-| Commerce | `update-product` | socket | `valuguru` | write | `none` | — | implemented |
-| Community | `get-channels` | socket | `roomful` | read | `read-through` | `service__Community__get_channels` | implemented |
-| Community | `get-community-info` | socket | `roomful` | read | `read-through` | `service__Community__get_community_info` | implemented |
-| Community | `get-posts` | socket | `roomful` | read | `read-through` | `service__Community__get_posts` | implemented |
-| Community | `search-communities` | socket | `roomful` | read | `read-through` | `service__Community__search_communities` | implemented |
-| DataProvider | `pick-multiple` | postmessage | `postmessage` | read | `none` | — | application intent |
-| DataProvider | `pick-single` | postmessage | `postmessage` | read | `none` | — | application intent |
-| Developer | `create-application` | socket | `app-state` | write | `none` | — | implemented |
-| Developer | `list-applications` | socket | `app-state` | read | `none` | — | implemented |
-| Events | `create-meeting` | socket | `roomful` | write | `none` | `service__Events__create_meeting` | implemented |
-| Events | `edit-meeting` | socket | `roomful` | write | `none` | `service__Events__edit_meeting` | implemented |
-| Events | `list-events` | socket | `roomful` | read | `read-through` | `service__Events__list_events` | implemented |
-| Groups | `discover-groups` | socket | `roomful` | read | `read-through` | — | implemented |
-| Groups | `join-group` | socket | `roomful` | write | `none` | — | implemented |
-| Groups | `list-group-participants` | socket | `roomful` | read | `read-through` | `service__Groups__list_group_participants` | implemented |
-| Groups | `list-groups` | socket | `roomful` | read | `read-through` | `service__Groups__list_groups` | implemented |
-| Http | `get` | local | `local` | read | `none` | — | implemented |
-| Http | `ping` | local | `local` | read | `none` | — | implemented |
-| Http | `post` | local | `local` | write | `none` | — | implemented |
-| Logging | `get-logs` | postmessage | `postmessage` | read | `none` | — | application intent |
-| Networks | `get-current-network` | socket | `roomful` | read | `read-through` | `service__Networks__get_current_network` | implemented |
-| Profile | `get-user-badges` | socket | `roomful` | read | `read-through` | — | implemented |
-| Profile | `get-user-credentials` | socket | `roomful` | read | `read-through` | — | implemented |
-| Resources | `generate-best-view-url` | local | `local` | read | `none` | `service__Resources__generate_best_view_url` | implemented |
-| Resources | `generate-direct-public-url` | local | `local` | read | `none` | `service__Resources__generate_direct_public_url` | implemented |
-| Resources | `generate-public-url` | local | `local` | read | `none` | `service__Resources__generate_public_url` | implemented |
-| Resources | `get-thumbnail-url` | local | `local` | read | `none` | — | implemented |
-| Resources | `list-bot-avatars` | socket | `roomful` | read | `read-through` | — | implemented |
-| Rooms | `create-room-from-template` | socket | `roomful` | write | `none` | — | implemented |
-| Rooms | `delete-prop-invitation` | socket | `roomful` | write | `none` | `service__Rooms__delete_prop_invitation` | implemented |
-| Rooms | `get-permissions` | socket | `roomful` | read | `read-through` | `service__Rooms__get_permissions` | implemented |
-| Rooms | `get-prop` | socket | `roomful` | read | `read-through` | `service__Rooms__get_prop` | implemented |
-| Rooms | `get-room` | socket | `roomful` | read | `read-through` | — | implemented |
-| Rooms | `get-room-prop-groups` | socket | `roomful` | read | `read-through` | — | implemented |
-| Rooms | `get-room-props` | socket | `roomful` | read | `read-through` | `service__Rooms__get_room_props` | implemented |
-| Rooms | `invite-to-prop` | socket | `roomful` | write | `none` | `service__Rooms__invite_to_prop` | implemented |
-| Rooms | `list-prop-team-members` | socket | `roomful` | read | `read-through` | `service__Rooms__list_prop_team_members` | implemented |
-| Rooms | `list-room-templates` | socket | `roomful` | read | `read-through` | — | implemented |
-| Rooms | `paste-resources-into-prop` | socket | `roomful` | write | `none` | — | implemented |
-| Rooms | `paste-resources-into-prop-group` | socket | `roomful` | write | `none` | — | implemented |
-| Rooms | `rename-prop-group` | socket | `roomful` | write | `none` | — | implemented |
-| Rooms | `search-my-rooms` | socket | `roomful` | read | `read-through` | `service__Rooms__search_my_rooms` | implemented |
-| Rooms | `search-rooms` | socket | `roomful` | read | `read-through` | `service__Rooms__search_rooms` | implemented |
-| TextChat | `get-channel-history` | socket | `roomful` | read | `read-through` | — | implemented |
-| TextChat | `message-owner` | socket | `roomful` | write | `none` | `service__TextChat__message_owner` | implemented |
-| TextChat | `send-message` | socket | `roomful` | write | `none` | — | implemented |
-| Time | `get-local-time` | local | `local` | read | `none` | — | implemented |
-| Users | `accept-connection-request` | socket | `roomful` | write | `none` | `service__Users__accept_connection_request` | implemented |
-| Users | `cancel-connection-request` | socket | `roomful` | write | `none` | `service__Users__cancel_connection_request` | implemented |
-| Users | `current` | socket | `roomful` | read | `read-through` | `service__Users__current` | implemented |
-| Users | `decline-connection-request` | socket | `roomful` | write | `none` | `service__Users__decline_connection_request` | implemented |
-| Users | `find-user` | socket | `roomful` | read | `read-through` | `service__Users__find_user` | implemented |
-| Users | `get` | socket | `roomful` | read | `read-through` | `service__Users__get` | implemented |
-| Users | `list-connection-requests` | socket | `roomful` | read | `read-through` | — | implemented |
-| Users | `search-users` | socket | `roomful` | read | `read-through` | `service__Users__search_users` | implemented |
-| Users | `send-connection-request` | socket | `roomful` | write | `none` | `service__Users__send_connection_request` | implemented |
-| VerusWallet | `get-balance` | socket | `app-state` | read | `seeded` | `service__VerusWallet__get_balance` | implemented |
-| VerusWallet | `transfer` | socket | `roomful` | write | `none` | `service__VerusWallet__transfer` | implemented |
+| service | function | channel | mutates | cache | server tool | status |
+|---|---|---|---|---|---|---|
+| AiGuru | `get-agent-history` | `app-state` | read | `none` | — | implemented |
+| AiGuru | `get-chat-history` | `app-state` | read | `none` | — | implemented |
+| AiGuru | `query-knowledge-base` | `valuguru` | read | `read-through` | — | implemented |
+| ApplicationStorage | `resource-delete` | `roomful` | write | `none` | — | implemented |
+| ApplicationStorage | `resource-search` | `roomful` | read | `read-through` | — | implemented |
+| ApplicationStorage | `resource-upload` | `roomful` | write | `none` | — | implemented |
+| Cbac | `create-policy` | `roomful` | write | `none` | — | implemented |
+| Cbac | `delete-policy` | `roomful` | write | `none` | — | implemented |
+| Cbac | `list-badges` | `roomful` | read | `read-through` | — | implemented |
+| Cbac | `list-policies` | `roomful` | read | `read-through` | — | implemented |
+| Cbac | `search-users-by-badge-id` | `roomful` | read | `read-through` | — | implemented |
+| CMS | `resource-delete` | `roomful` | write | `none` | — | implemented |
+| CMS | `resource-search` | `roomful` | read | `read-through` | — | implemented |
+| CMS | `resource-upload` | `roomful` | write | `none` | — | implemented |
+| Commerce | `add-to-cart` | `valuguru` | write | `none` | — | implemented |
+| Commerce | `check-entitlements` | `valuguru` | read | `read-through` | — | implemented |
+| Commerce | `create-product` | `valuguru` | write | `none` | — | implemented |
+| Commerce | `get-cart` | `valuguru` | read | `read-through` | — | implemented |
+| Commerce | `get-my-product` | `valuguru` | read | `read-through` | — | implemented |
+| Commerce | `get-product` | `valuguru` | read | `read-through` | — | implemented |
+| Commerce | `list-categories` | `valuguru` | read | `read-through` | — | implemented |
+| Commerce | `list-my-products` | `valuguru` | read | `read-through` | — | implemented |
+| Commerce | `list-products` | `valuguru` | read | `read-through` | — | implemented |
+| Commerce | `update-product` | `valuguru` | write | `none` | — | implemented |
+| Community | `get-channels` | `roomful` | read | `read-through` | `service__Community__get_channels` | implemented |
+| Community | `get-community-info` | `roomful` | read | `read-through` | `service__Community__get_community_info` | implemented |
+| Community | `get-posts` | `roomful` | read | `read-through` | `service__Community__get_posts` | implemented |
+| Community | `search-communities` | `roomful` | read | `read-through` | `service__Community__search_communities` | implemented |
+| Developer | `create-application` | `app-state` | write | `none` | — | implemented |
+| Developer | `list-applications` | `app-state` | read | `none` | — | implemented |
+| Events | `create-meeting` | `roomful` | write | `none` | `service__Events__create_meeting` | implemented |
+| Events | `edit-meeting` | `roomful` | write | `none` | `service__Events__edit_meeting` | implemented |
+| Events | `list-events` | `roomful` | read | `read-through` | `service__Events__list_events` | implemented |
+| Groups | `discover-groups` | `roomful` | read | `read-through` | — | implemented |
+| Groups | `join-group` | `roomful` | write | `none` | — | implemented |
+| Groups | `list-group-participants` | `roomful` | read | `read-through` | `service__Groups__list_group_participants` | implemented |
+| Groups | `list-groups` | `roomful` | read | `read-through` | `service__Groups__list_groups` | implemented |
+| Http | `get` | `local` | read | `none` | — | implemented |
+| Http | `ping` | `local` | read | `none` | — | implemented |
+| Http | `post` | `local` | write | `none` | — | implemented |
+| Networks | `get-current-network` | `roomful` | read | `read-through` | `service__Networks__get_current_network` | implemented |
+| Profile | `get-user-badges` | `roomful` | read | `read-through` | — | implemented |
+| Profile | `get-user-credentials` | `roomful` | read | `read-through` | — | implemented |
+| Resources | `generate-best-view-url` | `local` | read | `none` | `service__Resources__generate_best_view_url` | implemented |
+| Resources | `generate-direct-public-url` | `local` | read | `none` | `service__Resources__generate_direct_public_url` | implemented |
+| Resources | `generate-public-url` | `local` | read | `none` | `service__Resources__generate_public_url` | implemented |
+| Resources | `get-thumbnail-url` | `local` | read | `none` | — | implemented |
+| Resources | `list-bot-avatars` | `roomful` | read | `read-through` | — | implemented |
+| Rooms | `create-room-from-template` | `roomful` | write | `none` | — | implemented |
+| Rooms | `delete-prop-invitation` | `roomful` | write | `none` | `service__Rooms__delete_prop_invitation` | implemented |
+| Rooms | `get-permissions` | `roomful` | read | `read-through` | `service__Rooms__get_permissions` | implemented |
+| Rooms | `get-prop` | `roomful` | read | `read-through` | `service__Rooms__get_prop` | implemented |
+| Rooms | `get-room` | `roomful` | read | `read-through` | — | implemented |
+| Rooms | `get-room-prop-groups` | `roomful` | read | `read-through` | — | implemented |
+| Rooms | `get-room-props` | `roomful` | read | `read-through` | `service__Rooms__get_room_props` | implemented |
+| Rooms | `invite-to-prop` | `roomful` | write | `none` | `service__Rooms__invite_to_prop` | implemented |
+| Rooms | `list-prop-team-members` | `roomful` | read | `read-through` | `service__Rooms__list_prop_team_members` | implemented |
+| Rooms | `list-room-templates` | `roomful` | read | `read-through` | — | implemented |
+| Rooms | `paste-resources-into-prop` | `roomful` | write | `none` | — | implemented |
+| Rooms | `paste-resources-into-prop-group` | `roomful` | write | `none` | — | implemented |
+| Rooms | `rename-prop-group` | `roomful` | write | `none` | — | implemented |
+| Rooms | `search-my-rooms` | `roomful` | read | `read-through` | `service__Rooms__search_my_rooms` | implemented |
+| Rooms | `search-rooms` | `roomful` | read | `read-through` | `service__Rooms__search_rooms` | implemented |
+| TextChat | `get-channel-history` | `roomful` | read | `read-through` | — | implemented |
+| TextChat | `message-owner` | `roomful` | write | `none` | `service__TextChat__message_owner` | implemented |
+| TextChat | `send-message` | `roomful` | write | `none` | — | implemented |
+| Time | `get-local-time` | `local` | read | `none` | — | implemented |
+| Users | `accept-connection-request` | `roomful` | write | `none` | `service__Users__accept_connection_request` | implemented |
+| Users | `cancel-connection-request` | `roomful` | write | `none` | `service__Users__cancel_connection_request` | implemented |
+| Users | `current` | `roomful` | read | `read-through` | `service__Users__current` | implemented |
+| Users | `decline-connection-request` | `roomful` | write | `none` | `service__Users__decline_connection_request` | implemented |
+| Users | `find-user` | `roomful` | read | `read-through` | `service__Users__find_user` | implemented |
+| Users | `get` | `roomful` | read | `read-through` | `service__Users__get` | implemented |
+| Users | `list-connection-requests` | `roomful` | read | `read-through` | — | implemented |
+| Users | `search-users` | `roomful` | read | `read-through` | `service__Users__search_users` | implemented |
+| Users | `send-connection-request` | `roomful` | write | `none` | `service__Users__send_connection_request` | implemented |
+| VerusWallet | `get-balance` | `app-state` | read | `seeded` | `service__VerusWallet__get_balance` | implemented |
+| VerusWallet | `transfer` | `roomful` | write | `none` | `service__VerusWallet__transfer` | implemented |
+
+## Declared, and deliberately not here
+
+15 intents in the application's manifest get no descriptor, no method
+and no tool definition. No RPC serves any of them — they open a dock, render a
+picker, or read the application's own log buffer — so a function here would be
+a method that fails everywhere this library is meant to run.
+
+They are not unreachable. An iframe application asks for any intent **by name**
+over the postMessage bridge, and the application's own registry (not this
+snapshot) is the authority for what those names are:
+[api-pointers.md](api-pointers.md).
+
+- `AiGuru.close` — Closes (unloads) an application by its ID from the dock.
+- `AiGuru.get-applications` — Returns a list of all registered applications with their id, slug, icon, and title.
+- `AiGuru.has-application` — Checks whether an application with the given ID exists in the registry.
+- `AiGuru.is-application-loaded` — Checks whether an application with the given ID is currently loaded (open) in the dock.
+- `AiGuru.open` — Opens (loads) an application by its ID into the dock.
+- `Application.close_all` — Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed.
+- `Application.close-application` — Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Close Application" default header action for iframe apps that render their own context menu (header: false).
+- `Application.expand-application` — Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Expand Application" default header action for iframe apps that render their own context menu (header: false).
+- `Application.get-identity-token` — Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.
+- `Commerce.open-cart` — Open My Cart for the user, scoped to your app's items.
+- `Commerce.open-products` — Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it after `create-product`, or for a "My products" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's.
+- `Commerce.open-purchases` — Open the user's order history in My Cart.
+- `DataProvider.pick-multiple` — Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"].
+- `DataProvider.pick-single` — Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that.
+- `Logging.get-logs` — Returns the captured console log buffer (log, info, warn, error) since app start. Choose the format: "text" returns { format: "text", text: <string> } with one line per entry; "file" returns { format: "file", filename, mimeType, size, file: File } — the File is for direct callers (upload/download) and is omitted in the AI/MCP serialized response, which still includes filename, mimeType, and size.
 
 ## Server-only tools — the Phase 2b decisions
 

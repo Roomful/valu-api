@@ -4,9 +4,6 @@ import {guid4} from "./Utils.js";
 import {Intent} from "./Intent.js";
 import {PostMessageTransport} from "./transport/PostMessageTransport.js";
 import {Transport} from "./transport/Transport.js";
-import {ServiceClient} from "./services/ServiceClient.js";
-import {ValuServiceApi} from "./services/api.js";
-import {ApplicationIntents} from "./intents/ApplicationIntents.js";
 
 export { ValuApplication } from "./ValuApplication.js";
 export { Intent } from "./Intent.js";
@@ -28,8 +25,8 @@ export { ServiceClient } from "./services/ServiceClient.js";
 // `client.call('Users.current')`. See src/services/api.js.
 export { ValuServiceApi, createValuServices } from "./services/api.js";
 export {
-  SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, SERVICE_FUNCTIONS, APPLICATION_INTENTS,
-  findDescriptor, listDescriptors, listServiceFunctions, listApplicationIntents,
+  SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, SERVICE_FUNCTIONS, APPLICATION_ONLY_INTENTS,
+  findDescriptor, listDescriptors, listServiceFunctions,
   isServiceFunction, listServices, catalogSummary,
 } from "./services/descriptors.js";
 export { validateParams, validationAck } from "./services/validate.js";
@@ -41,14 +38,11 @@ export {
   DEFAULT_TIMEOUT_MS, DEFAULT_POLICY, forDescriptor, runWithPolicy, isRetriable, backoffFor,
 } from "./CallPolicy.js";
 
-// The SDK surface added in Phase 2 — the parity matrix implemented.
-//
-// Importing `./services/impl/index.js` REGISTERS the 78 service functions
-// into the default registry, which is what a SocketTransport uses unless it is
+// Importing `./services/impl/index.js` REGISTERS the service functions into
+// the default registry, which is what a SocketTransport uses unless it is
 // given its own. It is imported for that effect, not for its exports.
 import "./services/impl/index.js";
 export { registerAll } from "./services/impl/index.js";
-export { ApplicationIntents, parseIntentName } from "./intents/ApplicationIntents.js";
 export { guruAdapter, guruAck, isGuruSocket } from "./socket/ValuGuruSocket.js";
 export { noAppStateAck } from "./app-state/AppState.js";
 export { resolveConfig } from "./Config.js";
@@ -71,8 +65,6 @@ export class ValuApi {
   #eventEmitter;
   #transport;
   #lastIntent;
-  #services;
-  #intents;
 
   /** @type ValuApplication */
   #applicationInstance = null;
@@ -95,42 +87,13 @@ export class ValuApi {
   }
 
   /**
-   * The service functions — `api.services.Users.current()` — over this
-   * instance's transport, with descriptor lookup, param validation, scopes,
-   * cache and the callbacks policy behind every one of them.
+   * @param {{transport?: Transport}} [options] Defaults to the postMessage
+   *   bridge — the connection an iframe application has to the Valu Social
+   *   application around it.
    *
-   * `api.services.call('Users.current')` and `api.services.client` are still
-   * here: the function tree is a surface over the same {@link ServiceClient},
-   * not a different way of calling.
-   * @returns {ValuServiceApi}
-   */
-  get services() {
-    if (!this.#services) {
-      this.#services = new ValuServiceApi({ client: new ServiceClient({ transport: this.#transport }) });
-    }
-    return this.#services;
-  }
-
-  /**
-   * The application intents: anything the Valu Social application declares,
-   * asked for by name.
-   *
-   * There is no method per intent, and that is deliberate — the application
-   * registers its intents at runtime, so a method here would be a copy of a
-   * list that moves without this package. `api.intents.run('AiGuru.open',
-   * {applicationId})` asks for one by name, including names newer than this
-   * release (src/intents/ApplicationIntents.js).
-   * @returns {ApplicationIntents}
-   */
-  get intents() {
-    if (!this.#intents) this.#intents = new ApplicationIntents(this.#transport);
-    return this.#intents;
-  }
-
-  /**
-   * @param {{transport?: Transport}} [options] Defaults to the postMessage bridge.
-   *   A socket-backed client is built with {@link ServiceClient} over a
-   *   {@link SocketTransport} instead.
+   *   This object is that bridge: pointers, intents, console and routes.
+   *   Service functions are not on it — they run over a socket, from anywhere,
+   *   and `createValuServices({ socket })` is how you get them.
    */
   constructor(options = {}) {
     this.#eventEmitter = new EventEmitter();
@@ -243,10 +206,17 @@ export class ValuApi {
   }
 
   /**
-   * Runs a service intent and resolves with the raw result the Valu Social
-   * application sends back.
+   * Ask the Valu Social application to run one of ITS intents, and resolve
+   * with the raw result it sends back.
    *
-   * Unchanged. The typed, validated, cached path is {@link ValuApi#services}.
+   * Any `{applicationId, action, params}` the application registers — nothing
+   * has to be declared here for this to work, and an intent the application
+   * added after this package was published works exactly as well as one that
+   * predates it. That is why this package has no method per intent
+   * (docs/api-pointers.md).
+   *
+   * Service functions are the other thing, and they are not on this bridge:
+   * `createValuServices({ socket })` (docs/socket-functions.md).
    */
   async callService(intent) {
     return this.#transport.request('api:service-intent', {

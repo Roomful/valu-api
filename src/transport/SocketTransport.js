@@ -2,10 +2,15 @@
 // The socket transport.
 //
 // Serves declared functions over a `ValuSocket` — the browser adapter or the
-// node adapter, the same contract either way. It does NOT speak the
-// postMessage bridge: `api:run-command` and the 15 postMessage-bound intents
-// are frame operations, and asking a socket for one answers 501 rather than
-// pretending.
+// node adapter, the same contract either way. This is the ONLY transport that
+// serves service functions, which is the shape of the package: every function
+// in the catalogue is one a connection can answer, so a Valu Social build, a
+// Valu Guru server agent, a Node script and an iframe application with a
+// socket all reach the same list.
+//
+// It does not speak the postMessage bridge at all. Nothing here needs to: an
+// intent only the Valu Social application can serve is not in the catalogue,
+// and an iframe application asks for one by name (src/ValuApi.js callService).
 //
 // One attempt per call. Timeout, retry and backoff belong to the client's
 // policy so both transports behave identically (docs/callbacks-policy.md).
@@ -31,14 +36,15 @@ export class SocketTransport extends Transport {
   /**
    * @param {object} options
    * @param {import('../socket/ValuSocket.js').ValuSocket} options.socket
-   *   The Roomful socket. Required — it is what 53 of the 69 socket functions
+   *   The Roomful socket. Required — it is what 54 of the 65 socket functions
    *   use, and what the upload pipeline runs on.
    * @param {import('../socket/ValuGuruSocket.js').ValuGuruSocket} [options.guru]
    *   The Valu Guru socket, for the 11 functions whose channel is `valuguru`.
    *   Absent means those functions answer 503 saying so — never a wrong socket.
    * @param {import('../app-state/AppState.js').AppState} [options.appState]
-   *   State only the Valu Social application holds, for the 5 functions whose
-   *   channel is `app-state` — there is no RPC that can produce them.
+   *   State no RPC can produce, for the 5 functions whose channel is
+   *   `app-state`. The Valu Social application holds it in a browser; a
+   *   headless runtime supplies its own.
    * @param {Function} [options.fetchImpl] `fetch`, for the local HTTP
    *   functions and the upload pipeline's bucket PUT. Injected by the
    *   conformance suite so no test opens a connection.
@@ -68,6 +74,7 @@ export class SocketTransport extends Transport {
   }
 
   get connected() { return Boolean(this.#socket); }
+  get servesServiceFunctions() { return true; }
   get socket() { return this.#socket; }
   get guru() { return this.#guru; }
   get appState() { return this.#appState; }
@@ -86,12 +93,6 @@ export class SocketTransport extends Transport {
   get supportsPush() { return typeof this.#socket?.onResourceUpdated === 'function'; }
 
   async callService(descriptor, params = {}, { timeoutMs = DEFAULT_TIMEOUT_MS, attempt = 1 } = {}) {
-    if (descriptor.binding === 'postmessage') {
-      return errorAck(
-        ERROR_CODES.UNSUPPORTED,
-        `${descriptor.key} is postMessage-bound — call it over the postMessage bridge, not the socket`,
-      );
-    }
     if (!this.#socket) {
       return errorAck(ERROR_CODES.DISCONNECTED, `${descriptor.key}: no socket`);
     }

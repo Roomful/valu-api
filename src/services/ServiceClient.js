@@ -1,5 +1,5 @@
 // ===========================================================================
-// The service client — one call path, whichever transport serves it.
+// The service client — one call path, over the one transport that serves.
 //
 //   descriptor lookup → param validation → scope check → cache →
 //   transport (retried under the policy) → cache write / invalidation
@@ -34,6 +34,17 @@ export class ServiceClient {
    */
   constructor({ transport, cache, auth, hooks = {} } = {}) {
     if (!transport) throw new TypeError('ServiceClient needs a transport');
+    if (!transport.servesServiceFunctions) {
+      // Refused here rather than once per call: a client over a transport that
+      // cannot serve anything is a mistake at the wiring, and the wiring is
+      // where it can still be fixed.
+      throw new TypeError(
+        `${transport.name ?? transport} does not serve service functions — `
+        + 'pass a SocketTransport, or use createValuServices({ socket }). '
+        + 'The postMessage bridge runs application intents by name '
+        + '(ValuApi.callService), not service functions.',
+      );
+    }
     this.#transport = transport;
     this.#cache = cache === null ? null : (cache ?? new ServiceCache());
     this.#auth = auth;
@@ -64,21 +75,6 @@ export class ServiceClient {
     const descriptor = findDescriptor(name);
     if (!descriptor) {
       return errorAck(ERROR_CODES.UNKNOWN_FUNCTION, `unknown service function: ${name}`);
-    }
-
-    // An application intent is not a service function, whatever transport is
-    // underneath. Over the bridge this WOULD have worked — the application
-    // answers `api:service-intent` for all 92 — and that is exactly the
-    // confusion worth ending: a function here is one the SDK runs, and the SDK
-    // cannot open a dock or render a picker. `api.intents.run()` asks the
-    // application, with the same message on the wire.
-    if (descriptor.binding === 'postmessage') {
-      return errorAck(
-        ERROR_CODES.UNSUPPORTED,
-        `${descriptor.key} is an application intent, not a service function`,
-        'Only the Valu Social application can serve it. Inside a frame, run it by name: '
-        + `valuApi.intents.run('${descriptor.key}', params).`,
-      );
     }
 
     const invalid = validationAck(descriptor, params);

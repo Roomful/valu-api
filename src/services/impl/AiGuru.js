@@ -1,6 +1,8 @@
 // ===========================================================================
-// AiGuru — 3 declared functions the SDK can serve; the other 5 are
-// postMessage-bound application intents (src/intents/ApplicationIntents.js).
+// AiGuru — 3 declared functions this package serves. The service's other 5
+// intents open, close and list applications in the dock: only the Valu Social
+// application can do that, so they are not in the catalogue and are asked for
+// by name over the bridge (docs/api-pointers.md).
 //
 // Two channels in one service, which is why the channel field had to exist:
 //

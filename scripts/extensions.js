@@ -22,7 +22,7 @@
 //      and a frame both reach it;
 //   3. no declared intent covers it (`docs/parity.md` would be lying if one
 //      did);
-//   4. the app SHOULD declare it, and `docs/sdk-structure.md` says so — an
+//   4. the app SHOULD declare it, and `docs/parity.md` says so — an
 //      entry here is a gap being carried, not a fork.
 // ===========================================================================
 
@@ -89,7 +89,7 @@ export const SDK_DECLARED = [
  * Functions this file deliberately does NOT declare, and what each would take.
  *
  * They meet the first three tests above and not the fourth: each is a decision
- * about what an agent may do, not a gap in what it can see. `docs/sdk-structure.md`
+ * about what an agent may do, not a gap in what it can see. `docs/parity.md`
  * puts them in front of whoever makes that call.
  */
 export const SDK_DECLARED_CANDIDATES = [

@@ -4,7 +4,8 @@
 // `valu.Users.current()` must be the SAME call as `client.call('Users.current')`
 // — same validation, same cache, same policy — or it is a second code path
 // pretending to be sugar. These tests assert that, and that the tree holds
-// every service function and no application intent.
+// every function in the catalogue — which is every function this package can
+// run at all.
 // ===========================================================================
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,7 +15,7 @@ import { ServiceClient } from '../src/services/ServiceClient.js';
 import { SocketTransport } from '../src/transport/SocketTransport.js';
 import { PostMessageTransport } from '../src/transport/PostMessageTransport.js';
 import { NodeSocketAdapter } from '../src/socket/NodeSocketAdapter.js';
-import { SERVICE_FUNCTIONS, APPLICATION_INTENTS } from '../src/services/descriptors.js';
+import { SERVICE_FUNCTIONS, APPLICATION_ONLY_INTENTS, findDescriptor } from '../src/services/descriptors.js';
 import { ValuServiceError, ERROR_CODES } from '../src/Errors.js';
 import { FakeRoomfulConnection, Responder, FakeWindow } from './helpers/fakes.js';
 
@@ -48,13 +49,17 @@ test('every service function is on the tree, under its service', () => {
   assert.equal(methods, 78);
 });
 
-test('no application intent is on the tree', () => {
+test('no application-only intent is on the tree, by any of its names', () => {
   const { valu } = headless();
-  for (const descriptor of APPLICATION_INTENTS) {
-    assert.equal(valu[descriptor.service]?.[descriptor.method], undefined, descriptor.key);
+  const camel = (action) => action.replace(/[-_](\w)/g, (_, c) => c.toUpperCase());
+  for (const key of APPLICATION_ONLY_INTENTS) {
+    const [service, action] = [key.slice(0, key.indexOf('.')), key.slice(key.indexOf('.') + 1)];
+    assert.equal(valu[service]?.[camel(action)], undefined, key);
+    assert.equal(findDescriptor(key), undefined, key);
   }
-  // Commerce has both kinds, which is the case worth naming: the nine
-  // catalogue functions are here and `open-cart` is not.
+  // Commerce is the case worth naming: it declares both kinds, and the nine
+  // catalogue functions are here while `open-cart` — which navigates the
+  // application to a screen — is not, on any transport.
   assert.equal(typeof valu.Commerce.listProducts, 'function');
   assert.equal(valu.Commerce.openCart, undefined);
 });
@@ -117,25 +122,30 @@ test('the tree and the client are one object, not two', () => {
   assert.equal(valu.data, valu.data, 'the unwrapped tree is built once');
 });
 
-test('createValuServices builds a socket transport, or takes the frame\'s', () => {
+test('createValuServices builds a socket transport, and refuses the bridge', () => {
   const { valu } = headless();
   assert.ok(valu.transport instanceof SocketTransport);
 
+  // The postMessage bridge is not a service transport. It could carry these
+  // calls — the application answers `api:service-intent` — and that is exactly
+  // the ambiguity this package dropped: a service function runs over a
+  // connection, the same way everywhere, or it is not a service function.
   const bridge = new PostMessageTransport({ target: new FakeWindow() });
-  const framed = createValuServices({ transport: bridge });
-  assert.equal(framed.transport, bridge);
+  assert.throws(() => createValuServices({ transport: bridge }), /does not serve service functions/);
+  assert.throws(() => new ServiceClient({ transport: bridge }), /does not serve service functions/);
 
-  assert.throws(() => createValuServices({}), /needs either a transport or a socket/);
+  assert.throws(() => createValuServices({}), /needs a socket/);
 });
 
-test('the tool definitions are the service functions, never an application intent', () => {
+test('the tool definitions are the service functions, and nothing else', () => {
   const { valu } = headless();
   const names = new Set(valu.toolDefinitions().map((d) => d.function.name));
 
   assert.ok(names.has('service__Users__current'));
   assert.ok(names.has('service__Users__list_connection_requests'));
-  for (const descriptor of APPLICATION_INTENTS) {
-    assert.equal(names.has(descriptor.toolName), false, descriptor.key);
+  for (const key of APPLICATION_ONLY_INTENTS) {
+    const [service, action] = [key.slice(0, key.indexOf('.')), key.slice(key.indexOf('.') + 1)];
+    assert.equal(names.has(`service__${service}__${action.replace(/-/g, '_')}`), false, key);
   }
 });
 

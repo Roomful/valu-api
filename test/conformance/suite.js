@@ -179,24 +179,17 @@ export function runConformanceSuite({ name, makeSocket }) {
     assert.equal(responder.calls.length, 0);
   });
 
-  test(`${name}: an application intent is not a service function, on any transport`, async () => {
-    const { client, transport } = setup();
+  test(`${name}: an application-only intent is not in the catalogue at all`, async () => {
+    const { client, responder } = setup();
 
-    // The client refuses it first, and by what it IS rather than by what this
-    // transport happens to be: the same refusal comes back over the bridge,
-    // where the application could in fact have served it.
+    // `DataProvider.pick-single` is declared by the application and served
+    // only by it. This package does not declare it, so it does not resolve —
+    // the same answer a typo gets, which is the point of taking it out: there
+    // is no half-state where a function exists but cannot run.
     const ack = await client.call('DataProvider.pick-single', { providers: ['contacts'] });
-    assert.equal(ack.error.code, ERROR_CODES.UNSUPPORTED);
-    assert.match(ack.error.message, /is an application intent, not a service function/);
-    assert.match(ack.error.description, /intents\.run/);
-
-    // And the socket transport still refuses it on its own account, for the
-    // caller that reaches past the client.
-    const direct = await transport.callService(
-      { key: 'DataProvider.pick-single', binding: 'postmessage' }, {},
-    );
-    assert.equal(direct.error.code, ERROR_CODES.UNSUPPORTED);
-    assert.match(direct.error.message, /postMessage-bound/);
+    assert.equal(ack.error.code, ERROR_CODES.UNKNOWN_FUNCTION);
+    assert.match(ack.error.message, /unknown service function/);
+    assert.equal(responder.calls.length, 0);
   });
 
   test(`${name}: a declared but unimplemented function says so`, async () => {

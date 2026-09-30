@@ -16,8 +16,7 @@
 // ===========================================================================
 import { Transport } from './Transport.js';
 import { nextId } from '../Utils.js';
-import { ERROR_CODES, errorAck } from '../Errors.js';
-import { dataAck } from '../socket/ValuSocket.js';
+
 
 /** Replies that carry a `requestId` and settle a pending request. */
 const REPLY_MESSAGES = new Set([
@@ -46,8 +45,19 @@ export class PostMessageTransport extends Transport {
   /** True once `api:ready` has arrived — same test as ValuApi's old `connected`. */
   get connected() { return this.#peer.origin !== undefined; }
 
-  /** This IS the postMessage bridge. */
-  get supportsPostMessage() { return true; }
+  /**
+   * The bridge does not serve service functions.
+   *
+   * It could: the Valu Social application answers `api:service-intent` for
+   * everything it declares, and this transport used to forward service calls
+   * that way. That is exactly the ambiguity this package dropped — a service
+   * function is one a CONNECTION answers, so it behaves the same in an iframe,
+   * in a Valu Social build and on the Valu Guru server, and there is one
+   * answer to "where does this run". An iframe application that wants the
+   * application to do something asks it by name instead
+   * (`ValuApi.callService`), and nothing has to be declared for that.
+   */
+  get servesServiceFunctions() { return false; }
 
   /** Id the Valu Social application gave this app on `api:ready`. */
   get applicationId() { return this.#peer.id; }
@@ -66,35 +76,6 @@ export class PostMessageTransport extends Transport {
 
   notify(name, message) {
     this.#post(name, message);
-  }
-
-  /**
-   * A service intent over the bridge — what `ValuApi.callService` has always
-   * sent. The application answers with the raw result, so it is wrapped into the ack
-   * envelope here: every caller of `callService` sees one shape whichever
-   * transport served it.
-   */
-  async callService(descriptor, params = {}) {
-    if (!this.connected) {
-      return errorAck(ERROR_CODES.DISCONNECTED, 'not connected to the Valu Social application');
-    }
-    let result;
-    try {
-      result = await this.request('api:service-intent', {
-        applicationId: descriptor.service,
-        action: descriptor.action,
-        params,
-      });
-    } catch (error) {
-      return errorAck(ERROR_CODES.DISCONNECTED, error?.message ?? String(error));
-    }
-    if (result && typeof result === 'object' && result.error) {
-      const { error } = result;
-      return typeof error === 'string'
-        ? errorAck(undefined, error)
-        : { error: { status: true, ...error } };
-    }
-    return dataAck(result);
   }
 
   async close() {

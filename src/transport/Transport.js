@@ -7,8 +7,12 @@
 // the postMessage bridge or to a socket without either one leaking into the
 // other.
 //
-// Two implementations ship: PostMessageTransport (today's bridge, unchanged on
-// the wire) and SocketTransport (new).
+// Two implementations ship: PostMessageTransport (the bridge an iframe
+// application speaks to the Valu Social application — pointers, intents,
+// routes) and SocketTransport (the connection every service function runs on).
+// Only the second one serves service functions; `servesServiceFunctions` says
+// so, and ServiceClient refuses anything else at construction rather than once
+// per call.
 // ===========================================================================
 import { EventEmitter } from '../EventEmitter.js';
 import { ERROR_CODES, errorAck } from '../Errors.js';
@@ -27,16 +31,14 @@ export class Transport {
   /** @returns {boolean} */
   get connected() { return false; }
 
-  /**
-   * Whether this transport speaks the postMessage bridge at all — i.e. whether
-   * there is a Valu Social application on the other end of it.
+/**
+   * Whether this transport can run service functions.
    *
    * `request`/`notify` exist on every transport — they throw where they are
-   * not supported — so "has a request method" does not answer the question.
-   * ApplicationIntents asks this one instead: there is no application behind a
-   * socket, and finding that out per call would be fifteen identical surprises.
+   * not supported — so "has a method" does not answer the question.
+   * {@link ServiceClient} asks this one, at construction.
    */
-  get supportsPostMessage() { return false; }
+  get servesServiceFunctions() { return false; }
 
   /** Human name, for error messages that have to say which transport refused. */
   get name() { return this.constructor.name; }
@@ -74,7 +76,7 @@ export class Transport {
   async callService(descriptor, _params, _options) {
     return errorAck(
       ERROR_CODES.UNSUPPORTED,
-      `${this.name} cannot serve ${descriptor.key} (binding: ${descriptor.binding})`,
+      `${this.name} cannot serve ${descriptor.key} (channel: ${descriptor.channel})`,
     );
   }
 

@@ -1,19 +1,23 @@
 declare module '@arkeytyp/valu-api' {
     // The generated per-function types live next door. They are a MODULE (they
     // import this one), so they are imported rather than merged — that is what
-    // lets `api.services.Users.current()` be typed without generating anything
-    // into this hand-written file.
-    import type { ValuServices, ValuServicesData, ApplicationIntentName } from './valu-services';
+    // lets `valu.Users.current()` be typed without generating anything into
+    // this hand-written file.
+    import type { ValuServices, ValuServicesData } from './valu-services';
 
-    export type { ValuServices, ValuServicesData, ApplicationIntentName };
+    export type { ValuServices, ValuServicesData };
 
     export class ValuApi {
         static API_READY: string;
         static ON_ROUTE : string;
 
         /**
-         * @param options Defaults to the postMessage bridge. Pass a transport to speak
-         *  over something else — see {@link SocketTransport}.
+         * @param options Defaults to the postMessage bridge — the connection an
+         *  iframe application has to the Valu Social application around it.
+         *
+         *  Service functions are NOT on this object: they run over a socket,
+         *  from anywhere, and `createValuServices({ socket })` is how you get
+         *  them (docs/socket-functions.md).
          */
         constructor(options?: { transport?: Transport });
 
@@ -21,17 +25,6 @@ declare module '@arkeytyp/valu-api' {
 
         /** The transport this instance speaks over. */
         get transport(): Transport;
-
-        /**
-         * The declared-service surface: descriptor lookup, param validation,
-         * scopes, cache and the callbacks policy, over this transport.
-         */
-        get services(): ValuServiceApi;
-        /**
-         * Application intents, asked for by name. No method per intent: the
-         * application registers them at runtime (docs/sdk-structure.md).
-         */
-        get intents(): ApplicationIntents;
 
         /**
          * Registers an application instance to handle lifecycle events.
@@ -219,7 +212,8 @@ declare module '@arkeytyp/valu-api' {
     export function dataAck<T>(data: T): ValuAck<T>;
     export function errorAck(code?: number, message?: string, description?: string): ValuAck;
 
-    /** What carries a call: the postMessage bridge, or a socket. */
+    /** What carries a call: the postMessage bridge, or a socket. Only a socket
+     * transport serves service functions. */
     export abstract class Transport {
         static READY: string;
         static TRIGGER: string;
@@ -228,8 +222,9 @@ declare module '@arkeytyp/valu-api' {
         static RESOURCE_UPDATED: string;
 
         get connected(): boolean;
-        /** Whether this transport speaks the postMessage bridge at all. */
-        get supportsPostMessage(): boolean;
+        /** Whether this transport can run service functions. Only
+         * `SocketTransport` can; `ServiceClient` refuses anything else. */
+        get servesServiceFunctions(): boolean;
         get name(): string;
         open(): Promise<void>;
         request(name: string, message: object, requestId?: number): Promise<any>;
@@ -301,12 +296,12 @@ declare module '@arkeytyp/valu-api' {
         emit(ns: string, data?: Record<string, unknown>, timeoutMs?: number): Promise<ValuAck>;
     }
 
-    export type ServiceBinding = 'socket' | 'local' | 'postmessage';
     /**
-     * WHICH thing serves a function. `binding` says the kind; this says the
-     * one. Phase 2 found that "socket" was three different things.
+     * WHICH connection answers a function — the only axis, and the one a caller
+     * has to satisfy. There is no 'postmessage': this package declares nothing
+     * it cannot run itself over a connection.
      */
-    export type ServiceChannel = 'roomful' | 'valuguru' | 'app-state' | 'local' | 'postmessage';
+    export type ServiceChannel = 'roomful' | 'valuguru' | 'app-state' | 'local';
     export type CacheMode = 'none' | 'read-through' | 'seeded';
 
     export interface DescriptorParam {
@@ -327,7 +322,6 @@ declare module '@arkeytyp/valu-api' {
         description: string;
         availability: string[];
         scopes: string[];
-        binding: ServiceBinding;
         channel: ServiceChannel;
         mutates: boolean;
         cache: { mode: CacheMode; ttlMs?: number; key?: string | null };
@@ -340,16 +334,19 @@ declare module '@arkeytyp/valu-api' {
 
     export const SERVICE_DESCRIPTORS: readonly ServiceDescriptor[];
     export const SERVER_ONLY_TOOLS: readonly string[];
-    /** The functions this package runs itself — socket + local. */
+    /** The catalogue, under the name that says what it is. Same array. */
     export const SERVICE_FUNCTIONS: readonly ServiceDescriptor[];
-    /** The intents only the Valu Social application can serve. */
-    export const APPLICATION_INTENTS: readonly ServiceDescriptor[];
+    /**
+     * Declared intents only the Valu Social application can serve — names, not
+     * descriptors, because this package has no function for any of them. Ask
+     * for one by name over the bridge: `ValuApi.callService`.
+     */
+    export const APPLICATION_ONLY_INTENTS: readonly string[];
 
     /** Resolve `Users.get`, `Users.getUser`, `Users.get_user` or the tool name. */
     export function findDescriptor(name: string): ServiceDescriptor | undefined;
     export interface DescriptorFilter {
         service?: string;
-        binding?: ServiceBinding;
         channel?: ServiceChannel;
         declaredBy?: 'manifest' | 'sdk';
         availability?: string;
@@ -357,13 +354,13 @@ declare module '@arkeytyp/valu-api' {
     }
     export function listDescriptors(filter?: DescriptorFilter): ServiceDescriptor[];
     export function listServiceFunctions(filter?: DescriptorFilter): ServiceDescriptor[];
-    export function listApplicationIntents(filter?: DescriptorFilter): ServiceDescriptor[];
     export function isServiceFunction(name: string): boolean;
     export function listServices(): string[];
     export function catalogSummary(): {
-        total: number; socket: number; local: number; postmessage: number;
+        total: number; roomful: number; valuguru: number; 'app-state': number;
+        local: number; socket: number;
         implemented: number; declared: number; sdkDeclared: number;
-        sdkable: number; serviceFunctions: number; applicationIntents: number;
+        serviceFunctions: number; applicationOnly: number;
         remaining: number; serverOnly: number;
     };
 
@@ -376,7 +373,7 @@ declare module '@arkeytyp/valu-api' {
     }
     export function toolDefinition(descriptor: ServiceDescriptor): LlmToolDefinition;
     export function toolDefinitions(filter?: {
-        service?: string; binding?: ServiceBinding; availability?: string | null; mutates?: boolean;
+        service?: string; channel?: ServiceChannel; availability?: string | null; mutates?: boolean;
     }): LlmToolDefinition[];
 
     /** What a handler is given. Which fields it may rely on is its `channel`. */
@@ -477,7 +474,7 @@ declare module '@arkeytyp/valu-api' {
         subscribe(event: 'resource:updated' | 'reconnected' | string, handler: (data: any) => void): () => void;
         seed(name: string, params: object, data: any, options?: { ttlMs?: number }): ValuServiceApi;
         toolDefinitions(filter?: {
-            service?: string; binding?: ServiceBinding; availability?: string | null; mutates?: boolean;
+            service?: string; channel?: ServiceChannel; availability?: string | null; mutates?: boolean;
         }): LlmToolDefinition[];
         close(): Promise<void>;
     };
@@ -488,16 +485,17 @@ declare module '@arkeytyp/valu-api' {
         services(): string[];
         summary: typeof catalogSummary;
         toolDefinitions(filter?: {
-            service?: string; binding?: ServiceBinding; availability?: string | null; mutates?: boolean;
+            service?: string; channel?: ServiceChannel; availability?: string | null; mutates?: boolean;
         }): LlmToolDefinition[];
     };
 
     /**
-     * Build the function surface. Pass a transport, or the pieces of a
-     * `SocketTransport` and it builds one.
+     * Build the function surface: a socket in, every service function out.
+     * Runs the same in a Valu Social build, on the Valu Guru server, in a Node
+     * script and in an iframe application that has a socket.
      */
     export function createValuServices(options: {
-        transport?: Transport;
+        transport?: SocketTransport;
         socket?: ValuSocket;
         guru?: ValuGuruSocket;
         appState?: AppState;
@@ -649,32 +647,4 @@ declare module '@arkeytyp/valu-api' {
     }): Promise<{ resolved: Array<{ id: string; fileName: string }>; failed: Array<{ fileName: string; error: string }> }>;
     export function createUploadSession(socket: ValuSocket, userId: string): Promise<string>;
 
-    // --- Application intents: one dynamic call, no functions ------------------
-
-    /**
-     * Every intent the Valu Social application can serve, by name.
-     *
-     * There is no method per intent on purpose — the application registers its
-     * intents at runtime, so `run()` takes any `Service.action`, including one
-     * newer than this package (docs/sdk-structure.md).
-     */
-    export class ApplicationIntents {
-        constructor(transport: Transport);
-        get transport(): Transport;
-
-        /** Declared by the application: the ones it knows how to answer. */
-        static list(filter?: { service?: string; availability?: string }): ServiceDescriptor[];
-        /** The ones ONLY it can serve — no service function exists. */
-        static exclusive(): ServiceDescriptor[];
-        static describe(name: string): ServiceDescriptor | undefined;
-        list(filter?: { service?: string; availability?: string }): ServiceDescriptor[];
-        exclusive(): ServiceDescriptor[];
-        describe(name: string): ServiceDescriptor | undefined;
-
-        run(name: ApplicationIntentName | (string & {}), params?: object): Promise<ValuAck>;
-    }
-
-    export function parseIntentName(name: string):
-        | { applicationId: string; action: string; descriptor?: ServiceDescriptor }
-        | undefined;
 }

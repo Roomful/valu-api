@@ -5,40 +5,75 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, SERVICE_FUNCTIONS, APPLICATION_INTENTS,
+  SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, SERVICE_FUNCTIONS, APPLICATION_ONLY_INTENTS,
   findDescriptor, listDescriptors, listServices, catalogSummary, isServiceFunction,
 } from '../src/services/descriptors.js';
+import { APPLICATION_ONLY } from '../scripts/bindings.js';
 import { toolDefinition, toolDefinitions } from '../src/services/toolDefs.js';
 import { ServiceRegistry } from '../src/services/registry.js';
 
 test('the catalogue matches the parity target', () => {
   assert.deepEqual(catalogSummary(), {
-    total: 93,       // everything in the catalogue
-    socket: 70,      // a service function, served by a socket
-    local: 8,        // a service function, answered by the SDK itself
-    postmessage: 15, // an application intent — only the app can serve it
+    total: 78,       // everything in the catalogue — all of it runnable here
+    roomful: 54,     // the Roomful platform socket
+    valuguru: 11,    // the Valu Guru server's data_request channel
+    'app-state': 5,  // no RPC exists; the runtime supplies the state
+    local: 8,        // answered by the SDK itself
+    socket: 65,      // roomful + valuguru
     implemented: 32, // already server tools, exact name match
-    // WHO declared them. 92 is a fact about valusocial-web and must not move
+    // WHO declared them. 77 is a fact about valusocial-web and must not move
     // when this package adds a function; 1 is scripts/extensions.js.
-    declared: 92,
+    declared: 77,
     sdkDeclared: 1,
-    sdkable: 78,
     serviceFunctions: 78,
-    applicationIntents: 15,
+    applicationOnly: 15,
     remaining: 46,
     serverOnly: 7,
   });
 });
 
-test('the catalogue is two surfaces, and every descriptor is in exactly one', () => {
-  assert.equal(SERVICE_FUNCTIONS.length + APPLICATION_INTENTS.length, SERVICE_DESCRIPTORS.length);
+test('every descriptor in the catalogue is a function this package can run', () => {
+  // The rule the package is shaped by: a descriptor is a promise that the SDK
+  // runs this itself, given the connection its channel names. There is no
+  // second kind of entry any more.
+  assert.equal(SERVICE_FUNCTIONS.length, SERVICE_DESCRIPTORS.length);
   assert.equal(SERVICE_FUNCTIONS.length, 78);
-  assert.equal(APPLICATION_INTENTS.length, 15);
-  for (const d of SERVICE_FUNCTIONS) assert.notEqual(d.binding, 'postmessage', d.key);
-  for (const d of APPLICATION_INTENTS) assert.equal(d.binding, 'postmessage', d.key);
   assert.equal(isServiceFunction('Users.current'), true);
-  assert.equal(isServiceFunction('DataProvider.pick-single'), false);
   assert.equal(isServiceFunction('Users.teleport'), false);
+});
+
+test('the 15 application-only intents are declared by the app and absent here', () => {
+  assert.equal(APPLICATION_ONLY_INTENTS.length, 15);
+  assert.deepEqual([...APPLICATION_ONLY_INTENTS].sort(), [...APPLICATION_ONLY].sort());
+  for (const key of APPLICATION_ONLY_INTENTS) {
+    // No descriptor, no method, no tool definition, no alias: a caller who
+    // asks for one by name gets "unknown", not a function that cannot work.
+    assert.equal(findDescriptor(key), undefined, `${key} must not be in the catalogue`);
+    assert.equal(isServiceFunction(key), false, key);
+  }
+  // They are still reachable — by name over the bridge, which needs no
+  // declaration at all. api-pointers.md is where that is written down.
+  assert.ok(APPLICATION_ONLY_INTENTS.includes('AiGuru.open'));
+  assert.ok(APPLICATION_ONLY_INTENTS.includes('DataProvider.pick-single'));
+});
+
+test('every manifest intent is either a function here or explicitly excluded', async () => {
+  // The one test that notices a NEW intent in the app: it must be classified,
+  // never silently dropped by a generator that does not know about it.
+  const { readFileSync } = await import('node:fs');
+  const snapshot = JSON.parse(readFileSync(
+    new URL('../manifests/service-manifests.snapshot.json', import.meta.url), 'utf8',
+  ));
+  const excluded = new Set(APPLICATION_ONLY);
+  let declared = 0;
+  for (const service of snapshot.services) {
+    for (const intent of service.intents) {
+      declared++;
+      const key = `${service.id}.${intent.action}`;
+      assert.ok(findDescriptor(key) || excluded.has(key), `${key} is neither implemented nor excluded`);
+    }
+  }
+  assert.equal(declared, 92, "the app's manifest declares 92 intents");
 });
 
 test('an SDK-declared function is a service function with its provenance on it', () => {
@@ -47,16 +82,16 @@ test('an SDK-declared function is a service function with its provenance on it',
   for (const d of sdkDeclared) {
     // It must be reachable without the application: declaring a function this
     // package cannot run would be worse than leaving the gap open.
-    assert.notEqual(d.binding, 'postmessage', d.key);
+    assert.ok(['roomful', 'valuguru', 'local'].includes(d.channel), d.key);
     assert.ok(d.description.length > 0, d.key);
   }
   // And the manifest's own count is untouched by it.
-  assert.equal(listDescriptors({ declaredBy: 'manifest' }).length, 92);
+  assert.equal(listDescriptors({ declaredBy: 'manifest' }).length, 77);
 });
 
-test('21 services, each with at least one function', () => {
+test('every service in the catalogue has at least one function', () => {
   const services = listServices();
-  assert.equal(services.length, 21);
+  assert.equal(services.length, 18);
   for (const service of services) {
     assert.ok(listDescriptors({ service }).length > 0, service);
   }
@@ -69,7 +104,8 @@ test('every descriptor is complete and frozen', () => {
     assert.equal(d.fn, d.action.replace(/-/g, '_'));
     assert.equal(d.toolName, `service__${d.service}__${d.fn}`);
     assert.ok(d.description.length > 0, `${d.key} has no description`);
-    assert.ok(['socket', 'local', 'postmessage'].includes(d.binding), d.key);
+    assert.ok(['roomful', 'valuguru', 'app-state', 'local'].includes(d.channel), d.key);
+    assert.equal(d.binding, undefined, `${d.key} still carries the removed binding field`);
     assert.equal(typeof d.mutates, 'boolean');
     assert.ok(d.scopes.length > 0, `${d.key} declares no scope`);
     assert.ok(['none', 'read-through', 'seeded'].includes(d.cache.mode), d.key);
@@ -94,12 +130,9 @@ test('a function resolves by any of the four names the platform uses', () => {
   assert.equal(findDescriptor(undefined), undefined);
 });
 
-test('a write is never cached; a postMessage-bound function is never cached', () => {
+test('a write is never cached', () => {
   for (const d of listDescriptors({ mutates: true })) {
     assert.equal(d.cache.mode, 'none', `${d.key} is a write and must not be cached`);
-  }
-  for (const d of listDescriptors({ binding: 'postmessage' })) {
-    assert.equal(d.cache.mode, 'none', `${d.key} is postMessage-bound and must not be cached`);
   }
 });
 
@@ -107,7 +140,6 @@ test('the 32 already-implemented functions are all SDK-able', () => {
   const implemented = SERVICE_DESCRIPTORS.filter((d) => d.implementedBy);
   assert.equal(implemented.length, 32);
   for (const d of implemented) {
-    assert.notEqual(d.binding, 'postmessage', `${d.key} cannot be both a server tool and postMessage-bound`);
     assert.equal(d.implementedBy, d.toolName);
   }
 });
@@ -145,12 +177,15 @@ test('an enum param becomes a schema enum', () => {
     ['newest', 'popular', 'priceAsc', 'priceDesc', 'rating']);
 });
 
-test('the default tool surface is AI-available and never postMessage-bound', () => {
+test('the default tool surface is AI-available, and every tool has a handler', async () => {
+  const { serviceRegistry } = await import('../src/services/impl/index.js');
   const defs = toolDefinitions();
   const names = new Set(defs.map((d) => d.function.name));
   assert.ok(defs.length > 0);
-  for (const d of listDescriptors({ availability: 'ai', binding: 'postmessage' })) {
-    assert.equal(names.has(d.toolName), false, `${d.key} is postMessage-bound and must not be offered as a tool`);
+  for (const name of names) {
+    // A tool definition handed to a model is a promise that calling it does
+    // something. Every one of them resolves to a registered handler.
+    assert.ok(serviceRegistry.has(name), `${name} is offered as a tool with no handler`);
   }
   for (const name of names) {
     const descriptor = findDescriptor(name);
@@ -163,11 +198,13 @@ test('a function with no params still gets an object schema', () => {
   assert.deepEqual(def.function.parameters, { type: 'object', properties: {}, additionalProperties: false });
 });
 
-test('the registry refuses what is not declared, and what is postMessage-bound', () => {
+test('the registry refuses what is not declared', () => {
   const registry = new ServiceRegistry();
 
   assert.throws(() => registry.define('Users.teleport', async () => ({})), /not a declared service function/);
-  assert.throws(() => registry.define('Logging.get-logs', async () => ({})), /postMessage-bound/);
+  // An application-only intent is not declared HERE, so it lands in the same
+  // refusal as a typo — which is the point of taking them out of the catalogue.
+  assert.throws(() => registry.define('Logging.get-logs', async () => ({})), /not a declared service function/);
   assert.throws(() => registry.define('Users.get', 'not a function'), /must be a function/);
 
   registry.define('Users.get', async () => ({ data: 1 }));
@@ -179,40 +216,31 @@ test('the registry refuses what is not declared, and what is postMessage-bound',
 // Phase 2 — the parity matrix implemented.
 // ---------------------------------------------------------------------------
 
-test('every SDK-able function is implemented, and no postMessage-bound one is', async () => {
+test('every declared function is implemented', async () => {
   const { serviceRegistry } = await import('../src/services/impl/index.js');
   const implemented = new Set(serviceRegistry.implemented());
 
-  const sdkable = SERVICE_DESCRIPTORS.filter((d) => d.binding !== 'postmessage');
-  assert.equal(sdkable.length, 78, 'the parity target: 70 socket + 8 local');
+  assert.equal(SERVICE_DESCRIPTORS.length, 78, '65 socket + 5 app-state + 8 local');
 
-  const missing = sdkable.map((d) => d.key).filter((key) => !implemented.has(key));
-  assert.deepEqual(missing, [], 'Phase 2 is not done while one of these is unimplemented');
-
-  for (const d of listDescriptors({ binding: 'postmessage' })) {
-    assert.equal(implemented.has(d.key), false, `${d.key} is an application intent, not a service function`);
-  }
+  const missing = SERVICE_DESCRIPTORS.map((d) => d.key).filter((key) => !implemented.has(key));
+  assert.deepEqual(missing, [], 'a declared function with no handler answers 501');
   assert.equal(implemented.size, 78);
 });
 
-test('the channel says WHICH socket, and every socket function has one', () => {
-  const counts = { roomful: 0, valuguru: 0, 'app-state': 0, local: 0, postmessage: 0 };
+test('the channel says WHICH connection, and every function has one', () => {
+  const counts = { roomful: 0, valuguru: 0, 'app-state': 0, local: 0 };
   for (const d of SERVICE_DESCRIPTORS) {
     assert.ok(d.channel in counts, `${d.key} has channel "${d.channel}"`);
     counts[d.channel]++;
-    // A `local` or `postmessage` function's channel restates its binding; only a
-    // socket one adds anything, and it must add something.
-    if (d.binding !== 'socket') assert.equal(d.channel, d.binding, d.key);
-    else assert.notEqual(d.channel, 'socket', `${d.key} must say which socket`);
   }
-  assert.deepEqual(counts, { roomful: 54, valuguru: 11, 'app-state': 5, local: 8, postmessage: 15 });
-  assert.equal(counts.roomful + counts.valuguru + counts['app-state'], 70, '69 declared + 1 SDK-declared');
+  assert.deepEqual(counts, { roomful: 54, valuguru: 11, 'app-state': 5, local: 8 });
+  assert.equal(counts.roomful + counts.valuguru, 65, 'the socket functions');
 });
 
 test('Commerce rides the Valu Guru socket, not the Roomful one', () => {
   // The finding that made `channel` necessary: ten Commerce intents and the
   // RAG search are `valuguru.*` ops over a different socket entirely.
-  for (const d of listDescriptors({ service: 'Commerce', binding: 'socket' })) {
+  for (const d of listDescriptors({ service: 'Commerce' })) {
     assert.equal(d.channel, 'valuguru', d.key);
   }
   assert.equal(findDescriptor('AiGuru.query-knowledge-base').channel, 'valuguru');

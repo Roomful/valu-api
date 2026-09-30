@@ -3,16 +3,15 @@
 
 Every service function this package offers, as the call you would write. There
 are **78** of them, on **18** services, and the same
-78 are available from a Valu Social build, from a frame application and from
-the Valu Guru server — that is what makes them service functions.
+78 are available from a Valu Social build, from the Valu Guru server, from a
+Node script and from an iframe application that has a socket — that is what
+makes them service functions.
 
 ```javascript
-import { createValuServices } from '@arkeytyp/valu-api';
+import { createValuServices, NodeSocketAdapter } from '@arkeytyp/valu-api';
 
-// a Node agent, or the Valu Guru server: its own socket
+// anywhere there is a connection: the Valu Guru server, a Node agent, the app
 const valu = createValuServices({ socket, guru });
-// inside an iframe: the bridge it already has
-const valu = createValuServices({ transport: new ValuApi().transport });
 
 const me    = await valu.data.Users.current();                  // the payload
 const ack   = await valu.Users.current();                       // or the envelope
@@ -24,17 +23,17 @@ is the same call with the envelope taken off: it returns the payload and throws
 `ValuServiceError`. `valu.call('Users.current')` takes the name as a string,
 which is what an LLM tool call has.
 
-What is **not** here: the 15 application intents — open a dock, expand a
-pane, show a picker. Only the Valu Social application can serve those, and it is
-asked for one by name: `api.intents.run('AiGuru.open', {applicationId})`. See
-[sdk-structure.md](sdk-structure.md).
+What is **not** here: application intents — open a dock, expand a pane, show a
+picker. Only the Valu Social application can serve those, and it is asked for
+one **by name**, with nothing declared on this side:
+`api.callService(new Intent('AiGuru', 'open', {applicationId}))`. See
+[api-pointers.md](api-pointers.md).
 
 | | |
 |---|---|
-| read the feature each one provides | [socket-functions.md](socket-functions.md) |
-| what your runtime must supply | [server-functions.md](server-functions.md) |
-| what the platform declares | [services.md](services.md) |
+| read the feature each one provides, and what it needs | [socket-functions.md](socket-functions.md) |
 | who implements what today | [parity.md](parity.md) |
+| the bridge: any application intent, by name | [api-pointers.md](api-pointers.md) |
 
 ## AiGuru
 

@@ -7,11 +7,12 @@
 // matters here is an agent runtime wiring 78 functions into an LLM, where a
 // typo in a service name is a tool that silently never works.
 //
-// What is on this tree: SERVICE functions — the 78 the SDK runs itself, over
-// whichever transport it was given. What is not: the 15 application intents,
-// which only the Valu Social application can serve, and which it keeps
-// (src/intents/ApplicationIntents.js). One rule, no exceptions, so "is there a
-// function for it" and "can this run outside a frame" are the same question.
+// What is on this tree: the service functions — everything in the catalogue,
+// which is everything this package can run itself over a connection. An intent
+// only the Valu Social application can serve is not declared here at all; an
+// iframe application asks for one by name (ValuApi.callService). One rule, no
+// exceptions, so "is there a function for it" and "can this run outside a
+// frame" are the same question.
 //
 //   import { createValuServices, NodeSocketAdapter } from '@arkeytyp/valu-api';
 //
@@ -21,7 +22,7 @@
 //   const me       = await valu.data.Users.current();          // or the data
 //   const rooms    = await valu.data.Rooms.searchRooms({ query: 'design' });
 //
-// Both trees are the same 78 functions over the same client — `valu.X.y()`
+// Both trees are the same functions over the same client — `valu.X.y()`
 // resolves the ack envelope and never rejects; `valu.data.X.y()` returns the
 // payload and throws `ValuServiceError`. Which one a codebase wants depends on
 // whether it is turning failures into tool results (the ack) or writing
@@ -129,27 +130,25 @@ export class ValuServiceApi {
 
   /**
    * LLM tool definitions for these functions — the server's use for this
-   * package. Defaults to what an AI caller may reach; application intents are
-   * never in it, because this object cannot run one.
+   * package. Defaults to what an AI caller may reach.
    * @see toolDefinitions
    */
   static toolDefinitions(filter) { return toolDefinitions(filter); }
   toolDefinitions(filter) { return toolDefinitions(filter); }
 }
 
-/**
+ /**
  * Build the function surface, transport and all.
  *
- * Give it a transport, or give it the pieces and it builds a
- * {@link SocketTransport}:
+ * Give it a socket and it builds a {@link SocketTransport}:
  *
- *   createValuServices({ socket })                      // Node, or a browser
- *   createValuServices({ socket, guru })                // + the Commerce/RAG channel
- *   createValuServices({ transport: valuApi.transport })// inside a frame
+ *   createValuServices({ socket })        // Node, a browser, an iframe app
+ *   createValuServices({ socket, guru })  // + the Commerce/RAG channel
  *
  * @param {object} options
- * @param {import('../transport/Transport.js').Transport} [options.transport]
- *   Use this transport as it is. Everything below is ignored when it is given.
+ * @param {import('../transport/SocketTransport.js').SocketTransport} [options.transport]
+ *   Use this transport as it is — it must serve service functions, so in
+ *   practice a `SocketTransport`. Everything below is ignored when it is given.
  * @param {import('../socket/ValuSocket.js').ValuSocket} [options.socket]
  * @param {import('../socket/ValuGuruSocket.js').ValuGuruSocket} [options.guru]
  * @param {import('../app-state/AppState.js').AppState} [options.appState]
@@ -167,11 +166,13 @@ export function createValuServices(options = {}) {
   const { transport, cache, auth, hooks, ...transportOptions } = options;
   if (!transport && !transportOptions.socket) {
     // The two ways to get here are a typo and a misunderstanding, and the
-    // second one is worth a sentence: there is no default transport. A frame
-    // passes `valuApi.transport`; everything else passes a socket.
+    // second one is worth a sentence: there is no default transport, and an
+    // iframe application is not a special case. Everything passes a socket.
     throw new TypeError(
-      'createValuServices needs either a transport or a socket — '
-      + 'pass `{ socket }` for a Roomful connection, or `{ transport: valuApi.transport }` inside a frame',
+      'createValuServices needs a socket — pass `{ socket }`, a ValuSocket over '
+      + 'your Roomful connection (NodeSocketAdapter in Node, BrowserSocketAdapter '
+      + 'in a browser). Service functions run over a connection, never over the '
+      + 'postMessage bridge.',
     );
   }
   const client = new ServiceClient({
