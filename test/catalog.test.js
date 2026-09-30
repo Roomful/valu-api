@@ -290,3 +290,23 @@ test('every known behaviour delta names a real function', async () => {
     assert.ok(entry.delta.length > 60, `${entry.key} does not say what differs`);
   }
 });
+
+test('a param this package adds carries its provenance', async () => {
+  const { PARAM_EXTENSIONS } = await import('../scripts/extensions.js');
+
+  for (const d of SERVICE_DESCRIPTORS) {
+    const extra = (PARAM_EXTENSIONS[d.key] ?? []).map((p) => p.name);
+    assert.deepEqual(d.sdkParams, extra, d.key);
+    // An added param is always optional: a required one would be a different
+    // function, not the declared one with more to say.
+    for (const name of extra) {
+      assert.ok(d.params.optional.some((p) => p.name === name), `${d.key}.${name} must be optional`);
+      assert.equal(d.params.required.some((p) => p.name === name), false, `${d.key}.${name}`);
+    }
+  }
+
+  // The one that exists, and the reason it does: the manifest's named ranges
+  // cannot express "the next three weeks", which is what a server agent is
+  // asked for.
+  assert.deepEqual(findDescriptor('Events.list-events').sdkParams, ['endDate']);
+});

@@ -327,6 +327,8 @@ declare module '@arkeytyp/valu-api' {
         cache: { mode: CacheMode; ttlMs?: number; key?: string | null };
         returns: { type: string; description: string };
         params: { required: DescriptorParam[]; optional: DescriptorParam[] };
+        /** Params this package added beyond the manifest's (scripts/extensions.js). */
+        sdkParams: string[];
         /** Who says this function exists: the app's manifest, or this package. */
         declaredBy: 'manifest' | 'sdk';
         implementedBy: string | null;

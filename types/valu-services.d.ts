@@ -862,6 +862,10 @@ export interface EventsListEventsParams {
    * ID of the room, group, user, or community. Used when filter is not all.
    */
   id?: string;
+  /**
+   * ISO end of an explicit window. Pass it with startDate to ask for exactly that period; without it the named `range` decides the window.
+   */
+  endDate?: string;
 }
 
 /**

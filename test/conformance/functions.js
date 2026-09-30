@@ -378,6 +378,30 @@ export const CASES = [
     },
   },
   {
+    // The param this package adds (scripts/extensions.js): an EXPLICIT window,
+    // used verbatim. The manifest's named ranges cannot express "the next
+    // three weeks", and a server agent is asked for exactly that.
+    key: 'Events.list-events',
+    name: 'Events.list-events (explicit window)',
+    params: { startDate: '2026-06-15T00:00:00.000Z', endDate: '2026-07-06T00:00:00.000Z' },
+    rpc: { 'meeting:listMeetingOccurrences': ok({ meetings: [] }) },
+    expect: ({ ack, calls }) => {
+      assert.deepEqual(ack.data.events, []);
+      assert.equal(calls[0].data.startDate, '2026-06-15T00:00:00.000Z');
+      assert.equal(calls[0].data.endDate, '2026-07-06T00:00:00.000Z');
+    },
+  },
+  {
+    key: 'Events.list-events',
+    name: 'Events.list-events (a backwards window is refused)',
+    params: { startDate: '2026-07-06T00:00:00.000Z', endDate: '2026-06-15T00:00:00.000Z' },
+    rpc: {},
+    expect: ({ ack, calls }) => {
+      assert.equal(ack.error.code, 400);
+      assert.equal(calls.length, 0, 'nothing impossible reaches the socket');
+    },
+  },
+  {
     key: 'Events.create-meeting',
     params: { title: 'Standup', type: 'room', roomId: 'r-1', startDate: '2026-07-01T09:00:00.000Z' },
     rpc: { 'meeting:createMeeting': ok({ meeting: { meetingId: 'm-9' } }) },
@@ -1253,7 +1277,6 @@ export function runFunctionSuite({ name, makeSocket }) {
   test(`${name}: every implemented function has a case`, () => {
     const covered = new Set(CASES.map((c) => c.key));
     const missing = SERVICE_DESCRIPTORS
-      .filter((d) => d.binding !== 'postmessage')
       .map((d) => d.key)
       .filter((key) => !covered.has(key));
     assert.deepEqual(missing, [], 'a function without a conformance case is a function nobody ran');

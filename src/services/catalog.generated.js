@@ -45,6 +45,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -85,6 +86,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -138,6 +140,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -178,6 +181,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -230,6 +234,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -270,6 +275,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -335,6 +341,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -390,6 +397,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -427,6 +435,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -479,6 +488,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -538,6 +548,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -604,6 +615,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -687,6 +699,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -758,6 +771,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -805,6 +819,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -848,6 +863,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -933,6 +949,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -970,6 +987,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -1012,6 +1030,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -1055,6 +1074,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -1092,6 +1112,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -1145,6 +1166,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -1225,6 +1247,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -1320,6 +1343,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -1369,6 +1393,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Community__get_channels"
   },
@@ -1412,6 +1437,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Community__get_community_info"
   },
@@ -1476,6 +1502,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Community__get_posts"
   },
@@ -1529,6 +1556,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Community__search_communities"
   },
@@ -1586,6 +1614,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -1621,6 +1650,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -1718,6 +1748,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Events__create_meeting"
   },
@@ -1790,6 +1821,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Events__edit_meeting"
   },
@@ -1845,9 +1877,17 @@ export const SERVICE_DESCRIPTORS = [
           "name": "id",
           "type": "string",
           "description": "ID of the room, group, user, or community. Used when filter is not all."
+        },
+        {
+          "name": "endDate",
+          "type": "string",
+          "description": "ISO end of an explicit window. Pass it with startDate to ask for exactly that period; without it the named `range` decides the window."
         }
       ]
     },
+    "sdkParams": [
+      "endDate"
+    ],
     "declaredBy": "manifest",
     "implementedBy": "service__Events__list_events"
   },
@@ -1901,6 +1941,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -1942,6 +1983,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -2001,6 +2043,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Groups__list_group_participants"
   },
@@ -2054,6 +2097,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Groups__list_groups"
   },
@@ -2110,6 +2154,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -2156,6 +2201,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -2222,6 +2268,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -2259,6 +2306,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Networks__get_current_network"
   },
@@ -2308,6 +2356,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -2357,6 +2406,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -2398,6 +2448,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Resources__generate_best_view_url"
   },
@@ -2439,6 +2490,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Resources__generate_direct_public_url"
   },
@@ -2480,6 +2532,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Resources__generate_public_url"
   },
@@ -2526,6 +2579,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -2569,6 +2623,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -2621,6 +2676,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -2672,6 +2728,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Rooms__delete_prop_invitation"
   },
@@ -2715,6 +2772,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Rooms__get_permissions"
   },
@@ -2769,6 +2827,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Rooms__get_prop"
   },
@@ -2817,6 +2876,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -2866,6 +2926,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -2915,6 +2976,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Rooms__get_room_props"
   },
@@ -2977,6 +3039,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Rooms__invite_to_prop"
   },
@@ -3025,6 +3088,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Rooms__list_prop_team_members"
   },
@@ -3083,6 +3147,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -3150,6 +3215,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -3222,6 +3288,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -3279,6 +3346,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -3338,6 +3406,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Rooms__search_my_rooms"
   },
@@ -3391,6 +3460,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Rooms__search_rooms"
   },
@@ -3449,6 +3519,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -3510,6 +3581,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__TextChat__message_owner"
   },
@@ -3571,6 +3643,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -3605,6 +3678,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null
   },
@@ -3646,6 +3720,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Users__accept_connection_request"
   },
@@ -3687,6 +3762,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Users__cancel_connection_request"
   },
@@ -3724,6 +3800,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Users__current"
   },
@@ -3765,6 +3842,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Users__decline_connection_request"
   },
@@ -3818,6 +3896,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Users__find_user"
   },
@@ -3861,6 +3940,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Users__get"
   },
@@ -3928,6 +4008,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "sdk",
     "implementedBy": null
   },
@@ -3987,6 +4068,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Users__search_users"
   },
@@ -4028,6 +4110,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__Users__send_connection_request"
   },
@@ -4071,6 +4154,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__VerusWallet__get_balance"
   },
@@ -4133,6 +4217,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": "service__VerusWallet__transfer"
   }

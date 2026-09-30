@@ -195,7 +195,7 @@ Calendar service for listing, creating, and editing meetings.
 
 **Reads**
 
-- `valu.Events.listEvents({ range?, startDate?, filter?, id? }?)` → `{events: object[]}`
+- `valu.Events.listEvents({ range?, startDate?, filter?, id?, endDate? }?)` → `{events: object[]}`
   Returns a list of calendar events for the specified date range and optional meeting filter, sorted by start time ascending.
   <sub>Roomful socket</sub>
 

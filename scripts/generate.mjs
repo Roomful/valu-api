@@ -20,7 +20,7 @@ import {
 import {
   API_POINTER_MODULES, API_POINTER_FUNCTIONS, DUPLICATE_DECLARATIONS, pointerSummary,
 } from './apiPointers.js';
-import { SDK_DECLARED, SDK_DECLARED_CANDIDATES } from './extensions.js';
+import { SDK_DECLARED, SDK_DECLARED_CANDIDATES, PARAM_EXTENSIONS } from './extensions.js';
 // The registry the SDK actually loads. Importing it is what lets the parity
 // matrix report implementation status instead of asserting it.
 import { serviceRegistry } from '../src/services/registry.js';
@@ -72,6 +72,13 @@ function buildDescriptor(service, intent, declaredBy) {
   const key = `${service.id}.${intent.action}`;
   const channel = channelFor(key);
   const isMutation = mutates(key, intent.action);
+  // Optional params this package accepts beyond the manifest's (extensions.js).
+  // Merged here so everything downstream — validation, the TypeScript types,
+  // the tool definitions, the docs — sees one params list.
+  const extra = PARAM_EXTENSIONS[key] ?? [];
+  const params = extra.length
+    ? { required: intent.params.required, optional: [...intent.params.optional, ...extra] }
+    : intent.params;
   return {
     key,
     service: service.id,
@@ -89,10 +96,12 @@ function buildDescriptor(service, intent, declaredBy) {
     // needs is derived: one read scope and one write scope per service.
     scopes: [`${service.id.toLowerCase()}:${isMutation ? 'write' : 'read'}`],
     mutates: isMutation,
-    cache: defaultCache(key, isMutation, intent.params, channel),
+    cache: defaultCache(key, isMutation, params, channel),
     channel,
     returns: RETURNS[key] ?? { type: 'unknown', description: '' },
-    params: intent.params,
+    params,
+    /** Params this package added; everything else the application declares. */
+    sdkParams: extra.map((p) => p.name),
     declaredBy,
     implementedBy: serverTools.has(key) ? `service__${service.id}__${snake(intent.action)}` : null,
   };
@@ -141,6 +150,12 @@ for (const extension of SDK_DECLARED) {
     throw new Error(`extensions.js declares ${key}, which the manifest now declares too — drop the extension`);
   }
   descriptors.push(buildDescriptor(service, extension.intent, 'sdk'));
+}
+
+for (const key of Object.keys(PARAM_EXTENSIONS)) {
+  if (!descriptors.some((d) => d.key === key)) {
+    throw new Error(`extensions.js extends the params of ${key}, which is not in the catalogue`);
+  }
 }
 
 descriptors.sort((a, b) => a.key.localeCompare(b.key));

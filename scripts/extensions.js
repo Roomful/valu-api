@@ -119,3 +119,37 @@ export const SDK_DECLARED_CANDIDATES = [
       + 'would let an agent report an invitation it cannot act on.',
   },
 ];
+
+/**
+ * Optional params this package accepts BEYOND what the manifest declares.
+ *
+ * Not a new function and not a different function — the same descriptor, with
+ * one more thing a caller may pass. The bar is narrower than for a whole
+ * function: the manifest's form must be strictly LESS expressive than a call
+ * the platform already serves, so that a consumer moving onto this package
+ * would otherwise lose something it can do today.
+ *
+ * One entry so far, and it is exactly that case: the app asks the calendar for
+ * a NAMED range ("this month") anchored on a date, because that is what its
+ * calendar UI has buttons for. The Valu Guru server's hand-written tool passed
+ * an explicit window, because an agent is asked "what do I have in the next
+ * three weeks" — which no named range covers. The RPC takes two dates either
+ * way, so the window form costs nothing and losing it would be a regression
+ * for every server agent.
+ *
+ * Every extended param is stamped `declaredBy: 'sdk'` on the descriptor and
+ * listed in `descriptor.sdkParams`, so a reader of the catalogue can always
+ * tell which params the application would recognise.
+ *
+ * @type {Record<string, import('./generate.mjs').DescriptorParam[]>}
+ */
+export const PARAM_EXTENSIONS = {
+  'Events.list-events': [
+    {
+      name: 'endDate',
+      type: 'string',
+      description: 'ISO end of an explicit window. Pass it with startDate to ask for '
+        + 'exactly that period; without it the named `range` decides the window.',
+    },
+  ],
+};

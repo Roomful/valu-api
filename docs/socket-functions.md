@@ -559,11 +559,11 @@ Source: `src/Applications/EventsApplication/Services/EventsService.js`
 |---|---|---|---|---|---|
 | `Events.create-meeting` | {title, type, startDate?, endDate?, description?, color?, participants?, recurringWeekly?, roomId?, groupId?, communityId?, globalEventId?} | `{meetingId: string, meeting: object}` | write | `socket` | `none` |
 | `Events.edit-meeting` | {meetingId, title?, description?, startDate?, endDate?, color?, participants?} | `{meetingId: string, meeting: object}` | write | `socket` | `none` |
-| `Events.list-events` | {range?, startDate?, filter?, id?} | `{events: object[]}` | read | `socket` | `read-through` |
+| `Events.list-events` | {range?, startDate?, filter?, id?, endDate?} | `{events: object[]}` | read | `socket` | `read-through` |
 
 **Reads**
 
-- **`Events.list-events`** `{range?, startDate?, filter?, id?}` → `{events: object[]}`
+- **`Events.list-events`** `{range?, startDate?, filter?, id?, endDate?}` → `{events: object[]}`
   Returns a list of calendar events for the specified date range and optional meeting filter, sorted by start time ascending. Answers meeting occurrences in the computed window, earliest first. *(cached 30s; scope `events:read`)*
 
 **Writes**
@@ -613,6 +613,7 @@ Source: `src/Applications/EventsApplication/Services/EventsService.js`
 | `startDate` | `string` | no | ISO 8601 anchor date (e.g. "2026-04-07"). Defaults to today. |
 | `filter` | `string` | no | Meeting source filter. Must be one of: all, room, group, user, community. Defaults to all. |
 | `id` | `string` | no | ID of the room, group, user, or community. Used when filter is not all. |
+| `endDate` | `string` | no | ISO end of an explicit window. Pass it with startDate to ask for exactly that period; without it the named `range` decides the window. |
 
 </details>
 

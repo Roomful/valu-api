@@ -102,10 +102,24 @@ export function parseOccurrence(m) {
   };
 }
 
-/** The date fields, defaulted the way the app defaults them. */
+/**
+ * The window to ask the calendar for.
+ *
+ * Two forms. `startDate` + `endDate` is an EXPLICIT window, used verbatim —
+ * that is the param this package adds (scripts/extensions.js), because "the
+ * next three weeks" is not a named range and a server agent is asked for it.
+ * Otherwise the named `range` is computed around the anchor, exactly the way
+ * EventsService.#computeDateRange computes it.
+ */
 function resolveWindow(params, now) {
   const anchor = params.startDate ? new Date(params.startDate) : now;
   if (Number.isNaN(anchor.getTime())) return null;
+  if (params.endDate) {
+    const end = new Date(params.endDate);
+    if (Number.isNaN(end.getTime())) return null;
+    if (end < anchor) return null;
+    return { start: anchor, end };
+  }
   return computeDateRange(anchor, str(params.range, 'month'));
 }
 
@@ -122,7 +136,9 @@ export function register(registry) {
   registry
     .define('Events.list-events', (params, ctx) => {
       const window = resolveWindow(params, ctx.now?.() ?? new Date());
-      if (!window) return Promise.resolve(invalid('startDate is not a date'));
+      if (!window) {
+        return Promise.resolve(invalid('startDate/endDate must be dates, and endDate must not precede startDate'));
+      }
 
       const source = FILTER_TO_SOURCE[str(params.filter, 'all')];
       const payload = {
