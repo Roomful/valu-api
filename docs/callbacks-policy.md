@@ -37,7 +37,7 @@ the SDK ever answers in a third shape.
 | 403 | the token lacks the scope the descriptor requires | no |
 | 404 | no such service or function in the catalogue | no |
 | 408 | no answer within the timeout | yes |
-| 501 | this transport cannot serve this binding | no |
+| 501 | no handler, or the runtime holds no such `appState` capability | no |
 | 503 | no usable connection | yes |
 
 A code from the remote is passed through untouched.
