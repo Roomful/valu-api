@@ -7,6 +7,9 @@ catalogue and from the registry the SDK actually loads.
 
 | read this | for |
 |---|---|
+| [host-vs-socket.md](host-vs-socket.md) | **what "host" and "socket" actually mean here** — start here if the catalogue's `binding`/`channel` is not obvious |
+| [socket-functions.md](socket-functions.md) | the 64 functions that travel over a socket, and the feature each one provides |
+| [api-pointers.md](api-pointers.md) | the older generic path through the host, and the 41 things only it can do |
 | [server-functions.md](server-functions.md) | the 77 functions this package serves, and what a runtime must supply for each |
 | [services.md](services.md) | every intent the platform declares, params and all |
 | [parity.md](parity.md) | who implements what, the server-only tools, the known deltas |
@@ -209,6 +212,8 @@ npm run build    # catalogue, types, docs and the parity matrix
 npm run typecheck
 npm run measure:consumers   # re-measure transition.md against the two consumer
                             # repos; non-zero the moment one has moved
+npm run measure:api-pointers # re-measure the API-pointer inventory against the
+                             # app; non-zero the moment a module or function moves
 ```
 
 ## The two frozen decisions
