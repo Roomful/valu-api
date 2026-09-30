@@ -60,22 +60,31 @@ const index = readFileSync(join(toolsDir, 'index.ts'), 'utf8');
 const modules = [...index.matchAll(/from "\.\/([\w.-]+)\.js"/g)].map((m) => m[1])
   .filter((m) => readdirSync(toolsDir).includes(`${m}.ts`));
 
-const liveTools = new Set();
-for (const module of modules) {
-  const src = readFileSync(join(toolsDir, `${module}.ts`), 'utf8');
-  for (const m of src.matchAll(/name: "((?:service|system)__[A-Za-z0-9_]+)"/g)) liveTools.add(m[1]);
-}
-
 const snake = (action) => action.replace(/-/g, '_');
 const toolNameFor = (key) => {
   const [service, action] = key.split('.');
   return `service__${service}__${snake(action)}`;
 };
+
+const liveTools = new Set();
+for (const module of modules) {
+  const src = readFileSync(join(toolsDir, `${module}.ts`), 'utf8');
+  // A tool the server still implements itself: a literal name in its module.
+  for (const m of src.matchAll(/name: "((?:service|system)__[A-Za-z0-9_]+)"/g)) liveTools.add(m[1]);
+  // A tool it serves out of THIS package: a descriptor key in SDK_TOOLS. The
+  // whole point of the adoption is that the name is no longer written there,
+  // so scanning for literals alone would report the surface as having
+  // collapsed to the handful of tools the server still writes by hand.
+  const sdkList = /SDK_TOOLS:\s*readonly string\[\]\s*=\s*\[([\s\S]*?)\n\];/.exec(src);
+  if (sdkList) {
+    for (const m of sdkList[1].matchAll(/"([A-Za-z]+\.[a-z-]+)"/g)) liveTools.add(toolNameFor(m[1]));
+  }
+}
 const claimedTools = new Set([...SERVER_TOOLS.map(toolNameFor), ...SERVER_ONLY_TOOLS]);
 
 // --- report ----------------------------------------------------------------
 const implemented = new Set(serviceRegistry.implemented());
-const sdkable = SERVICE_DESCRIPTORS.filter((d) => d.binding !== 'postmessage');
+const sdkable = SERVICE_DESCRIPTORS;
 const serverKeys = new Set(SERVER_TOOLS);
 
 const line = (label, value) => console.log(`${label.padEnd(46)} ${value}`);
@@ -107,9 +116,8 @@ line('accounted for but not registered', phantom.length ? phantom.join(', ') : '
 console.log(`\n## Coverage\n`);
 line('intents the application declares', SERVICE_DESCRIPTORS.filter((d) => d.declaredBy === 'manifest').length);
 line('functions this package declares itself', SERVICE_DESCRIPTORS.filter((d) => d.declaredBy === 'sdk').length);
-line('service functions (socket + local)', sdkable.length);
+line('service functions in the catalogue', sdkable.length);
 line('implemented in this package', sdkable.filter((d) => implemented.has(d.key)).length);
-line('application intents (postMessage-bound)', SERVICE_DESCRIPTORS.length - sdkable.length);
 const adoptable = SERVICE_DESCRIPTORS.filter((d) => d.channel === 'roomful' || d.channel === 'local');
 line('server-adoptable (roomful + local)', adoptable.length);
 line('  … the server already has', adoptable.filter((d) => serverKeys.has(d.key)).length);
@@ -130,7 +138,7 @@ const byService = new Map();
 for (const d of SERVICE_DESCRIPTORS) {
   const row = byService.get(d.service) ?? { tools: 0, impl: 0 };
   if (serverKeys.has(d.key)) row.tools++;
-  if (d.binding !== 'postmessage' && implemented.has(d.key)) row.impl++;
+  if (implemented.has(d.key)) row.impl++;
   byService.set(d.service, row);
 }
 for (const [service, row] of [...byService].sort()) {

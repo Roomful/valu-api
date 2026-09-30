@@ -1,4 +1,4 @@
-# Parity with Valu Social and Valu Guru, and how to transition
+# Adoption: where Valu Social and the Valu Guru server stand
 
 Measured, not estimated. Every number below comes from reading the three
 checkouts, and `node scripts/measure-consumers.mjs` re-derives all of them —
@@ -7,30 +7,30 @@ checked rather than believed.
 
 | repository | commit measured | role |
 |---|---|---|
-| `valu-api` | `dbab8cc` | this package — one implementation of the platform's service surface |
+| `valu-api` | `48331f7` | this package — one implementation of the platform's service surface |
 | `valusocial-web` | `a4407df8` | declares the manifest, serves all 92 intents in the browser, hosts framed apps |
 | `valu-guru-server` | `898d699` | runs headless agents over the Roomful socket; **owns** the `valuguru.*` API |
 
-Nothing in either consumer has changed yet. Phase 2 deliberately left both
-alone — what exists now is one implementation they can move to, and this is the
-report on what moving costs.
+**The Valu Guru server has adopted this package** (2026-09-30): its eight
+hand-written socket-wrapper modules are deleted and its registry builds those
+tools from these descriptors. Valu Social has not moved yet.
 
 ## Headline
 
 | | count |
 |---|---|
 | intents the platform declares | **92** |
-| served by this package | **78** (the other 15 need a frame — they are application intents) |
-| server tools in valu-guru-server today | **39** |
-| … that map to a declared intent | **32** — all 32 implemented here |
-| … that do not | **7** — each one decided, all 7 stay server-side |
+| functions in this package | **78** — 77 of the declared 92 + 1 it declares itself |
+| declared intents excluded | **15** — only the Valu Social application can serve them, and it is asked by name |
+| server tools in valu-guru-server | **39** — the same 39 as before the adoption |
+| … now served by this package | **31** |
+| … still the server's own | **8** — 3 TextChat, curl, Torah ×2, timezone, image |
 | intents the app exposes to the AI | **60** — this package serves **58** (the 2 pickers need a frame) |
-| net new functions a server agent gains | **+31** |
+| server-adoptable functions not yet offered there | **31** |
 
 The vendored manifest snapshot is byte-identical to the app's live
-`SERVICE_MANIFESTS`, and the 39 tool names in `scripts/bindings.js` are exactly
-the 39 the server's registry holds. There is no drift to reconcile before
-starting.
+`SERVICE_MANIFESTS`, and every tool the server's registry holds is accounted
+for here. There is no drift.
 
 ## The finding that decides the order of work
 
@@ -40,53 +40,71 @@ and `rag_search` itself.
 
 So the 11 functions this package routes down the `valuguru` channel are, from
 inside that repo, its own handlers. Delegating them through a `ValuGuruSocket`
-would be the server calling itself over a socket it is serving. **They must not
-be adopted there.** On the browser side they are exactly right: the app is a
-client of that server.
+would be the server calling itself over a socket it is serving. **They are not
+adopted there** — `sdk.ts` refuses one at import. On the browser side they are
+exactly right: the app is a client of that server.
 
 That splits the package cleanly by consumer:
 
 | channel | n | valu-guru-server | valusocial-web |
 |---|---|---|---|
-| `roomful` | 54 | **adopt** — this is what its tools already do | adopt |
-| `local` | 8 | **adopt** — no socket involved | adopt |
-| `valuguru` | 11 | **no** — it is the provider | adopt |
-| `app-state` | 5 | no — browser store state (it already stubs 2 honestly) | adopt, supplying `AppState` |
-| `postmessage` | 15 | no — there is no frame | already the frame |
+| `roomful` | 54 | **adopted** — 28 offered today, 26 available | adopt |
+| `local` | 8 | **adopted** — 3 offered today, 5 available | adopt |
+| `valuguru` | 11 | **never** — it is the provider | adopt |
+| `app-state` | 5 | the 2 Verus ones are wired to an honest refusal | adopt, supplying `AppState` |
 
-Server-adoptable: **62**. It has **31** of them today. That is the +31.
+Server-adoptable: **62** (`roomful` + `local`). It offers **31** of them.
 
 One of the 62 is declared by this package rather than by the app's manifest:
 `Users.list-connection-requests`, over `request:listRequests`. The rule that
 allows it, and the three candidates it deliberately leaves out, are in
-[sdk-structure.md](sdk-structure.md).
+[parity.md](parity.md).
 
-## Valu Guru server
+## Valu Guru server — done
 
-### What it already has, and what lands
+`src/valu-tools/sdk.ts` is the whole of it. Eight modules (~2,500 lines) that
+emitted the same RPCs as this package are deleted; the registry's 39 tool names,
+its `{def, handler}` shape and its `{success, …}` result shape are unchanged, so
+`withGenericServerTools`, `withWorkerSocketTools` and every skill loadout were
+untouched. `valu-guru-server/docs/valu-api-migration.md` is that repo's own
+account of it.
 
-| service | tools today | served here | net new |
-|---|---|---|---|
-| Users | 8 | 9 | +1 |
-| Rooms | 8 | 15 | +7 |
-| Community | 4 | 4 | — |
-| Events | 3 | 3 | — |
-| Resources | 3 | 5 | +2 |
-| Groups | 2 | 4 | +2 |
-| VerusWallet | 2 | 2 | — |
-| Networks | 1 | 1 | — |
-| TextChat | 1 | 3 | +2 |
-| Cbac | 0 | 5 | +5 |
-| CMS | 0 | 3 | +3 |
-| ApplicationStorage | 0 | 3 | +3 |
-| Profile | 0 | 2 | +2 |
-| Http | 0 | 3 | +3 |
-| Time | 0 | 1 | +1 |
-| Commerce | 0 | 10 | not here — the server provides them |
-| AiGuru | 0 | 3 | not here — 2 app-state, 1 is its own RAG |
-| Developer | 0 | 2 | not here — Developer Portal is browser state |
+What the adapter owns, and why each piece is there rather than here:
 
-The 31, by name:
+- **WHICH functions it offers** (`SDK_TOOLS`) — 31, exactly the ones its
+  hand-written tools offered, so no agent's tool list changed shape in the same
+  commit that changed what is behind it.
+- **Identity** — `agentId` is stripped from the tool definition the model sees
+  and stamped from the run context. The rule the old Verus tools stated in prose
+  ("supplied by the runtime; do not pass it"), now in one place.
+- **The result shape** — `{data} | {error}` mapped to `{success, …}`. It comes
+  out even because this package's handlers were ported FROM those tools.
+- **`cache: null`** — the hand-written tools never cached, and an agent reading
+  back what it just wrote through another path must not see a 30-second-old
+  answer.
+
+### What changed for an agent
+
+**15 of the 31 tools changed their param schema**, because the params now come
+from the application's manifest rather than from a hand-written tool. The
+per-tool table is in `valu-guru-server/docs/valu-api-migration.md`; the renames
+worth knowing are `start`/`end` → `startDate`/`endDate` (all three Events
+tools), `userId` → `invitedUser` (the two prop-invitation writes),
+`rootChannelId` → `channelId` (`Community.get-posts`), `to` → `destination`
+(`VerusWallet.transfer`), and `filter` becoming required on
+`Users.search-users` and `Rooms.search-my-rooms`. An agent prompt or a skill
+that spells out an old param needs updating.
+
+One capability moved in each direction: `Events.list-events` lost `meetingId`
+(a client-side filter over the same list — every event still carries its
+`meetingId`), and gained `startDate` + `endDate` as an explicit window, which is
+a param this package adds beyond the manifest precisely so the server lost
+nothing (`scripts/extensions.js`).
+
+### The 31 available and not yet offered
+
+Widening an agent's tool surface changes how it behaves, so it is a separate
+decision. `SDK_TOOLS` is the one list to edit.
 
 | service | functions |
 |---|---|
@@ -102,84 +120,39 @@ The 31, by name:
 | Users | `list-connection-requests` (declared by this package) |
 | Time | `get-local-time` |
 
-### The delegation point
+### Four things still open in that repo
 
-One place, and it is small. `valuToolRegistry.dispatch(name, args, ctx)` returns
-a JSON string; a service function resolves an ack. The adapter between them is
-the whole change:
-
-```ts
-const valu = createValuServices({
-  socket: new NodeSocketAdapter({ connection: ctx.socket }),
-  fetchImpl: fetch,
-  config: { webBase: process.env.ROOMFUL_WEB_BASE, apiGate: `https://${process.env.ROOMFUL_API_HOST}` },
-});
-
-const ack = await valu.call(name, args);            // name is already `service__Users__get`
-return JSON.stringify(ack.error ? { success: false, error: ack.error.message } : ack.data);
-```
-
-`valu.call` takes the tool name as a string, which is what a dispatcher has;
-handwritten code reads better as `valu.Users.current()`
-([service-api.md](service-api.md)). The tool DEFINITIONS come off the same
-descriptors — `valu.toolDefinitions()` returns them in the shape the server
-already hands the model — so a tool's schema and the validator that enforces it
-stop being two things that can drift.
-
-A name resolves `service__Users__get` as readily as `Users.get`, so the
-tool names on the wire do not change — which matters, because
-`withGenericServerTools`, `isWorkerSocketTool` and the browser-twin de-duping
-all key on those names, and none of that logic needs touching.
-
-`ValuToolContext.socket` already satisfies `ValuSocket` structurally: identical
-`emit(ns, data, timeoutMs)`, identical ack envelope, same optional
-`onResourceUpdated`, same `underlying`. The contract was lifted out of
-`src/valu-tools/types.ts` in Phase 1 and this package is now canonical; the
-server's local copy can be replaced with an import, which is the smallest
-possible first commit.
-
-### Five things to settle in that repo
-
-1. **The `Http` trio is currently blocked on the wire.** `http.ts` collapsed
+1. **The `Http` trio is blocked on the wire.** `http.ts` collapsed
    `service__Http__ping|get|post` into `service__Http__curl`, and
    `LEGACY_HTTP_TOOL_NAMES` actively strips the three names from any tool list
    so a stale frontend cannot advertise them. This package implements all
    three. Decide which is the AI-facing form: keep `curl` and have it call the
-   three declared functions (that was the Phase 2b decision, and it needs no
-   manifest change), or stop stripping and expose all four. Do not do both by
-   accident — the strip list would silently win.
+   three declared functions, or stop stripping and expose all four. Do not do
+   both by accident — the strip list would silently win.
 
-2. **Commerce and ApplicationStorage need an application identity, and a server
-   agent has none.** Five functions refuse with 403 without it —
-   `Commerce.list-products`, `Commerce.get-product`, `Commerce.add-to-cart`,
-   `ApplicationStorage.resource-upload`, `ApplicationStorage.resource-search`.
+2. **ApplicationStorage needs an application identity, and a server agent has
+   none.** `resource-upload` and `resource-search` refuse with 403 without one;
    `ValuToolContext` carries `userId`, `agentId` and `sessionId` but no
    `applicationId`, and the id is deliberately never read from a caller's
-   params. Commerce is not adoptable there anyway, so this reduces to: what
-   application does an agent's own storage belong to? Until that is answered,
-   the two `ApplicationStorage` reads/writes stay out and CMS (which addresses
-   a room/prop/community instead) carries the load.
+   params. Until "what application does an agent's own storage belong to" has
+   an answer, those two stay out and CMS (which addresses a room, prop or
+   community instead) carries the load.
 
-3. **VerusWallet stays as it is.** Both functions need
+3. **VerusWallet still refuses, and that is correct.** Both functions need
    `appState.getAgentWallet` — `get-balance` because there is no ack-returning
-   balance RPC at all, `transfer` because the declared param is an agent id and
-   the RPC wants the wallet's identity and i-address. That is the same honest
-   gap the server's own stubs record, and the reason the pair is excluded from
-   the worker socket lane. Adopting this package does not close it; keep the
-   browser twins for chat-spawned workers exactly as today.
+   balance RPC at all, `transfer` because spending needs the wallet seed. The
+   adapter supplies a capability that throws with those reasons, so the refusal
+   reads the way the hand-written stubs read. The pair stays excluded from the
+   worker socket lane; chat-spawned workers keep the browser twins.
 
-4. **The TextChat pair stays server-only.** `message_user` and `send_card` post
-   as the **agent**, and the server already guards them behind
-   `AGENT_IDENTITY_TOOL_NAMES`. This package's three TextChat functions post as
-   the user. Nothing changes; the guard keeps working because the names do.
-
-5. **`get-channel-history` will not decrypt.** Headless has no key material, so
+4. **`get-channel-history` will not decrypt.** Headless has no key material, so
    an encrypted body comes back flagged `encrypted: true` rather than as
-   ciphertext that reads like a message. That is strictly better than the
-   server's tools, which do not decrypt either and do not say so — but an agent
-   prompt that assumes readable history needs to expect the flag.
+   ciphertext that reads like a message. Strictly better than the server's own
+   tools, which do not decrypt either and do not say so — but an agent prompt
+   that assumes readable history needs to expect the flag. It is one of the 31
+   not yet offered.
 
-## Valu Social
+## Valu Social — next
 
 The app is not a consumer of a missing capability — it is where every one of
 these functions came from. Its transition is the inverse of the server's: not
@@ -189,8 +162,11 @@ these functions came from. Its transition is the inverse of the server's: not
   the five `AiGuru` dock intents (`open`, `close`, `has-application`,
   `get-applications`, `is-application-loaded`) as `builtin` tools in
   `AiGuruTools.js`, dispatched to `ApplicationCenterStore` rather than through
-  a service at all. This package classifies exactly those five as frame
-  commands, which matches.
+  a service at all. This package excludes exactly those five from its
+  catalogue, which matches.
+- **Nothing about the app's intent registry changes.** The 15 it keeps are the
+  15 this package never declares, so there is no list here to keep in step with
+  it and no method to remove when the app adds an intent.
 - 60 intents carry `availability: ['ai']`. This package serves 58 of them; the
   two it does not are `DataProvider.pick-single` and `pick-multiple`, which
   render the application's own UI and return the user's choice.
@@ -219,27 +195,22 @@ Four of the six resolve by leaving a thin layer of app-specific behaviour
 *above* the SDK call, which is where it belongs. Two need something added to
 this package first.
 
-## Prerequisites, in order
+## What is left, in order
 
-1. **Make the package importable.** `package.json` has `main` and no `exports`
-   map, so a consumer reaches `createValuServices` through a deep path
-   (`@arkeytyp/valu-api/src/services/api.js`) that no version guarantees. Add
-   an `exports` map naming the entry points a consumer needs —
-   `createValuServices` and `ServiceClient`, the transports, both socket
-   adapters, `ApplicationIntents`, the catalogue and `toolDefinitions` — and
-   publish. Everything else waits on this.
-2. **Replace the server's `ValuSocket` copy with an import.** No behaviour
-   change, and it proves the dependency in one commit.
-3. **Delegate the 32 exact-name server tools.** They are already socket-only
-   and already carry the same service/function split; the adapter above is the
-   change. The per-function conformance table in this package covers them
-   against both adapters, so a regression surfaces here rather than in an agent
-   run.
-4. **Turn on the 31 net-new ones** — minus the two `ApplicationStorage` reads
-   until question 2 above has an answer.
-5. **Settle the `Http` trio** so the AI-facing surface has one shape.
-6. **Then the app**, service by service, cheapest first, with the six deltas
-   handled as the table says.
+1. **Publish the package.** The server currently depends on a COMMIT
+   (`github:Roomful/valu-api#<sha>`), because the npm release (1.1.3) predates
+   this SDK. That works and needs no credentials — the repository is public —
+   but a published `2.0.0` is what the app should depend on. The version is
+   breaking: `api.services`, `api.intents` and `ApplicationIntents` are gone,
+   and the postMessage bridge no longer serves service functions.
+2. **Turn on some of the 31** the server can already reach — minus the two
+   `ApplicationStorage` ones until question 2 above has an answer, and with an
+   eye on how many tools an agent's prompt can carry.
+3. **Settle the `Http` trio** so the AI-facing surface has one shape.
+4. **Then the app**, service by service, cheapest first, with the six deltas
+   handled as the table says. Its `onNewIntent` is the delegation point and
+   `BrowserSocketAdapter` is the socket; nothing about the app's own intent
+   registry changes, because this package no longer declares any of it.
 
 ## What is still advisory
 
