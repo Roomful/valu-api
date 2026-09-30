@@ -1,8 +1,8 @@
 // The server-functions reference, held to the handlers.
 //
 // docs/server-functions.md tells an integrator what a runtime must supply
-// before each function can succeed — an application identity, a piece of host
-// state, a fetch, an origin. Those requirements are metadata
+// before each function can succeed — an application identity, a piece of
+// application state, a fetch, an origin. Those requirements are metadata
 // (scripts/functions.js REQUIREMENTS), and metadata rots: a handler that stops
 // needing the app id, or a new one that starts, would leave the doc quietly
 // wrong and the integrator debugging a 403 that reads like an auth problem.
@@ -21,27 +21,27 @@ import { SocketTransport } from '../src/transport/SocketTransport.js';
 import { NodeSocketAdapter } from '../src/socket/NodeSocketAdapter.js';
 import { ERROR_CODES } from '../src/Errors.js';
 import { REQUIREMENTS } from '../scripts/functions.js';
-import { Responder, FakeRoomfulConnection, FakeGuru, FakeHost, fakeFetch } from './helpers/fakes.js';
+import { Responder, FakeRoomfulConnection, FakeGuru, FakeAppState, fakeFetch } from './helpers/fakes.js';
 
 const implemented = new Set(serviceRegistry.implemented());
-const served = SERVICE_DESCRIPTORS.filter((d) => d.binding !== 'host' && implemented.has(d.key));
+const served = SERVICE_DESCRIPTORS.filter((d) => d.binding !== 'postmessage' && implemented.has(d.key));
 
 /** The requirement tags the generator knows how to render. */
-const TAGS = /^(applicationId\??|fetch|config|host\.[A-Za-z]+\??)$/;
+const TAGS = /^(applicationId\??|fetch|config|appState\.[A-Za-z]+\??)$/;
 
-/** Functions that MUST have the host-stamped application identity. */
+/** Functions that MUST have the stamped application identity. */
 const needsAppId = new Set(
   Object.entries(REQUIREMENTS)
     .filter(([, reqs]) => reqs.includes('applicationId'))
     .map(([key]) => key),
 );
 
-/** Function → the host capability it must have, for the non-optional ones. */
-const needsHost = new Map(
+/** Function → the app-state capability it must have, for the non-optional ones. */
+const needsAppState = new Map(
   Object.entries(REQUIREMENTS)
     .flatMap(([key, reqs]) => reqs
-      .filter((r) => r.startsWith('host.') && !r.endsWith('?'))
-      .map((r) => [key, r.slice('host.'.length)])),
+      .filter((r) => r.startsWith('appState.') && !r.endsWith('?'))
+      .map((r) => [key, r.slice('appState.'.length)])),
 );
 
 /**
@@ -74,7 +74,7 @@ async function sweep(omit = {}) {
   const transport = new SocketTransport({
     socket,
     guru: new FakeGuru(),
-    host: new FakeHost({
+    appState: new FakeAppState({
       getChatHistory: async () => ({ session: {}, messages: [] }),
       getAgentHistory: async () => ({ agent: {}, messages: [] }),
       listDeveloperApplications: async () => [],
@@ -100,7 +100,7 @@ test('every documented requirement belongs to a function this package serves', (
   for (const [key, reqs] of Object.entries(REQUIREMENTS)) {
     const descriptor = findDescriptor(key);
     assert.ok(descriptor, `REQUIREMENTS names ${key}, which is not a declared function`);
-    assert.notEqual(descriptor.binding, 'host', `${key} is host-bound — it is not served here`);
+    assert.notEqual(descriptor.binding, 'postmessage', `${key} is postMessage-bound — it is not served here`);
     assert.ok(implemented.has(key), `REQUIREMENTS names ${key}, which has no handler`);
     assert.ok(reqs.length > 0, `${key} lists no requirement — drop the entry instead`);
     for (const req of reqs) {
@@ -129,20 +129,20 @@ test('a function that needs the application identity works once it is stamped', 
   }
 });
 
-test('exactly the documented functions need host state, and each names its capability', async () => {
-  const acks = await sweep({ host: undefined });
+test('exactly the documented functions need application state, and each names its capability', async () => {
+  const acks = await sweep({ appState: undefined });
   const refused = new Map();
   for (const [key, ack] of acks) {
-    const match = /needs host state \(([A-Za-z]+)\)/.exec(ack.error?.message ?? '');
+    const match = /needs application state \(([A-Za-z]+)\)/.exec(ack.error?.message ?? '');
     if (match) refused.set(key, match[1]);
   }
   assert.deepEqual(
     [...refused].sort(),
-    [...needsHost].sort(),
-    'a function refuses for host state the reference does not document, or the reverse',
+    [...needsAppState].sort(),
+    'a function refuses for application state the reference does not document, or the reverse',
   );
   for (const [, ack] of acks) {
-    if (/needs host state/.test(ack.error?.message ?? '')) {
+    if (/needs application state/.test(ack.error?.message ?? '')) {
       assert.equal(ack.error.code, ERROR_CODES.UNSUPPORTED);
     }
   }
@@ -155,8 +155,8 @@ test('the reference covers every served function', () => {
   // reference growing a row for it.
   assert.equal(served.length, 77);
   assert.equal(
-    served.filter((d) => d.channel === 'host-state').length,
+    served.filter((d) => d.channel === 'app-state').length,
     5,
-    'host-state is the channel with no RPC behind it — the count is load-bearing',
+    'app-state is the channel with no RPC behind it — the count is load-bearing',
   );
 });

@@ -9,7 +9,7 @@
 import { ERROR_CODES, errorAck } from '../../Errors.js';
 import { isAckError, ackErrorMessage } from '../../socket/ValuSocket.js';
 import { guruAck } from '../../socket/ValuGuruSocket.js';
-import { hostCapability } from '../../host/HostState.js';
+import { appStateCapability } from '../../app-state/AppState.js';
 
 /** A successful ack. `dataAck` with a name that reads at a call site. */
 export const ok = (data = {}) => ({ data });
@@ -71,14 +71,14 @@ export function guruSend(ctx, message, pick) {
 }
 
 /**
- * A host-state capability, or the ack that says which one was missing.
+ * One `app-state` capability, or the ack that says which one was missing.
  * @returns {{fn: Function}|{ack: object}}
  */
-export const host = (ctx, capability) => hostCapability(ctx.host, capability, ctx.descriptor);
+export const appState = (ctx, capability) => appStateCapability(ctx.appState, capability, ctx.descriptor);
 
-/** Run a host-state read, turning a throw into an ack. */
-export async function fromHost(ctx, capability, run) {
-  const got = host(ctx, capability);
+/** Run an `app-state` read, turning a throw into an ack. */
+export async function fromAppState(ctx, capability, run) {
+  const got = appState(ctx, capability);
   if (got.ack) return got.ack;
   try {
     return ok(await run(got.fn));

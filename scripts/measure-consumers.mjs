@@ -75,7 +75,7 @@ const claimedTools = new Set([...SERVER_TOOLS.map(toolNameFor), ...SERVER_ONLY_T
 
 // --- report ----------------------------------------------------------------
 const implemented = new Set(serviceRegistry.implemented());
-const sdkable = SERVICE_DESCRIPTORS.filter((d) => d.binding !== 'host');
+const sdkable = SERVICE_DESCRIPTORS.filter((d) => d.binding !== 'postmessage');
 const serverKeys = new Set(SERVER_TOOLS);
 
 const line = (label, value) => console.log(`${label.padEnd(46)} ${value}`);
@@ -108,7 +108,7 @@ console.log(`\n## Coverage\n`);
 line('declared intents', SERVICE_DESCRIPTORS.length);
 line('SDK-able (socket + local)', sdkable.length);
 line('implemented in this package', sdkable.filter((d) => implemented.has(d.key)).length);
-line('frame commands (host-bound)', SERVICE_DESCRIPTORS.length - sdkable.length);
+line('frame commands (postMessage-bound)', SERVICE_DESCRIPTORS.length - sdkable.length);
 line('server tools mapped to an intent', serverKeys.size);
 line('  … of those, implemented here', [...serverKeys].filter((k) => implemented.has(k)).length);
 line('server tools with no declared intent', SERVER_ONLY_TOOLS.length);
@@ -125,7 +125,7 @@ const byService = new Map();
 for (const d of SERVICE_DESCRIPTORS) {
   const row = byService.get(d.service) ?? { tools: 0, impl: 0 };
   if (serverKeys.has(d.key)) row.tools++;
-  if (d.binding !== 'host' && implemented.has(d.key)) row.impl++;
+  if (d.binding !== 'postmessage' && implemented.has(d.key)) row.impl++;
   byService.set(d.service, row);
 }
 for (const [service, row] of [...byService].sort()) {

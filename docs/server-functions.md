@@ -25,7 +25,7 @@ const client = new ServiceClient({
   transport: new SocketTransport({
     socket: new NodeSocketAdapter({ connection }), // the Roomful socket
     guru,                                          // the Valu Guru socket
-    host,                                          // state only the host holds
+    appState,                                      // state only the app holds
     applicationId: 'my-app',                       // WHO is calling
     config: { webBase, apiGate },                  // origins for URL builders
     fetchImpl: fetch,
@@ -45,19 +45,19 @@ A function resolves by any name the platform already writes — `Users.get`,
 |---|---|---|
 | `socket` | a [`ValuSocket`](../src/socket/ValuSocket.js) — `NodeSocketAdapter` over a `RoomfulConnectionManager`, or `BrowserSocketAdapter` over the app's WebSocket service | `SocketTransport` refuses to construct |
 | `guru` | a [`ValuGuruSocket`](../src/socket/ValuGuruSocket.js) — the Valu Guru server's `data_request` channel | the 11 `valuguru` functions answer 503 **by name**, before the handler runs |
-| `host` | a [`HostState`](../src/host/HostState.js): state no RPC can produce | the function answers 501 naming the capability it wanted |
-| `applicationId` | WHICH application is calling, stamped by the host and never read from a caller's params | the functions scoped to an app answer 403 |
+| `appState` | an [`AppState`](../src/app-state/AppState.js): state no RPC can produce, held by the Valu Social application or by your own runtime | the function answers 501 naming the capability it wanted |
+| `applicationId` | WHICH application is calling, stamped by the runtime and never read from a caller's params | the functions scoped to an app answer 403 |
 | `config` | `{ webBase, apiGate }` — the origins a resource URL is built on | defaults are used; a share link may point at the wrong deployment |
 | `fetch` | outbound HTTP, for the local HTTP functions and the upload pipeline's bucket PUT | `globalThis.fetch`, if the runtime has one |
 
-By channel: 5 `host-state` · 8 `local` · 53 `roomful` · 11 `valuguru`.
+By channel: 5 `app-state` · 8 `local` · 53 `roomful` · 11 `valuguru`.
 
 ## Errors
 
 Every function resolves an ack — `{data}` or `{error}` — and never throws;
 `invoke` is the throwing wrapper. The codes a caller must handle are in
 [callbacks-policy.md](callbacks-policy.md); the ones specific to a missing
-runtime piece are 503 (no such channel), 501 (no host capability, or a function
+runtime piece are 503 (no such channel), 501 (no app-state capability, or a function
 the transport cannot serve) and 403 (no application identity).
 
 ## AiGuru
@@ -66,8 +66,8 @@ System service for managing applications via AI. Provides tools to open, close, 
 
 | function | params | returns | mode | requires | cache |
 |---|---|---|---|---|---|
-| `AiGuru.get-agent-history` | {agentId} | `{agent: object, messages: object[]}` | read | `host.getAgentHistory` | `none` |
-| `AiGuru.get-chat-history` | {chatId?} | `{session: object, messages: object[]}` | read | `host.getChatHistory` | `none` |
+| `AiGuru.get-agent-history` | {agentId} | `{agent: object, messages: object[]}` | read | `appState.getAgentHistory` | `none` |
+| `AiGuru.get-chat-history` | {chatId?} | `{session: object, messages: object[]}` | read | `appState.getChatHistory` | `none` |
 | `AiGuru.query-knowledge-base` | {query, toolName?, args?} | `{toolName: string, result: string}` | read | `guru` | `read-through` |
 
 - `get-agent-history` — Returns the in-memory message history for a background agent. Answers the agent header and its in-memory messages.
@@ -170,8 +170,8 @@ Developer Portal service for creating and listing the current user's application
 
 | function | params | returns | mode | requires | cache |
 |---|---|---|---|---|---|
-| `Developer.create-application` | {name, description?, url?, icon?} | `{appId: string, devId: string, name: string, slug: string, url: string}` | write | `host.createDeveloperApplication` | `none` |
-| `Developer.list-applications` | — | `{applications: object[]}` | read | `host.listDeveloperApplications` | `none` |
+| `Developer.create-application` | {name, description?, url?, icon?} | `{appId: string, devId: string, name: string, slug: string, url: string}` | write | `appState.createDeveloperApplication` | `none` |
+| `Developer.list-applications` | — | `{applications: object[]}` | read | `appState.listDeveloperApplications` | `none` |
 
 - `create-application` — Creates a new application in the Developer Portal. By default the application is served in an iframe from https://web.texpo.io/{userId}/{appSlug} (its slug is derived from the name — lowercased, dashes; deduplicated with -2, -3, … on collision) and that texpo page needs code deployed to it before it shows anything. Pass the optional `url` to instead point the app's iframe DIRECTLY at an existing external page (no code/build needed) — the created app then opens straight to that URL. Returns the created app's id, devId, slug, URL, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens the application inside the platform, paste that `tag` value verbatim into your reply (do NOT link the raw URL). Answers the application that was registered in the Developer Portal.
 - `list-applications` — Lists the current user's applications in the Developer Portal. Returns each application's appId, devId, name, slug, url, description, createdAt timestamp, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens an application inside the platform, paste its `tag` value verbatim into your reply (do NOT link the raw URL). Answers the caller's own Developer Portal applications.
@@ -304,7 +304,7 @@ Headless text-chat I/O for non-UI callers (agents, sub-agents, scripts). Read ch
 
 | function | params | returns | mode | requires | cache |
 |---|---|---|---|---|---|
-| `TextChat.get-channel-history` | {channelId, limit?, beforeMessageId?, afterMessageId?} | `{channelId: string, messages: object[], hasPrevious: boolean, hasNext: boolean}` | read | `socket`, `host.decryptMessage?` | `read-through` |
+| `TextChat.get-channel-history` | {channelId, limit?, beforeMessageId?, afterMessageId?} | `{channelId: string, messages: object[], hasPrevious: boolean, hasNext: boolean}` | read | `socket`, `appState.decryptMessage?` | `read-through` |
 | `TextChat.message-owner` | {userId, agentId, text, buttons?, customParams?} | `{channelId: string, messageId: string, createdAt: string}` | write | `socket` | `none` |
 | `TextChat.send-message` | {text, channelId?, userId?, buttons?, customParams?} | `{channelId: string, messageId: string, createdAt: string}` | write | `socket` | `none` |
 
@@ -352,15 +352,15 @@ Executes on-chain transfers from an AI agent's attached Verus wallet identity. E
 
 | function | params | returns | mode | requires | cache |
 |---|---|---|---|---|---|
-| `VerusWallet.get-balance` | {agentId} | `{identityName: string, iAddress: string, balance: number|null}` | read | `host.getAgentWallet` | `seeded` |
-| `VerusWallet.transfer` | {agentId, destination, amount, currency?, memo?} | `{txid: string}` | write | `socket`, `host.getAgentWallet` | `none` |
+| `VerusWallet.get-balance` | {agentId} | `{identityName: string, iAddress: string, balance: number|null}` | read | `appState.getAgentWallet` | `seeded` |
+| `VerusWallet.transfer` | {agentId, destination, amount, currency?, memo?} | `{txid: string}` | write | `socket`, `appState.getAgentWallet` | `none` |
 
-- `get-balance` — Return the last-known balance of the wallet attached to the specified agent. Reads from the client cache — call verus:getAgentsBalance (via AiGuruStore.refreshAgentBalances) for a fresh value. Answers the agent wallet's last known balance. Read from host state, never the network.
+- `get-balance` — Return the last-known balance of the wallet attached to the specified agent. Reads from the client cache — call verus:getAgentsBalance (via AiGuruStore.refreshAgentBalances) for a fresh value. Answers the agent wallet's last known balance. Read from application state, never the network.
 - `transfer` — Send currency from the agent's attached Verus wallet to a destination address or identity. Call this when the user or agent needs to move funds out of an agent wallet. Fails if the agent has no wallet attached, or if the wallet is still pending creation. Answers the transaction that moved the funds.
 
 ## Not served here
 
-15 declared intents are host/UI-bound: a picker that renders, a dock that
+15 declared intents are UI-bound: a picker that renders, a dock that
 opens, a log buffer only the frame holds. A socket answers all 15 with the
 same 501, and [`src/frame/FrameCommands.js`](../src/frame/FrameCommands.js)
 gives them a named API over the postMessage bridge instead.

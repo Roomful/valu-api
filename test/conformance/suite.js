@@ -179,13 +179,13 @@ export function runConformanceSuite({ name, makeSocket }) {
     assert.equal(responder.calls.length, 0);
   });
 
-  test(`${name}: a host-bound function is refused by the socket`, async () => {
+  test(`${name}: a postMessage-bound function is refused by the socket`, async () => {
     const { client } = setup();
 
     const ack = await client.call('DataProvider.pick-single', { providers: ['contacts'] });
 
     assert.equal(ack.error.code, ERROR_CODES.UNSUPPORTED);
-    assert.match(ack.error.message, /host-bound/);
+    assert.match(ack.error.message, /postMessage-bound/);
   });
 
   test(`${name}: a declared but unimplemented function says so`, async () => {

@@ -4,7 +4,7 @@ declare module '@arkeytyp/valu-api' {
         static ON_ROUTE : string;
 
         /**
-         * @param options Defaults to the host bridge. Pass a transport to speak
+         * @param options Defaults to the postMessage bridge. Pass a transport to speak
          *  over something else — see {@link SocketTransport}.
          */
         constructor(options?: { transport?: Transport });
@@ -19,7 +19,7 @@ declare module '@arkeytyp/valu-api' {
          * scopes, cache and the callbacks policy, over this transport.
          */
         get services(): ServiceClient;
-        /** The fifteen host-bound intents, as a named API (Phase 2d). */
+        /** The fifteen postMessage-bound intents, as a named API (Phase 2d). */
         get frame(): FrameCommands;
 
         /**
@@ -120,7 +120,7 @@ declare module '@arkeytyp/valu-api' {
      * Developers should extend this class to implement application-specific logic
      * for handling lifecycle events within the Valu Social ecosystem.
      *
-     * The Valu API will automatically call these lifecycle methods when the host
+     * The Valu API will automatically call these lifecycle methods when the Valu Social
      * application sends corresponding events (e.g., app launch, new intent, destroy).
      */
     export class ValuApplication {
@@ -152,7 +152,7 @@ declare module '@arkeytyp/valu-api' {
          *
          * This typically happens when:
          *  the app moves between main / side / modal containers
-         *  the host updates routing or layout state
+         *  Valu Social updates routing or layout state
          * @param context - updated application route
          */
         onUpdateRouterContext(context: string): void;
@@ -208,7 +208,7 @@ declare module '@arkeytyp/valu-api' {
     export function dataAck<T>(data: T): ValuAck<T>;
     export function errorAck(code?: number, message?: string, description?: string): ValuAck;
 
-    /** What carries a call: the host bridge, or a socket. */
+    /** What carries a call: the postMessage bridge, or a socket. */
     export abstract class Transport {
         static READY: string;
         static TRIGGER: string;
@@ -217,8 +217,8 @@ declare module '@arkeytyp/valu-api' {
         static RESOURCE_UPDATED: string;
 
         get connected(): boolean;
-        /** Whether this transport speaks the host bridge at all. */
-        get supportsBridge(): boolean;
+        /** Whether this transport speaks the postMessage bridge at all. */
+        get supportsPostMessage(): boolean;
         get name(): string;
         open(): Promise<void>;
         request(name: string, message: object, requestId?: number): Promise<any>;
@@ -230,7 +230,8 @@ declare module '@arkeytyp/valu-api' {
         close(): Promise<void>;
     }
 
-    /** The host bridge — today's postMessage traffic, unchanged. */
+    /** The postMessage bridge to the Valu Social application — today's traffic,
+     * unchanged. */
     export class PostMessageTransport extends Transport {
         constructor(options?: { target?: EventTarget });
         get applicationId(): string | undefined;
@@ -242,8 +243,8 @@ declare module '@arkeytyp/valu-api' {
             socket: ValuSocket;
             /** For the 11 `valuguru` functions. Absent means they answer 503. */
             guru?: ValuGuruSocket;
-            /** For the 5 `host-state` functions. */
-            host?: HostState;
+            /** For the 5 `app-state` functions. */
+            appState?: AppState;
             fetchImpl?: typeof fetch;
             config?: Partial<ValuConfig>;
             now?: () => Date;
@@ -253,7 +254,7 @@ declare module '@arkeytyp/valu-api' {
         });
         get socket(): ValuSocket;
         get guru(): ValuGuruSocket | null;
-        get host(): HostState | null;
+        get appState(): AppState | null;
         get config(): ValuConfig;
         get applicationId(): string | null;
         /** Which channels this transport can actually serve. */
@@ -289,12 +290,12 @@ declare module '@arkeytyp/valu-api' {
         emit(ns: string, data?: Record<string, unknown>, timeoutMs?: number): Promise<ValuAck>;
     }
 
-    export type ServiceBinding = 'socket' | 'local' | 'host';
+    export type ServiceBinding = 'socket' | 'local' | 'postmessage';
     /**
      * WHICH thing serves a function. `binding` says the kind; this says the
      * one. Phase 2 found that "socket" was three different things.
      */
-    export type ServiceChannel = 'roomful' | 'valuguru' | 'host-state' | 'local' | 'host';
+    export type ServiceChannel = 'roomful' | 'valuguru' | 'app-state' | 'local' | 'postmessage';
     export type CacheMode = 'none' | 'read-through' | 'seeded';
 
     export interface DescriptorParam {
@@ -334,7 +335,7 @@ declare module '@arkeytyp/valu-api' {
     }): ServiceDescriptor[];
     export function listServices(): string[];
     export function catalogSummary(): {
-        total: number; socket: number; local: number; host: number;
+        total: number; socket: number; local: number; postmessage: number;
         implemented: number; sdkable: number; remaining: number; serverOnly: number;
     };
 
@@ -356,13 +357,14 @@ declare module '@arkeytyp/valu-api' {
         socket: ValuSocket;
         /** The Valu Guru socket — present for `channel: 'valuguru'`. */
         guru: ValuGuruSocket | null;
-        /** State only the host holds — needed by `channel: 'host-state'`. */
-        host: HostState | null;
+        /** State only the Valu Social application holds — needed by
+         * `channel: 'app-state'`. */
+        appState: AppState | null;
         /** `fetch`, for the local HTTP functions and the upload pipeline. */
         fetchImpl: typeof fetch | null;
         /** The origins the local resource-URL builders need. */
         config: ValuConfig;
-        /** WHICH application is calling. The host stamps it; params never do. */
+        /** WHICH application is calling. The runtime stamps it; params never do. */
         applicationId: string | null;
         /** The clock, when one was injected. */
         now?: () => Date;
@@ -515,10 +517,11 @@ declare module '@arkeytyp/valu-api' {
     export function isGuruSocket(guru: unknown): boolean;
 
     /**
-     * State only the host holds. The five `host-state` functions read it;
+     * State only the Valu Social application holds. The five `app-state`
+     * functions read it;
      * without it they answer 501 naming the capability they wanted.
      */
-    export interface HostState {
+    export interface AppState {
         getChatHistory?(chatId: string | null): Promise<{ session: any; messages: any[] } | null>;
         getAgentHistory?(agentId: string): Promise<{ agent: any; messages: any[] } | null>;
         listDeveloperApplications?(): Promise<any[]>;
@@ -532,7 +535,7 @@ declare module '@arkeytyp/valu-api' {
         decryptMessage?(body: string, message: any): Promise<string>;
     }
 
-    export function noHostStateAck(descriptor: ServiceDescriptor, capability: string): ValuAck;
+    export function noAppStateAck(descriptor: ServiceDescriptor, capability: string): ValuAck;
 
     /** The two origins the local resource-URL builders need. */
     export interface ValuConfig {
@@ -561,10 +564,10 @@ declare module '@arkeytyp/valu-api' {
     }): Promise<{ resolved: Array<{ id: string; fileName: string }>; failed: Array<{ fileName: string; error: string }> }>;
     export function createUploadSession(socket: ValuSocket, userId: string): Promise<string>;
 
-    // --- Phase 2d: the fifteen host-bound intents, as a named API -----------
+    // --- Phase 2d: the fifteen postMessage-bound intents, as a named API -----------
 
     export const FRAME_COMMANDS: readonly string[];
-    export const FRAME_COMMAND_KINDS: Record<'window' | 'picker' | 'navigate' | 'hostState', readonly string[]>;
+    export const FRAME_COMMAND_KINDS: Record<'window' | 'picker' | 'navigate' | 'frameState', readonly string[]>;
     export function frameCommandKind(key: string): string | undefined;
 
     export class FrameCommands {

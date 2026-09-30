@@ -1,7 +1,7 @@
 // ===========================================================================
 // The API-pointer surface of valusocial-web, vendored.
 //
-// API pointers are the OLDER way through the host: `api:create-pointer` names
+// API pointers are the OLDER way over the postMessage bridge: `api:create-pointer` names
 // a module, `api:run` calls a function on it by string. This package gives
 // them no catalogue and no per-function method — `ValuApi.getApi()` is the
 // whole of it — which is exactly why they need writing down somewhere.
@@ -42,11 +42,11 @@ export const API_POINTER_MODULES = [
       { fn: 'getApplications', arg: '()', does: 'Every application the dock can open, with id, slug and icon.', sdk: 'AiGuru.get-applications', via: 'same' },
       { fn: 'getApplicationHeader', arg: 'applicationId', does: "An application's title and a glyph already drawn with the platform font, for a page on another origin that cannot draw a Font Awesome class.", sdk: null, via: null },
       { fn: 'getSetting', arg: 'key', does: 'Read one platform setting by key.', sdk: null, via: null },
-      { fn: 'navigate', arg: '{path}', does: 'Navigate the host router.', sdk: null, via: null, note: '`api.pushRoute(path)` / `api.replaceRoute(path)` do this over `api:run-command`, which is a bridge command rather than a declared intent.' },
+      { fn: 'navigate', arg: '{path}', does: 'Navigate the Valu Social router.', sdk: null, via: null, note: '`api.pushRoute(path)` / `api.replaceRoute(path)` do this over `api:run-command`, which is a bridge command rather than a declared intent.' },
       { fn: 'run', arg: '{applicationId, action, params}', does: 'Run an intent against another application.', sdk: null, via: null, note: '`api.sendIntent(intent)` is the typed form, over `api:run-intent`.' },
-      { fn: 'configure-intent', arg: '{...}', does: "Open the host's intent-configuration modal.", sdk: null, via: null },
+      { fn: 'configure-intent', arg: '{...}', does: "Open the app's intent-configuration modal.", sdk: null, via: null },
       { fn: 'notifyApplicationStateUpdated', arg: '{applicationId, intent}', does: 'Tell the dock an application\'s state changed, so it can re-render its entry.', sdk: null, via: null },
-      { fn: 'blockExternalLinks', arg: 'block', does: 'Stop the host opening external links from this app.', sdk: null, via: null },
+      { fn: 'blockExternalLinks', arg: 'block', does: 'Stop Valu Social opening external links from this app.', sdk: null, via: null },
       { fn: 'overriderAppLoading', arg: '()', does: 'Take over the application loading indicator.', sdk: null, via: null },
       { fn: 'overriderPopupLoading', arg: '()', does: 'Take over the popup loading indicator.', sdk: null, via: null },
     ],
@@ -60,7 +60,7 @@ export const API_POINTER_MODULES = [
       { fn: 'current', arg: '()', does: 'The signed-in user.', sdk: 'Users.current', via: 'same', note: "The pointer returns the store's `baseUser`; the SDK resolves the socket's own id through `social:getUsersSimpleInfo`, because headless there is no store." },
       { fn: 'get', arg: 'userId', does: 'One user model by id.', sdk: 'Users.get', via: 'same', note: 'Same RPC (`social:getUsersSimpleInfo`). The pointer takes a bare string; the SDK takes `{userId}`.' },
       { fn: 'getMany', arg: 'userIds', does: 'Several user models in one call.', sdk: null, via: null, note: 'The RPC accepts a list of ids; the declared `Users.get` only asks for one. A batch read is a Phase 3 candidate.' },
-      { fn: 'getIcon', arg: '{userId, size}', does: "A user's avatar URL at a size, from the host's URL cache.", sdk: null, via: null },
+      { fn: 'getIcon', arg: '{userId, size}', does: "A user's avatar URL at a size, from the app's URL cache.", sdk: null, via: null },
       { fn: 'getExtended', arg: 'userId', does: 'The extended profile (`social:getUserProfileInfo`).', sdk: null, via: null },
       { fn: 'getLocator', arg: 'userId', does: "Where the user is — the locator record (`social:getUserLocator`).", sdk: null, via: null },
       { fn: 'requestFriendship', arg: 'userId', does: 'Send a connection request.', sdk: 'Users.send-connection-request', via: 'same' },
@@ -84,10 +84,10 @@ export const API_POINTER_MODULES = [
       { fn: 'getPermissions', arg: '{roomId}', does: "The caller's permissions in a room.", sdk: 'Rooms.get-permissions', via: 'same', note: 'Same RPC (`room:permissions`).' },
       { fn: 'getRoomPermissions', arg: '{roomId}', does: 'The same thing again.', sdk: 'Rooms.get-permissions', via: 'same', note: 'A duplicate of `getPermissions` — both emit `room:permissions`.' },
       { fn: 'getIcon', arg: '{roomId, size}', does: "A room's icon URL at a size.", sdk: null, via: null },
-      { fn: 'updateMeta', arg: '{roomBuilder}', does: 'Change room metadata (`room:updateMetadata`).', sdk: null, via: null, note: 'Takes a live `RoomBuilder` instance, which cannot cross the bridge as JSON — so this one is host-internal in practice.' },
+      { fn: 'updateMeta', arg: '{roomBuilder}', does: 'Change room metadata (`room:updateMetadata`).', sdk: null, via: null, note: 'Takes a live `RoomBuilder` instance, which cannot cross the bridge as JSON — so this one is internal to the Valu Social app in practice.' },
       { fn: 'join', arg: '{roomId}', does: 'Join a room.', sdk: null, via: null },
       { fn: 'leave', arg: '{roomId}', does: 'Leave a room.', sdk: null, via: null },
-      { fn: 'openRoomCard', arg: '{e, roomId}', does: "Open the host's room card, anchored to a click event.", sdk: null, via: null, note: 'Host UI, and it takes a DOM event — not something a socket could serve.' },
+      { fn: 'openRoomCard', arg: '{e, roomId}', does: "Open the app's room card, anchored to a click event.", sdk: null, via: null, note: 'Application UI, and it takes a DOM event — not something a socket could serve.' },
     ],
   },
   {
@@ -96,11 +96,11 @@ export const API_POINTER_MODULES = [
     aliases: [],
     summary: 'Resources: the record, its URLs, its thumbnails.',
     functions: [
-      { fn: 'getResource', arg: '{resourceId, forceUpdate?}', does: 'The resource record itself, from the host cache or the server.', sdk: null, via: null },
-      { fn: 'invalidateResource', arg: 'resourceId', does: "Drop the host's cached copy.", sdk: null, via: null },
+      { fn: 'getResource', arg: '{resourceId, forceUpdate?}', does: "The resource record itself, from the app's own cache or the server.", sdk: null, via: null },
+      { fn: 'invalidateResource', arg: 'resourceId', does: "Drop the app's cached copy.", sdk: null, via: null },
       { fn: 'getResourcePath', arg: '{resourceId}', does: 'The storage path of a resource.', sdk: null, via: null },
       { fn: 'getThumbnailUrl', arg: '{resourceId, thumbnailSize?}', does: 'A thumbnail URL, with the decryption metadata an encrypted resource needs.', sdk: 'Resources.get-thumbnail-url', via: 'close', note: 'The declared function BUILDS the URL locally (as the server does) and therefore has no decryption metadata — a known delta, recorded in parity.md. For an encrypted resource the pointer is still the only complete answer.' },
-      { fn: 'getResourceUrl', arg: '{resourceId}', does: 'The public URL of a resource.', sdk: 'Resources.generate-public-url', via: 'close', note: 'The declared function builds the URL from `config.webBase`; this one goes through the host service.' },
+      { fn: 'getResourceUrl', arg: '{resourceId}', does: 'The public URL of a resource.', sdk: 'Resources.generate-public-url', via: 'close', note: "The declared function builds the URL from `config.webBase`; this one goes through the app's own resource service." },
       { fn: 'listBotAvatars', arg: '{limit?}', does: "The network's allowed bot avatars.", sdk: 'Resources.list-bot-avatars', via: 'same' },
     ],
   },
@@ -137,18 +137,18 @@ export const API_POINTER_MODULES = [
     aliases: [],
     summary: 'Theme and layout of the surface your iframe is drawn on.',
     functions: [
-      { fn: 'colorScheme', arg: '()', does: "The host's current colour scheme, so an embedded page can match it.", sdk: null, via: null },
+      { fn: 'colorScheme', arg: '()', does: "The app's current colour scheme, so an embedded page can match it.", sdk: null, via: null },
       { fn: 'toggleColorScheme', arg: '()', does: 'Toggle light/dark.', sdk: null, via: null },
-      { fn: 'triggerResize', arg: 'data', does: 'Ask the host to re-measure and resize the frame.', sdk: null, via: null, note: 'Nothing in the declared surface resizes a frame; an embedded page that grows has no other way to say so.' },
+      { fn: 'triggerResize', arg: 'data', does: 'Ask the app to re-measure and resize the frame.', sdk: null, via: null, note: 'Nothing in the declared surface resizes a frame; an embedded page that grows has no other way to say so.' },
     ],
   },
   {
     module: 'dialog',
     file: 'src/Stores/Modal/ModalStoreAPI.js',
     aliases: ['d'],
-    summary: "The host's modal stack.",
+    summary: "The app's modal stack.",
     functions: [
-      { fn: 'open', arg: '{modalName, modalData}', does: 'Open a named host modal and, for the prompt modals, resolve its result.', sdk: null, via: null, note: 'Not the same as `DataProvider.pick-single`: that is a declared picker with declared params, this opens any modal the host knows by name.' },
+      { fn: 'open', arg: '{modalName, modalData}', does: 'Open a named application modal and, for the prompt modals, resolve its result.', sdk: null, via: null, note: 'Not the same as `DataProvider.pick-single`: that is a declared picker with declared params, this opens any modal the app knows by name.' },
       { fn: 'close', arg: 'modalName', does: 'Close one.', sdk: null, via: null },
     ],
   },
@@ -167,7 +167,7 @@ export const API_POINTER_MODULES = [
     aliases: [],
     summary: 'The text-chat encryption seed.',
     functions: [
-      { fn: 'setSeed', arg: '{seed}', does: 'Hand the host the seed its message encryption derives keys from.', sdk: null, via: null, note: 'Key material. It is browser-only on purpose, and it is why the SDK neither encrypts nor decrypts TextChat bodies (parity.md).' },
+      { fn: 'setSeed', arg: '{seed}', does: 'Hand the app the seed its message encryption derives keys from.', sdk: null, via: null, note: 'Key material. It is browser-only on purpose, and it is why the SDK neither encrypts nor decrypts TextChat bodies (parity.md).' },
     ],
   },
   {

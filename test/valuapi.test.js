@@ -101,7 +101,7 @@ test('getApi posts api:create-pointer and binds the returned version', async () 
   assert.equal(pointer.guid, posted.message.guid);
 });
 
-test('getApi rejects when the host refuses the pointer', async () => {
+test('getApi rejects when the Valu Social app refuses the pointer', async () => {
   const { api, target } = setup();
   target.ready();
 
@@ -112,7 +112,7 @@ test('getApi rejects when the host refuses the pointer', async () => {
   await assert.rejects(() => pending, /no such api/);
 });
 
-test('pointer.run posts api:run and resolves the host result', async () => {
+test('pointer.run posts api:run and resolves the application result', async () => {
   const { api, target } = setup();
   target.ready();
 
@@ -166,7 +166,7 @@ test('sendIntent posts api:run-intent and resolves the reply', async () => {
     requestId: posted.message.requestId,
   });
 
-  // The host answers api:run-intent with api:run-completed. It used to be
+  // The application answers api:run-intent with api:run-completed. It used to be
   // routed as if the reply belonged to an APIPointer, so the promise never
   // settled; correlation is by requestId now, so it does.
   target.deliver({ name: 'api:run-completed', message: { ok: true }, requestId: posted.message.requestId });
@@ -243,7 +243,7 @@ test('api.services is a ServiceClient over the same transport', async () => {
   assert.deepEqual((await pending).data, { opened: true });
 });
 
-test('the bridge answers a host intent — that is the one transport that can', async () => {
+test('the bridge answers a postMessage-bound intent — the one transport that can', async () => {
   const { api, target } = setup();
   target.ready();
 

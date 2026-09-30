@@ -9,7 +9,7 @@
 // not identical behaviour: some app services answer from the store with no
 // network at all (VerusWallet.getBalance), and an SDK that quietly turned
 // those into socket calls would be "at parity" and still wrong. Those declare
-// `mode: 'seeded'` — served from cache when the host seeded it, otherwise a
+// `mode: 'seeded'` — served from cache when the caller seeded it, otherwise a
 // normal read.
 // ===========================================================================
 
@@ -87,7 +87,7 @@ export class ServiceCache {
   }
 
   /**
-   * Seed an entry the SDK did not fetch — the host handing over what the store
+   * Seed an entry the SDK did not fetch — the application handing over what its store
    * already knows, which is what makes `mode: 'seeded'` answer without a call.
    */
   seed(descriptor, params, data, { ttlMs } = {}) {

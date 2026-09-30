@@ -106,7 +106,7 @@ export function register(registry) {
         const response = await doFetch(params.url, {
           method: 'HEAD', cache: 'no-store', signal: controller.signal, credentials: 'omit',
         });
-        // Any answer at all means the host is up — even a 503 from it.
+        // Any answer at all means the server is up — even a 503 from it.
         return ok({
           up: response.status >= 200 && response.status < 600,
           latency: Math.round(now() - started),

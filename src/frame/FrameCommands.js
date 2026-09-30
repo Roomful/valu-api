@@ -3,12 +3,13 @@
 //
 // Fifteen of the ninety-two declared intents are not service functions and
 // should stop pretending to be. They open and close applications, expand a
-// pane, render a picker and wait for a choice, hand back the host's log
-// buffer, mint an identity token. Every one of them needs the frame, none of
-// them has a socket form, and a socket transport answers all fifteen with the
-// same 501 — which is correct, and useless as an API.
+// pane, render a picker and wait for a choice, hand back the Valu Social
+// application's log buffer, mint an identity token. Every one of them needs the
+// frame — they are `binding: 'postmessage'` for that reason — none of them has
+// a socket form, and a socket transport answers all fifteen with the same 501,
+// which is correct and useless as an API.
 //
-// So they get a named one. `FrameCommands` is the SAME bridge traffic
+// So they get a named one. `FrameCommands` is the SAME postMessage traffic
 // `api:service-intent` already carries — nothing on the wire changes here —
 // with a method per command, the params the manifest declares, and a return
 // the caller can read. What changes is that a developer reading the SDK can
@@ -29,15 +30,16 @@ export const FRAME_COMMAND_KINDS = {
     'AiGuru.is-application-loaded', 'Application.expand-application',
     'Application.close-application', 'Application.close_all',
   ],
-  /** Host UI that returns the user's choice. */
+  /** Application UI that returns the user's choice. */
   picker: ['DataProvider.pick-single', 'DataProvider.pick-multiple'],
-  /** Navigating the host to one of its own surfaces. */
+  /** Navigating the Valu Social application to one of its own surfaces. */
   navigate: ['Commerce.open-cart', 'Commerce.open-purchases', 'Commerce.open-products'],
-  /** State only the frame holds. */
-  hostState: ['Application.get-identity-token', 'Logging.get-logs'],
+  /** State only the frame holds. (Not `channel: 'app-state'` — those five are
+   *  socket-bound intents; these two are postMessage-bound.) */
+  frameState: ['Application.get-identity-token', 'Logging.get-logs'],
 };
 
-/** Every host-bound key, flat. */
+/** Every postMessage-bound key, flat. */
 export const FRAME_COMMANDS = Object.values(FRAME_COMMAND_KINDS).flat();
 
 /** What kind of frame command a key is, or undefined when it is not one. */
@@ -64,11 +66,11 @@ export class FrameCommands {
    *   than failing per call: there is no frame there to command.
    */
   constructor(transport) {
-    if (!transport?.supportsBridge) {
+    if (!transport?.supportsPostMessage) {
       // Asking a socket transport would answer 501 fifteen times. There is no
       // frame behind a socket, and the honest place to say so is here.
       throw new TypeError(
-        `FrameCommands needs a transport that speaks the host bridge; ${transport?.name ?? transport} does not`,
+        `FrameCommands needs a transport that speaks the postMessage bridge; ${transport?.name ?? transport} does not`,
       );
     }
     this.#transport = transport;
@@ -77,7 +79,7 @@ export class FrameCommands {
   get transport() { return this.#transport; }
 
   /** Descriptors for the fifteen, for a caller that wants to enumerate them. */
-  static descriptors() { return listDescriptors({ binding: 'host' }); }
+  static descriptors() { return listDescriptors({ binding: 'postmessage' }); }
 
   /**
    * Run one frame command by its declared name.
@@ -92,8 +94,8 @@ export class FrameCommands {
       return errorAck(ERROR_CODES.UNKNOWN_FUNCTION, `unknown frame command: ${name}`);
     }
     // The symmetric refusal to the socket transport's: a socket cannot serve a
-    // host intent, and this cannot serve a socket one.
-    if (descriptor.binding !== 'host') {
+    // postMessage-bound intent, and this cannot serve a socket one.
+    if (descriptor.binding !== 'postmessage') {
       return errorAck(
         ERROR_CODES.UNSUPPORTED,
         `${descriptor.key} is not a frame command (binding: ${descriptor.binding})`,
@@ -101,7 +103,7 @@ export class FrameCommands {
       );
     }
     if (!this.#transport.connected) {
-      return errorAck(ERROR_CODES.DISCONNECTED, `${descriptor.key}: not connected to the Valu host`);
+      return errorAck(ERROR_CODES.DISCONNECTED, `${descriptor.key}: not connected to the Valu Social application`);
     }
 
     try {
@@ -142,7 +144,7 @@ export class FrameCommands {
   // --- pickers -----------------------------------------------------------
 
   /**
-   * Render the host's picker and resolve what the user chose.
+   * Render the application's picker and resolve what the user chose.
    *
    * These are the two commands whose latency is a PERSON, not a network: the
    * call policy's 30s timeout is meaningless here, so a picker is never given
@@ -163,7 +165,7 @@ export class FrameCommands {
   /** The SELLER's console — the seller's whole catalogue, not this app's part. */
   openProducts() { return this.run('Commerce.open-products'); }
 
-  // --- host state --------------------------------------------------------
+  // --- application state --------------------------------------------------------
 
   /**
    * A short-lived identity token for the calling application.
@@ -174,6 +176,6 @@ export class FrameCommands {
    */
   getIdentityToken() { return this.run('Application.get-identity-token'); }
 
-  /** The host's own captured log buffer. */
+  /** The Valu Social application's own captured log buffer. */
   getLogs(format) { return this.run('Logging.get-logs', format ? { format } : {}); }
 }

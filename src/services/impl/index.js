@@ -3,8 +3,8 @@
 //
 // Phase 1 shipped the registry empty and an unimplemented declared function
 // answered 501 naming itself. This is what fills it: the 77 SDK-able functions
-// of the parity matrix — 69 socket (53 roomful, 11 valuguru, 5 host-state) and
-// 8 local. The 15 host-bound intents are NOT here; they are frame commands
+// of the parity matrix — 69 socket (53 roomful, 11 valuguru, 5 app-state) and
+// 8 local. The 15 postMessage-bound intents are NOT here; they are frame commands
 // (src/frame/FrameCommands.js), which is Phase 2d's whole point.
 //
 // Importing this module registers into the DEFAULT registry, which is what a

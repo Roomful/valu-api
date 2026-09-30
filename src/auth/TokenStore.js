@@ -7,7 +7,8 @@
 // holding it can do everything the user can do, forever.
 // ===========================================================================
 
-/** Key names that are the user's own credential and must never leave the host. */
+/** Key names that are the user's own credential and must never leave the
+ * runtime that holds them. */
 export const FORBIDDEN_CREDENTIAL_KEYS = [
   'sessionid', 'session_id', 'session', 'cookie', 'cookies', 'authorization',
   'password', 'refreshtoken', 'refresh_token',

@@ -117,7 +117,7 @@ export class ServiceClient {
     return () => { this.#subscribers.get(event)?.delete(handler); };
   }
 
-  /** Seed a cache entry from state the host already holds. */
+  /** Seed a cache entry from state the caller already holds. */
   seed(name, params, data, options) {
     const descriptor = findDescriptor(name);
     if (!descriptor) throw new Error(`unknown service function: ${name}`);

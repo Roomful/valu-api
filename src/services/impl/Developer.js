@@ -1,17 +1,17 @@
 // ===========================================================================
-// Developer — 2 functions, channel `host-state`.
+// Developer — 2 functions, channel `app-state`.
 //
 // Registering an application is not an RPC: DeveloperService builds a manifest
 // (slug, icon, dock composition, iframe url), hands it to DeveloperPortalStore
 // and then syncs it into the platform's application registry and router. Every
-// one of those is host state, and half the work is deciding a slug that does
+// one of those is application state, and half the work is deciding a slug that does
 // not collide with an application the SDK cannot see.
 //
 // So the SDK does the part that is portable — validating and normalizing what
-// the caller gave — and hands the host a clean request. A runtime with no
+// the caller gave — and hands the application a clean request. A runtime with no
 // Developer Portal gets a 501 naming the capability, not a half-created app.
 // ===========================================================================
-import { fromHost, str, invalid } from './support.js';
+import { fromAppState, str, invalid } from './support.js';
 
 /**
  * Normalize a caller's Font Awesome icon to the manifest's "fa-<weight>
@@ -47,7 +47,7 @@ export function register(registry) {
       if (url && !/^https?:\/\//i.test(url)) {
         return Promise.resolve(invalid('url must be an http(s) URL, e.g. https://example.com'));
       }
-      return fromHost(ctx, 'createDeveloperApplication', async (create) => {
+      return fromAppState(ctx, 'createDeveloperApplication', async (create) => {
         const application = await create({
           name,
           description: str(params.description).trim(),
@@ -60,7 +60,7 @@ export function register(registry) {
     })
 
     .define('Developer.list-applications', (params, ctx) =>
-      fromHost(ctx, 'listDeveloperApplications', async (read) => ({ applications: (await read()) ?? [] })));
+      fromAppState(ctx, 'listDeveloperApplications', async (read) => ({ applications: (await read()) ?? [] })));
 
   return registry;
 }

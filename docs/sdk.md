@@ -7,9 +7,9 @@ catalogue and from the registry the SDK actually loads.
 
 | read this | for |
 |---|---|
-| [host-vs-socket.md](host-vs-socket.md) | **what "host" and "socket" actually mean here** — start here if the catalogue's `binding`/`channel` is not obvious |
+| [postmessage-vs-socket.md](postmessage-vs-socket.md) | **what `postmessage` and `socket` actually mean here** — start here if the catalogue's `binding`/`channel` is not obvious |
 | [socket-functions.md](socket-functions.md) | the 64 functions that travel over a socket, and the feature each one provides |
-| [api-pointers.md](api-pointers.md) | the older generic path through the host, and the 41 things only it can do |
+| [api-pointers.md](api-pointers.md) | the older generic path over the postMessage bridge, and the 41 things only it can do |
 | [server-functions.md](server-functions.md) | the 77 functions this package serves, and what a runtime must supply for each |
 | [services.md](services.md) | every intent the platform declares, params and all |
 | [parity.md](parity.md) | who implements what, the server-only tools, the known deltas |
@@ -28,7 +28,7 @@ traffic is byte for byte what it was.
                              │
               ┌──────────────┴──────────────┐
       PostMessageTransport            SocketTransport
-        (the host bridge)          (browser | node adapter)
+     (the postMessage bridge)      (browser | node adapter)
 ```
 
 | piece | file | what it decides |
@@ -45,10 +45,10 @@ traffic is byte for byte what it was.
 | Cache | `src/cache/ServiceCache.js` | what replaces the store for data services |
 | Auth | `src/auth/` | the app token, and never the session |
 | Guru socket | `src/socket/ValuGuruSocket.js` | the SECOND socket — `valuguru.*` ops |
-| Host state | `src/host/HostState.js` | the five functions no RPC can answer |
+| Application state | `src/app-state/AppState.js` | the five functions no RPC can answer |
 | Upload | `src/upload/ResourceUpload.js` | register → link → PUT → complete |
 | Implementations | `src/services/impl/` | the 77 functions themselves |
-| Frame commands | `src/frame/FrameCommands.js` | the 15 host-bound intents, named |
+| Frame commands | `src/frame/FrameCommands.js` | the 15 postMessage-bound intents, named |
 
 ## Using it
 
@@ -81,7 +81,7 @@ A function resolves by any name the platform already writes: `Users.get`,
 
 ## Three channels, not one
 
-Phase 1 recorded `binding: socket | local | host`. Writing the functions showed
+Phase 1 recorded `binding: socket | local | postmessage`. Writing the functions showed
 that **"socket" is three different things**, and a function written for the
 wrong one fails in a way the ack envelope cannot explain. Every descriptor now
 also carries a `channel`:
@@ -90,9 +90,9 @@ also carries a `channel`:
 |---|---|---|---|
 | `roomful` | 53 | the platform socket | `ctx.socket.emit(ns, payload)` |
 | `valuguru` | 11 | the Valu Guru server's `data_request` channel | `ctx.guru.request(op, params)` |
-| `host-state` | 5 | nothing — the answer is in the host's memory | `ctx.host.<capability>()` |
+| `app-state` | 5 | nothing — the answer is in the Valu Social app's memory | `ctx.appState.<capability>()` |
 | `local` | 8 | the SDK itself | `ctx.config`, `ctx.fetchImpl`, `ctx.now` |
-| `host` | 15 | the frame bridge | not a service function — see below |
+| `postmessage` | 15 | the Valu Social app, over the postMessage bridge | not a service function — see below |
 
 The binding counts are unchanged (69 / 8 / 15), so the parity target still
 holds; `channel` says *which*, which is what a handler needs to know.
@@ -101,7 +101,7 @@ A transport that lacks a channel refuses the functions that need it **by
 name**, before the handler runs:
 
 ```javascript
-const transport = new SocketTransport({ socket });          // no guru, no host
+const transport = new SocketTransport({ socket });      // no guru, no appState
 await client.call('Commerce.get-cart');
 // → 503 "Commerce.get-cart needs the Valu Guru socket, and none was supplied"
 ```
@@ -112,15 +112,16 @@ Supplying them:
 const transport = new SocketTransport({
   socket,                                 // the Roomful socket — always
   guru: guruAdapter(aiGuruService),       // for the 11 valuguru functions
-  host: { getAgentWallet, getChatHistory }, // for the 5 host-state ones
+  appState: { getAgentWallet, getChatHistory }, // for the 5 app-state ones
   applicationId: 'my-app',                // Commerce + ApplicationStorage scope
   config: { webBase, apiGate },           // the local resource-URL builders
 });
 ```
 
-`applicationId` is stamped by the **host**, never read from a caller's params:
-Commerce scopes every catalogue read and write to it, and a framed app must not
-be able to sell as another app. A transport without one answers those functions
+`applicationId` is stamped by the **runtime** — in a frame, by the Valu Social
+application — and never read from a caller's params: Commerce scopes every
+catalogue read and write to it, and a framed app must not be able to sell as
+another app. A transport without one answers those functions
 403.
 
 ## The fifteen frame commands
@@ -137,13 +138,13 @@ const picked = await api.frame.pickSingle({ providers: ['contacts'] });
 `FrameCommands` refuses a socket transport at construction — there is no frame
 behind a socket, and finding that out per call would be fifteen identical
 surprises. It also refuses a *service* function, which is the mirror of the
-socket refusing a host intent.
+socket refusing a postMessage-bound intent.
 
 ## The catalogue
 
 ```javascript
 catalogSummary();
-// { total: 92, socket: 69, local: 8, host: 15,
+// { total: 92, socket: 69, local: 8, postmessage: 15,
 //   implemented: 32, sdkable: 77, remaining: 45, serverOnly: 7 }
 ```
 

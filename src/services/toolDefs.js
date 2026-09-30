@@ -56,13 +56,13 @@ export function toolDefinition(descriptor) {
  * Tool definitions for the catalogue.
  *
  * Defaults to what an AI caller may actually reach: functions declared
- * `availability: ['ai']` that are not host-bound. Pass filters through to
+ * `availability: ['ai']` that are not postMessage-bound. Pass filters through to
  * widen or narrow it.
  * @param {{service?: string, binding?: string, availability?: string|null, mutates?: boolean}} [filter]
  */
 export function toolDefinitions(filter = {}) {
   const { availability = 'ai', ...rest } = filter;
   return listDescriptors({ ...rest, ...(availability ? { availability } : {}) })
-    .filter((d) => (rest.binding ? true : d.binding !== 'host'))
+    .filter((d) => (rest.binding ? true : d.binding !== 'postmessage'))
     .map(toolDefinition);
 }

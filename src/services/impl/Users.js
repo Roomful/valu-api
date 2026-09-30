@@ -9,7 +9,7 @@
 // The app reads `parentStore.baseUser`; headless there is no baseUser, so the
 // server resolves the socket's own id through the same `getUsersSimpleInfo`
 // that `Users.get` uses. That is what the SDK does, and it works in both
-// runtimes — which is why it is here and not behind a host capability.
+// runtimes — which is why it is here and not behind an app-state capability.
 // ===========================================================================
 import { rpc, str, num, selfId, invalid } from './support.js';
 

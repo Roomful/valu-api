@@ -13,7 +13,8 @@ export const ERROR_CODES = {
   UNKNOWN_FUNCTION: 404,
   /** The call did not answer within its timeout. */
   TIMEOUT: 408,
-  /** The transport cannot serve this binding (e.g. a host intent on a socket). */
+  /** The transport cannot serve this binding (e.g. a postMessage-bound intent
+   * asked of a socket). */
   UNSUPPORTED: 501,
   /** No usable connection — never opened, or lost and not recovered. */
   DISCONNECTED: 503,

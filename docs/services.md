@@ -8,7 +8,7 @@ serves it and the scope a caller needs.
 |---|---|---|
 | `socket` | 69 | answered over the Valu socket |
 | `local` | 8 | answered by the SDK itself |
-| `host` | 15 | host/UI-bound — stays on the postMessage bridge |
+| `postmessage` | 15 | UI-bound — the Valu Social application answers it over the postMessage bridge |
 | **total** | **92** | |
 
 7 server tools implement no declared intent and are not in this
@@ -24,7 +24,7 @@ Source: `src/Services/AiGuru/AiGuruService.js`
 
 Closes (unloads) an application by its ID from the dock.
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `void` — The application was closed.
 - scope: `aiguru:write` · mutates state
 - cache: `none`
@@ -38,7 +38,7 @@ Closes (unloads) an application by its ID from the dock.
 
 Returns the in-memory message history for a background agent.
 
-- binding: `socket` · channel: `host-state`
+- binding: `socket` · channel: `app-state`
 - returns: `{agent: object, messages: object[]}` — The agent header and its in-memory messages.
 - scope: `aiguru:read` · read-only
 - cache: `none`
@@ -52,7 +52,7 @@ Returns the in-memory message history for a background agent.
 
 Returns a list of all registered applications with their id, slug, icon, and title.
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `{applications: object[]}` — Applications the dock can open.
 - scope: `aiguru:read` · read-only
 - cache: `none`
@@ -64,7 +64,7 @@ Takes no parameters.
 
 Returns the in-memory message history for a chat session. Omit chatId to get the currently active session.
 
-- binding: `socket` · channel: `host-state`
+- binding: `socket` · channel: `app-state`
 - returns: `{session: object, messages: object[]}` — The session header and its in-memory messages.
 - scope: `aiguru:read` · read-only
 - cache: `none`
@@ -78,7 +78,7 @@ Returns the in-memory message history for a chat session. Omit chatId to get the
 
 Checks whether an application with the given ID exists in the registry.
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `{hasApplication: boolean}` — Whether the dock knows this application.
 - scope: `aiguru:read` · read-only
 - cache: `none`
@@ -92,7 +92,7 @@ Checks whether an application with the given ID exists in the registry.
 
 Checks whether an application with the given ID is currently loaded (open) in the dock.
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `{loaded: boolean}` — Whether the application is loaded in the dock.
 - scope: `aiguru:read` · read-only
 - cache: `none`
@@ -106,7 +106,7 @@ Checks whether an application with the given ID is currently loaded (open) in th
 
 Opens (loads) an application by its ID into the dock.
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `void` — The application was opened.
 - scope: `aiguru:write` · mutates state
 - cache: `none`
@@ -142,7 +142,7 @@ Source: `src/Services/Application/ApplicationService.js`
 
 Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed.
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `void` — Every open application was closed.
 - scope: `application:read` · read-only
 - cache: `none`
@@ -154,7 +154,7 @@ Takes no parameters.
 
 Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Close Application" default header action for iframe apps that render their own context menu (header: false).
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `void` — The calling application was closed.
 - scope: `application:write` · mutates state
 - cache: `none`
@@ -166,7 +166,7 @@ Takes no parameters.
 
 Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Expand Application" default header action for iframe apps that render their own context menu (header: false).
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `void` — The calling application was expanded.
 - scope: `application:write` · mutates state
 - cache: `none`
@@ -178,7 +178,7 @@ Takes no parameters.
 
 Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `{token: string}` — A short-lived identity token for the calling application.
 - scope: `application:read` · read-only
 - cache: `none`
@@ -538,7 +538,7 @@ Search the products YOUR app lists that are available in the user's current netw
 
 Open My Cart for the user, scoped to your app's items.
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `void` — The cart surface was opened.
 - scope: `commerce:write` · mutates state
 - cache: `none`
@@ -550,7 +550,7 @@ Takes no parameters.
 
 Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it after `create-product`, or for a "My products" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's.
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `void` — The merchant console was opened.
 - scope: `commerce:write` · mutates state
 - cache: `none`
@@ -562,7 +562,7 @@ Takes no parameters.
 
 Open the user's order history in My Cart.
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `void` — The purchases surface was opened.
 - scope: `commerce:write` · mutates state
 - cache: `none`
@@ -673,7 +673,7 @@ Source: `src/Services/DataProvider/DataProviderService.js`
 
 Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"].
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `{picked: object[]}` — What the user chose; empty when they cancelled.
 - scope: `dataprovider:read` · read-only
 - cache: `none`
@@ -692,7 +692,7 @@ Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS unti
 
 Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that.
 
-- binding: `host` · channel: `host`
+- binding: `postmessage` · channel: `postmessage`
 - returns: `{picked: object|null}` — What the user chose, or null when they cancelled.
 - scope: `dataprovider:read` · read-only
 - cache: `none`
@@ -715,7 +715,7 @@ Source: `src/Applications/DeveloperPortal/Services/DeveloperService.js`
 
 Creates a new application in the Developer Portal. By default the application is served in an iframe from https://web.texpo.io/{userId}/{appSlug} (its slug is derived from the name — lowercased, dashes; deduplicated with -2, -3, … on collision) and that texpo page needs code deployed to it before it shows anything. Pass the optional `url` to instead point the app's iframe DIRECTLY at an existing external page (no code/build needed) — the created app then opens straight to that URL. Returns the created app's id, devId, slug, URL, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens the application inside the platform, paste that `tag` value verbatim into your reply (do NOT link the raw URL).
 
-- binding: `socket` · channel: `host-state`
+- binding: `socket` · channel: `app-state`
 - returns: `{appId: string, devId: string, name: string, slug: string, url: string}` — The application that was registered in the Developer Portal.
 - scope: `developer:write` · mutates state
 - cache: `none`
@@ -732,7 +732,7 @@ Creates a new application in the Developer Portal. By default the application is
 
 Lists the current user's applications in the Developer Portal. Returns each application's appId, devId, name, slug, url, description, createdAt timestamp, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens an application inside the platform, paste its `tag` value verbatim into your reply (do NOT link the raw URL).
 
-- binding: `socket` · channel: `host-state`
+- binding: `socket` · channel: `app-state`
 - returns: `{applications: object[]}` — The caller's own Developer Portal applications.
 - scope: `developer:read` · read-only
 - cache: `none`
@@ -944,8 +944,8 @@ Source: `src/Services/Logging/LoggingService.js`
 
 Returns the captured console log buffer (log, info, warn, error) since app start. Choose the format: "text" returns { format: "text", text: <string> } with one line per entry; "file" returns { format: "file", filename, mimeType, size, file: File } — the File is for direct callers (upload/download) and is omitted in the AI/MCP serialized response, which still includes filename, mimeType, and size.
 
-- binding: `host` · channel: `host`
-- returns: `{logs: string|object[]}` — The host's captured log buffer, in the requested format.
+- binding: `postmessage` · channel: `postmessage`
+- returns: `{logs: string|object[]}` — The Valu Social application's captured log buffer, in the requested format.
 - scope: `logging:read` · read-only
 - cache: `none`
 - availability: `developer`
@@ -1545,8 +1545,8 @@ Source: `src/Services/AiGuru/VerusWalletService.js`
 
 Return the last-known balance of the wallet attached to the specified agent. Reads from the client cache — call verus:getAgentsBalance (via AiGuruStore.refreshAgentBalances) for a fresh value.
 
-- binding: `socket` · channel: `host-state` · server tool: `service__VerusWallet__get_balance`
-- returns: `{identityName: string, iAddress: string, balance: number|null}` — The agent wallet's last known balance. Read from host state, never the network.
+- binding: `socket` · channel: `app-state` · server tool: `service__VerusWallet__get_balance`
+- returns: `{identityName: string, iAddress: string, balance: number|null}` — The agent wallet's last known balance. Read from application state, never the network.
 - scope: `veruswallet:read` · read-only
 - cache: `seeded` (ttl 15000ms, key `currency`)
 - availability: `ai`, `developer`

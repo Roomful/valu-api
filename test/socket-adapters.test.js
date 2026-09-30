@@ -104,13 +104,13 @@ test('unwrapAck returns data or throws with the call named on it', () => {
   );
 });
 
-test('a socket transport refuses to serve the bridge', async () => {
+test('a socket transport refuses to serve the postMessage bridge', async () => {
   const transport = new SocketTransport({
     socket: new NodeSocketAdapter({ connection: new FakeRoomfulConnection(new Responder()) }),
   });
 
-  await assert.rejects(() => transport.request('api:run', {}), /does not support bridge requests/);
-  assert.throws(() => transport.notify('api:run-command', {}), /does not support bridge messages/);
+  await assert.rejects(() => transport.request('api:run', {}), /does not support postMessage requests/);
+  assert.throws(() => transport.notify('api:run-command', {}), /does not support postMessage messages/);
 });
 
 test('a handler that throws does not take the caller down', async () => {

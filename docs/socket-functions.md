@@ -6,9 +6,10 @@ holds to a server and speaks itself — and the feature each one provides.
 
 53 of them run on the **Roomful socket** and 11 on the **Valu Guru
 socket**. Neither one needs the Valu Social application: a Node service with a
-connection can call all 64. That is the whole difference from a *host*
-function, which only the application embedding your iframe can serve —
-[host-vs-socket.md](host-vs-socket.md) is that distinction in full.
+connection can call all 64. That is the whole difference from a
+*postMessage-bound* function, which only the Valu Social application embedding
+your iframe can serve — [postmessage-vs-socket.md](postmessage-vs-socket.md) is
+that distinction in full.
 
 Where to read what:
 
@@ -17,7 +18,7 @@ Where to read what:
 | [services.md](services.md) | what does the platform declare? (all 92 intents, every param) |
 | [server-functions.md](server-functions.md) | what must my runtime supply before a call works? |
 | **this file** | what can I do over a socket, and which socket does it? |
-| [host-vs-socket.md](host-vs-socket.md) | what do "host" and "socket" mean here? |
+| [postmessage-vs-socket.md](postmessage-vs-socket.md) | what do `postmessage` and `socket` mean here? |
 | [api-pointers.md](api-pointers.md) | the older generic mechanism, and what still needs it |
 
 ## The two sockets
@@ -39,12 +40,12 @@ data.
 
 The most confusing row in the matrix, so it is worth being explicit. These are
 declared like any other service intent and `binding` says `socket`, because
-that is what the manifest implies. There is no RPC: the answer is in the
-**host's own memory**. `channel` says `host-state`, and a runtime that holds
-the state passes it in as `{ host }`; one that does not gets an ack naming the
-capability it wanted.
+that is what the manifest implies. There is no RPC: the answer is in the **Valu
+Social application's own memory**. `channel` says `app-state`, and a runtime
+that holds the state passes it in as `{ appState }`; one that does not gets an
+ack naming the capability it wanted.
 
-| function | the state it reads | host capability |
+| function | the state it reads | `appState` capability |
 |---|---|---|
 | `AiGuru.get-chat-history` | the session's in-memory message list | `getChatHistory` |
 | `AiGuru.get-agent-history` | an agent's in-memory message list | `getAgentHistory` |
@@ -56,7 +57,7 @@ capability it wanted.
 
 Answered inside the SDK from configuration, the clock or `fetch`:
 `Http.get`, `Http.ping`, `Http.post`, `Resources.generate-best-view-url`, `Resources.generate-direct-public-url`, `Resources.generate-public-url`, `Resources.get-thumbnail-url`, `Time.get-local-time`. They need no connection and
-no host, and they are in [server-functions.md](server-functions.md) with the
+no bridge, and they are in [server-functions.md](server-functions.md) with the
 rest of what a runtime must supply.
 
 ## The features, by service
@@ -65,8 +66,8 @@ Read functions first, then writes — the split matters, because a write bypasse
 the cache on the way out and invalidates it on the way back, **including when
 it fails** (a timed-out write may still have landed).
 
-A few of them want something past the socket — an `applicationId` the host
-stamps, a `config` origin, a `fetch`, or a piece of `host` state. Those say so
+A few of them want something past the socket — an `applicationId` the runtime
+stamps, a `config` origin, a `fetch`, or a piece of `appState`. Those say so
 in bold, because without it the call answers 403 or 501 rather than working
 partially. [server-functions.md](server-functions.md) is the same information
 organized around a runtime rather than a feature.
@@ -75,7 +76,7 @@ organized around a runtime rather than a feature.
 
 System service for managing applications via AI. Provides tools to open, close, list, and check application status.
 
-*7 more `AiGuru` intents are not on a socket: 5 frame commands, 2 host state.*
+*7 more `AiGuru` intents are not on a socket: 5 frame commands, 2 application state.*
 
 **Reads**
 
@@ -293,7 +294,7 @@ Headless text-chat I/O for non-UI callers (agents, sub-agents, scripts). Read ch
 **Reads**
 
 - **`TextChat.get-channel-history`** `{channelId, limit?, beforeMessageId?, afterMessageId?}` → `{channelId: string, messages: object[], hasPrevious: boolean, hasNext: boolean}`
-  Fetches the most recent messages for a text-chat channel by channelId, decrypted and ready to read. Returns a plain list of messages with authorId, body, timestamp, and messageType. Does not open any UI or change the active channel. Answers a page of a channel's messages. **also needs `host.decryptMessage` (optional).** *(cached 30s; scope `textchat:read`)*
+  Fetches the most recent messages for a text-chat channel by channelId, decrypted and ready to read. Returns a plain list of messages with authorId, body, timestamp, and messageType. Does not open any UI or change the active channel. Answers a page of a channel's messages. **also needs `appState.decryptMessage` (optional).** *(cached 30s; scope `textchat:read`)*
 
 **Writes**
 
@@ -332,12 +333,12 @@ User management service for getting current user info, looking up users by ID, s
 
 Executes on-chain transfers from an AI agent's attached Verus wallet identity. Every call takes an agentId — the client resolves which wallet is attached to that agent. Returns an error if the agent has no wallet attached or the wallet has not finished being provisioned on-chain.
 
-*1 more `VerusWallet` intent is not on a socket: 1 host state.*
+*1 more `VerusWallet` intent is not on a socket: 1 application state.*
 
 **Writes**
 
 - **`VerusWallet.transfer`** `{agentId, destination, amount, currency?, memo?}` → `{txid: string}`
-  Send currency from the agent's attached Verus wallet to a destination address or identity. Call this when the user or agent needs to move funds out of an agent wallet. Fails if the agent has no wallet attached, or if the wallet is still pending creation. Answers the transaction that moved the funds. **also needs `host.getAgentWallet`.** *(invalidates the cache; scope `veruswallet:write`)*
+  Send currency from the agent's attached Verus wallet to a destination address or identity. Call this when the user or agent needs to move funds out of an agent wallet. Fails if the agent has no wallet attached, or if the wallet is still pending creation. Answers the transaction that moved the funds. **also needs `appState.getAgentWallet`.** *(invalidates the cache; scope `veruswallet:write`)*
 
 ## Calling them
 
@@ -346,7 +347,7 @@ const client = new ServiceClient({
   transport: new SocketTransport({
     socket,          // the Roomful socket — required
     guru,            // the Valu Guru socket — for the 11 above
-    applicationId,   // WHO is calling; the host stamps it
+    applicationId,   // WHO is calling; the runtime stamps it
   }),
 });
 

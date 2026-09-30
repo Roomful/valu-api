@@ -2,17 +2,18 @@
 // Bindings — the decisions the manifest does not carry.
 //
 // SERVICE_MANIFESTS says what a service declares. It does not say HOW a
-// declared intent is served: over the socket, computed locally, or handed to
-// the host frame. Nor does it say whether a call mutates state, which is what
+// declared intent is served: over the socket, computed locally, or handed over
+// the postMessage bridge to the Valu Social application. Nor does it say whether a call mutates state, which is what
 // decides the cache and retry policy. Those are decisions; they live here, in
 // one table, and the generator stamps them onto every descriptor.
 //
-// Counts asserted by test/catalog.test.js — 92 declared intents = 15 host +
-// 8 local + 69 socket.
+// Counts asserted by test/catalog.test.js — 92 declared intents =
+// 15 postmessage + 8 local + 69 socket.
 // ===========================================================================
 
-/** Served by the host frame over the postMessage bridge. Never SDK-able. */
-export const HOST_BOUND = [
+/** Served by the Valu Social application over the postMessage bridge. Never
+ * SDK-able: there is no RPC behind any of them. */
+export const POSTMESSAGE_BOUND = [
   // The app dock / AI Guru surface — window management, not data.
   'AiGuru.open',
   'AiGuru.close',
@@ -24,18 +25,18 @@ export const HOST_BOUND = [
   'Application.close_all',
   'Application.expand-application',
   'Application.close-application',
-  // Pickers: they render host UI and return the user's choice.
+  // Pickers: they render application UI and return the user's choice.
   'DataProvider.pick-single',
   'DataProvider.pick-multiple',
-  // Reads the host's own log buffer.
+  // Reads the application's own log buffer.
   'Logging.get-logs',
-  // "open" = navigate the host to a screen.
+  // "open" = navigate the application to a screen.
   'Commerce.open-cart',
   'Commerce.open-purchases',
   'Commerce.open-products',
 ];
 
-/** Answered by the SDK itself — no socket, no host. */
+/** Answered by the SDK itself — no socket, no bridge. */
 export const LOCAL = [
   // Pure URL builders over a resource id + the network's CDN host.
   'Resources.get-thumbnail-url',
@@ -81,7 +82,7 @@ export function mutates(key, action) {
  * Per-function cache policy overrides. The default (see `defaultCache`) is
  * read-through for socket reads and none for everything else.
  *
- * `mode: 'seeded'` means: serve from cache when the host has seeded it,
+ * `mode: 'seeded'` means: serve from cache when the caller has seeded it,
  * otherwise go to the socket. The app's VerusWallet.getBalance answers from
  * the store cache and never hits the network (valu-tools/verus.ts records
  * this); the SDK must not silently turn that into a wallet RPC.
@@ -101,11 +102,11 @@ const KEY_PARAMS = [
 export function defaultCache(key, binding, isMutation, params, channel) {
   if (key in CACHE_OVERRIDES) return CACHE_OVERRIDES[key];
   if (binding !== 'socket' || isMutation) return { mode: 'none' };
-  // Host state is already in memory: caching it buys nothing and costs
+  // Application state is already in memory: caching it buys nothing and costs
   // staleness — a chat history 30 seconds behind is a chat history missing the
   // message the caller asked about. (VerusWallet.get-balance is the exception,
   // and says so in CACHE_OVERRIDES.)
-  if (channel === 'host-state') return { mode: 'none' };
+  if (channel === 'app-state') return { mode: 'none' };
   const names = [...params.required, ...params.optional].map((p) => p.name);
   const entityKey = KEY_PARAMS.find((k) => names.includes(k)) ?? null;
   return { mode: 'read-through', ttlMs: 30_000, key: entityKey };

@@ -45,7 +45,7 @@ import "./services/impl/index.js";
 export { registerAll } from "./services/impl/index.js";
 export { FrameCommands, FRAME_COMMANDS, FRAME_COMMAND_KINDS, frameCommandKind } from "./frame/FrameCommands.js";
 export { guruAdapter, guruAck, isGuruSocket } from "./socket/ValuGuruSocket.js";
-export { noHostStateAck } from "./host/HostState.js";
+export { noAppStateAck } from "./app-state/AppState.js";
 export { resolveConfig } from "./Config.js";
 export {
   uploadResource, uploadResources, createUploadSession, MAX_UPLOAD_BYTES,
@@ -82,7 +82,7 @@ export class ValuApi {
    *
    * `ValuApi` used to be its own transport — it bound the window's `message`
    * listener and called `postMessage` itself. Both now live behind
-   * {@link Transport}; the default is still the host bridge, byte for byte.
+   * {@link Transport}; the default is still the postMessage bridge, byte for byte.
    * @returns {Transport}
    */
   get transport() {
@@ -100,10 +100,11 @@ export class ValuApi {
   }
 
   /**
-   * The fifteen host-bound intents, as a named API — Phase 2d.
+   * The fifteen postMessage-bound intents, as a named API — Phase 2d.
    *
    * They are not service functions and `services` answers all fifteen with the
-   * same 501. This is where they live: same bridge traffic, a method each.
+   * same 501. This is where they live: the same postMessage traffic, a method
+   * each.
    * @returns {FrameCommands}
    */
   get frame() {
@@ -112,7 +113,7 @@ export class ValuApi {
   }
 
   /**
-   * @param {{transport?: Transport}} [options] Defaults to the host bridge.
+   * @param {{transport?: Transport}} [options] Defaults to the postMessage bridge.
    *   A socket-backed client is built with {@link ServiceClient} over a
    *   {@link SocketTransport} instead.
    */
@@ -178,7 +179,7 @@ export class ValuApi {
    *
    * Developers should create a class that extends {@link ValuApplication} and implement
    * its lifecycle methods.
-   * This instance will receive all lifecycle callbacks sent from the Valu Social host application.
+   * This instance will receive all lifecycle callbacks sent from the Valu Social application.
    */
   setApplication(appInstance) {
     this.#applicationInstance = appInstance;
@@ -227,7 +228,8 @@ export class ValuApi {
   }
 
   /**
-   * Runs a service intent and resolves with the host's raw result.
+   * Runs a service intent and resolves with the raw result the Valu Social
+   * application sends back.
    *
    * Unchanged. The typed, validated, cached path is {@link ValuApi#services}.
    */

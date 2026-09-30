@@ -4,7 +4,8 @@
 // Acquisition, the app token on the handshake, refresh and revocation.
 //
 // The SDK never mints a token and never sees the user's credential: it asks
-// the host (or, headless, the caller's own supplier) for an application token
+// the Valu Social application (or, headless, the caller's own supplier) for an
+// application token
 // and works with what it gets back. Scope enforcement is local and advisory
 // until Phase 3.3 puts the check on the dispatch side — an app token today
 // grants whatever the user can do, which is exactly why no third-party app
@@ -23,7 +24,7 @@ export class AuthProvider {
   /**
    * @param {object} options
    * @param {() => Promise<import('./TokenStore.js').AppToken>} options.acquire
-   *   Asks the host for a token. In the browser this is the bridge's
+   *   Asks for a token. In the browser this is the bridge's
    *   `Application.get-identity-token`; headless it is whatever the caller
    *   already uses to authenticate.
    * @param {(token: import('./TokenStore.js').AppToken) => Promise<void>} [options.revoke]
@@ -46,7 +47,7 @@ export class AuthProvider {
    * A valid token, acquiring or refreshing as needed.
    *
    * Concurrent callers share one acquisition: a reconnect that wakes fifty
-   * pending calls must not ask the host for fifty tokens.
+   * pending calls must not ask for fifty tokens.
    * @param {{force?: boolean}} [options]
    */
   async getToken({ force = false } = {}) {
@@ -65,10 +66,10 @@ export class AuthProvider {
     return this.#inFlight;
   }
 
-  /** Force a refresh. Same path as acquisition — the host decides the rest. */
+  /** Force a refresh. Same path as acquisition — the issuer decides the rest. */
   refresh() { return this.getToken({ force: true }); }
 
-  /** Drop the token locally, and tell the host if it offered a way to. */
+  /** Drop the token locally, and tell the issuer if it offered a way to. */
   async revoke() {
     const token = this.#store.get();
     this.#store.clear();

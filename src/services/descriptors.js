@@ -27,7 +27,7 @@ import { SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS } from './catalog.generated.js';
  * @property {string} description
  * @property {string[]} availability `ai` / `developer`.
  * @property {string[]} scopes Scopes a caller must hold.
- * @property {'socket'|'local'|'host'} binding What serves this function.
+ * @property {'socket'|'local'|'postmessage'} binding What serves this function.
  * @property {boolean} mutates
  * @property {{mode: 'none'|'read-through'|'seeded', ttlMs?: number, key?: string|null}} cache
  * @property {{type: string, description: string}} returns
@@ -80,7 +80,7 @@ export function listServices() {
 
 /** Descriptor counts by binding — the parity numbers, straight from the source. */
 export function catalogSummary() {
-  const summary = { total: SERVICE_DESCRIPTORS.length, socket: 0, local: 0, host: 0, implemented: 0 };
+  const summary = { total: SERVICE_DESCRIPTORS.length, socket: 0, local: 0, postmessage: 0, implemented: 0 };
   for (const d of SERVICE_DESCRIPTORS) {
     summary[d.binding]++;
     if (d.implementedBy) summary.implemented++;

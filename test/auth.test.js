@@ -80,7 +80,7 @@ test('concurrent callers share one acquisition', async () => {
 
   await Promise.all(Array.from({ length: 50 }, () => auth.getToken()));
 
-  assert.equal(acquisitions, 1, 'a reconnect must not ask the host fifty times');
+  assert.equal(acquisitions, 1, 'a reconnect must not ask for a token fifty times');
 });
 
 test('a stale token is refreshed on the next call that needs it', async () => {
@@ -113,7 +113,7 @@ test('acquire returning nothing is an error, not a silent no-token', async () =>
   await assert.rejects(() => auth.getToken(), /returned no token/);
 });
 
-test('revoke clears locally and tells the host', async () => {
+test('revoke clears locally and tells the issuer', async () => {
   const revoked = [];
   const auth = new AuthProvider({
     acquire: async () => token(),

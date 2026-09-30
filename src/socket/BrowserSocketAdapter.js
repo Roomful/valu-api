@@ -27,7 +27,7 @@ export class BrowserSocketAdapter {
    * @param {string} [options.networkId]
    * @param {string|null} [options.selfUserId]
    * @param {(handler: (data: any) => void) => (() => void)} [options.onResourceUpdated]
-   *   Supply when the host can push `resource:updated`; omit to leave the
+   *   Supply when the caller can push `resource:updated`; omit to leave the
    *   optional hook off the adapter entirely, so consumers fall back to
    *   polling rather than silently subscribing to nothing.
    */

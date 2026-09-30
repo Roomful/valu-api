@@ -1,4 +1,4 @@
-// Phase 2d — the fifteen host-bound intents as a named API. The wire is
+// Phase 2d — the fifteen postMessage-bound intents as a named API. The wire is
 // unchanged (`api:service-intent`), which these tests assert directly: if the
 // frame API and the old bridge traffic ever disagree, this file fails.
 import { test } from 'node:test';
@@ -20,14 +20,14 @@ function bridge() {
   return { window, transport, frame: new FrameCommands(transport) };
 }
 
-/** Answer the last posted request as the host would. */
+/** Answer the last posted request as the Valu Social application would. */
 function reply(window, message) {
   const posted = window.lastPost();
   window.deliver({ name: 'api:run-completed', message, requestId: posted.message.requestId });
 }
 
-test('the fifteen are exactly the host-bound descriptors', () => {
-  const declared = listDescriptors({ binding: 'host' }).map((d) => d.key).sort();
+test('the fifteen are exactly the postMessage-bound descriptors', () => {
+  const declared = listDescriptors({ binding: 'postmessage' }).map((d) => d.key).sort();
   assert.equal(FRAME_COMMANDS.length, 15);
   assert.deepEqual([...FRAME_COMMANDS].sort(), declared);
 });
@@ -72,7 +72,7 @@ test('a picker carries the params the manifest declares', async () => {
   assert.deepEqual((await pending).data, { picked: { id: 'u-1' } });
 });
 
-test('a host refusal becomes an error ack, not a rejection', async () => {
+test('an application refusal becomes an error ack, not a rejection', async () => {
   const { window, frame } = bridge();
 
   const pending = frame.closeSelf();
@@ -90,7 +90,7 @@ test('a string error is an error ack too', async () => {
   assert.equal((await pending).error.message, 'no log buffer');
 });
 
-test('a service function is refused — the mirror of the socket refusing a host intent', async () => {
+test('a service function is refused — the mirror of the socket refusing a postMessage intent', async () => {
   const { frame } = bridge();
 
   const ack = await frame.run('Users.get', { userId: 'u-1' });
@@ -117,7 +117,7 @@ test('before api:ready a frame command is 503, not a TypeError', async () => {
 test('a socket transport cannot be a frame — refused at construction', () => {
   const socket = new NodeSocketAdapter({ connection: new FakeRoomfulConnection(new Responder()) });
   const transport = new SocketTransport({ socket });
-  assert.throws(() => new FrameCommands(transport), /speaks the host bridge; SocketTransport does not/);
+  assert.throws(() => new FrameCommands(transport), /speaks the postMessage bridge; SocketTransport does not/);
 });
 
 test('every frame command reaches the bridge under its own declared name', async () => {

@@ -4,7 +4,7 @@
 // Per-application, per-user file storage. One belonging, always
 // (`app:{applicationId}:userSortingTable:{userId}`) — which is the whole
 // security model: an app addresses its own shelf and cannot name another's, so
-// the application id comes from the HOST (ctx.applicationId), never from
+// the application id comes from the RUNTIME (ctx.applicationId), never from
 // params.
 //
 // The upload is the four-step CMS pipeline (src/upload/ResourceUpload.js), not

@@ -5,8 +5,8 @@
  * Developers should extend this class to implement application-specific logic
  * for handling lifecycle events within the Valu Social ecosystem.
  *
- * The Valu API will automatically call these lifecycle methods when the host
- * application sends corresponding events (e.g., app launch, new intent, destroy).
+ * The Valu API will automatically call these lifecycle methods when the Valu
+ * Social application sends corresponding events (e.g., app launch, new intent, destroy).
  */
 
 export class ValuApplication {
@@ -35,7 +35,7 @@ export class ValuApplication {
    *
    * This typically happens when:
    *  the app moves between main / side / modal containers
-   *  the host updates routing or layout state
+   *  Valu Social updates routing or layout state
    * @param {string} context
    */
   onUpdateRouterContext(context) {};

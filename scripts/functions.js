@@ -2,7 +2,8 @@
 // Per-function Phase 2 metadata — the channel that serves a function, and the
 // shape it answers with.
 //
-// WHAT PHASE 2 FOUND. Phase 1 recorded `binding: socket | local | host`, taken
+// WHAT PHASE 2 FOUND. Phase 1 recorded `binding: socket | local | postmessage`,
+// taken
 // from the manifest plus one decision per intent. Writing the 77 SDK-able
 // functions against the real sources showed that "socket" is THREE different
 // things, and a function written for the wrong one fails in a way the ack
@@ -17,14 +18,15 @@
 //               `valuguru.*`. 11 functions: the ten socket-backed Commerce
 //               intents and AiGuru.query-knowledge-base. NOT the same socket,
 //               NOT the same envelope, NOT the same auth.
-//   host-state  served from state only the host holds — no RPC exists. 5
+//   app-state   served from state only the Valu Social application holds — no
+//               RPC exists, and outside a frame nothing can produce it. 5
 //               functions: the two AiGuru history reads (in-memory sessions),
 //               the two Developer Portal reads/writes (DeveloperPortalStore),
 //               and VerusWallet.get-balance (the store's cached balance, which
 //               is exactly the case the implementation plan warned about).
 //
-// The binding counts are unchanged — 69 socket / 8 local / 15 host — so the
-// parity target still holds; `channel` says WHICH socket, which is what a
+// The binding counts are unchanged — 69 socket / 8 local / 15 postmessage — so
+// the parity target still holds; `channel` says WHICH socket, which is what a
 // handler needs to know and what the plan's matrix could not express.
 //
 // `returns` completes the descriptor: Phase 1 shipped every function with
@@ -52,15 +54,15 @@ export const VALUGURU_CHANNEL = [
 ];
 
 /**
- * Declared functions that no RPC serves: the answer lives in host state.
+ * Declared functions that no RPC serves: the answer lives in application state.
  *
  * They stay `binding: 'socket'` because that is what the manifest declares and
  * what the parity count is taken from — but a socket cannot answer them, so
- * the handler reads `ctx.host` and says plainly what is missing when the host
- * did not provide it. Phase 3.1 (invert the store relationship) is what turns
+ * the handler reads `ctx.appState` and says plainly what is missing when the
+ * runtime did not provide it. Phase 3.1 (invert the store relationship) is what turns
  * these into real functions; until then the SDK must not pretend.
  */
-export const HOST_STATE_CHANNEL = [
+export const APP_STATE_CHANNEL = [
   // AiGuruService.onNewIntent reads the in-memory session/agent message lists.
   'AiGuru.get-chat-history',
   'AiGuru.get-agent-history',
@@ -159,7 +161,7 @@ export const RETURNS = {
   'Http.post': { type: '{ok: boolean, status: number, statusText: string, headers: object, body: any, bodyType: string, latency: number}', description: 'The response, with the body parsed per responseType.' },
 
   // --- Logging -------------------------------------------------------------
-  'Logging.get-logs': { type: '{logs: string|object[]}', description: 'The host\'s captured log buffer, in the requested format.' },
+  'Logging.get-logs': { type: '{logs: string|object[]}', description: 'The Valu Social application\'s captured log buffer, in the requested format.' },
 
   // --- Networks ------------------------------------------------------------
   'Networks.get-current-network': { type: '{networkId: string, name: string|null}', description: 'The active network id and its human-readable name.' },
@@ -211,7 +213,7 @@ export const RETURNS = {
   'Users.cancel-connection-request': { type: 'void', description: 'The outgoing request was cancelled.' },
 
   // --- VerusWallet ---------------------------------------------------------
-  'VerusWallet.get-balance': { type: '{identityName: string, iAddress: string, balance: number|null}', description: 'The agent wallet\'s last known balance. Read from host state, never the network.' },
+  'VerusWallet.get-balance': { type: '{identityName: string, iAddress: string, balance: number|null}', description: 'The agent wallet\'s last known balance. Read from application state, never the network.' },
   'VerusWallet.transfer': { type: '{txid: string}', description: 'The transaction that moved the funds.' },
 };
 
@@ -326,8 +328,8 @@ export const KNOWN_DELTAS = [
       'The app decrypts an encrypted body with the user\'s key material, which lives in the '
       + 'browser; the server\'s tools do not decrypt at all. The SDK returns bodies as the '
       + 'platform stored them and flags an encrypted one `encrypted: true` — saying so beats '
-      + 'handing back ciphertext that reads like a message. A host that CAN decrypt supplies '
-      + '`host.decryptMessage`.',
+      + 'handing back ciphertext that reads like a message. A runtime that CAN decrypt '
+      + 'supplies `appState.decryptMessage`.',
   },
   {
     key: 'TextChat.send-message',
@@ -349,8 +351,8 @@ export const KNOWN_DELTAS = [
     key: 'Commerce.create-product',
     delta:
       'Without a `title` the app opens the platform\'s create-product FORM and waits for the '
-      + 'seller. There is no SDK equivalent of a modal, so the SDK answers 501 naming the host '
-      + 'surface rather than failing obscurely. With a title it creates the draft directly, '
+      + 'seller. There is no SDK equivalent of a modal, so the SDK answers 501 naming the '
+      + 'application surface rather than failing obscurely. With a title it creates the draft directly, '
       + 'exactly as the app does.',
   },
   {
@@ -367,9 +369,9 @@ export const KNOWN_DELTAS = [
 //
 // `channel` already says which socket answers, and SocketTransport refuses a
 // missing channel by name before the handler runs. But four functions in ten
-// want something MORE than their channel: an application identity the host
-// stamps, a `fetch`, an origin to build a URL against, or a piece of state only
-// the host holds. A server integrator has to know that BEFORE the first call,
+// want something MORE than their channel: an application identity the Valu
+// Social app stamps, a `fetch`, an origin to build a URL against, or a piece of
+// state only that application holds. A server integrator has to know that BEFORE the first call,
 // because "403 the calling application could not be identified" arrives at run
 // time and reads like an auth problem.
 //
@@ -378,12 +380,13 @@ export const KNOWN_DELTAS = [
 // true, or a new one nobody wrote down, fails the build rather than the docs.
 //
 // Tags:
-//   applicationId          the host-stamped caller identity; 403 without it
+//   applicationId          the caller identity the app stamps; 403 without it
 //   applicationId?         used when present (a belonging fallback), not required
 //   fetch                  outbound HTTP; `ctx.fetchImpl ?? globalThis.fetch`
 //   config                 { webBase, apiGate } — the origin a URL is built on
-//   host.<capability>      state only the host holds (src/host/HostState.js)
-//   host.<capability>?     optional; the function degrades rather than refusing
+//   appState.<capability>  state only the application holds
+//                          (src/app-state/AppState.js)
+//   appState.<capability>? optional; the function degrades rather than refusing
 // ---------------------------------------------------------------------------
 export const REQUIREMENTS = {
   // Commerce scopes the buyer-facing catalogue to the calling app. The seller
@@ -408,18 +411,18 @@ export const REQUIREMENTS = {
   'Resources.generate-best-view-url': ['config'],
   'Resources.generate-direct-public-url': ['config'],
   'Resources.get-thumbnail-url': ['config'],
-  'AiGuru.get-chat-history': ['host.getChatHistory'],
-  'AiGuru.get-agent-history': ['host.getAgentHistory'],
-  'Developer.list-applications': ['host.listDeveloperApplications'],
-  'Developer.create-application': ['host.createDeveloperApplication'],
-  'VerusWallet.get-balance': ['host.getAgentWallet'],
+  'AiGuru.get-chat-history': ['appState.getChatHistory'],
+  'AiGuru.get-agent-history': ['appState.getAgentHistory'],
+  'Developer.list-applications': ['appState.listDeveloperApplications'],
+  'Developer.create-application': ['appState.createDeveloperApplication'],
+  'VerusWallet.get-balance': ['appState.getAgentWallet'],
   // `transfer` emits on the Roomful socket, but it cannot START there: the
   // declared param is an AGENT id and the RPC wants the wallet's identity and
-  // i-address, which only the host can resolve. A headless runtime with no
+  // i-address, which only the application can resolve. A headless runtime with no
   // wallet state cannot transfer, and says so instead of guessing an address.
-  'VerusWallet.transfer': ['host.getAgentWallet'],
+  'VerusWallet.transfer': ['appState.getAgentWallet'],
   // Key material for an encrypted channel lives in the browser. Without it an
   // encrypted body comes back flagged rather than as ciphertext that reads
   // like a message (docs/parity.md).
-  'TextChat.get-channel-history': ['host.decryptMessage?'],
+  'TextChat.get-channel-history': ['appState.decryptMessage?'],
 };

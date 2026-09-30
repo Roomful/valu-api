@@ -3,8 +3,9 @@
 //
 // `ValuApi` used to BE its transport: it bound `globalThis.addEventListener
 // ('message')` in its constructor and called `postMessage` directly. Those two
-// facts are now behind this interface, so the same API object can speak to the
-// host frame or to a socket without either one leaking into the other.
+// facts are now behind this interface, so the same API object can speak over
+// the postMessage bridge or to a socket without either one leaking into the
+// other.
 //
 // Two implementations ship: PostMessageTransport (today's bridge, unchanged on
 // the wire) and SocketTransport (new).
@@ -27,14 +28,15 @@ export class Transport {
   get connected() { return false; }
 
   /**
-   * Whether this transport speaks the host bridge at all.
+   * Whether this transport speaks the postMessage bridge at all — i.e. whether
+   * there is a Valu Social application on the other end of it.
    *
    * `request`/`notify` exist on every transport — they throw where they are
    * not supported — so "has a request method" does not answer the question.
    * FrameCommands asks this one instead: there is no frame behind a socket,
    * and finding that out per call would be fifteen identical surprises.
    */
-  get supportsBridge() { return false; }
+  get supportsPostMessage() { return false; }
 
   /** Human name, for error messages that have to say which transport refused. */
   get name() { return this.constructor.name; }
@@ -46,19 +48,19 @@ export class Transport {
   async open() {}
 
   /**
-   * Request/response over the host bridge.
+   * Request/response over the postMessage bridge.
    * @param {string} _name Bridge message name, e.g. `api:run`.
    * @param {object} _message
    * @param {number} [_requestId] Supplied when the caller owns the id.
    * @returns {Promise<any>} The reply message, verbatim.
    */
   async request(_name, _message, _requestId) {
-    throw new Error(`${this.name} does not support bridge requests`);
+    throw new Error(`${this.name} does not support postMessage requests`);
   }
 
   /** Fire-and-forget bridge message. */
   notify(_name, _message) {
-    throw new Error(`${this.name} does not support bridge messages`);
+    throw new Error(`${this.name} does not support postMessage messages`);
   }
 
   /**

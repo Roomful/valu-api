@@ -95,7 +95,7 @@ export function guruAdapter(service) {
  * UNSUPPORTED, not DISCONNECTED: a missing socket is a fact of how the
  * transport was built, and nothing about it changes between attempts — a
  * retriable code would buy three attempts and two backoffs for an answer that
- * cannot improve. Same reason `noHostStateAck` is 501.
+ * cannot improve. Same reason `noAppStateAck` is 501.
  */
 export const noGuruAck = (descriptor) => errorAck(
   ERROR_CODES.UNSUPPORTED,

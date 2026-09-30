@@ -16,7 +16,7 @@ test('the catalogue matches the parity target', () => {
     total: 92,      // declared service intents
     socket: 69,     // SDK-able, socket-backed
     local: 8,       // SDK-able, answered locally
-    host: 15,       // host/UI-bound — stay on the bridge
+    postmessage: 15, // UI-bound — stays on the postMessage bridge
     implemented: 32, // already server tools, exact name match
     sdkable: 77,
     remaining: 45,
@@ -39,7 +39,7 @@ test('every descriptor is complete and frozen', () => {
     assert.equal(d.fn, d.action.replace(/-/g, '_'));
     assert.equal(d.toolName, `service__${d.service}__${d.fn}`);
     assert.ok(d.description.length > 0, `${d.key} has no description`);
-    assert.ok(['socket', 'local', 'host'].includes(d.binding), d.key);
+    assert.ok(['socket', 'local', 'postmessage'].includes(d.binding), d.key);
     assert.equal(typeof d.mutates, 'boolean');
     assert.ok(d.scopes.length > 0, `${d.key} declares no scope`);
     assert.ok(['none', 'read-through', 'seeded'].includes(d.cache.mode), d.key);
@@ -64,12 +64,12 @@ test('a function resolves by any of the four names the platform uses', () => {
   assert.equal(findDescriptor(undefined), undefined);
 });
 
-test('a write is never cached; a host function is never cached', () => {
+test('a write is never cached; a postMessage-bound function is never cached', () => {
   for (const d of listDescriptors({ mutates: true })) {
     assert.equal(d.cache.mode, 'none', `${d.key} is a write and must not be cached`);
   }
-  for (const d of listDescriptors({ binding: 'host' })) {
-    assert.equal(d.cache.mode, 'none', `${d.key} is host-bound and must not be cached`);
+  for (const d of listDescriptors({ binding: 'postmessage' })) {
+    assert.equal(d.cache.mode, 'none', `${d.key} is postMessage-bound and must not be cached`);
   }
 });
 
@@ -77,7 +77,7 @@ test('the 32 already-implemented functions are all SDK-able', () => {
   const implemented = SERVICE_DESCRIPTORS.filter((d) => d.implementedBy);
   assert.equal(implemented.length, 32);
   for (const d of implemented) {
-    assert.notEqual(d.binding, 'host', `${d.key} cannot be both a server tool and host-bound`);
+    assert.notEqual(d.binding, 'postmessage', `${d.key} cannot be both a server tool and postMessage-bound`);
     assert.equal(d.implementedBy, d.toolName);
   }
 });
@@ -115,12 +115,12 @@ test('an enum param becomes a schema enum', () => {
     ['newest', 'popular', 'priceAsc', 'priceDesc', 'rating']);
 });
 
-test('the default tool surface is AI-available and never host-bound', () => {
+test('the default tool surface is AI-available and never postMessage-bound', () => {
   const defs = toolDefinitions();
   const names = new Set(defs.map((d) => d.function.name));
   assert.ok(defs.length > 0);
-  for (const d of listDescriptors({ availability: 'ai', binding: 'host' })) {
-    assert.equal(names.has(d.toolName), false, `${d.key} is host-bound and must not be offered as a tool`);
+  for (const d of listDescriptors({ availability: 'ai', binding: 'postmessage' })) {
+    assert.equal(names.has(d.toolName), false, `${d.key} is postMessage-bound and must not be offered as a tool`);
   }
   for (const name of names) {
     const descriptor = findDescriptor(name);
@@ -133,11 +133,11 @@ test('a function with no params still gets an object schema', () => {
   assert.deepEqual(def.function.parameters, { type: 'object', properties: {}, additionalProperties: false });
 });
 
-test('the registry refuses what is not declared, and what is host-bound', () => {
+test('the registry refuses what is not declared, and what is postMessage-bound', () => {
   const registry = new ServiceRegistry();
 
   assert.throws(() => registry.define('Users.teleport', async () => ({})), /not a declared service function/);
-  assert.throws(() => registry.define('Logging.get-logs', async () => ({})), /host-bound/);
+  assert.throws(() => registry.define('Logging.get-logs', async () => ({})), /postMessage-bound/);
   assert.throws(() => registry.define('Users.get', 'not a function'), /must be a function/);
 
   registry.define('Users.get', async () => ({ data: 1 }));
@@ -149,34 +149,34 @@ test('the registry refuses what is not declared, and what is host-bound', () => 
 // Phase 2 — the parity matrix implemented.
 // ---------------------------------------------------------------------------
 
-test('every SDK-able function is implemented, and no host one is', async () => {
+test('every SDK-able function is implemented, and no postMessage-bound one is', async () => {
   const { serviceRegistry } = await import('../src/services/impl/index.js');
   const implemented = new Set(serviceRegistry.implemented());
 
-  const sdkable = SERVICE_DESCRIPTORS.filter((d) => d.binding !== 'host');
+  const sdkable = SERVICE_DESCRIPTORS.filter((d) => d.binding !== 'postmessage');
   assert.equal(sdkable.length, 77, 'the parity target: 69 socket + 8 local');
 
   const missing = sdkable.map((d) => d.key).filter((key) => !implemented.has(key));
   assert.deepEqual(missing, [], 'Phase 2 is not done while one of these is unimplemented');
 
-  for (const d of listDescriptors({ binding: 'host' })) {
+  for (const d of listDescriptors({ binding: 'postmessage' })) {
     assert.equal(implemented.has(d.key), false, `${d.key} is a frame command, not a service function`);
   }
   assert.equal(implemented.size, 77);
 });
 
 test('the channel says WHICH socket, and every socket function has one', () => {
-  const counts = { roomful: 0, valuguru: 0, 'host-state': 0, local: 0, host: 0 };
+  const counts = { roomful: 0, valuguru: 0, 'app-state': 0, local: 0, postmessage: 0 };
   for (const d of SERVICE_DESCRIPTORS) {
     assert.ok(d.channel in counts, `${d.key} has channel "${d.channel}"`);
     counts[d.channel]++;
-    // A `local` or `host` function's channel restates its binding; only a
+    // A `local` or `postmessage` function's channel restates its binding; only a
     // socket one adds anything, and it must add something.
     if (d.binding !== 'socket') assert.equal(d.channel, d.binding, d.key);
     else assert.notEqual(d.channel, 'socket', `${d.key} must say which socket`);
   }
-  assert.deepEqual(counts, { roomful: 53, valuguru: 11, 'host-state': 5, local: 8, host: 15 });
-  assert.equal(counts.roomful + counts.valuguru + counts['host-state'], 69, 'still 69 socket-bound');
+  assert.deepEqual(counts, { roomful: 53, valuguru: 11, 'app-state': 5, local: 8, postmessage: 15 });
+  assert.equal(counts.roomful + counts.valuguru + counts['app-state'], 69, 'still 69 socket-bound');
 });
 
 test('Commerce rides the Valu Guru socket, not the Roomful one', () => {
@@ -189,8 +189,8 @@ test('Commerce rides the Valu Guru socket, not the Roomful one', () => {
   assert.equal(findDescriptor('Users.get').channel, 'roomful');
 });
 
-test('host-state functions are never cached — except the one that is only a cache', () => {
-  for (const d of SERVICE_DESCRIPTORS.filter((d) => d.channel === 'host-state')) {
+test('app-state functions are never cached — except the one that is only a cache', () => {
+  for (const d of SERVICE_DESCRIPTORS.filter((d) => d.channel === 'app-state')) {
     if (d.key === 'VerusWallet.get-balance') {
       assert.equal(d.cache.mode, 'seeded');
       continue;

@@ -51,8 +51,8 @@ That splits the package cleanly by consumer:
 | `roomful` | 53 | **adopt** — this is what its tools already do | adopt |
 | `local` | 8 | **adopt** — no socket involved | adopt |
 | `valuguru` | 11 | **no** — it is the provider | adopt |
-| `host-state` | 5 | no — browser store state (it already stubs 2 honestly) | adopt, supplying `HostState` |
-| `host` | 15 | no — there is no frame | already the frame |
+| `app-state` | 5 | no — browser store state (it already stubs 2 honestly) | adopt, supplying `AppState` |
+| `postmessage` | 15 | no — there is no frame | already the frame |
 
 Server-adoptable: **61**. It has **31** of them today. That is the +30.
 
@@ -78,7 +78,7 @@ Server-adoptable: **61**. It has **31** of them today. That is the +30.
 | Http | 0 | 3 | +3 |
 | Time | 0 | 1 | +1 |
 | Commerce | 0 | 10 | not here — the server provides them |
-| AiGuru | 0 | 3 | not here — 2 host-state, 1 is its own RAG |
+| AiGuru | 0 | 3 | not here — 2 app-state, 1 is its own RAG |
 | Developer | 0 | 2 | not here — Developer Portal is browser state |
 
 The 30, by name:
@@ -150,7 +150,7 @@ possible first commit.
    a room/prop/community instead) carries the load.
 
 3. **VerusWallet stays as it is.** Both functions need
-   `host.getAgentWallet` — `get-balance` because there is no ack-returning
+   `appState.getAgentWallet` — `get-balance` because there is no ack-returning
    balance RPC at all, `transfer` because the declared param is an agent id and
    the RPC wants the wallet's identity and i-address. That is the same honest
    gap the server's own stubs record, and the reason the pair is excluded from
@@ -182,7 +182,7 @@ these functions came from. Its transition is the inverse of the server's: not
   commands, which matches.
 - 60 intents carry `availability: ['ai']`. This package serves 58 of them; the
   two it does not are `DataProvider.pick-single` and `pick-multiple`, which
-  render host UI and return the user's choice.
+  render the application's own UI and return the user's choice.
 - The delegation point is each service's `onNewIntent`: build one
   `ServiceClient` over `BrowserSocketAdapter`, and have the service return
   `client.call(...)` instead of its own socket work. `Time` and `Resources` are
@@ -198,8 +198,8 @@ where the difference is visible to a user.
 | function | the difference | what it needs |
 |---|---|---|
 | `Resources.get-thumbnail-url` | the SDK builds the public URL; the app's RPC also returns decryption metadata, so an encrypted resource gets a URL it cannot decrypt with | reclassify to `socket` and emit `resource:getThumbnailUrl`. Moves the frozen 8/69 local/socket split, so it is a Phase 3 change, not a quiet one |
-| `TextChat.get-channel-history` | the SDK does not decrypt | the app already has the key material — pass `host.decryptMessage`, which the `HostState` interface already declares |
-| `TextChat.send-message` | the SDK does not encrypt outbound bodies | needs the mirror of the above: an outbound `host.encryptMessage`. Not yet declared |
+| `TextChat.get-channel-history` | the SDK does not decrypt | the app already has the key material — pass `appState.decryptMessage`, which the `AppState` interface already declares |
+| `TextChat.send-message` | the SDK does not encrypt outbound bodies | needs the mirror of the above: an outbound `appState.encryptMessage`. Not yet declared |
 | `Events.create-meeting` | a `direct` meeting with more than one participant is refused; the app silently creates a Group for it | keep the group creation in the app's service, above the SDK call. It is a UI decision with a second write and no undo |
 | `Commerce.create-product` | with no `title` the app opens the platform's form; the SDK answers 501 naming that surface | keep the form in the app: check for a title, open the modal if absent, call the SDK if present |
 | `Rooms.create-room-from-template` | the app also reloads the Rooms data provider's cached lists | keep the reload in the app's service, after the SDK call |

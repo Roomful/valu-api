@@ -11,7 +11,7 @@
 // body and decrypts an incoming one through the user's key material, which
 // lives in the browser — the server's tools do neither. So the SDK sends
 // plaintext and returns bodies as the platform stored them, and offers the
-// host one hook (`decryptMessage`) to do better where it can. A body that came
+// runtime one hook (`appState.decryptMessage`) to do better where it can. A body that came
 // back encrypted says so in `encrypted: true` rather than arriving as noise
 // that reads like a message.
 // ===========================================================================
@@ -146,8 +146,8 @@ export function register(registry) {
       if (isAckError(ack)) return ack;
 
       const self = ctx.socket.selfUserId || ctx.socket.userId || null;
-      const decrypt = typeof ctx.host?.decryptMessage === 'function'
-        ? (body, message) => ctx.host.decryptMessage(body, message)
+      const decrypt = typeof ctx.appState?.decryptMessage === 'function'
+        ? (body, message) => ctx.appState.decryptMessage(body, message)
         : null;
 
       const messages = [];

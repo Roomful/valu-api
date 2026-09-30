@@ -20,13 +20,13 @@ intended.
 
 `AuthProvider({acquire})`. The SDK never mints a token:
 
-- **Browser** — `acquire` asks the host over the bridge
-  (`Application.get-identity-token`, which stays host-bound precisely because
-  minting is the host's job).
+- **Browser** — `acquire` asks the Valu Social application over the postMessage
+  bridge (`Application.get-identity-token`, which stays postMessage-bound
+  precisely because minting the token is that application's job).
 - **Headless** — `acquire` is whatever the caller already authenticates with.
 
 Concurrent callers share one acquisition. A reconnect that wakes fifty pending
-calls asks the host for one token, not fifty.
+calls asks for one token, not fifty.
 
 ## Handshake
 
@@ -41,7 +41,7 @@ token warm, and the first call after a gap pays a single acquisition.
 
 ## Revocation
 
-`await auth.revoke()` clears the token locally and calls the host's `revoke`
+`await auth.revoke()` clears the token locally and calls the issuer's `revoke`
 hook when one was supplied. The next call acquires a fresh token.
 
 ## Scope checking — advisory until Phase 3.3

@@ -1,5 +1,9 @@
 // ===========================================================================
-// The host bridge, exactly as it is today.
+// The postMessage bridge, exactly as it is today.
+//
+// The other end is the Valu Social application that embedded this app in an
+// iframe. This file is the ONLY place that knows that — everything above it
+// talks to a `Transport`.
 //
 // Lifted out of ValuApi without changing a single wire message: the same
 // `{name, message}` envelope posted to the same `event.source`/`event.origin`,
@@ -23,14 +27,14 @@ const REPLY_MESSAGES = new Set([
 ]);
 
 export class PostMessageTransport extends Transport {
-  #host = {};
+  #peer = {};
   #pending = new Map();
   #listener;
   #target;
 
   /**
-   * @param {{target?: EventTarget}} [options] The window that receives host
-   *   messages. Defaults to `globalThis`; the conformance suite passes a fake.
+   * @param {{target?: EventTarget}} [options] The window that receives the
+   *   application's messages. Defaults to `globalThis`; the conformance suite passes a fake.
    */
   constructor({ target = globalThis } = {}) {
     super();
@@ -40,13 +44,13 @@ export class PostMessageTransport extends Transport {
   }
 
   /** True once `api:ready` has arrived — same test as ValuApi's old `connected`. */
-  get connected() { return this.#host.origin !== undefined; }
+  get connected() { return this.#peer.origin !== undefined; }
 
-  /** This IS the host bridge. */
-  get supportsBridge() { return true; }
+  /** This IS the postMessage bridge. */
+  get supportsPostMessage() { return true; }
 
-  /** Id the host gave this application on `api:ready`. */
-  get applicationId() { return this.#host.id; }
+  /** Id the Valu Social application gave this app on `api:ready`. */
+  get applicationId() { return this.#peer.id; }
 
   /** @param {string} name @param {object} message @param {number} [requestId] */
   async request(name, message, requestId = nextId()) {
@@ -66,13 +70,13 @@ export class PostMessageTransport extends Transport {
 
   /**
    * A service intent over the bridge — what `ValuApi.callService` has always
-   * sent. The host answers with the raw result, so it is wrapped into the ack
+   * sent. The application answers with the raw result, so it is wrapped into the ack
    * envelope here: every caller of `callService` sees one shape whichever
    * transport served it.
    */
   async callService(descriptor, params = {}) {
     if (!this.connected) {
-      return errorAck(ERROR_CODES.DISCONNECTED, 'not connected to the Valu host');
+      return errorAck(ERROR_CODES.DISCONNECTED, 'not connected to the Valu Social application');
     }
     let result;
     try {
@@ -99,14 +103,14 @@ export class PostMessageTransport extends Transport {
       pending.reject(new Error('transport closed'));
     }
     this.#pending.clear();
-    this.#host = {};
+    this.#peer = {};
   }
 
   #post(name, message) {
-    if (!this.#host.source) {
-      throw new Error(`Cannot post "${name}": the Valu host has not sent api:ready yet`);
+    if (!this.#peer.source) {
+      throw new Error(`Cannot post "${name}": the Valu Social application has not sent api:ready yet`);
     }
-    this.#host.source.postMessage({ name, message }, this.#host.origin);
+    this.#peer.source.postMessage({ name, message }, this.#peer.origin);
   }
 
   #defer(requestId) {
@@ -133,7 +137,7 @@ export class PostMessageTransport extends Transport {
 
     switch (name) {
       case 'api:ready':
-        this.#host = { id: message.applicationId, source: event.source, origin: event.origin };
+        this.#peer = { id: message.applicationId, source: event.source, origin: event.origin };
         this.events.emit(Transport.READY, message);
         break;
       case 'api:trigger':

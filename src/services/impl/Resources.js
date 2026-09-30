@@ -36,9 +36,9 @@ export function register(registry) {
     })
 
     // The one that does go to the socket: the shared bot-avatar directory,
-    // searched like any other belonging. The network's deny tags are a HOST
+    // searched like any other belonging. The network's deny tags are an APPLICATION
     // policy (networkAvatars.js) — without them the SDK returns the directory
-    // as the platform stored it, and the host filters.
+    // as the platform stored it, and the application filters.
     .define('Resources.list-bot-avatars', (params, ctx) => rpc(ctx, 'resource:searchBelonging', {
       belonging: BOT_AVATARS_BELONGING,
       limit: limit(params.limit, 50),

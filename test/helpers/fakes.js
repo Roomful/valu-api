@@ -71,7 +71,8 @@ export class FakeRoomfulConnection {
 }
 
 /**
- * A window that carries postMessage traffic between an app and a host.
+ * A window that carries postMessage traffic between an app and the Valu Social
+ * application embedding it.
  *
  * `posted` is every `{name, message}` the SDK put on the wire — the wire
  * parity tests assert on it directly.
@@ -83,13 +84,13 @@ export class FakeWindow {
   addEventListener(type, listener) { if (type === 'message') this.listeners.add(listener); }
   removeEventListener(type, listener) { if (type === 'message') this.listeners.delete(listener); }
 
-  /** The host's side: a source object whose postMessage records what it got. */
-  hostSource() {
+  /** The application's side: a source whose postMessage records what it got. */
+  appSource() {
     return { postMessage: (data, origin) => this.posted.push({ ...data, origin }) };
   }
 
-  /** Deliver a message as if it came from the host. */
-  deliver({ name, message, requestId, target = 'valuApi', source = this.hostSource(), origin = 'https://valu.test' }) {
+  /** Deliver a message as if it came from the Valu Social application. */
+  deliver({ name, message, requestId, target = 'valuApi', source = this.appSource(), origin = 'https://valu.test' }) {
     const event = { data: { target, name, message, requestId }, source, origin };
     for (const listener of [...this.listeners]) listener(event);
   }
@@ -153,8 +154,8 @@ export class FakeGuru {
   callsTo(op) { return this.calls.filter((c) => c.op === op); }
 }
 
-/** Host state, as a host that has it would supply it. */
-export class FakeHost {
+/** Application state, as a runtime that holds it would supply it. */
+export class FakeAppState {
   constructor(state = {}) { Object.assign(this, state); }
 }
 

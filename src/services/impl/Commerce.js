@@ -2,7 +2,7 @@
 // Commerce — 10 functions, channel `valuguru`. The other 3 are frame commands.
 //
 // THE RULE THIS FILE EXISTS FOR, carried over from CommerceService: the
-// calling application is the one the HOST stamped on the call — `ctx.
+// calling application is the one the RUNTIME stamped on the call — `ctx.
 // applicationId` — never an id in the params. A framed app must not be able to
 // list, sell or buy as another app, and the params are the one thing it fully
 // controls. A runtime that cannot name the caller gets 403, and that is the
@@ -28,7 +28,7 @@ function callerApp(ctx) {
       ack: fail(
         ERROR_CODES.FORBIDDEN,
         'the calling application could not be identified, so this commerce action was refused',
-        'Commerce scopes every catalogue read and write to the app the HOST stamped on the call. '
+        'Commerce scopes every catalogue read and write to the app the RUNTIME stamped on the call. '
         + 'Pass { applicationId } to the SocketTransport; it is never taken from params.',
       ),
     };
@@ -97,10 +97,10 @@ export function register(registry) {
       const title = str(params.title).trim();
       if (!title) {
         // The app's other path opens the platform's create-product FORM, which
-        // is a host surface with no SDK equivalent. Say which one is missing.
+        // is an application surface with no SDK equivalent. Say which one is missing.
         return fail(
           ERROR_CODES.UNSUPPORTED,
-          'create-product without a title opens the platform\'s create-product form, which is a host surface',
+          'create-product without a title opens the platform\'s create-product form, which is an application surface',
           'Pass a title (and any other fields) to create the draft directly, or open the form through the frame bridge.',
         );
       }

@@ -24,7 +24,7 @@ import { registerAll } from '../../src/services/impl/index.js';
 import { SocketTransport } from '../../src/transport/SocketTransport.js';
 import { findDescriptor, SERVICE_DESCRIPTORS } from '../../src/services/descriptors.js';
 import { ERROR_CODES } from '../../src/Errors.js';
-import { Responder, FakeGuru, FakeHost, fakeFetch } from '../helpers/fakes.js';
+import { Responder, FakeGuru, FakeAppState, fakeFetch } from '../helpers/fakes.js';
 import { computeDateRange } from '../../src/services/impl/Events.js';
 
 const APPLICATION_ID = 'app-1';
@@ -920,7 +920,7 @@ export const CASES = [
     guru: { 'valuguru.commerce.catalog.search': { products: [{ id: 'prd-1' }], nextOffset: 10 } },
     expect: ({ ack, guru, calls }) => {
       assert.equal(ack.data.products.length, 1);
-      assert.equal(guru.calls[0].params.appId, APPLICATION_ID, 'the HOST names the caller, never the params');
+      assert.equal(guru.calls[0].params.appId, APPLICATION_ID, 'the RUNTIME names the caller, never the params');
       assert.equal(calls.length, 0, 'not a Roomful call');
     },
   },
@@ -1002,7 +1002,7 @@ export const CASES = [
   },
   {
     key: 'Commerce.create-product',
-    name: 'no title means the platform FORM, which is a host surface',
+    name: 'no title means the platform FORM, which is an application surface',
     params: {},
     guru: {},
     expect: ({ ack, guru }) => {
@@ -1075,17 +1075,17 @@ export const CASES = [
   {
     key: 'AiGuru.get-chat-history',
     params: { chatId: 'chat-1' },
-    host: { getChatHistory: async (id) => ({ session: { id }, messages: [{ body: 'hi' }] }) },
+    appState: { getChatHistory: async (id) => ({ session: { id }, messages: [{ body: 'hi' }] }) },
     expect: ({ ack, calls }) => {
       assert.equal(ack.data.session.id, 'chat-1');
-      assert.equal(calls.length, 0, 'there is no RPC for this — it is host state');
+      assert.equal(calls.length, 0, 'there is no RPC for this — it is application state');
     },
   },
   {
     key: 'AiGuru.get-chat-history',
     name: 'a runtime without the state says which capability is missing',
     params: {},
-    host: null,
+    appState: null,
     expect: ({ ack }) => {
       assert.equal(ack.error.code, ERROR_CODES.UNSUPPORTED);
       assert.match(ack.error.message, /getChatHistory/);
@@ -1094,7 +1094,7 @@ export const CASES = [
   {
     key: 'AiGuru.get-agent-history',
     params: { agentId: 'agent-1' },
-    host: { getAgentHistory: async (id) => ({ agent: { id }, messages: [] }) },
+    appState: { getAgentHistory: async (id) => ({ agent: { id }, messages: [] }) },
     expect: ({ ack }) => assert.equal(ack.data.agent.id, 'agent-1'),
   },
   {
@@ -1118,13 +1118,13 @@ export const CASES = [
   {
     key: 'Developer.list-applications',
     params: {},
-    host: { listDeveloperApplications: async () => [{ appId: 'a-1' }] },
+    appState: { listDeveloperApplications: async () => [{ appId: 'a-1' }] },
     expect: ({ ack }) => assert.equal(ack.data.applications.length, 1),
   },
   {
     key: 'Developer.create-application',
     params: { name: 'My App', icon: 'fa-rocket' },
-    host: { createDeveloperApplication: async (manifest) => ({ appId: 'my-app', ...manifest }) },
+    appState: { createDeveloperApplication: async (manifest) => ({ appId: 'my-app', ...manifest }) },
     expect: ({ ack }) => {
       assert.equal(ack.data.appId, 'my-app');
       assert.equal(ack.data.icon, 'fa-light fa-rocket', 'a bare name gets the app-wide default weight');
@@ -1134,7 +1134,7 @@ export const CASES = [
     key: 'Developer.create-application',
     name: 'a non-URL url is a caller mistake, not a silent fallback',
     params: { name: 'My App', url: 'example.com' },
-    host: { createDeveloperApplication: async () => ({}) },
+    appState: { createDeveloperApplication: async () => ({}) },
     expect: ({ ack }) => assert.equal(ack.error.code, ERROR_CODES.INVALID_PARAMS),
   },
 
@@ -1142,7 +1142,7 @@ export const CASES = [
   {
     key: 'VerusWallet.get-balance',
     params: { agentId: 'agent-1' },
-    host: { getAgentWallet: async () => ({ identityName: 'alice@', iAddress: 'i-1', balance: 12.5, status: 'created' }) },
+    appState: { getAgentWallet: async () => ({ identityName: 'alice@', iAddress: 'i-1', balance: 12.5, status: 'created' }) },
     expect: ({ ack, calls }) => {
       assert.equal(ack.data.balance, 12.5);
       assert.equal(calls.length, 0, 'the app reads the store cache and does not hit the network — nor do we');
@@ -1151,7 +1151,7 @@ export const CASES = [
   {
     key: 'VerusWallet.transfer',
     params: { agentId: 'agent-1', destination: 'bob@', amount: 3 },
-    host: { getAgentWallet: async () => ({ identityName: 'alice@', iAddress: 'i-1', status: 'created' }) },
+    appState: { getAgentWallet: async () => ({ identityName: 'alice@', iAddress: 'i-1', status: 'created' }) },
     rpc: { 'verus:sendCurrency': ok({ txid: 'tx-1' }) },
     expect: ({ ack, calls }) => {
       assert.equal(ack.data.txid, 'tx-1');
@@ -1164,7 +1164,7 @@ export const CASES = [
     key: 'VerusWallet.transfer',
     name: 'a wallet still being created is refused before the spend',
     params: { agentId: 'agent-1', destination: 'bob@', amount: 3 },
-    host: { getAgentWallet: async () => ({ identityName: 'alice@', status: 'pending' }) },
+    appState: { getAgentWallet: async () => ({ identityName: 'alice@', status: 'pending' }) },
     rpc: { 'verus:sendCurrency': ok({ txid: 'tx-1' }) },
     expect: ({ ack, calls }) => {
       assert.equal(ack.error.code, ERROR_CODES.INVALID_PARAMS);
@@ -1193,13 +1193,13 @@ export function runFunctionSuite({ name, makeSocket }) {
       const responder = new Responder(testCase.rpc ?? {});
       const { socket } = makeSocket(responder);
       const guru = new FakeGuru(testCase.guru ?? {}, testCase.guruMessages ?? {});
-      const host = testCase.host === null ? null : new FakeHost(testCase.host ?? {});
+      const appState = testCase.appState === null ? null : new FakeAppState(testCase.appState ?? {});
       const fetch = fakeFetch();
 
       const transport = new SocketTransport({
         socket,
         guru,
-        host,
+        appState,
         fetchImpl: fetch,
         config: CONFIG,
         now: NOW,
@@ -1211,14 +1211,14 @@ export function runFunctionSuite({ name, makeSocket }) {
       const client = new ServiceClient({ transport, cache: null });
 
       const ack = await client.call(testCase.key, testCase.params, { retries: 0 });
-      testCase.expect({ ack, calls: responder.calls, responder, guru, host, fetch });
+      testCase.expect({ ack, calls: responder.calls, responder, guru, appState, fetch });
     });
   }
 
   test(`${name}: every implemented function has a case`, () => {
     const covered = new Set(CASES.map((c) => c.key));
     const missing = SERVICE_DESCRIPTORS
-      .filter((d) => d.binding !== 'host')
+      .filter((d) => d.binding !== 'postmessage')
       .map((d) => d.key)
       .filter((key) => !covered.has(key));
     assert.deepEqual(missing, [], 'a function without a conformance case is a function nobody ran');

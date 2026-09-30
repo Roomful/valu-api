@@ -1,5 +1,5 @@
 // ===========================================================================
-// VerusWallet — 2 functions. `get-balance` is `host-state`, `transfer` is
+// VerusWallet — 2 functions. `get-balance` is `app-state`, `transfer` is
 // `roomful`. This is the case the implementation plan named in advance:
 // "parity is not identical behaviour".
 //
@@ -8,22 +8,22 @@
 // (VerusWalletService.getBalance — "Does not hit the network"). There IS no
 // ack-returning balance RPC: `verus:getAgentsBalance` is fire-and-forget and
 // its answer arrives on a listener, which a request/response socket cannot
-// catch. So the SDK reads the host's wallet state, and the descriptor's cache
-// mode is `seeded` so a host that has the number can seed it and the SDK will
-// serve it without asking anyone.
+// catch. So the SDK reads the wallet state the application holds, and the
+// descriptor's cache mode is `seeded` so a runtime that has the number can seed
+// it and the SDK will serve it without asking anyone.
 //
 // transfer DOES go to the socket — but it cannot start there. The declared
 // param is an AGENT id and the RPC wants the wallet's identity + i-address, so
-// the wallet has to be resolved first, and only the host knows which wallet is
-// attached to which agent. A host without that state gets a 501 that says so;
-// it does not get a transfer to an address the SDK guessed.
+// the wallet has to be resolved first, and only the application knows which
+// wallet is attached to which agent. A runtime without that state gets a 501
+// that says so; it does not get a transfer to an address the SDK guessed.
 // ===========================================================================
-import { ok, raw, str, host, isAckError, invalid, fail } from './support.js';
+import { ok, raw, str, appState, isAckError, invalid, fail } from './support.js';
 import { ERROR_CODES } from '../../Errors.js';
 
 /** The wallet attached to an agent, or the ack explaining why not. */
 async function resolveWallet(ctx, agentId) {
-  const capability = host(ctx, 'getAgentWallet');
+  const capability = appState(ctx, 'getAgentWallet');
   if (capability.ack) return { ack: capability.ack };
 
   let wallet;

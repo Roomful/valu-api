@@ -37,9 +37,9 @@ export class ServiceRegistry {
     if (!descriptor) {
       throw new Error(`Cannot implement "${name}": it is not a declared service function`);
     }
-    if (descriptor.binding === 'host') {
+    if (descriptor.binding === 'postmessage') {
       throw new Error(
-        `Cannot implement "${descriptor.key}": it is host-bound and stays on the frame bridge`,
+        `Cannot implement "${descriptor.key}": it is postMessage-bound and stays on the postMessage bridge`,
       );
     }
     if (typeof handler !== 'function') {
