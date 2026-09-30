@@ -137,7 +137,7 @@ A curl command line is an INPUT FORMAT, not a capability: http.ts parses it (cur
 
 Declared equivalent: `Http.get`, `Http.post`, `Http.ping`.
 
-### `service__system__get_user_timezone` — declared
+### `system__get_user_timezone` — declared
 
 Both answer the same question — what time is it where the user is — and differ only in WHOSE clock: in the browser the caller IS the user, so Time.get-local-time reads the local one; headless the user is somebody else, so system.ts asks `user:getTimezone`. Time.get-local-time is canonical for the caller's own clock and the SDK implements exactly that. Asking about ANOTHER user is not declared anywhere: the intent takes no params, and widening it is the app's manifest to change, not this package's. So the server tool stays a binding over `user:getTimezone` until the manifest grows an optional userId — noted for Phase 3, not smuggled in here.
 

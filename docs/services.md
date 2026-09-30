@@ -12,7 +12,7 @@ serves it and the scope a caller needs.
 | **total** | **92** | |
 
 7 server tools implement no declared intent and are not in this
-table: `service__Torah__corpora`, `service__Torah__search`, `service__generate_image`, `service__Http__curl`, `service__TextChat__message_user`, `service__TextChat__send_card`, `service__system__get_user_timezone`.
+table: `service__Torah__corpora`, `service__Torah__search`, `service__generate_image`, `service__Http__curl`, `service__TextChat__message_user`, `service__TextChat__send_card`, `system__get_user_timezone`.
 
 ## AiGuru
 

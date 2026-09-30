@@ -5,6 +5,15 @@ SDK-able functions, plus a named API for the 15 that stay on the frame. The
 function-by-function table is [parity.md](parity.md), generated from the
 catalogue and from the registry the SDK actually loads.
 
+| read this | for |
+|---|---|
+| [server-functions.md](server-functions.md) | the 77 functions this package serves, and what a runtime must supply for each |
+| [services.md](services.md) | every intent the platform declares, params and all |
+| [parity.md](parity.md) | who implements what, the server-only tools, the known deltas |
+| [transition.md](transition.md) | parity with Valu Social and Valu Guru as they stand, and the order to move them |
+| [callbacks-policy.md](callbacks-policy.md) | timeout, retry, ordering, reconnect — frozen |
+| [authorization.md](authorization.md) | the app token, and why scopes are still advisory |
+
 Nothing in the consumer-facing behaviour of `ValuApi` changed: the bridge
 traffic is byte for byte what it was.
 
@@ -194,10 +203,12 @@ out.
 ## Running the checks
 
 ```bash
-npm test         # the staleness check + 388 tests, including the per-function
-                 # conformance table run against BOTH adapters
+npm test         # the staleness check + the per-function conformance table,
+                 # run against BOTH adapters
 npm run build    # catalogue, types, docs and the parity matrix
 npm run typecheck
+npm run measure:consumers   # re-measure transition.md against the two consumer
+                            # repos; non-zero the moment one has moved
 ```
 
 ## The two frozen decisions

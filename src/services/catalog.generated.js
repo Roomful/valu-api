@@ -4663,7 +4663,7 @@ export const SERVER_ONLY_TOOLS = [
   "service__Http__curl",
   "service__TextChat__message_user",
   "service__TextChat__send_card",
-  "service__system__get_user_timezone"
+  "system__get_user_timezone"
 ];
 
 /** Phase 2b — what happens to each of them, and why (scripts/functions.js). */
@@ -4679,7 +4679,7 @@ export const SERVER_ONLY_RECONCILIATION = [
     "decision": "A curl command line is an INPUT FORMAT, not a capability: http.ts parses it (curl-parse.ts) and then performs exactly what Http.get / Http.post / Http.ping already declare — `curl -I` IS the ping. It stays a server-side binding that parses the command and calls the declared function; the SDK gains nothing by declaring a fourth way to say GET."
   },
   {
-    "tool": "service__system__get_user_timezone",
+    "tool": "system__get_user_timezone",
     "disposition": "declared",
     "declared": [
       "Time.get-local-time"

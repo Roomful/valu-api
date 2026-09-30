@@ -8,6 +8,7 @@
     "build": "node scripts/generate.mjs",
     "check:generated": "node scripts/generate.mjs --check",
     "sync:manifests": "node scripts/sync-manifests.mjs",
+    "measure:consumers": "node scripts/measure-consumers.mjs",
     "test": "npm run check:generated && node --test \"test/**/*.test.js\"",
     "typecheck": "tsc --noEmit --strict --skipLibCheck types/valu-api.d.ts types/valu-services.d.ts"
   },

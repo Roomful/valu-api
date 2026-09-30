@@ -147,5 +147,5 @@ export const SERVER_ONLY_TOOLS = [
   'service__Http__curl',
   'service__TextChat__message_user',
   'service__TextChat__send_card',
-  'service__system__get_user_timezone',
+  'system__get_user_timezone',
 ];

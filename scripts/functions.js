@@ -243,7 +243,7 @@ export const SERVER_ONLY_RECONCILIATION = [
       + 'declaring a fourth way to say GET.',
   },
   {
-    tool: 'service__system__get_user_timezone',
+    tool: 'system__get_user_timezone',
     disposition: 'declared',
     declared: ['Time.get-local-time'],
     decision:
@@ -361,3 +361,65 @@ export const KNOWN_DELTAS = [
       + 'does not reach into one.',
   },
 ];
+
+// ---------------------------------------------------------------------------
+// What a RUNTIME must supply, per function — the server-functions reference.
+//
+// `channel` already says which socket answers, and SocketTransport refuses a
+// missing channel by name before the handler runs. But four functions in ten
+// want something MORE than their channel: an application identity the host
+// stamps, a `fetch`, an origin to build a URL against, or a piece of state only
+// the host holds. A server integrator has to know that BEFORE the first call,
+// because "403 the calling application could not be identified" arrives at run
+// time and reads like an auth problem.
+//
+// So every extra requirement is listed here, and test/server-functions.test.js
+// asserts each one against the real handler — a requirement that stopped being
+// true, or a new one nobody wrote down, fails the build rather than the docs.
+//
+// Tags:
+//   applicationId          the host-stamped caller identity; 403 without it
+//   applicationId?         used when present (a belonging fallback), not required
+//   fetch                  outbound HTTP; `ctx.fetchImpl ?? globalThis.fetch`
+//   config                 { webBase, apiGate } — the origin a URL is built on
+//   host.<capability>      state only the host holds (src/host/HostState.js)
+//   host.<capability>?     optional; the function degrades rather than refusing
+// ---------------------------------------------------------------------------
+export const REQUIREMENTS = {
+  // Commerce scopes the buyer-facing catalogue to the calling app. The seller
+  // functions do not: they are scoped to the authenticated SELLER instead, so
+  // an app id would narrow them wrongly.
+  'Commerce.list-products': ['applicationId'],
+  'Commerce.get-product': ['applicationId'],
+  'Commerce.add-to-cart': ['applicationId'],
+  // The shelf IS `app:{applicationId}:userSortingTable:{userId}` — without the
+  // app id there is no address to read or write. `resource-delete` takes a
+  // resource id and is enforced by the platform, so it needs none.
+  'ApplicationStorage.resource-upload': ['applicationId', 'fetch'],
+  'ApplicationStorage.resource-search': ['applicationId'],
+  // CMS addresses a room/prop/directory/community when the caller names one,
+  // and falls back to the app's own shelf when it does not.
+  'CMS.resource-upload': ['applicationId?', 'fetch'],
+  'CMS.resource-search': ['applicationId?'],
+  'Http.get': ['fetch'],
+  'Http.post': ['fetch'],
+  'Http.ping': ['fetch'],
+  'Resources.generate-public-url': ['config'],
+  'Resources.generate-best-view-url': ['config'],
+  'Resources.generate-direct-public-url': ['config'],
+  'Resources.get-thumbnail-url': ['config'],
+  'AiGuru.get-chat-history': ['host.getChatHistory'],
+  'AiGuru.get-agent-history': ['host.getAgentHistory'],
+  'Developer.list-applications': ['host.listDeveloperApplications'],
+  'Developer.create-application': ['host.createDeveloperApplication'],
+  'VerusWallet.get-balance': ['host.getAgentWallet'],
+  // `transfer` emits on the Roomful socket, but it cannot START there: the
+  // declared param is an AGENT id and the RPC wants the wallet's identity and
+  // i-address, which only the host can resolve. A headless runtime with no
+  // wallet state cannot transfer, and says so instead of guessing an address.
+  'VerusWallet.transfer': ['host.getAgentWallet'],
+  // Key material for an encrypted channel lives in the browser. Without it an
+  // encrypted body comes back flagged rather than as ciphertext that reads
+  // like a message (docs/parity.md).
+  'TextChat.get-channel-history': ['host.decryptMessage?'],
+};
