@@ -153,7 +153,7 @@ test('the reference covers every served function', () => {
   // channel. This asserts the doc's denominator instead: the count in the
   // heading is the registry's, so a new function cannot appear without the
   // reference growing a row for it.
-  assert.equal(served.length, 77);
+  assert.equal(served.length, 78);
   assert.equal(
     served.filter((d) => d.channel === 'app-state').length,
     5,

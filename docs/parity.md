@@ -8,10 +8,11 @@ without `npm run check:generated` failing.
 
 | | count |
 |---|---|
-| declared service intents | **92** |
-| SDK-able (socket + local) | **77** |
-| implemented in this package | **77** |
-| frame commands (postMessage-bound) | **15** |
+| declared by the application's manifest | **92** |
+| declared by this package (scripts/extensions.js) | **1** |
+| service functions (socket + local) | **78** |
+| implemented in this package | **78** |
+| application intents (postMessage-bound) | **15** |
 | server tools with no declared intent | **7** |
 
 ## Channels
@@ -23,28 +24,28 @@ envelope cannot explain.
 
 | channel | count | what serves it |
 |---|---|---|
-| `roomful` | 53 | the Roomful platform socket — `ValuSocket.emit(ns, payload)` |
+| `roomful` | 54 | the Roomful platform socket — `ValuSocket.emit(ns, payload)` |
 | `valuguru` | 11 | the Valu Guru server's `data_request` channel — `valuguru.*` ops |
 | `app-state` | 5 | no RPC exists; the answer is in the Valu Social application's own memory |
 | `local` | 8 | computed by the SDK |
-| `postmessage` | 15 | the postMessage bridge (`src/frame/FrameCommands.js`) |
+| `postmessage` | 15 | the Valu Social application, asked by name (`src/intents/ApplicationIntents.js`) |
 
 ## Functions
 
 | service | function | binding | channel | mutates | cache | server tool | status |
 |---|---|---|---|---|---|---|---|
-| AiGuru | `close` | postmessage | `postmessage` | write | `none` | — | frame command |
+| AiGuru | `close` | postmessage | `postmessage` | write | `none` | — | application intent |
 | AiGuru | `get-agent-history` | socket | `app-state` | read | `none` | — | implemented |
-| AiGuru | `get-applications` | postmessage | `postmessage` | read | `none` | — | frame command |
+| AiGuru | `get-applications` | postmessage | `postmessage` | read | `none` | — | application intent |
 | AiGuru | `get-chat-history` | socket | `app-state` | read | `none` | — | implemented |
-| AiGuru | `has-application` | postmessage | `postmessage` | read | `none` | — | frame command |
-| AiGuru | `is-application-loaded` | postmessage | `postmessage` | read | `none` | — | frame command |
-| AiGuru | `open` | postmessage | `postmessage` | write | `none` | — | frame command |
+| AiGuru | `has-application` | postmessage | `postmessage` | read | `none` | — | application intent |
+| AiGuru | `is-application-loaded` | postmessage | `postmessage` | read | `none` | — | application intent |
+| AiGuru | `open` | postmessage | `postmessage` | write | `none` | — | application intent |
 | AiGuru | `query-knowledge-base` | socket | `valuguru` | read | `read-through` | — | implemented |
-| Application | `close_all` | postmessage | `postmessage` | read | `none` | — | frame command |
-| Application | `close-application` | postmessage | `postmessage` | write | `none` | — | frame command |
-| Application | `expand-application` | postmessage | `postmessage` | write | `none` | — | frame command |
-| Application | `get-identity-token` | postmessage | `postmessage` | read | `none` | — | frame command |
+| Application | `close_all` | postmessage | `postmessage` | read | `none` | — | application intent |
+| Application | `close-application` | postmessage | `postmessage` | write | `none` | — | application intent |
+| Application | `expand-application` | postmessage | `postmessage` | write | `none` | — | application intent |
+| Application | `get-identity-token` | postmessage | `postmessage` | read | `none` | — | application intent |
 | ApplicationStorage | `resource-delete` | socket | `roomful` | write | `none` | — | implemented |
 | ApplicationStorage | `resource-search` | socket | `roomful` | read | `read-through` | — | implemented |
 | ApplicationStorage | `resource-upload` | socket | `roomful` | write | `none` | — | implemented |
@@ -65,16 +66,16 @@ envelope cannot explain.
 | Commerce | `list-categories` | socket | `valuguru` | read | `read-through` | — | implemented |
 | Commerce | `list-my-products` | socket | `valuguru` | read | `read-through` | — | implemented |
 | Commerce | `list-products` | socket | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `open-cart` | postmessage | `postmessage` | write | `none` | — | frame command |
-| Commerce | `open-products` | postmessage | `postmessage` | write | `none` | — | frame command |
-| Commerce | `open-purchases` | postmessage | `postmessage` | write | `none` | — | frame command |
+| Commerce | `open-cart` | postmessage | `postmessage` | write | `none` | — | application intent |
+| Commerce | `open-products` | postmessage | `postmessage` | write | `none` | — | application intent |
+| Commerce | `open-purchases` | postmessage | `postmessage` | write | `none` | — | application intent |
 | Commerce | `update-product` | socket | `valuguru` | write | `none` | — | implemented |
 | Community | `get-channels` | socket | `roomful` | read | `read-through` | `service__Community__get_channels` | implemented |
 | Community | `get-community-info` | socket | `roomful` | read | `read-through` | `service__Community__get_community_info` | implemented |
 | Community | `get-posts` | socket | `roomful` | read | `read-through` | `service__Community__get_posts` | implemented |
 | Community | `search-communities` | socket | `roomful` | read | `read-through` | `service__Community__search_communities` | implemented |
-| DataProvider | `pick-multiple` | postmessage | `postmessage` | read | `none` | — | frame command |
-| DataProvider | `pick-single` | postmessage | `postmessage` | read | `none` | — | frame command |
+| DataProvider | `pick-multiple` | postmessage | `postmessage` | read | `none` | — | application intent |
+| DataProvider | `pick-single` | postmessage | `postmessage` | read | `none` | — | application intent |
 | Developer | `create-application` | socket | `app-state` | write | `none` | — | implemented |
 | Developer | `list-applications` | socket | `app-state` | read | `none` | — | implemented |
 | Events | `create-meeting` | socket | `roomful` | write | `none` | `service__Events__create_meeting` | implemented |
@@ -87,7 +88,7 @@ envelope cannot explain.
 | Http | `get` | local | `local` | read | `none` | — | implemented |
 | Http | `ping` | local | `local` | read | `none` | — | implemented |
 | Http | `post` | local | `local` | write | `none` | — | implemented |
-| Logging | `get-logs` | postmessage | `postmessage` | read | `none` | — | frame command |
+| Logging | `get-logs` | postmessage | `postmessage` | read | `none` | — | application intent |
 | Networks | `get-current-network` | socket | `roomful` | read | `read-through` | `service__Networks__get_current_network` | implemented |
 | Profile | `get-user-badges` | socket | `roomful` | read | `read-through` | — | implemented |
 | Profile | `get-user-credentials` | socket | `roomful` | read | `read-through` | — | implemented |
@@ -121,6 +122,7 @@ envelope cannot explain.
 | Users | `decline-connection-request` | socket | `roomful` | write | `none` | `service__Users__decline_connection_request` | implemented |
 | Users | `find-user` | socket | `roomful` | read | `read-through` | `service__Users__find_user` | implemented |
 | Users | `get` | socket | `roomful` | read | `read-through` | `service__Users__get` | implemented |
+| Users | `list-connection-requests` | socket | `roomful` | read | `read-through` | — | implemented |
 | Users | `search-users` | socket | `roomful` | read | `read-through` | `service__Users__search_users` | implemented |
 | Users | `send-connection-request` | socket | `roomful` | write | `none` | `service__Users__send_connection_request` | implemented |
 | VerusWallet | `get-balance` | socket | `app-state` | read | `seeded` | `service__VerusWallet__get_balance` | implemented |

@@ -226,39 +226,78 @@ test('posting before api:ready rejects with a message that says why', async () =
   await assert.rejects(() => api.runConsoleCommand('/x'), /has not sent api:ready/);
 });
 
-test('api.services is a ServiceClient over the same transport', async () => {
+test('api.services is the function surface over this instance\'s transport', async () => {
   const { api, target } = setup();
   target.ready();
 
   assert.equal(api.services.transport, api.transport);
-  assert.equal(api.services, api.services, 'one client per api instance');
+  assert.equal(api.services, api.services, 'one surface per api instance');
 
-  const pending = api.services.call('Commerce.open-cart', {});
-  const posted = target.lastPost();
-  assert.equal(posted.name, 'api:service-intent');
-  assert.equal(posted.message.applicationId, 'Commerce');
-  assert.equal(posted.message.action, 'open-cart');
+  // Both ways of saying it are the same call: the name resolved early, or late.
+  for (const call of [
+    () => api.services.call('Users.current', {}),
+    () => api.services.Users.current(),
+  ]) {
+    const pending = call();
+    const posted = target.lastPost();
+    assert.equal(posted.name, 'api:service-intent');
+    assert.equal(posted.message.applicationId, 'Users');
+    assert.equal(posted.message.action, 'current');
 
-  target.deliver({ name: 'api:run-console-completed', message: { opened: true }, requestId: posted.message.requestId });
-  assert.deepEqual((await pending).data, { opened: true });
+    target.deliver({ name: 'api:run-console-completed', message: { user: { id: 'u-1' } }, requestId: posted.message.requestId });
+    assert.deepEqual((await pending).data, { user: { id: 'u-1' } });
+  }
 });
 
-test('the bridge answers a postMessage-bound intent — the one transport that can', async () => {
+test('an application intent is not on the function surface, even over the bridge', async () => {
   const { api, target } = setup();
   target.ready();
 
-  const pending = api.services.call('DataProvider.pick-single', { providers: ['contacts'] });
-  const { requestId } = target.lastPost().message;
-  target.deliver({ name: 'api:run-console-completed', message: { error: 'user cancelled' }, requestId });
+  // The application WOULD answer this one — it is the transport that can. It is
+  // refused anyway, because a function on `services` is a promise the SDK can
+  // run it anywhere, and nothing here can open a picker.
+  const ack = await api.services.call('DataProvider.pick-single', { providers: ['contacts'] });
 
+  assert.equal(ack.error.code, 501);
+  assert.match(ack.error.message, /is an application intent, not a service function/);
+  assert.match(ack.error.description, /intents\.run/);
+  assert.equal(target.posted.length, 0, 'nothing reached the bridge');
+});
+
+test('api.intents runs one by name, with the same message on the wire', async () => {
+  const { api, target } = setup();
+  target.ready();
+
+  const pending = api.intents.run('DataProvider.pick-single', { providers: ['contacts'] });
+  const posted = target.lastPost();
+  assert.equal(posted.name, 'api:service-intent');
+  assert.equal(posted.message.applicationId, 'DataProvider');
+  assert.equal(posted.message.action, 'pick-single');
+
+  target.deliver({ name: 'api:run-console-completed', message: { error: 'user cancelled' }, requestId: posted.message.requestId });
   const ack = await pending;
   assert.equal(ack.error.status, true);
   assert.equal(ack.error.message, 'user cancelled');
 });
 
+test('api.intents runs an intent this package has never heard of', async () => {
+  const { api, target } = setup();
+  target.ready();
+
+  // The whole reason there is no method per intent: the application registers
+  // them at runtime and may know names newer than this release.
+  const pending = api.intents.run('Weather.forecast-tomorrow', { city: 'Kyiv' });
+  const posted = target.lastPost();
+  assert.equal(posted.message.applicationId, 'Weather');
+  assert.equal(posted.message.action, 'forecast-tomorrow');
+
+  target.deliver({ name: 'api:run-console-completed', message: { c: 21 }, requestId: posted.message.requestId });
+  assert.deepEqual((await pending).data, { c: 21 });
+});
+
 test('a call made before api:ready resolves 503 rather than throwing', async () => {
   const { api } = setup();
-  const ack = await api.services.call('Commerce.open-cart', {});
+  const ack = await api.services.call('Users.current', {});
   assert.equal(ack.error.code, 503);
 });
 

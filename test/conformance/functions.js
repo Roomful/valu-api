@@ -145,6 +145,41 @@ export const CASES = [
     rpc: { 'social:deleteRequest': ok({}) },
     expect: ({ calls }) => assert.equal(calls[0].ns, 'social:deleteRequest'),
   },
+  {
+    // The SDK-declared read (scripts/extensions.js). Two RPCs: the rows, then
+    // ONE batched lookup of everybody named in them.
+    key: 'Users.list-connection-requests',
+    params: { size: 2 },
+    rpc: {
+      'request:listRequests': ok({
+        requests: [
+          { id: 'r-1', initiatorUserId: 'u-7' },
+          { id: 'r-2', initiatorUserId: 'u-8' },
+        ],
+      }),
+      'social:getUsersSimpleInfo': ok({ users: [{ id: 'u-7' }, { id: 'u-8' }] }),
+    },
+    expect: ({ ack, calls }) => {
+      assert.deepEqual(calls[0].data, {
+        type: 'Connection', category: 'received', status: 'pending', offset: 0, size: 2,
+      });
+      assert.equal(calls.length, 2, 'one lookup for the whole page, not one per row');
+      assert.deepEqual(calls[1].data, { ids: ['u-7', 'u-8'] });
+      assert.deepEqual(ack.data.users, [{ id: 'u-7' }, { id: 'u-8' }]);
+      // A full page means there may be another: the FE's rule, kept.
+      assert.equal(ack.data.hasMore, true);
+    },
+  },
+  {
+    key: 'Users.list-connection-requests',
+    name: 'an empty page asks nobody who anybody is',
+    params: {},
+    rpc: { 'request:listRequests': ok({ requests: [] }) },
+    expect: ({ ack, calls }) => {
+      assert.equal(calls.length, 1);
+      assert.deepEqual(ack.data, { requests: [], users: [], hasMore: false });
+    },
+  },
 
   // --- Networks ------------------------------------------------------------
   {

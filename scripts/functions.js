@@ -4,7 +4,7 @@
 //
 // WHAT PHASE 2 FOUND. Phase 1 recorded `binding: socket | local | postmessage`,
 // taken
-// from the manifest plus one decision per intent. Writing the 77 SDK-able
+// from the manifest plus one decision per intent. Writing the service
 // functions against the real sources showed that "socket" is THREE different
 // things, and a function written for the wrong one fails in a way the ack
 // envelope cannot explain:
@@ -211,6 +211,10 @@ export const RETURNS = {
   'Users.accept-connection-request': { type: 'void', description: 'The request was accepted.' },
   'Users.decline-connection-request': { type: 'void', description: 'The request was declined.' },
   'Users.cancel-connection-request': { type: 'void', description: 'The outgoing request was cancelled.' },
+  'Users.list-connection-requests': {
+    type: '{requests: object[], users: object[], hasMore: boolean}',
+    description: 'Connection requests, with the other party of each resolved into `users`.',
+  },
 
   // --- VerusWallet ---------------------------------------------------------
   'VerusWallet.get-balance': { type: '{identityName: string, iAddress: string, balance: number|null}', description: 'The agent wallet\'s last known balance. Read from application state, never the network.' },

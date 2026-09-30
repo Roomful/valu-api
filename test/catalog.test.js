@@ -5,23 +5,53 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, findDescriptor, listDescriptors,
-  listServices, catalogSummary,
+  SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, SERVICE_FUNCTIONS, APPLICATION_INTENTS,
+  findDescriptor, listDescriptors, listServices, catalogSummary, isServiceFunction,
 } from '../src/services/descriptors.js';
 import { toolDefinition, toolDefinitions } from '../src/services/toolDefs.js';
 import { ServiceRegistry } from '../src/services/registry.js';
 
 test('the catalogue matches the parity target', () => {
   assert.deepEqual(catalogSummary(), {
-    total: 92,      // declared service intents
-    socket: 69,     // SDK-able, socket-backed
-    local: 8,       // SDK-able, answered locally
-    postmessage: 15, // UI-bound — stays on the postMessage bridge
+    total: 93,       // everything in the catalogue
+    socket: 70,      // a service function, served by a socket
+    local: 8,        // a service function, answered by the SDK itself
+    postmessage: 15, // an application intent — only the app can serve it
     implemented: 32, // already server tools, exact name match
-    sdkable: 77,
-    remaining: 45,
+    // WHO declared them. 92 is a fact about valusocial-web and must not move
+    // when this package adds a function; 1 is scripts/extensions.js.
+    declared: 92,
+    sdkDeclared: 1,
+    sdkable: 78,
+    serviceFunctions: 78,
+    applicationIntents: 15,
+    remaining: 46,
     serverOnly: 7,
   });
+});
+
+test('the catalogue is two surfaces, and every descriptor is in exactly one', () => {
+  assert.equal(SERVICE_FUNCTIONS.length + APPLICATION_INTENTS.length, SERVICE_DESCRIPTORS.length);
+  assert.equal(SERVICE_FUNCTIONS.length, 78);
+  assert.equal(APPLICATION_INTENTS.length, 15);
+  for (const d of SERVICE_FUNCTIONS) assert.notEqual(d.binding, 'postmessage', d.key);
+  for (const d of APPLICATION_INTENTS) assert.equal(d.binding, 'postmessage', d.key);
+  assert.equal(isServiceFunction('Users.current'), true);
+  assert.equal(isServiceFunction('DataProvider.pick-single'), false);
+  assert.equal(isServiceFunction('Users.teleport'), false);
+});
+
+test('an SDK-declared function is a service function with its provenance on it', () => {
+  const sdkDeclared = listDescriptors({ declaredBy: 'sdk' });
+  assert.deepEqual(sdkDeclared.map((d) => d.key), ['Users.list-connection-requests']);
+  for (const d of sdkDeclared) {
+    // It must be reachable without the application: declaring a function this
+    // package cannot run would be worse than leaving the gap open.
+    assert.notEqual(d.binding, 'postmessage', d.key);
+    assert.ok(d.description.length > 0, d.key);
+  }
+  // And the manifest's own count is untouched by it.
+  assert.equal(listDescriptors({ declaredBy: 'manifest' }).length, 92);
 });
 
 test('21 services, each with at least one function', () => {
@@ -154,15 +184,15 @@ test('every SDK-able function is implemented, and no postMessage-bound one is', 
   const implemented = new Set(serviceRegistry.implemented());
 
   const sdkable = SERVICE_DESCRIPTORS.filter((d) => d.binding !== 'postmessage');
-  assert.equal(sdkable.length, 77, 'the parity target: 69 socket + 8 local');
+  assert.equal(sdkable.length, 78, 'the parity target: 70 socket + 8 local');
 
   const missing = sdkable.map((d) => d.key).filter((key) => !implemented.has(key));
   assert.deepEqual(missing, [], 'Phase 2 is not done while one of these is unimplemented');
 
   for (const d of listDescriptors({ binding: 'postmessage' })) {
-    assert.equal(implemented.has(d.key), false, `${d.key} is a frame command, not a service function`);
+    assert.equal(implemented.has(d.key), false, `${d.key} is an application intent, not a service function`);
   }
-  assert.equal(implemented.size, 77);
+  assert.equal(implemented.size, 78);
 });
 
 test('the channel says WHICH socket, and every socket function has one', () => {
@@ -175,8 +205,8 @@ test('the channel says WHICH socket, and every socket function has one', () => {
     if (d.binding !== 'socket') assert.equal(d.channel, d.binding, d.key);
     else assert.notEqual(d.channel, 'socket', `${d.key} must say which socket`);
   }
-  assert.deepEqual(counts, { roomful: 53, valuguru: 11, 'app-state': 5, local: 8, postmessage: 15 });
-  assert.equal(counts.roomful + counts.valuguru + counts['app-state'], 69, 'still 69 socket-bound');
+  assert.deepEqual(counts, { roomful: 54, valuguru: 11, 'app-state': 5, local: 8, postmessage: 15 });
+  assert.equal(counts.roomful + counts.valuguru + counts['app-state'], 70, '69 declared + 1 SDK-declared');
 });
 
 test('Commerce rides the Valu Guru socket, not the Roomful one', () => {

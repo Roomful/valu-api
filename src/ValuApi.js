@@ -5,7 +5,8 @@ import {Intent} from "./Intent.js";
 import {PostMessageTransport} from "./transport/PostMessageTransport.js";
 import {Transport} from "./transport/Transport.js";
 import {ServiceClient} from "./services/ServiceClient.js";
-import {FrameCommands} from "./frame/FrameCommands.js";
+import {ValuServiceApi} from "./services/api.js";
+import {ApplicationIntents} from "./intents/ApplicationIntents.js";
 
 export { ValuApplication } from "./ValuApplication.js";
 export { Intent } from "./Intent.js";
@@ -23,9 +24,13 @@ export {
 } from "./socket/ValuSocket.js";
 export { ValuServiceError, ERROR_CODES, errorAck } from "./Errors.js";
 export { ServiceClient } from "./services/ServiceClient.js";
+// The function surface: `valu.Users.current()` rather than
+// `client.call('Users.current')`. See src/services/api.js.
+export { ValuServiceApi, createValuServices } from "./services/api.js";
 export {
-  SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, findDescriptor, listDescriptors,
-  listServices, catalogSummary,
+  SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, SERVICE_FUNCTIONS, APPLICATION_INTENTS,
+  findDescriptor, listDescriptors, listServiceFunctions, listApplicationIntents,
+  isServiceFunction, listServices, catalogSummary,
 } from "./services/descriptors.js";
 export { validateParams, validationAck } from "./services/validate.js";
 export { toolDefinition, toolDefinitions } from "./services/toolDefs.js";
@@ -38,12 +43,12 @@ export {
 
 // The SDK surface added in Phase 2 — the parity matrix implemented.
 //
-// Importing `./services/impl/index.js` REGISTERS the 77 SDK-able functions
+// Importing `./services/impl/index.js` REGISTERS the 78 service functions
 // into the default registry, which is what a SocketTransport uses unless it is
 // given its own. It is imported for that effect, not for its exports.
 import "./services/impl/index.js";
 export { registerAll } from "./services/impl/index.js";
-export { FrameCommands, FRAME_COMMANDS, FRAME_COMMAND_KINDS, frameCommandKind } from "./frame/FrameCommands.js";
+export { ApplicationIntents, parseIntentName } from "./intents/ApplicationIntents.js";
 export { guruAdapter, guruAck, isGuruSocket } from "./socket/ValuGuruSocket.js";
 export { noAppStateAck } from "./app-state/AppState.js";
 export { resolveConfig } from "./Config.js";
@@ -67,7 +72,7 @@ export class ValuApi {
   #transport;
   #lastIntent;
   #services;
-  #frame;
+  #intents;
 
   /** @type ValuApplication */
   #applicationInstance = null;
@@ -90,26 +95,36 @@ export class ValuApi {
   }
 
   /**
-   * The declared-service surface: descriptor lookup, param validation, scopes,
-   * cache and the callbacks policy, over this instance's transport.
-   * @returns {ServiceClient}
+   * The service functions — `api.services.Users.current()` — over this
+   * instance's transport, with descriptor lookup, param validation, scopes,
+   * cache and the callbacks policy behind every one of them.
+   *
+   * `api.services.call('Users.current')` and `api.services.client` are still
+   * here: the function tree is a surface over the same {@link ServiceClient},
+   * not a different way of calling.
+   * @returns {ValuServiceApi}
    */
   get services() {
-    if (!this.#services) this.#services = new ServiceClient({ transport: this.#transport });
+    if (!this.#services) {
+      this.#services = new ValuServiceApi({ client: new ServiceClient({ transport: this.#transport }) });
+    }
     return this.#services;
   }
 
   /**
-   * The fifteen postMessage-bound intents, as a named API — Phase 2d.
+   * The application intents: anything the Valu Social application declares,
+   * asked for by name.
    *
-   * They are not service functions and `services` answers all fifteen with the
-   * same 501. This is where they live: the same postMessage traffic, a method
-   * each.
-   * @returns {FrameCommands}
+   * There is no method per intent, and that is deliberate — the application
+   * registers its intents at runtime, so a method here would be a copy of a
+   * list that moves without this package. `api.intents.run('AiGuru.open',
+   * {applicationId})` asks for one by name, including names newer than this
+   * release (src/intents/ApplicationIntents.js).
+   * @returns {ApplicationIntents}
    */
-  get frame() {
-    if (!this.#frame) this.#frame = new FrameCommands(this.#transport);
-    return this.#frame;
+  get intents() {
+    if (!this.#intents) this.#intents = new ApplicationIntents(this.#transport);
+    return this.#intents;
   }
 
   /**

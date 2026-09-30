@@ -52,8 +52,11 @@ Two names deliberately did **not** become `postmessage`:
   because a headless runtime serves those five functions with no bridge in
   sight. `binding` still says how you reach it; `app-state` says where the
   answer comes from.
-- **`FrameCommands`** keeps its name. It is the typed API for the fifteen
-  `postmessage` intents, and every one of them acts on the rendered frame.
+- **`ApplicationIntents`** is named after what it asks for, not how it travels.
+  It is the one dynamic call that runs *any* intent the Valu Social application
+  declares — the fifteen below, and the ones it registers after this release.
+  (It replaced `FrameCommands`, which had a method per intent; see
+  [sdk-structure.md](sdk-structure.md) for why that was the wrong shape.)
 
 And a fifth meaning the package never had: `postmessage` has nothing to do with
 a hostname or an origin. Origins are `config.webBase` and `config.apiGate`
@@ -66,18 +69,24 @@ A framed app and a headless agent do not have the same surface, and
 
 | | framed browser app (bridge) | headless agent (socket) |
 |---|---|---|
-| `roomful` — 53 | Valu Social serves it, over its socket | you serve it, over yours |
+| `roomful` — 54 | Valu Social serves it, over its socket | you serve it, over yours |
 | `valuguru` — 11 | Valu Social serves it | you serve it, if you passed `guru` |
 | `local` — 8 | Valu Social serves it | the SDK answers it; no connection needed |
 | `app-state` — 5 | Valu Social serves it from memory | only if you passed an `appState` object that holds the state |
 | `postmessage` — 15 | Valu Social serves it | **501, always** — there is no frame to command |
 
 The one thing to take from it: **inside a frame, `channel` does not matter to
-you.** `ServiceClient` over a `PostMessageTransport` sends every call as one
-bridge message (`api:service-intent`) and the application decides how to answer
-it, so all 92 are available and none of them needs a socket from you. `channel`
-starts to matter the moment there is no application around you — which is
-exactly the case this package was built for.
+you.** Every call leaves as one bridge message (`api:service-intent`) and the
+application decides how to answer it, so all 92 of its intents are reachable
+from an iframe and none of them needs a socket from you. `channel` starts to
+matter the moment there is no application around you — which is exactly the
+case this package was built for.
+
+Reachable is not the same as "on the function surface", and the difference is
+deliberate. `api.services` offers the 78 **service functions** — the ones this
+package can run itself, here or in Node. The other 15 are **application
+intents**: `api.intents.run(name, params)` asks for one by name, on the same
+wire. [sdk-structure.md](sdk-structure.md) is why those are two things.
 
 ## Why the 15 cannot become socket functions
 
@@ -93,17 +102,22 @@ await client.call('DataProvider.pick-single', { providers: ['contacts'] });
 //        postMessage bridge, not the socket"
 ```
 
-They get a named API instead —
-[`FrameCommands`](../src/frame/FrameCommands.js), one method each, the same
-bridge traffic:
+They are asked for by name instead —
+[`ApplicationIntents`](../src/intents/ApplicationIntents.js), one dynamic call,
+the same bridge traffic:
 
 ```javascript
 const api = new ValuApi();
-await api.frame.openApplication('cart');
-const picked = await api.frame.pickSingle({ providers: ['contacts'] });
+await api.intents.run('AiGuru.open', { applicationId: 'cart' });
+const picked = await api.intents.run('DataProvider.pick-single', { providers: ['contacts'] });
 ```
 
-`FrameCommands` refuses a socket transport **at construction**
+There is no method per intent on purpose: the application registers its intents
+at runtime, so a method here would be a copy of a list that moves without this
+package — `run()` posts any `Service.action` it is given, including names newer
+than this release.
+
+`ApplicationIntents` refuses a socket transport **at construction**
 (`supportsPostMessage` is false there), because discovering it per call would be
 fifteen identical surprises.
 
@@ -140,7 +154,7 @@ front of each:
 
 | bridge message | what it is | typed API here |
 |---|---|---|
-| `api:service-intent` | one of the 92 declared intents | `api.services.call(...)` and `api.frame.*` |
+| `api:service-intent` | one of the 92 declared intents | `api.services.*` (the 78) and `api.intents.run(...)` (any of them) |
 | `api:create-pointer` + `api:run` | an **API pointer** call — the older, generic path | none: `api.getApi(name).run(fn, params)` |
 | `api:run-intent` | an intent aimed at another application | `api.sendIntent(intent)` |
 | `api:run-console` | a console command (`/chat -h`) | `api.runConsoleCommand(cmd)` |
@@ -153,8 +167,8 @@ reply names are not one-to-one with the request names.)
 
 ## API pointers, and what still needs them
 
-An API pointer travels over postMessage, like a frame command does, but it is a
-**different mechanism from either** of the two above — older, and generic. You
+An API pointer travels over postMessage, like an application intent does, but it
+is a **different mechanism from either** of the two above — older, and generic. You
 ask the application for a pointer to one of its named API modules, then call
 functions on it by string:
 
@@ -172,7 +186,7 @@ but the string you pass.
 Two facts about the relationship, both worth stating plainly:
 
 1. **Nothing in the service SDK uses an API pointer.** `ServiceClient` and
-   `FrameCommands` both send `api:service-intent`. `ValuApi.getApi()` is the
+   `ApplicationIntents` both send `api:service-intent`. `ValuApi.getApi()` is the
    only pointer entry point in the package, and Phases 1 and 2 did not touch
    it — it works exactly as it did.
 2. **The pointer surface is not a subset of the declared one.** 41 of its 63
@@ -185,14 +199,16 @@ equivalent and which ones do not — is [api-pointers.md](api-pointers.md).
 
 ## Which to use for what
 
-- **A declared function, from an iframe** → `api.services.call(...)`. Validated,
-  cached, one ack shape.
-- **A declared function, from a Node service or an agent** →
-  `ServiceClient` over `SocketTransport`. The list is
+- **A service function, from an iframe** → `api.services.Users.current()`, or
+  `api.services.call('Users.current')` if you have the name as a string.
+  Validated, cached, one ack shape.
+- **A service function, from a Node service or an agent** →
+  `createValuServices({ socket })`. The same 78 functions, the same names. The
+  list is [service-api.md](service-api.md) and
   [socket-functions.md](socket-functions.md); what your runtime must supply is
   [server-functions.md](server-functions.md).
 - **Something that happens to the page** (open, close, expand, pick, logs,
-  identity token) → `api.frame.*`. Only from an iframe.
+  identity token) → `api.intents.run('...')`. Only from an iframe.
 - **Something the platform does not declare as an intent** → an API pointer.
   Untyped and unvalidated, and the honest answer for now
   ([api-pointers.md](api-pointers.md)).
@@ -203,11 +219,13 @@ equivalent and which ones do not — is [api-pointers.md](api-pointers.md).
 | | n | served by |
 |---|---|---|
 | declared intents | 92 | — |
-| on the Roomful socket | 53 | a server, over the platform socket |
+| SDK-declared functions | 1 | this package, where the manifest has a gap ([sdk-structure.md](sdk-structure.md)) |
+| service functions | 78 | this package, over whatever transport it has |
+| on the Roomful socket | 54 | a server, over the platform socket |
 | on the Valu Guru socket | 11 | a different server, `data_request` channel |
 | local to the SDK | 8 | this package, from config / clock / `fetch` |
 | application state | 5 | whoever holds the state; no RPC exists |
-| postMessage-bound (frame commands) | 15 | the Valu Social application only; no RPC exists |
+| postMessage-bound (application intents) | 15 | the Valu Social application only; no RPC exists |
 | API pointer functions | 63 | that application's own API modules, by string |
 
 Every row above is asserted against the thing it describes — this file is prose

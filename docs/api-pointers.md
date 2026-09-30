@@ -283,7 +283,7 @@ Prefer the module's own name over an alias for exactly this reason.
   because its `api:run-completed` reply was routed as if it belonged to an
   `APIPointer`. It resolves now.
 - **Nothing in the service SDK uses a pointer.** `ServiceClient` and
-  `FrameCommands` both send `api:service-intent`.
+  `ApplicationIntents` both send `api:service-intent`.
 - There is no plan in Phases 1–2 to wrap them. A pointer function that deserves
   to be callable from an agent should be **declared as an intent** and
   implemented here; the 41 above are the candidate list.

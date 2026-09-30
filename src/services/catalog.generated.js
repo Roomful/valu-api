@@ -42,6 +42,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -82,6 +83,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -114,6 +116,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -154,6 +157,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -192,6 +196,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -230,6 +235,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -268,6 +274,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -321,6 +328,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -355,6 +363,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -389,6 +398,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -423,6 +433,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -457,6 +468,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -497,6 +509,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -549,6 +562,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -589,6 +603,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -654,6 +669,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -709,6 +725,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -746,6 +763,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -798,6 +816,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -857,6 +876,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -923,6 +943,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1006,6 +1027,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1077,6 +1099,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1124,6 +1147,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1167,6 +1191,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1252,6 +1277,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1289,6 +1315,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1331,6 +1358,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1374,6 +1402,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1411,6 +1440,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1464,6 +1494,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1544,6 +1575,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1578,6 +1610,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1612,6 +1645,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1646,6 +1680,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1741,6 +1776,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -1790,6 +1826,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Community__get_channels"
   },
   {
@@ -1833,6 +1870,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Community__get_community_info"
   },
   {
@@ -1897,6 +1935,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Community__get_posts"
   },
   {
@@ -1950,6 +1989,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Community__search_communities"
   },
   {
@@ -2017,6 +2057,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -2074,6 +2115,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -2131,6 +2173,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -2166,6 +2209,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -2263,6 +2307,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Events__create_meeting"
   },
   {
@@ -2335,6 +2380,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Events__edit_meeting"
   },
   {
@@ -2393,6 +2439,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Events__list_events"
   },
   {
@@ -2446,6 +2493,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -2487,6 +2535,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -2546,6 +2595,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Groups__list_group_participants"
   },
   {
@@ -2599,6 +2649,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Groups__list_groups"
   },
   {
@@ -2655,6 +2706,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -2701,6 +2753,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -2767,6 +2820,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -2807,6 +2861,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -2844,6 +2899,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Networks__get_current_network"
   },
   {
@@ -2893,6 +2949,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -2942,6 +2999,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -2983,6 +3041,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Resources__generate_best_view_url"
   },
   {
@@ -3024,6 +3083,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Resources__generate_direct_public_url"
   },
   {
@@ -3065,6 +3125,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Resources__generate_public_url"
   },
   {
@@ -3111,6 +3172,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -3154,6 +3216,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -3206,6 +3269,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -3257,6 +3321,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Rooms__delete_prop_invitation"
   },
   {
@@ -3300,6 +3365,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Rooms__get_permissions"
   },
   {
@@ -3354,6 +3420,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Rooms__get_prop"
   },
   {
@@ -3402,6 +3469,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -3451,6 +3519,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -3500,6 +3569,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Rooms__get_room_props"
   },
   {
@@ -3562,6 +3632,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Rooms__invite_to_prop"
   },
   {
@@ -3610,6 +3681,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Rooms__list_prop_team_members"
   },
   {
@@ -3668,6 +3740,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -3735,6 +3808,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -3807,6 +3881,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -3864,6 +3939,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -3923,6 +3999,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Rooms__search_my_rooms"
   },
   {
@@ -3976,6 +4053,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Rooms__search_rooms"
   },
   {
@@ -4034,6 +4112,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -4095,6 +4174,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__TextChat__message_owner"
   },
   {
@@ -4156,6 +4236,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -4190,6 +4271,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": null
   },
   {
@@ -4231,6 +4313,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Users__accept_connection_request"
   },
   {
@@ -4272,6 +4355,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Users__cancel_connection_request"
   },
   {
@@ -4309,6 +4393,7 @@ export const SERVICE_DESCRIPTORS = [
       "required": [],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Users__current"
   },
   {
@@ -4350,6 +4435,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Users__decline_connection_request"
   },
   {
@@ -4403,6 +4489,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Users__find_user"
   },
   {
@@ -4446,7 +4533,76 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Users__get"
+  },
+  {
+    "key": "Users.list-connection-requests",
+    "service": "Users",
+    "action": "list-connection-requests",
+    "fn": "list_connection_requests",
+    "method": "listConnectionRequests",
+    "toolName": "service__Users__list_connection_requests",
+    "serviceTitle": "Users Service",
+    "serviceDescription": "User management service for getting current user info, looking up users by ID, searching contacts/followers/following, and managing connection requests.",
+    "source": "src/Services/Users/UsersService.js",
+    "description": "List connection (friend) requests involving the current user, newest first. Use this to answer \"who wants to connect with me\" before accepting or declining: the ids this returns are what accept-connection-request and decline-connection-request take. Resolves each request's other party into a user object in the same call.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "users:read"
+    ],
+    "binding": "socket",
+    "mutates": false,
+    "cache": {
+      "mode": "read-through",
+      "ttlMs": 30000,
+      "key": null
+    },
+    "channel": "roomful",
+    "returns": {
+      "type": "{requests: object[], users: object[], hasMore: boolean}",
+      "description": "Connection requests, with the other party of each resolved into `users`."
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "category",
+          "type": "string",
+          "description": "Which side of the request to list. \"received\" — requests other people sent to the current user (the default, and the one that needs answering); \"sent\" — requests the current user sent and can still cancel.",
+          "options": [
+            "received",
+            "sent"
+          ]
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "description": "Request status. Defaults to \"pending\" — the only status with anything to do about it.",
+          "options": [
+            "pending",
+            "accepted",
+            "declined"
+          ]
+        },
+        {
+          "name": "offset",
+          "type": "number",
+          "description": "Pagination offset. Defaults to 0."
+        },
+        {
+          "name": "size",
+          "type": "number",
+          "description": "Number of requests to return. Defaults to 20."
+        }
+      ]
+    },
+    "declaredBy": "sdk",
+    "implementedBy": null
   },
   {
     "key": "Users.search-users",
@@ -4505,6 +4661,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Users__search_users"
   },
   {
@@ -4546,6 +4703,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__Users__send_connection_request"
   },
   {
@@ -4589,6 +4747,7 @@ export const SERVICE_DESCRIPTORS = [
       ],
       "optional": []
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__VerusWallet__get_balance"
   },
   {
@@ -4651,6 +4810,7 @@ export const SERVICE_DESCRIPTORS = [
         }
       ]
     },
+    "declaredBy": "manifest",
     "implementedBy": "service__VerusWallet__transfer"
   }
 ];

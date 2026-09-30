@@ -2,10 +2,12 @@
 // Every implemented function, in one registry.
 //
 // Phase 1 shipped the registry empty and an unimplemented declared function
-// answered 501 naming itself. This is what fills it: the 77 SDK-able functions
-// of the parity matrix — 69 socket (53 roomful, 11 valuguru, 5 app-state) and
-// 8 local. The 15 postMessage-bound intents are NOT here; they are frame commands
-// (src/frame/FrameCommands.js), which is Phase 2d's whole point.
+// answered 501 naming itself. This is what fills it: the 78 service functions
+// — 70 socket (54 roomful, 11 valuguru, 5 app-state) and 8 local. Seventy-seven
+// are the parity matrix; the seventy-eighth is declared by this package
+// (scripts/extensions.js). The 15 postMessage-bound intents are NOT here; they are application
+// intents, which only the Valu Social application can serve and which it is
+// asked for by name (src/intents/ApplicationIntents.js).
 //
 // Importing this module registers into the DEFAULT registry, which is what a
 // SocketTransport uses unless it is given its own. `registerAll(registry)`

@@ -1,24 +1,28 @@
 # The Valu Service SDK
 
-Phase 1 built the foundation; Phase 2 implemented the parity matrix — all 77
-SDK-able functions, plus a named API for the 15 that stay on the frame. The
-function-by-function table is [parity.md](parity.md), generated from the
-catalogue and from the registry the SDK actually loads.
+A library of **78 service functions** over the Valu sockets — the same functions
+from a Valu Social build, a frame application and the Valu Guru server — and
+**one dynamic call** for everything only the Valu Social application can serve.
 
 | read this | for |
 |---|---|
-| [postmessage-vs-socket.md](postmessage-vs-socket.md) | **what `postmessage` and `socket` actually mean here** — start here if the catalogue's `binding`/`channel` is not obvious |
-| [socket-functions.md](socket-functions.md) | the 64 functions that travel over a socket, and the feature each one provides |
+| [sdk-structure.md](sdk-structure.md) | **what this package is, and why `close` is not a function** — start here |
+| [service-api.md](service-api.md) | every function, as the call you would write |
+| [postmessage-vs-socket.md](postmessage-vs-socket.md) | what `postmessage` and `socket` actually mean here |
+| [socket-functions.md](socket-functions.md) | the 65 functions that travel over a socket, and the feature each one provides |
 | [api-pointers.md](api-pointers.md) | the older generic path over the postMessage bridge, and the 41 things only it can do |
-| [server-functions.md](server-functions.md) | the 77 functions this package serves, and what a runtime must supply for each |
+| [server-functions.md](server-functions.md) | the 78 functions this package serves, and what a runtime must supply for each |
 | [services.md](services.md) | every intent the platform declares, params and all |
 | [parity.md](parity.md) | who implements what, the server-only tools, the known deltas |
 | [transition.md](transition.md) | parity with Valu Social and Valu Guru as they stand, and the order to move them |
 | [callbacks-policy.md](callbacks-policy.md) | timeout, retry, ordering, reconnect — frozen |
 | [authorization.md](authorization.md) | the app token, and why scopes are still advisory |
 
-Nothing in the consumer-facing behaviour of `ValuApi` changed: the bridge
-traffic is byte for byte what it was.
+The bridge traffic is byte for byte what it always was. Two things on the
+`ValuApi` surface did change when the two surfaces were separated:
+`api.frame.*` became `api.intents.run(name, params)`, and `api.services` no
+longer serves an application intent — both in
+[sdk-structure.md](sdk-structure.md), with a row per method.
 
 ## The shape of it
 
@@ -47,8 +51,10 @@ traffic is byte for byte what it was.
 | Guru socket | `src/socket/ValuGuruSocket.js` | the SECOND socket — `valuguru.*` ops |
 | Application state | `src/app-state/AppState.js` | the five functions no RPC can answer |
 | Upload | `src/upload/ResourceUpload.js` | register → link → PUT → complete |
-| Implementations | `src/services/impl/` | the 77 functions themselves |
-| Frame commands | `src/frame/FrameCommands.js` | the 15 postMessage-bound intents, named |
+| Implementations | `src/services/impl/` | the 78 functions themselves |
+| Function surface | `src/services/api.js` | `valu.Users.current()` — the tree, and `createValuServices` |
+| Application intents | `src/intents/ApplicationIntents.js` | the dynamic call for what only the app can serve |
+| SDK-declared | `scripts/extensions.js` | functions this package declares where the manifest has a gap |
 
 ## Using it
 
@@ -56,7 +62,7 @@ Over the bridge — every existing app already has this, it is just typed now:
 
 ```javascript
 const api = new ValuApi();
-const ack = await api.services.call('Users.get', { userId });
+const ack = await api.services.Users.get({ userId });
 if (ack.error) console.warn(ack.error.message);
 else console.log(ack.data);
 ```
@@ -65,15 +71,15 @@ Over a socket, in the browser:
 
 ```javascript
 const socket = new BrowserSocketAdapter({ socket: webSocketService, userId, networkId });
-const client = new ServiceClient({ transport: new SocketTransport({ socket }) });
-const user = await client.invoke('Users.get', { userId }); // throws on failure
+const valu = createValuServices({ socket });
+const user = await valu.data.Users.get({ userId }); // the payload, throws on failure
 ```
 
 Over a socket, headless:
 
 ```javascript
 const socket = new NodeSocketAdapter({ connection: roomfulConnection });
-const client = new ServiceClient({ transport: new SocketTransport({ socket }) });
+const valu = createValuServices({ socket });
 ```
 
 A function resolves by any name the platform already writes: `Users.get`,
@@ -88,14 +94,15 @@ also carries a `channel`:
 
 | channel | count | what serves it | what a handler gets |
 |---|---|---|---|
-| `roomful` | 53 | the platform socket | `ctx.socket.emit(ns, payload)` |
+| `roomful` | 54 | the platform socket | `ctx.socket.emit(ns, payload)` |
 | `valuguru` | 11 | the Valu Guru server's `data_request` channel | `ctx.guru.request(op, params)` |
 | `app-state` | 5 | nothing — the answer is in the Valu Social app's memory | `ctx.appState.<capability>()` |
 | `local` | 8 | the SDK itself | `ctx.config`, `ctx.fetchImpl`, `ctx.now` |
 | `postmessage` | 15 | the Valu Social app, over the postMessage bridge | not a service function — see below |
 
-The binding counts are unchanged (69 / 8 / 15), so the parity target still
-holds; `channel` says *which*, which is what a handler needs to know.
+70 socket / 8 local / 15 postMessage: the 77 of the parity matrix, plus the one
+function this package declares itself ([sdk-structure.md](sdk-structure.md)).
+`channel` says *which*, which is what a handler needs to know.
 
 A transport that lacks a channel refuses the functions that need it **by
 name**, before the handler runs:
@@ -124,31 +131,34 @@ catalogue read and write to it, and a framed app must not be able to sell as
 another app. A transport without one answers those functions
 403.
 
-## The fifteen frame commands
+## The fifteen application intents
 
 They are not service functions, and a socket answers all fifteen with the same
-501. Phase 2d gives them their own API over the same bridge traffic:
+501. They are asked for by name instead, over the same bridge traffic:
 
 ```javascript
 const api = new ValuApi();
-await api.frame.openApplication('cart');
-const picked = await api.frame.pickSingle({ providers: ['contacts'] });
+await api.intents.run('AiGuru.open', { applicationId: 'cart' });
+const picked = await api.intents.run('DataProvider.pick-single', { providers: ['contacts'] });
 ```
 
-`FrameCommands` refuses a socket transport at construction — there is no frame
-behind a socket, and finding that out per call would be fifteen identical
-surprises. It also refuses a *service* function, which is the mirror of the
-socket refusing a postMessage-bound intent.
+No method per intent: the application registers its intents at runtime, so
+`run()` takes any `Service.action` — including one newer than this package.
+`ApplicationIntents` refuses a socket transport at construction, because there
+is no application behind a socket to ask. Why this replaced `FrameCommands`,
+and the full migration table, is [sdk-structure.md](sdk-structure.md).
 
 ## The catalogue
 
 ```javascript
 catalogSummary();
-// { total: 92, socket: 69, local: 8, postmessage: 15,
-//   implemented: 32, sdkable: 77, remaining: 45, serverOnly: 7 }
+// { total: 93, socket: 70, local: 8, postmessage: 15, implemented: 32,
+//   declared: 92, sdkDeclared: 1, sdkable: 78, serviceFunctions: 78,
+//   applicationIntents: 15, remaining: 46, serverOnly: 7 }
 ```
 
-Those are the plan's parity numbers, counted from
+`declared` is what the application's manifest says and does not move when this
+package adds a function; `sdkDeclared` is what this package adds. Counted from
 `manifests/service-manifests.snapshot.json` rather than estimated, and
 asserted in `test/catalog.test.js` — a drift fails the build.
 

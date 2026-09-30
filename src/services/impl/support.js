@@ -3,7 +3,7 @@
 //
 // A handler takes `(params, ctx)` and RESOLVES an ack — it never throws, never
 // retries, and never reaches past `ctx` (docs/callbacks-policy.md). These are
-// the six things all 77 of them need, in one place, so a handler is the RPC it
+// the six things all 78 of them need, in one place, so a handler is the RPC it
 // performs and nothing else.
 // ===========================================================================
 import { ERROR_CODES, errorAck } from '../../Errors.js';

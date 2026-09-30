@@ -6,10 +6,10 @@ serves it and the scope a caller needs.
 
 | binding | count | meaning |
 |---|---|---|
-| `socket` | 69 | answered over the Valu socket |
+| `socket` | 70 | answered over the Valu socket |
 | `local` | 8 | answered by the SDK itself |
 | `postmessage` | 15 | UI-bound — the Valu Social application answers it over the postMessage bridge |
-| **total** | **92** | |
+| **total** | **93** | |
 
 7 server tools implement no declared intent and are not in this
 table: `service__Torah__corpora`, `service__Torah__search`, `service__generate_image`, `service__Http__curl`, `service__TextChat__message_user`, `service__TextChat__send_card`, `system__get_user_timezone`.
@@ -1503,6 +1503,23 @@ Retrieves a user by their unique ID. Returns user object with id, firstName, las
 | param | type | required | description |
 |---|---|---|---|
 | `userId` | `string` | yes | The unique user identifier. |
+
+### `Users.list-connection-requests`
+
+List connection (friend) requests involving the current user, newest first. Use this to answer "who wants to connect with me" before accepting or declining: the ids this returns are what accept-connection-request and decline-connection-request take. Resolves each request's other party into a user object in the same call.
+
+- binding: `socket` · channel: `roomful`
+- returns: `{requests: object[], users: object[], hasMore: boolean}` — Connection requests, with the other party of each resolved into `users`.
+- scope: `users:read` · read-only
+- cache: `read-through` (ttl 30000ms, key `service`)
+- availability: `ai`, `developer`
+
+| param | type | required | description |
+|---|---|---|---|
+| `category` | `received` \| `sent` | no | Which side of the request to list. "received" — requests other people sent to the current user (the default, and the one that needs answering); "sent" — requests the current user sent and can still cancel. |
+| `status` | `pending` \| `accepted` \| `declined` | no | Request status. Defaults to "pending" — the only status with anything to do about it. |
+| `offset` | `number` | no | Pagination offset. Defaults to 0. |
+| `size` | `number` | no | Number of requests to return. Defaults to 20. |
 
 ### `Users.search-users`
 

@@ -33,8 +33,8 @@ export class Transport {
    *
    * `request`/`notify` exist on every transport — they throw where they are
    * not supported — so "has a request method" does not answer the question.
-   * FrameCommands asks this one instead: there is no frame behind a socket,
-   * and finding that out per call would be fifteen identical surprises.
+   * ApplicationIntents asks this one instead: there is no application behind a
+   * socket, and finding that out per call would be fifteen identical surprises.
    */
   get supportsPostMessage() { return false; }
 

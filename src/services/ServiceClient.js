@@ -66,6 +66,21 @@ export class ServiceClient {
       return errorAck(ERROR_CODES.UNKNOWN_FUNCTION, `unknown service function: ${name}`);
     }
 
+    // An application intent is not a service function, whatever transport is
+    // underneath. Over the bridge this WOULD have worked — the application
+    // answers `api:service-intent` for all 92 — and that is exactly the
+    // confusion worth ending: a function here is one the SDK runs, and the SDK
+    // cannot open a dock or render a picker. `api.intents.run()` asks the
+    // application, with the same message on the wire.
+    if (descriptor.binding === 'postmessage') {
+      return errorAck(
+        ERROR_CODES.UNSUPPORTED,
+        `${descriptor.key} is an application intent, not a service function`,
+        'Only the Valu Social application can serve it. Inside a frame, run it by name: '
+        + `valuApi.intents.run('${descriptor.key}', params).`,
+      );
+    }
+
     const invalid = validationAck(descriptor, params);
     if (invalid) return invalid;
 

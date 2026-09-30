@@ -1,5 +1,5 @@
 // ===========================================================================
-// Commerce — 10 functions, channel `valuguru`. The other 3 are frame commands.
+// Commerce — 10 functions, channel `valuguru`. The other 3 are application intents.
 //
 // THE RULE THIS FILE EXISTS FOR, carried over from CommerceService: the
 // calling application is the one the RUNTIME stamped on the call — `ctx.

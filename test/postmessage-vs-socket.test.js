@@ -7,8 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { SERVICE_DESCRIPTORS } from '../src/services/descriptors.js';
-import { FRAME_COMMANDS } from '../src/frame/FrameCommands.js';
+import { SERVICE_DESCRIPTORS, listDescriptors, APPLICATION_INTENTS } from '../src/services/descriptors.js';
 import { pointerSummary } from '../scripts/apiPointers.js';
 
 const doc = readFileSync(new URL('../docs/postmessage-vs-socket.md', import.meta.url), 'utf8');
@@ -44,9 +43,12 @@ test('the renaming table still names the renamed identifiers', () => {
   );
 });
 
-test('"all 92 are available" is the declared total', () => {
-  const total = /all (\d+) are available/.exec(doc);
-  assert.equal(Number(total[1]), SERVICE_DESCRIPTORS.length);
+test('"all 92 of its intents are reachable" is what the APPLICATION declares', () => {
+  // Not the catalogue total: the catalogue also holds what this package
+  // declares itself, and the application cannot serve one of those.
+  const total = /all (\d+) of its intents are reachable/.exec(doc);
+  assert.ok(total, 'the reachability sentence has changed shape');
+  assert.equal(Number(total[1]), listDescriptors({ declaredBy: 'manifest' }).length);
 });
 
 test('the summary table counts every channel and the pointer surface', () => {
@@ -55,12 +57,14 @@ test('the summary table counts every channel and the pointer surface', () => {
     assert.ok(m, `no summary row for "${label}"`);
     return Number(m[1]);
   };
-  assert.equal(row('declared intents'), SERVICE_DESCRIPTORS.length);
+  assert.equal(row('declared intents'), listDescriptors({ declaredBy: 'manifest' }).length);
+  assert.equal(row('SDK-declared functions'), listDescriptors({ declaredBy: 'sdk' }).length);
+  assert.equal(row('service functions'), SERVICE_DESCRIPTORS.length - APPLICATION_INTENTS.length);
   assert.equal(row('on the Roomful socket'), countBy('roomful'));
   assert.equal(row('on the Valu Guru socket'), countBy('valuguru'));
   assert.equal(row('local to the SDK'), countBy('local'));
   assert.equal(row('application state'), countBy('app-state'));
-  assert.equal(row('postMessage-bound \\(frame commands\\)'), countBy('postmessage'));
+  assert.equal(row('postMessage-bound \\(application intents\\)'), countBy('postmessage'));
   assert.equal(row('API pointer functions'), pointerSummary().functions);
 });
 
@@ -85,11 +89,12 @@ test('the five app-state functions are named, and only those', () => {
   }
 });
 
-test('the frame-command examples are postMessage-bound functions', () => {
-  // The doc shows two refusals and two frame methods by name. If one of them
+test('the application-intent examples are postMessage-bound', () => {
+  // The doc shows a refusal and two `intents.run` calls by name. If one of them
   // stops being postMessage-bound, the example stops making its point.
-  for (const key of ['DataProvider.pick-single']) {
+  const exclusive = new Set(APPLICATION_INTENTS.map((d) => d.key));
+  for (const key of ['DataProvider.pick-single', 'AiGuru.open']) {
     assert.ok(doc.includes(key), `${key} is no longer the example`);
-    assert.ok(FRAME_COMMANDS.includes(key), `${key} is not a frame command`);
+    assert.ok(exclusive.has(key), `${key} is not an application intent`);
   }
 });

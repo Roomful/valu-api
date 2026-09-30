@@ -7,7 +7,7 @@ checked rather than believed.
 
 | repository | commit measured | role |
 |---|---|---|
-| `valu-api` | `ef28001` | this package — one implementation of the platform's service surface |
+| `valu-api` | `dbab8cc` | this package — one implementation of the platform's service surface |
 | `valusocial-web` | `a4407df8` | declares the manifest, serves all 92 intents in the browser, hosts framed apps |
 | `valu-guru-server` | `898d699` | runs headless agents over the Roomful socket; **owns** the `valuguru.*` API |
 
@@ -20,12 +20,12 @@ report on what moving costs.
 | | count |
 |---|---|
 | intents the platform declares | **92** |
-| served by this package | **77** (the other 15 need a frame) |
+| served by this package | **78** (the other 15 need a frame — they are application intents) |
 | server tools in valu-guru-server today | **39** |
 | … that map to a declared intent | **32** — all 32 implemented here |
 | … that do not | **7** — each one decided, all 7 stay server-side |
 | intents the app exposes to the AI | **60** — this package serves **58** (the 2 pickers need a frame) |
-| net new functions a server agent gains | **+30** |
+| net new functions a server agent gains | **+31** |
 
 The vendored manifest snapshot is byte-identical to the app's live
 `SERVICE_MANIFESTS`, and the 39 tool names in `scripts/bindings.js` are exactly
@@ -48,13 +48,18 @@ That splits the package cleanly by consumer:
 
 | channel | n | valu-guru-server | valusocial-web |
 |---|---|---|---|
-| `roomful` | 53 | **adopt** — this is what its tools already do | adopt |
+| `roomful` | 54 | **adopt** — this is what its tools already do | adopt |
 | `local` | 8 | **adopt** — no socket involved | adopt |
 | `valuguru` | 11 | **no** — it is the provider | adopt |
 | `app-state` | 5 | no — browser store state (it already stubs 2 honestly) | adopt, supplying `AppState` |
 | `postmessage` | 15 | no — there is no frame | already the frame |
 
-Server-adoptable: **61**. It has **31** of them today. That is the +30.
+Server-adoptable: **62**. It has **31** of them today. That is the +31.
+
+One of the 62 is declared by this package rather than by the app's manifest:
+`Users.list-connection-requests`, over `request:listRequests`. The rule that
+allows it, and the three candidates it deliberately leaves out, are in
+[sdk-structure.md](sdk-structure.md).
 
 ## Valu Guru server
 
@@ -62,7 +67,7 @@ Server-adoptable: **61**. It has **31** of them today. That is the +30.
 
 | service | tools today | served here | net new |
 |---|---|---|---|
-| Users | 8 | 8 | — |
+| Users | 8 | 9 | +1 |
 | Rooms | 8 | 15 | +7 |
 | Community | 4 | 4 | — |
 | Events | 3 | 3 | — |
@@ -81,7 +86,7 @@ Server-adoptable: **61**. It has **31** of them today. That is the +30.
 | AiGuru | 0 | 3 | not here — 2 app-state, 1 is its own RAG |
 | Developer | 0 | 2 | not here — Developer Portal is browser state |
 
-The 30, by name:
+The 31, by name:
 
 | service | functions |
 |---|---|
@@ -94,28 +99,34 @@ The 30, by name:
 | Resources | `get-thumbnail-url`, `list-bot-avatars` |
 | Rooms | `create-room-from-template`, `get-room`, `get-room-prop-groups`, `list-room-templates`, `paste-resources-into-prop`, `paste-resources-into-prop-group`, `rename-prop-group` |
 | TextChat | `get-channel-history`, `send-message` |
+| Users | `list-connection-requests` (declared by this package) |
 | Time | `get-local-time` |
 
 ### The delegation point
 
 One place, and it is small. `valuToolRegistry.dispatch(name, args, ctx)` returns
-a JSON string; `ServiceClient.call(key, params)` resolves an ack. The adapter
-between them is the whole change:
+a JSON string; a service function resolves an ack. The adapter between them is
+the whole change:
 
 ```ts
-const client = new ServiceClient({
-  transport: new SocketTransport({
-    socket: new NodeSocketAdapter({ connection: ctx.socket }),
-    fetchImpl: fetch,
-    config: { webBase: process.env.ROOMFUL_WEB_BASE, apiGate: `https://${process.env.ROOMFUL_API_HOST}` },
-  }),
+const valu = createValuServices({
+  socket: new NodeSocketAdapter({ connection: ctx.socket }),
+  fetchImpl: fetch,
+  config: { webBase: process.env.ROOMFUL_WEB_BASE, apiGate: `https://${process.env.ROOMFUL_API_HOST}` },
 });
 
-const ack = await client.call(name, args);          // name is already `service__Users__get`
+const ack = await valu.call(name, args);            // name is already `service__Users__get`
 return JSON.stringify(ack.error ? { success: false, error: ack.error.message } : ack.data);
 ```
 
-`ServiceClient` resolves `service__Users__get` as readily as `Users.get`, so the
+`valu.call` takes the tool name as a string, which is what a dispatcher has;
+handwritten code reads better as `valu.Users.current()`
+([service-api.md](service-api.md)). The tool DEFINITIONS come off the same
+descriptors — `valu.toolDefinitions()` returns them in the shape the server
+already hands the model — so a tool's schema and the validator that enforces it
+stop being two things that can drift.
+
+A name resolves `service__Users__get` as readily as `Users.get`, so the
 tool names on the wire do not change — which matters, because
 `withGenericServerTools`, `isWorkerSocketTool` and the browser-twin de-duping
 all key on those names, and none of that logic needs touching.
@@ -211,12 +222,12 @@ this package first.
 ## Prerequisites, in order
 
 1. **Make the package importable.** `package.json` has `main` and no `exports`
-   map, so a consumer reaches `ServiceClient` through a deep path
-   (`@arkeytyp/valu-api/src/services/ServiceClient.js`) that no version
-   guarantees. Add an `exports` map naming the entry points a consumer needs —
-   `ServiceClient`, the transports, both socket adapters, `FrameCommands`, the
-   catalogue and `toolDefinitions` — and publish. Everything else waits on
-   this.
+   map, so a consumer reaches `createValuServices` through a deep path
+   (`@arkeytyp/valu-api/src/services/api.js`) that no version guarantees. Add
+   an `exports` map naming the entry points a consumer needs —
+   `createValuServices` and `ServiceClient`, the transports, both socket
+   adapters, `ApplicationIntents`, the catalogue and `toolDefinitions` — and
+   publish. Everything else waits on this.
 2. **Replace the server's `ValuSocket` copy with an import.** No behaviour
    change, and it proves the dependency in one commit.
 3. **Delegate the 32 exact-name server tools.** They are already socket-only
@@ -224,7 +235,7 @@ this package first.
    change. The per-function conformance table in this package covers them
    against both adapters, so a regression surfaces here rather than in an agent
    run.
-4. **Turn on the 30 net-new ones** — minus the two `ApplicationStorage` reads
+4. **Turn on the 31 net-new ones** — minus the two `ApplicationStorage` reads
    until question 2 above has an answer.
 5. **Settle the `Http` trio** so the AI-facing surface has one shape.
 6. **Then the app**, service by service, cheapest first, with the six deltas

@@ -1,6 +1,6 @@
 // ===========================================================================
 // AiGuru — 3 declared functions the SDK can serve; the other 5 are
-// postMessage-bound frame commands (src/frame/FrameCommands.js).
+// postMessage-bound application intents (src/intents/ApplicationIntents.js).
 //
 // Two channels in one service, which is why the channel field had to exist:
 //

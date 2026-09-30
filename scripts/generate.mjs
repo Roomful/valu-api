@@ -20,6 +20,7 @@ import {
 import {
   API_POINTER_MODULES, API_POINTER_FUNCTIONS, DUPLICATE_DECLARATIONS, pointerSummary,
 } from './apiPointers.js';
+import { SDK_DECLARED, SDK_DECLARED_CANDIDATES } from './extensions.js';
 // The registry the SDK actually loads. Importing it is what lets the parity
 // matrix report implementation status instead of asserting it.
 import { serviceRegistry } from '../src/services/registry.js';
@@ -53,41 +54,78 @@ function channelFor(key, binding) {
 const snake = (action) => action.replace(/-/g, '_');
 const camel = (action) => action.replace(/[-_](\w)/g, (_, c) => c.toUpperCase());
 
+/**
+ * One descriptor, from a service header and one of its intents.
+ *
+ * @param {object} service The manifest service — the SDK-declared functions
+ *   reuse it rather than inventing a service of their own.
+ * @param {object} intent
+ * @param {'manifest'|'sdk'} declaredBy WHO says this function exists. The app's
+ *   manifest declares 92; scripts/extensions.js declares the rest, and every
+ *   count downstream can separate the two because this is on the descriptor.
+ */
+function buildDescriptor(service, intent, declaredBy) {
+  const key = `${service.id}.${intent.action}`;
+  const binding = postMessageBound.has(key) ? 'postmessage' : local.has(key) ? 'local' : 'socket';
+  const channel = channelFor(key, binding);
+  const isMutation = mutates(key, intent.action);
+  return {
+    key,
+    service: service.id,
+    action: intent.action,
+    fn: snake(intent.action),
+    method: camel(intent.action),
+    toolName: `service__${service.id}__${snake(intent.action)}`,
+    serviceTitle: service.title,
+    serviceDescription: service.description,
+    source: service.source,
+    description: intent.description,
+    availability: intent.availability,
+    permissions: intent.permissions,
+    // No manifest intent declares permissions today, so the scope a caller
+    // needs is derived: one read scope and one write scope per service.
+    scopes: [`${service.id.toLowerCase()}:${isMutation ? 'write' : 'read'}`],
+    binding,
+    mutates: isMutation,
+    cache: defaultCache(key, binding, isMutation, intent.params, channel),
+    channel,
+    returns: RETURNS[key] ?? { type: 'unknown', description: '' },
+    params: intent.params,
+    declaredBy,
+    implementedBy: serverTools.has(key) ? `service__${service.id}__${snake(intent.action)}` : null,
+  };
+}
+
 const descriptors = [];
 for (const service of snapshot.services) {
   for (const intent of service.intents) {
-    const key = `${service.id}.${intent.action}`;
-    const binding = postMessageBound.has(key) ? 'postmessage' : local.has(key) ? 'local' : 'socket';
-    const channel = channelFor(key, binding);
-    const isMutation = mutates(key, intent.action);
-    descriptors.push({
-      key,
-      service: service.id,
-      action: intent.action,
-      fn: snake(intent.action),
-      method: camel(intent.action),
-      toolName: `service__${service.id}__${snake(intent.action)}`,
-      serviceTitle: service.title,
-      serviceDescription: service.description,
-      source: service.source,
-      description: intent.description,
-      availability: intent.availability,
-      permissions: intent.permissions,
-      // No manifest intent declares permissions today, so the scope a caller
-      // needs is derived: one read scope and one write scope per service.
-      scopes: [`${service.id.toLowerCase()}:${isMutation ? 'write' : 'read'}`],
-      binding,
-      mutates: isMutation,
-      cache: defaultCache(key, binding, isMutation, intent.params, channel),
-      channel,
-      returns: RETURNS[key] ?? { type: 'unknown', description: '' },
-      params: intent.params,
-      implementedBy: serverTools.has(key) ? `service__${service.id}__${snake(intent.action)}` : null,
-    });
+    descriptors.push(buildDescriptor(service, intent, 'manifest'));
   }
 }
 
+// The functions this package declares itself (scripts/extensions.js). They are
+// service functions in every respect that matters at runtime — the only thing
+// that separates them is `declaredBy`, and the only thing that separates them
+// HERE is that the service header has to be borrowed from the manifest, which
+// is also what stops an extension inventing a service.
+const declaredKeysFromManifest = new Set(descriptors.map((d) => d.key));
+for (const extension of SDK_DECLARED) {
+  const service = snapshot.services.find((s) => s.id === extension.service);
+  if (!service) {
+    throw new Error(`extensions.js declares ${extension.service}.${extension.intent.action} on a service the manifest does not have`);
+  }
+  const key = `${extension.service}.${extension.intent.action}`;
+  if (declaredKeysFromManifest.has(key)) {
+    throw new Error(`extensions.js declares ${key}, which the manifest now declares too — drop the extension`);
+  }
+  descriptors.push(buildDescriptor(service, extension.intent, 'sdk'));
+}
+
 descriptors.sort((a, b) => a.key.localeCompare(b.key));
+
+/** Counts that keep "what the app declares" and "what the SDK offers" apart. */
+const declaredCount = descriptors.filter((d) => d.declaredBy === 'manifest').length;
+const sdkDeclaredCount = descriptors.filter((d) => d.declaredBy === 'sdk').length;
 
 // --- src/services/catalog.generated.js -------------------------------------
 const banner = `// GENERATED by scripts/generate.mjs from manifests/service-manifests.snapshot.json.
@@ -127,6 +165,25 @@ for (const d of descriptors) {
   byService.get(d.service).push(d);
 }
 
+// The two surfaces, kept apart from here down.
+//
+//   serviceFunctions   what this package implements and offers as a function
+//   applicationIntents what only the Valu Social application can serve, and
+//                      what it therefore keeps: no function, one dynamic call
+//
+// A postMessage-bound intent gets no method and no parameter type, because a
+// method is a promise that the SDK can run it, and outside a frame nothing
+// here can. `ApplicationIntents.run()` takes them by name instead — including
+// names that postdate this snapshot, which is the point (docs/sdk-structure.md).
+const serviceFunctions = descriptors.filter((d) => d.binding !== 'postmessage');
+const applicationIntents = descriptors.filter((d) => d.binding === 'postmessage');
+
+const serviceByService = new Map();
+for (const d of serviceFunctions) {
+  if (!serviceByService.has(d.service)) serviceByService.set(d.service, []);
+  serviceByService.get(d.service).push(d);
+}
+
 let dts = `${banner}
 // Typed surface of every declared Valu service function.
 
@@ -148,7 +205,7 @@ const returnType = (returns) => (returns?.type && returns.type !== 'unknown'
 
 const resultName = (d) => `${d.service}${d.method[0].toUpperCase()}${d.method.slice(1)}Result`;
 
-for (const [service, fns] of byService) {
+for (const [service, fns] of serviceByService) {
   for (const d of fns) {
     const all = [...d.params.required.map((p) => [p, true]), ...d.params.optional.map((p) => [p, false])];
     dts += `${jsdoc('', [`${d.key} — ${d.returns.description || d.description}`])}\n`;
@@ -163,8 +220,8 @@ for (const [service, fns] of byService) {
   }
 }
 
-dts += `/** Every service, with each declared function as a method. */\nexport interface ValuServices {\n`;
-for (const [service, fns] of byService) {
+dts += `/** Every service, with each SERVICE function as a method. */\nexport interface ValuServices {\n`;
+for (const [service, fns] of serviceByService) {
   dts += `${jsdoc('  ', [fns[0].serviceDescription])}\n  ${service}: {\n`;
   for (const d of fns) {
     const hasParams = d.params.required.length + d.params.optional.length > 0;
@@ -176,6 +233,33 @@ for (const [service, fns] of byService) {
   dts += `  };\n`;
 }
 dts += `}\n\nexport type ServiceName = keyof ValuServices;\n`;
+
+// The same tree with the envelope taken off. `client.call` answers an ack and
+// `client.invoke` throws; the function surface offers both, and this is the
+// type of the second one — derived, so a function cannot appear on one tree
+// and not the other.
+dts += `
+/** \`ValuAck<T>\` off every method: what \`api.data\` returns, throwing on error. */
+export type UnwrapService<S> = {
+  [F in keyof S]: S[F] extends (...args: infer A) => Promise<ValuAck<infer R>>
+    ? (...args: A) => Promise<R>
+    : never;
+};
+
+/** Every service, with each function returning its DATA and throwing on error. */
+export type ValuServicesData = { [S in keyof ValuServices]: UnwrapService<ValuServices[S]> };
+
+/**
+ * The ${applicationIntents.length} intents only the Valu Social application can serve.
+ *
+ * They are a union, not an interface: there is no method for them, because
+ * this package cannot run one. \`ApplicationIntents.run()\` takes this — or any
+ * other string, since the application registers its intents at runtime and may
+ * know names this snapshot does not.
+ */
+export type ApplicationIntentName =
+${applicationIntents.map((d) => `  | ${JSON.stringify(d.key)}`).join('\n')};
+`;
 
 // --- docs/services.md ------------------------------------------------------
 const counts = descriptors.reduce((acc, d) => ({ ...acc, [d.binding]: (acc[d.binding] ?? 0) + 1 }), {});
@@ -229,7 +313,7 @@ for (const [service, fns] of byService) {
 const implemented = new Set(serviceRegistry.implemented());
 
 const STATUS = (d) => {
-  if (d.binding === 'postmessage') return 'frame command';
+  if (d.binding === 'postmessage') return 'application intent';
   return implemented.has(d.key) ? 'implemented' : 'declared only';
 };
 
@@ -246,10 +330,11 @@ without \`npm run check:generated\` failing.
 
 | | count |
 |---|---|
-| declared service intents | **${descriptors.length}** |
-| SDK-able (socket + local) | **${descriptors.length - counts.postmessage}** |
+| declared by the application's manifest | **${declaredCount}** |
+| declared by this package (scripts/extensions.js) | **${sdkDeclaredCount}** |
+| service functions (socket + local) | **${descriptors.length - counts.postmessage}** |
 | implemented in this package | **${implementedCount}** |
-| frame commands (postMessage-bound) | **${counts.postmessage}** |
+| application intents (postMessage-bound) | **${counts.postmessage}** |
 | server tools with no declared intent | **${SERVER_ONLY_TOOLS.length}** |
 
 ## Channels
@@ -265,7 +350,7 @@ envelope cannot explain.
 | \`valuguru\` | ${byChannel.valuguru ?? 0} | the Valu Guru server's \`data_request\` channel — \`valuguru.*\` ops |
 | \`app-state\` | ${byChannel['app-state'] ?? 0} | no RPC exists; the answer is in the Valu Social application's own memory |
 | \`local\` | ${byChannel.local ?? 0} | computed by the SDK |
-| \`postmessage\` | ${byChannel.postmessage ?? 0} | the postMessage bridge (\`src/frame/FrameCommands.js\`) |
+| \`postmessage\` | ${byChannel.postmessage ?? 0} | the Valu Social application, asked by name (\`src/intents/ApplicationIntents.js\`) |
 
 ## Functions
 
@@ -324,34 +409,6 @@ for (const d of served) {
   servedByService.get(d.service).push(d);
 }
 
-/**
- * Frame command → the method that runs it, read out of FrameCommands itself.
- *
- * NOT derived from the action name: five of the fifteen are deliberately named
- * for what they do rather than what the intent is called (`AiGuru.open` is
- * `openApplication`, `Application.close-application` is `closeSelf`), and a
- * table that camel-cased the action would send a reader to a method that does
- * not exist.
- */
-const frameMethods = (() => {
-  const src = readFileSync(new URL('src/frame/FrameCommands.js', root), 'utf8');
-  const methods = new Map();
-  let current = null;
-  for (const line of src.split('\n')) {
-    const declaration = /^\s{2}([a-zA-Z][\w]*)\s*\(/.exec(line);
-    if (declaration) current = declaration[1];
-    const run = /this\.run\('([^']+)'/.exec(line);
-    if (run && current) methods.set(run[1], current);
-  }
-  return methods;
-})();
-
-for (const d of frame) {
-  if (!frameMethods.has(d.key)) {
-    throw new Error(`${d.key} is postMessage-bound but no FrameCommands method runs it`);
-  }
-}
-
 /** The runtime requirements of a function: its channel, plus anything extra. */
 const requirementsOf = (d) => {
   const channelReq = {
@@ -393,24 +450,24 @@ that handler by \`test/server-functions.test.js\`.
 ## Calling one
 
 \`\`\`javascript
-import { ServiceClient } from '@arkeytyp/valu-api/src/services/ServiceClient.js';
-import { SocketTransport } from '@arkeytyp/valu-api/src/transport/SocketTransport.js';
-import { NodeSocketAdapter } from '@arkeytyp/valu-api/src/socket/NodeSocketAdapter.js';
+import { createValuServices, NodeSocketAdapter } from '@arkeytyp/valu-api';
 
-const client = new ServiceClient({
-  transport: new SocketTransport({
-    socket: new NodeSocketAdapter({ connection }), // the Roomful socket
-    guru,                                          // the Valu Guru socket
-    appState,                                      // state only the app holds
-    applicationId: 'my-app',                       // WHO is calling
-    config: { webBase, apiGate },                  // origins for URL builders
-    fetchImpl: fetch,
-  }),
+const valu = createValuServices({
+  socket: new NodeSocketAdapter({ connection }), // the Roomful socket
+  guru,                                          // the Valu Guru socket
+  appState,                                      // state only the app holds
+  applicationId: 'my-app',                       // WHO is calling
+  config: { webBase, apiGate },                  // origins for URL builders
+  fetchImpl: fetch,
 });
 
-const ack = await client.call('Users.get', { userId });   // { data } | { error }
-const user = await client.invoke('Users.get', { userId }); // throws on error
+const ack  = await valu.Users.get({ userId });        // { data } | { error }
+const user = await valu.data.Users.get({ userId });   // the payload, throws on error
+const same = await valu.call('Users.get', { userId }); // by name, for a tool call
 \`\`\`
+
+The whole tree is [service-api.md](service-api.md); \`createValuServices\` builds
+the transport, the client and the function surface in one call.
 
 A function resolves by any name the platform already writes — \`Users.get\`,
 \`Users.get_user\`, \`Users.getUser\`, \`service__Users__get\`.
@@ -461,15 +518,18 @@ for (const [service, fns] of servedByService) {
 serverMd += `## Not served here
 
 ${frame.length} declared intents are UI-bound: a picker that renders, a dock that
-opens, a log buffer only the frame holds. A socket answers all ${frame.length} with the
-same 501, and [\`src/frame/FrameCommands.js\`](../src/frame/FrameCommands.js)
-gives them a named API over the postMessage bridge instead.
+opens, a log buffer only the application holds. They are **application intents**,
+not service functions — this package has no function for one, and a socket
+answers all ${frame.length} with the same 501. Inside a frame,
+[\`ApplicationIntents\`](../src/intents/ApplicationIntents.js) asks the
+application for one by name.
 
-| intent | frame method |
+| intent | how to run it (inside a frame only) |
 |---|---|
 `;
 for (const d of frame) {
-  serverMd += `| \`${d.key}\` | \`frame.${frameMethods.get(d.key)}()\` |\n`;
+  const params = d.params.required.length + d.params.optional.length ? `, ${signature(d)}` : '';
+  serverMd += `| \`${d.key}\` | \`api.intents.run('${d.key}'${params})\` |\n`;
 }
 
 serverMd += `
@@ -626,7 +686,7 @@ for (const [service, fns] of [...socketByService].sort()) {
   // AiGuru reads as "manages applications" above a single RAG query.
   const elsewhere = descriptors.filter((d) => d.service === service && !fns.includes(d));
   if (elsewhere.length) {
-    const where = { postmessage: 'frame commands', 'app-state': 'application state', local: 'local to the SDK' };
+    const where = { postmessage: 'application intents', 'app-state': 'application state', local: 'local to the SDK' };
     const groups = [...new Set(elsewhere.map((d) => d.channel))]
       .map((c) => `${elsewhere.filter((d) => d.channel === c).length} ${where[c]}`);
     socketMd += `*${elsewhere.length} more \`${service}\` intent${elsewhere.length === 1 ? ' is' : 's are'} `
@@ -645,17 +705,21 @@ for (const [service, fns] of [...socketByService].sort()) {
 socketMd += `## Calling them
 
 \`\`\`javascript
-const client = new ServiceClient({
-  transport: new SocketTransport({
-    socket,          // the Roomful socket — required
-    guru,            // the Valu Guru socket — for the ${onSocket.filter((d) => d.channel === 'valuguru').length} above
-    applicationId,   // WHO is calling; the runtime stamps it
-  }),
+import { createValuServices } from '@arkeytyp/valu-api';
+
+const valu = createValuServices({
+  socket,          // the Roomful socket — required
+  guru,            // the Valu Guru socket — for the ${onSocket.filter((d) => d.channel === 'valuguru').length} above
+  applicationId,   // WHO is calling; the runtime stamps it
 });
 
-const ack = await client.call('Users.get', { userId });   // { data } | { error }
-const user = await client.invoke('Users.get', { userId }); // throws on error
+const ack  = await valu.Users.get({ userId });        // { data } | { error }
+const user = await valu.data.Users.get({ userId });   // the payload, throws on error
+const same = await valu.call('Users.get', { userId }); // by name, for a tool call
 \`\`\`
+
+Every function is on \`valu.<Service>.<method>\` — [service-api.md](service-api.md)
+is the whole tree, one line each.
 
 Every one of them resolves an ack and never throws; the codes, the timeout and
 the retry rules are [callbacks-policy.md](callbacks-policy.md). A function
@@ -806,7 +870,7 @@ Prefer the module's own name over an alias for exactly this reason.
   because its \`api:run-completed\` reply was routed as if it belonged to an
   \`APIPointer\`. It resolves now.
 - **Nothing in the service SDK uses a pointer.** \`ServiceClient\` and
-  \`FrameCommands\` both send \`api:service-intent\`.
+  \`ApplicationIntents\` both send \`api:service-intent\`.
 - There is no plan in Phases 1–2 to wrap them. A pointer function that deserves
   to be callable from an agent should be **declared as an intent** and
   implemented here; the ${pointers.only} above are the candidate list.
@@ -815,11 +879,110 @@ Prefer the module's own name over an alias for exactly this reason.
 doc here means — [postmessage-vs-socket.md](postmessage-vs-socket.md).
 `;
 
+// --- docs/service-api.md ---------------------------------------------------
+// THE FUNCTION SURFACE, as calls a reader can copy. services.md is the
+// platform's declaration and socket-functions.md explains what each one is
+// for; this one answers "what do I type".
+const apiSignature = (d) => {
+  const required = d.params.required.map((p) => p.name);
+  const optional = d.params.optional.map((p) => `${p.name}?`);
+  const all = [...required, ...optional];
+  if (!all.length) return '()';
+  return required.length ? `({ ${all.join(', ')} })` : `({ ${all.join(', ')} }?)`;
+};
+
+const apiReturn = (d) => (d.returns?.type && d.returns.type !== 'unknown' ? d.returns.type : '?');
+
+const CHANNEL_NOTE = {
+  roomful: 'Roomful socket',
+  valuguru: 'Valu Guru socket',
+  'app-state': 'application state — no RPC exists',
+  local: 'answered by the SDK',
+};
+
+let apiMd = `<!-- GENERATED by scripts/generate.mjs. Do not edit: run \`npm run build\`. -->
+# The service API
+
+Every service function this package offers, as the call you would write. There
+are **${serviceFunctions.length}** of them, on **${serviceByService.size}** services, and the same
+${serviceFunctions.length} are available from a Valu Social build, from a frame application and from
+the Valu Guru server — that is what makes them service functions.
+
+\`\`\`javascript
+import { createValuServices } from '@arkeytyp/valu-api';
+
+// a Node agent, or the Valu Guru server: its own socket
+const valu = createValuServices({ socket, guru });
+// inside an iframe: the bridge it already has
+const valu = createValuServices({ transport: new ValuApi().transport });
+
+const me    = await valu.data.Users.current();                  // the payload
+const ack   = await valu.Users.current();                       // or the envelope
+const rooms = await valu.data.Rooms.searchRooms({ query: 'design', size: 5 });
+\`\`\`
+
+\`valu.X.y()\` resolves \`{data} | {error}\` and never rejects. \`valu.data.X.y()\`
+is the same call with the envelope taken off: it returns the payload and throws
+\`ValuServiceError\`. \`valu.call('Users.current')\` takes the name as a string,
+which is what an LLM tool call has.
+
+What is **not** here: the ${applicationIntents.length} application intents — open a dock, expand a
+pane, show a picker. Only the Valu Social application can serve those, and it is
+asked for one by name: \`api.intents.run('AiGuru.open', {applicationId})\`. See
+[sdk-structure.md](sdk-structure.md).
+
+| | |
+|---|---|
+| read the feature each one provides | [socket-functions.md](socket-functions.md) |
+| what your runtime must supply | [server-functions.md](server-functions.md) |
+| what the platform declares | [services.md](services.md) |
+| who implements what today | [parity.md](parity.md) |
+
+`;
+
+for (const [service, fns] of serviceByService) {
+  const reads = fns.filter((d) => !d.mutates);
+  const writes = fns.filter((d) => d.mutates);
+  apiMd += `## ${service}\n\n${fns[0].serviceDescription}\n\n`;
+  const line = (d) => {
+    const marks = [CHANNEL_NOTE[d.channel]];
+    if (d.declaredBy === 'sdk') marks.push('declared by this package');
+    return `- \`valu.${service}.${d.method}${apiSignature(d)}\` → \`${apiReturn(d)}\`\n`
+      + `  ${d.description}\n`
+      + `  <sub>${marks.join(' · ')}</sub>\n`;
+  };
+  if (reads.length) apiMd += `**Reads**\n\n${reads.map(line).join('')}\n`;
+  if (writes.length) apiMd += `**Writes**\n\n${writes.map(line).join('')}\n`;
+}
+
+apiMd += `## Names
+
+One function, four ways to write it — the tree, and the three string forms the
+platform already uses:
+
+\`\`\`javascript
+valu.Users.searchUsers({ filter: 'contacts' })
+valu.call('Users.search-users', { filter: 'contacts' })   // as the manifest declares it
+valu.call('Users.search_users', { filter: 'contacts' })   // as the server names its tool
+valu.call('service__Users__search_users', { filter: 'contacts' })
+\`\`\`
+
+Each method also carries its own descriptor, so a runtime that builds LLM tools
+out of these does not have to look one up by string:
+
+\`\`\`javascript
+valu.Users.searchUsers.toolName    // 'service__Users__search_users'
+valu.Users.searchUsers.descriptor  // params, scopes, cache policy, channel
+valu.toolDefinitions()             // every function, as an OpenAI-shaped tool
+\`\`\`
+`;
+
 // --- write or check --------------------------------------------------------
 const outputs = [
   ['src/services/catalog.generated.js', catalogJs],
   ['types/valu-services.d.ts', dts],
   ['docs/services.md', md],
+  ['docs/service-api.md', apiMd],
   ['docs/server-functions.md', serverMd],
   ['docs/socket-functions.md', socketMd],
   ['docs/api-pointers.md', pointerMd],

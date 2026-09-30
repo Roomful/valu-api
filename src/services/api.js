@@ -1,0 +1,184 @@
+// ===========================================================================
+// The function surface.
+//
+// `client.call('Users.current')` is a string and an object; this is
+// `valu.Users.current()`. The difference is not sugar — a string is checked
+// when it runs and a method is checked when it is written, and the caller that
+// matters here is an agent runtime wiring 78 functions into an LLM, where a
+// typo in a service name is a tool that silently never works.
+//
+// What is on this tree: SERVICE functions — the 78 the SDK runs itself, over
+// whichever transport it was given. What is not: the 15 application intents,
+// which only the Valu Social application can serve, and which it keeps
+// (src/intents/ApplicationIntents.js). One rule, no exceptions, so "is there a
+// function for it" and "can this run outside a frame" are the same question.
+//
+//   import { createValuServices, NodeSocketAdapter } from '@arkeytyp/valu-api';
+//
+//   const valu = createValuServices({ socket: new NodeSocketAdapter(connection) });
+//
+//   const { data } = await valu.Users.current();               // the ack
+//   const me       = await valu.data.Users.current();          // or the data
+//   const rooms    = await valu.data.Rooms.searchRooms({ query: 'design' });
+//
+// Both trees are the same 78 functions over the same client — `valu.X.y()`
+// resolves the ack envelope and never rejects; `valu.data.X.y()` returns the
+// payload and throws `ValuServiceError`. Which one a codebase wants depends on
+// whether it is turning failures into tool results (the ack) or writing
+// application code (the data).
+// ===========================================================================
+import { ServiceClient } from './ServiceClient.js';
+import { SERVICE_FUNCTIONS, catalogSummary, listServices } from './descriptors.js';
+import { toolDefinitions } from './toolDefs.js';
+import { SocketTransport } from '../transport/SocketTransport.js';
+// Imported for its effect: this is what puts the 78 handlers in the default
+// registry. A function on the tree with nothing behind it would be the one
+// thing worse than no function at all.
+import './impl/index.js';
+
+/** Service functions grouped by service, in catalogue order. */
+function groupByService() {
+  const grouped = new Map();
+  for (const descriptor of SERVICE_FUNCTIONS) {
+    if (!grouped.has(descriptor.service)) grouped.set(descriptor.service, []);
+    grouped.get(descriptor.service).push(descriptor);
+  }
+  return grouped;
+}
+
+/**
+ * One namespace — `valu.Users` — with a method per function.
+ *
+ * The method carries its own descriptor and tool name, so a runtime that
+ * builds tools from these functions never has to look the function up by
+ * string to find out what it is.
+ */
+function buildNamespace(descriptors, run) {
+  const namespace = {};
+  for (const descriptor of descriptors) {
+    const method = (params, options) => run(descriptor, params, options);
+    Object.defineProperty(method, 'name', { value: descriptor.method });
+    method.descriptor = descriptor;
+    method.key = descriptor.key;
+    method.toolName = descriptor.toolName;
+    namespace[descriptor.method] = method;
+  }
+  return Object.freeze(namespace);
+}
+
+function buildTree(run) {
+  const tree = {};
+  for (const [service, descriptors] of groupByService()) {
+    tree[service] = buildNamespace(descriptors, run);
+  }
+  return Object.freeze(tree);
+}
+
+/**
+ * The service functions, as functions.
+ *
+ * A thin object over one {@link ServiceClient}: every method goes through the
+ * same descriptor lookup, validation, scope check, cache and call policy the
+ * string path does. Nothing is bypassed by using a method — it is the same
+ * call with the name already resolved.
+ */
+export class ValuServiceApi {
+  #client;
+  #data;
+
+  /**
+   * @param {object} options
+   * @param {ServiceClient} options.client
+   */
+  constructor({ client } = {}) {
+    if (!client) throw new TypeError('ValuServiceApi needs a ServiceClient');
+    this.#client = client;
+    Object.assign(this, buildTree((d, params, opts) => client.call(d.key, params, opts)));
+  }
+
+  get client() { return this.#client; }
+  get transport() { return this.#client.transport; }
+  get cache() { return this.#client.cache; }
+
+  /**
+   * The same tree, unwrapped: every method resolves the payload and throws
+   * {@link ValuServiceError} instead of answering an error envelope.
+   */
+  get data() {
+    if (!this.#data) {
+      this.#data = buildTree((d, params, opts) => this.#client.invoke(d.key, params, opts));
+    }
+    return this.#data;
+  }
+
+  /** Call by name, for a caller that has a string — an LLM tool call, say. */
+  call(name, params, options) { return this.#client.call(name, params, options); }
+  /** Call by name, unwrapped. */
+  invoke(name, params, options) { return this.#client.invoke(name, params, options); }
+  /** @see ServiceClient#subscribe */
+  subscribe(event, handler) { return this.#client.subscribe(event, handler); }
+  /** @see ServiceClient#seed */
+  seed(name, params, data, options) { this.#client.seed(name, params, data, options); return this; }
+  close() { return this.#client.close(); }
+
+  /** Every service function, as descriptors. */
+  static functions() { return [...SERVICE_FUNCTIONS]; }
+  /** Service ids that have at least one function. */
+  static services() { return listServices().filter((s) => SERVICE_FUNCTIONS.some((d) => d.service === s)); }
+  static summary = catalogSummary;
+
+  /**
+   * LLM tool definitions for these functions — the server's use for this
+   * package. Defaults to what an AI caller may reach; application intents are
+   * never in it, because this object cannot run one.
+   * @see toolDefinitions
+   */
+  static toolDefinitions(filter) { return toolDefinitions(filter); }
+  toolDefinitions(filter) { return toolDefinitions(filter); }
+}
+
+/**
+ * Build the function surface, transport and all.
+ *
+ * Give it a transport, or give it the pieces and it builds a
+ * {@link SocketTransport}:
+ *
+ *   createValuServices({ socket })                      // Node, or a browser
+ *   createValuServices({ socket, guru })                // + the Commerce/RAG channel
+ *   createValuServices({ transport: valuApi.transport })// inside a frame
+ *
+ * @param {object} options
+ * @param {import('../transport/Transport.js').Transport} [options.transport]
+ *   Use this transport as it is. Everything below is ignored when it is given.
+ * @param {import('../socket/ValuSocket.js').ValuSocket} [options.socket]
+ * @param {import('../socket/ValuGuruSocket.js').ValuGuruSocket} [options.guru]
+ * @param {import('../app-state/AppState.js').AppState} [options.appState]
+ * @param {Function} [options.fetchImpl]
+ * @param {object} [options.config]
+ * @param {() => Date} [options.now]
+ * @param {string} [options.applicationId]
+ * @param {import('./registry.js').ServiceRegistry} [options.registry]
+ * @param {import('../cache/ServiceCache.js').ServiceCache|null} [options.cache]
+ * @param {import('../auth/AuthProvider.js').AuthProvider} [options.auth]
+ * @param {object} [options.hooks]
+ * @returns {ValuServiceApi}
+ */
+export function createValuServices(options = {}) {
+  const { transport, cache, auth, hooks, ...transportOptions } = options;
+  if (!transport && !transportOptions.socket) {
+    // The two ways to get here are a typo and a misunderstanding, and the
+    // second one is worth a sentence: there is no default transport. A frame
+    // passes `valuApi.transport`; everything else passes a socket.
+    throw new TypeError(
+      'createValuServices needs either a transport or a socket — '
+      + 'pass `{ socket }` for a Roomful connection, or `{ transport: valuApi.transport }` inside a frame',
+    );
+  }
+  const client = new ServiceClient({
+    transport: transport ?? new SocketTransport(transportOptions),
+    ...(cache !== undefined ? { cache } : {}),
+    ...(auth !== undefined ? { auth } : {}),
+    ...(hooks !== undefined ? { hooks } : {}),
+  });
+  return new ValuServiceApi({ client });
+}

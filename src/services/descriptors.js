@@ -28,6 +28,10 @@ import { SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS } from './catalog.generated.js';
  * @property {string[]} availability `ai` / `developer`.
  * @property {string[]} scopes Scopes a caller must hold.
  * @property {'socket'|'local'|'postmessage'} binding What serves this function.
+ * @property {'roomful'|'valuguru'|'app-state'|'local'|'postmessage'} channel WHICH
+ *   of them — the two sockets are not interchangeable.
+ * @property {'manifest'|'sdk'} declaredBy Who says this function exists: the
+ *   app's SERVICE_MANIFESTS, or this package (scripts/extensions.js).
  * @property {boolean} mutates
  * @property {{mode: 'none'|'read-through'|'seeded', ttlMs?: number, key?: string|null}} cache
  * @property {{type: string, description: string}} returns
@@ -64,11 +68,48 @@ export function findDescriptor(name) {
   return byKey.get(name) ?? byAlias.get(name.toLowerCase());
 }
 
+/**
+ * The two surfaces, split once here so nothing downstream has to remember the
+ * rule (docs/sdk-structure.md).
+ *
+ *   SERVICE_FUNCTIONS    socket + local. The SDK runs these itself, over
+ *                        whatever transport it was given, in a browser, in a
+ *                        frame or in Node.
+ *   APPLICATION_INTENTS  postMessage-bound. Only the Valu Social application
+ *                        can serve them, so this package gives them no
+ *                        function — `ApplicationIntents.run()` takes them by
+ *                        name, and takes names this snapshot has never seen.
+ */
+export const SERVICE_FUNCTIONS = Object.freeze(
+  SERVICE_DESCRIPTORS.filter((d) => d.binding !== 'postmessage'),
+);
+export const APPLICATION_INTENTS = Object.freeze(
+  SERVICE_DESCRIPTORS.filter((d) => d.binding === 'postmessage'),
+);
+
+/** Is this name a function the SDK can run, as opposed to an application intent? */
+export function isServiceFunction(name) {
+  const descriptor = findDescriptor(name);
+  return Boolean(descriptor) && descriptor.binding !== 'postmessage';
+}
+
+/** Service functions, optionally filtered — the same filters `listDescriptors` takes. */
+export function listServiceFunctions(filter = {}) {
+  return listDescriptors(filter).filter((d) => d.binding !== 'postmessage');
+}
+
+/** The application intents: declared, documented, and served only by the app. */
+export function listApplicationIntents(filter = {}) {
+  return listDescriptors(filter).filter((d) => d.binding === 'postmessage');
+}
+
 /** Every descriptor, optionally filtered. */
-export function listDescriptors({ service, binding, availability, mutates } = {}) {
+export function listDescriptors({ service, binding, channel, declaredBy, availability, mutates } = {}) {
   return SERVICE_DESCRIPTORS.filter((d) =>
     (service === undefined || d.service === service)
     && (binding === undefined || d.binding === binding)
+    && (channel === undefined || d.channel === channel)
+    && (declaredBy === undefined || d.declaredBy === declaredBy)
     && (availability === undefined || d.availability.includes(availability))
     && (mutates === undefined || d.mutates === mutates));
 }
@@ -80,12 +121,23 @@ export function listServices() {
 
 /** Descriptor counts by binding — the parity numbers, straight from the source. */
 export function catalogSummary() {
-  const summary = { total: SERVICE_DESCRIPTORS.length, socket: 0, local: 0, postmessage: 0, implemented: 0 };
+  const summary = {
+    total: SERVICE_DESCRIPTORS.length,
+    socket: 0, local: 0, postmessage: 0, implemented: 0,
+    // WHO declared them. `declared` is a fact about valusocial-web and does not
+    // move when this package adds a function; `sdkDeclared` is a fact about
+    // this package. Reporting one number for both is how a parity table starts
+    // lying (scripts/extensions.js).
+    declared: 0, sdkDeclared: 0,
+  };
   for (const d of SERVICE_DESCRIPTORS) {
     summary[d.binding]++;
     if (d.implementedBy) summary.implemented++;
+    if (d.declaredBy === 'sdk') summary.sdkDeclared++; else summary.declared++;
   }
   summary.sdkable = summary.socket + summary.local;
+  summary.serviceFunctions = summary.sdkable;
+  summary.applicationIntents = summary.postmessage;
   summary.remaining = summary.sdkable - summary.implemented;
   summary.serverOnly = SERVER_ONLY_TOOLS.length;
   return summary;

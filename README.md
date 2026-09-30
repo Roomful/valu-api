@@ -339,37 +339,50 @@ Check out the repository here and feel free to leave comments or feedback:
 
 ## The service SDK
 
-Alongside the application bridge, the package carries the **declared-service
-surface**: every function the platform declares, with its parameters, the
-scope it needs, and one call path that validates, caches and retries the same
-way whichever transport serves it.
+Alongside the application bridge, the package carries **78 service functions** —
+users, rooms, communities, commerce, chat, resources — as functions you call.
+The same 78 work from a Valu Social build, from a frame application and from a
+headless agent, because the package runs them itself over whichever connection
+it was given.
 
 ```javascript
 const api = new ValuApi();
 
-// Resolves {data} or {error} — never rejects.
-const ack = await api.services.call('Users.get', { userId });
-
-// Same call, unwrapped: returns the data, throws ValuServiceError.
-const user = await api.services.invoke('Users.get', { userId });
+const ack = await api.services.Users.get({ userId });      // {data} | {error}, never rejects
+const user = await api.services.data.Users.get({ userId }); // the payload, throws on error
+const ack2 = await api.services.call('Users.get', { userId }); // by name, for a tool call
 ```
 
-A function resolves by any name the platform already writes for it —
-`Users.get`, `Users.get_user`, `Users.getUser` or `service__Users__get`.
+A name resolves by any form the platform already writes — `Users.get`,
+`Users.get_user`, `Users.getUser` or `service__Users__get`.
 
-The same client runs over a socket instead of the frame bridge, in the browser
-or headless:
+The same functions over a socket instead of the frame bridge, in the browser or
+headless:
 
 ```javascript
-import { ServiceClient, SocketTransport, BrowserSocketAdapter } from '@arkeytyp/valu-api';
+import { createValuServices, BrowserSocketAdapter } from '@arkeytyp/valu-api';
 
 const socket = new BrowserSocketAdapter({ socket: webSocketService, userId, networkId });
-const client = new ServiceClient({ transport: new SocketTransport({ socket }) });
+const valu = createValuServices({ socket });
+const rooms = await valu.data.Rooms.searchRooms({ query: 'design' });
 ```
 
+Fifteen declared intents are **not** functions: opening a dock, expanding a
+pane, showing a picker. Only the Valu Social application can serve those, and it
+registers its intents at runtime, so they are asked for by name rather than
+wrapped:
+
+```javascript
+await api.intents.run('AiGuru.open', { applicationId: 'cart' });
+```
+
+- [docs/sdk-structure.md](docs/sdk-structure.md) — the two surfaces, and why
+  `close` is not a function. **Start here.**
+- [docs/service-api.md](docs/service-api.md) — every function, as the call you
+  would write (generated)
 - [docs/sdk.md](docs/sdk.md) — architecture, and how to add a function
 - [docs/callbacks-policy.md](docs/callbacks-policy.md) — the answer shape,
   timeouts, retry, ordering and reconnect. **Frozen.**
 - [docs/authorization.md](docs/authorization.md) — app tokens, scopes, and why
   an application never receives the user's session
-- [docs/services.md](docs/services.md) — every declared function (generated)
+- [docs/services.md](docs/services.md) — every declared intent (generated)

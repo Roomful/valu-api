@@ -14,21 +14,6 @@ export type ServiceBinding = 'socket' | 'local' | 'postmessage';
 export type IntentAvailability = 'ai' | 'developer';
 
 /**
- * AiGuru.close — The application was closed.
- */
-export type AiGuruCloseResult = void;
-
-/**
- * AiGuru.close — Closes (unloads) an application by its ID from the dock.
- */
-export interface AiGuruCloseParams {
-  /**
-   * The unique identifier of the application to close.
-   */
-  applicationId: string;
-}
-
-/**
  * AiGuru.get-agent-history — The agent header and its in-memory messages.
  */
 export type AiGuruGetAgentHistoryResult = {agent: Record<string, any>, messages: Record<string, any>[]};
@@ -44,17 +29,6 @@ export interface AiGuruGetAgentHistoryParams {
 }
 
 /**
- * AiGuru.get-applications — Applications the dock can open.
- */
-export type AiGuruGetApplicationsResult = {applications: Record<string, any>[]};
-
-/**
- * AiGuru.get-applications — Returns a list of all registered applications with their id, slug, icon, and title.
- */
-export interface AiGuruGetApplicationsParams {
-}
-
-/**
  * AiGuru.get-chat-history — The session header and its in-memory messages.
  */
 export type AiGuruGetChatHistoryResult = {session: Record<string, any>, messages: Record<string, any>[]};
@@ -67,51 +41,6 @@ export interface AiGuruGetChatHistoryParams {
    * ID of the chat session. Omit to use the currently active session.
    */
   chatId?: string;
-}
-
-/**
- * AiGuru.has-application — Whether the dock knows this application.
- */
-export type AiGuruHasApplicationResult = {hasApplication: boolean};
-
-/**
- * AiGuru.has-application — Checks whether an application with the given ID exists in the registry.
- */
-export interface AiGuruHasApplicationParams {
-  /**
-   * The unique identifier of the application to check.
-   */
-  applicationId: string;
-}
-
-/**
- * AiGuru.is-application-loaded — Whether the application is loaded in the dock.
- */
-export type AiGuruIsApplicationLoadedResult = {loaded: boolean};
-
-/**
- * AiGuru.is-application-loaded — Checks whether an application with the given ID is currently loaded (open) in the dock.
- */
-export interface AiGuruIsApplicationLoadedParams {
-  /**
-   * The unique identifier of the application to check.
-   */
-  applicationId: string;
-}
-
-/**
- * AiGuru.open — The application was opened.
- */
-export type AiGuruOpenResult = void;
-
-/**
- * AiGuru.open — Opens (loads) an application by its ID into the dock.
- */
-export interface AiGuruOpenParams {
-  /**
-   * The unique identifier of the application to open.
-   */
-  applicationId: string;
 }
 
 /**
@@ -135,50 +64,6 @@ export interface AiGuruQueryKnowledgeBaseParams {
    * Extra arguments merged into the RAG tool call alongside `query` (tool-specific, e.g. scope filters).
    */
   args?: Record<string, any>;
-}
-
-/**
- * Application.close_all — Every open application was closed.
- */
-export type ApplicationCloseAllResult = void;
-
-/**
- * Application.close_all — Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed.
- */
-export interface ApplicationCloseAllParams {
-}
-
-/**
- * Application.close-application — The calling application was closed.
- */
-export type ApplicationCloseApplicationResult = void;
-
-/**
- * Application.close-application — Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Close Application" default header action for iframe apps that render their own context menu (header: false).
- */
-export interface ApplicationCloseApplicationParams {
-}
-
-/**
- * Application.expand-application — The calling application was expanded.
- */
-export type ApplicationExpandApplicationResult = void;
-
-/**
- * Application.expand-application — Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Expand Application" default header action for iframe apps that render their own context menu (header: false).
- */
-export interface ApplicationExpandApplicationParams {
-}
-
-/**
- * Application.get-identity-token — A short-lived identity token for the calling application.
- */
-export type ApplicationGetIdentityTokenResult = {token: string};
-
-/**
- * Application.get-identity-token — Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.
- */
-export interface ApplicationGetIdentityTokenParams {
 }
 
 /**
@@ -670,39 +555,6 @@ export interface CommerceListProductsParams {
 }
 
 /**
- * Commerce.open-cart — The cart surface was opened.
- */
-export type CommerceOpenCartResult = void;
-
-/**
- * Commerce.open-cart — Open My Cart for the user, scoped to your app's items.
- */
-export interface CommerceOpenCartParams {
-}
-
-/**
- * Commerce.open-products — The merchant console was opened.
- */
-export type CommerceOpenProductsResult = void;
-
-/**
- * Commerce.open-products — Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it after `create-product`, or for a "My products" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's.
- */
-export interface CommerceOpenProductsParams {
-}
-
-/**
- * Commerce.open-purchases — The purchases surface was opened.
- */
-export type CommerceOpenPurchasesResult = void;
-
-/**
- * Commerce.open-purchases — Open the user's order history in My Cart.
- */
-export interface CommerceOpenPurchasesParams {
-}
-
-/**
  * Commerce.update-product — The updated draft.
  */
 export type CommerceUpdateProductResult = {product: Record<string, any>};
@@ -843,68 +695,6 @@ export interface CommunitySearchCommunitiesParams {
    * Pagination cursor — ID of the last community from previous page.
    */
   afterCommunityId?: string;
-}
-
-/**
- * DataProvider.pick-multiple — What the user chose; empty when they cancelled.
- */
-export type DataProviderPickMultipleResult = {picked: Record<string, any>[]};
-
-/**
- * DataProvider.pick-multiple — Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"].
- */
-export interface DataProviderPickMultipleParams {
-  /**
-   * Provider IDs to show. Same set as pick-single.
-   */
-  providers: string[];
-  /**
-   * Dialog title.
-   */
-  title?: string;
-  /**
-   * Confirm button label (e.g. "Invite", "Share with"). Defaults to "Select".
-   */
-  confirmLabel?: string;
-  /**
-   * Confirm button icon class (Font Awesome, e.g. "fa-light fa-paper-plane-top").
-   */
-  confirmIcon?: string;
-  /**
-   * CSS width for the modal (desktop only).
-   */
-  width?: string;
-  /**
-   * CSS height for the modal (desktop only).
-   */
-  height?: string;
-}
-
-/**
- * DataProvider.pick-single — What the user chose, or null when they cancelled.
- */
-export type DataProviderPickSingleResult = {picked: Record<string, any>|null};
-
-/**
- * DataProvider.pick-single — Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that.
- */
-export interface DataProviderPickSingleParams {
-  /**
-   * Provider IDs to show as picker sources. Available IDs include: "rooms", "contacts", "groups", "communities", "props", "events". Pass one entry for a single-source picker, or multiple to let the user switch sources via tabs. Example: ["rooms"] or ["contacts", "groups"].
-   */
-  providers: string[];
-  /**
-   * Dialog title shown above the picker. Defaults to the provider's built-in title.
-   */
-  title?: string;
-  /**
-   * CSS width for the modal (desktop only).
-   */
-  width?: string;
-  /**
-   * CSS height for the modal (desktop only).
-   */
-  height?: string;
 }
 
 /**
@@ -1237,21 +1027,6 @@ export interface HttpPostParams {
    * How to parse the response body: "auto" (default), "json", or "text".
    */
   responseType?: string;
-}
-
-/**
- * Logging.get-logs — The Valu Social application's captured log buffer, in the requested format.
- */
-export type LoggingGetLogsResult = {logs: string|Record<string, any>[]};
-
-/**
- * Logging.get-logs — Returns the captured console log buffer (log, info, warn, error) since app start. Choose the format: "text" returns { format: "text", text: <string> } with one line per entry; "file" returns { format: "file", filename, mimeType, size, file: File } — the File is for direct callers (upload/download) and is omitted in the AI/MCP serialized response, which still includes filename, mimeType, and size.
- */
-export interface LoggingGetLogsParams {
-  /**
-   * Output format. Must be one of: "text", "file". Defaults to "text".
-   */
-  format?: string;
 }
 
 /**
@@ -1946,6 +1721,33 @@ export interface UsersGetParams {
 }
 
 /**
+ * Users.list-connection-requests — Connection requests, with the other party of each resolved into `users`.
+ */
+export type UsersListConnectionRequestsResult = {requests: Record<string, any>[], users: Record<string, any>[], hasMore: boolean};
+
+/**
+ * Users.list-connection-requests — List connection (friend) requests involving the current user, newest first. Use this to answer "who wants to connect with me" before accepting or declining: the ids this returns are what accept-connection-request and decline-connection-request take. Resolves each request's other party into a user object in the same call.
+ */
+export interface UsersListConnectionRequestsParams {
+  /**
+   * Which side of the request to list. "received" — requests other people sent to the current user (the default, and the one that needs answering); "sent" — requests the current user sent and can still cancel.
+   */
+  category?: "received" | "sent";
+  /**
+   * Request status. Defaults to "pending" — the only status with anything to do about it.
+   */
+  status?: "pending" | "accepted" | "declined";
+  /**
+   * Pagination offset. Defaults to 0.
+   */
+  offset?: number;
+  /**
+   * Number of requests to return. Defaults to 20.
+   */
+  size?: number;
+}
+
+/**
  * Users.search-users — Matches WITHIN the caller's own connections.
  */
 export type UsersSearchUsersResult = {users: Record<string, any>[]};
@@ -2033,19 +1835,12 @@ export interface VerusWalletTransferParams {
   memo?: string;
 }
 
-/** Every service, with each declared function as a method. */
+/** Every service, with each SERVICE function as a method. */
 export interface ValuServices {
   /**
    * System service for managing applications via AI. Provides tools to open, close, list, and check application status.
    */
   AiGuru: {
-    /**
-     * Closes (unloads) an application by its ID from the dock.
-     * @binding postmessage
-     * @channel postmessage
-     * @scope aiguru:write
-     */
-    close(params: AiGuruCloseParams): Promise<ValuAck<AiGuruCloseResult>>;
     /**
      * Returns the in-memory message history for a background agent.
      * @binding socket
@@ -2054,13 +1849,6 @@ export interface ValuServices {
      */
     getAgentHistory(params: AiGuruGetAgentHistoryParams): Promise<ValuAck<AiGuruGetAgentHistoryResult>>;
     /**
-     * Returns a list of all registered applications with their id, slug, icon, and title.
-     * @binding postmessage
-     * @channel postmessage
-     * @scope aiguru:read
-     */
-    getApplications(): Promise<ValuAck<AiGuruGetApplicationsResult>>;
-    /**
      * Returns the in-memory message history for a chat session. Omit chatId to get the currently active session.
      * @binding socket
      * @channel app-state
@@ -2068,66 +1856,12 @@ export interface ValuServices {
      */
     getChatHistory(params?: AiGuruGetChatHistoryParams): Promise<ValuAck<AiGuruGetChatHistoryResult>>;
     /**
-     * Checks whether an application with the given ID exists in the registry.
-     * @binding postmessage
-     * @channel postmessage
-     * @scope aiguru:read
-     */
-    hasApplication(params: AiGuruHasApplicationParams): Promise<ValuAck<AiGuruHasApplicationResult>>;
-    /**
-     * Checks whether an application with the given ID is currently loaded (open) in the dock.
-     * @binding postmessage
-     * @channel postmessage
-     * @scope aiguru:read
-     */
-    isApplicationLoaded(params: AiGuruIsApplicationLoadedParams): Promise<ValuAck<AiGuruIsApplicationLoadedResult>>;
-    /**
-     * Opens (loads) an application by its ID into the dock.
-     * @binding postmessage
-     * @channel postmessage
-     * @scope aiguru:write
-     */
-    open(params: AiGuruOpenParams): Promise<ValuAck<AiGuruOpenResult>>;
-    /**
      * Queries the RAG knowledge base directly over the Valu Guru server's socket connection, bypassing chat entirely. Returns the raw tool result text.
      * @binding socket
      * @channel valuguru
      * @scope aiguru:read
      */
     queryKnowledgeBase(params: AiGuruQueryKnowledgeBaseParams): Promise<ValuAck<AiGuruQueryKnowledgeBaseResult>>;
-  };
-  /**
-   * Issues short-lived signed identity JWTs for iFrame (mini-app) applications. Allows an embedded application to obtain a signed token proving the current user's identity to the mini-app's own backend.
-   */
-  Application: {
-    /**
-     * Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed.
-     * @binding postmessage
-     * @channel postmessage
-     * @scope application:read
-     */
-    closeAll(): Promise<ValuAck<ApplicationCloseAllResult>>;
-    /**
-     * Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Close Application" default header action for iframe apps that render their own context menu (header: false).
-     * @binding postmessage
-     * @channel postmessage
-     * @scope application:write
-     */
-    closeApplication(): Promise<ValuAck<ApplicationCloseApplicationResult>>;
-    /**
-     * Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Expand Application" default header action for iframe apps that render their own context menu (header: false).
-     * @binding postmessage
-     * @channel postmessage
-     * @scope application:write
-     */
-    expandApplication(): Promise<ValuAck<ApplicationExpandApplicationResult>>;
-    /**
-     * Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.
-     * @binding postmessage
-     * @channel postmessage
-     * @scope application:read
-     */
-    getIdentityToken(): Promise<ValuAck<ApplicationGetIdentityTokenResult>>;
   };
   /**
    * Per-application file storage service for uploading, searching, and deleting resources scoped to the calling application and current user.
@@ -2289,27 +2023,6 @@ export interface ValuServices {
      */
     listProducts(params?: CommerceListProductsParams): Promise<ValuAck<CommerceListProductsResult>>;
     /**
-     * Open My Cart for the user, scoped to your app's items.
-     * @binding postmessage
-     * @channel postmessage
-     * @scope commerce:write
-     */
-    openCart(): Promise<ValuAck<CommerceOpenCartResult>>;
-    /**
-     * Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it after `create-product`, or for a "My products" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's.
-     * @binding postmessage
-     * @channel postmessage
-     * @scope commerce:write
-     */
-    openProducts(): Promise<ValuAck<CommerceOpenProductsResult>>;
-    /**
-     * Open the user's order history in My Cart.
-     * @binding postmessage
-     * @channel postmessage
-     * @scope commerce:write
-     */
-    openPurchases(): Promise<ValuAck<CommerceOpenPurchasesResult>>;
-    /**
      * Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted by the seller in the Merchant Console first). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`.
      * @binding socket
      * @channel valuguru
@@ -2349,25 +2062,6 @@ export interface ValuServices {
      * @scope community:read
      */
     searchCommunities(params?: CommunitySearchCommunitiesParams): Promise<ValuAck<CommunitySearchCommunitiesResult>>;
-  };
-  /**
-   * Picker service for selecting items from data providers (rooms, contacts, etc.) via modal or inline overlay.
-   */
-  DataProvider: {
-    /**
-     * Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"].
-     * @binding postmessage
-     * @channel postmessage
-     * @scope dataprovider:read
-     */
-    pickMultiple(params: DataProviderPickMultipleParams): Promise<ValuAck<DataProviderPickMultipleResult>>;
-    /**
-     * Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that.
-     * @binding postmessage
-     * @channel postmessage
-     * @scope dataprovider:read
-     */
-    pickSingle(params: DataProviderPickSingleParams): Promise<ValuAck<DataProviderPickSingleResult>>;
   };
   /**
    * Developer Portal service for creating and listing the current user's applications.
@@ -2472,18 +2166,6 @@ export interface ValuServices {
      * @scope http:write
      */
     post(params: HttpPostParams): Promise<ValuAck<HttpPostResult>>;
-  };
-  /**
-   * Exposes the in-memory console log buffer captured by ConsoleLogCapture for diagnostics and bug reporting.
-   */
-  Logging: {
-    /**
-     * Returns the captured console log buffer (log, info, warn, error) since app start. Choose the format: "text" returns { format: "text", text: <string> } with one line per entry; "file" returns { format: "file", filename, mimeType, size, file: File } — the File is for direct callers (upload/download) and is omitted in the AI/MCP serialized response, which still includes filename, mimeType, and size.
-     * @binding postmessage
-     * @channel postmessage
-     * @scope logging:read
-     */
-    getLogs(params?: LoggingGetLogsParams): Promise<ValuAck<LoggingGetLogsResult>>;
   };
   /**
    * Network management service for retrieving information about the current network.
@@ -2751,6 +2433,13 @@ export interface ValuServices {
      */
     get(params: UsersGetParams): Promise<ValuAck<UsersGetResult>>;
     /**
+     * List connection (friend) requests involving the current user, newest first. Use this to answer "who wants to connect with me" before accepting or declining: the ids this returns are what accept-connection-request and decline-connection-request take. Resolves each request's other party into a user object in the same call.
+     * @binding socket
+     * @channel roomful
+     * @scope users:read
+     */
+    listConnectionRequests(params?: UsersListConnectionRequestsParams): Promise<ValuAck<UsersListConnectionRequestsResult>>;
+    /**
      * Search for users within existing connections (contacts, followers, or following). Use this to find a user ID when you only know their name and they are already in your network. To discover new users outside your network, use find-user instead.
      * @binding socket
      * @channel roomful
@@ -2787,3 +2476,38 @@ export interface ValuServices {
 }
 
 export type ServiceName = keyof ValuServices;
+
+/** `ValuAck<T>` off every method: what `api.data` returns, throwing on error. */
+export type UnwrapService<S> = {
+  [F in keyof S]: S[F] extends (...args: infer A) => Promise<ValuAck<infer R>>
+    ? (...args: A) => Promise<R>
+    : never;
+};
+
+/** Every service, with each function returning its DATA and throwing on error. */
+export type ValuServicesData = { [S in keyof ValuServices]: UnwrapService<ValuServices[S]> };
+
+/**
+ * The 15 intents only the Valu Social application can serve.
+ *
+ * They are a union, not an interface: there is no method for them, because
+ * this package cannot run one. `ApplicationIntents.run()` takes this — or any
+ * other string, since the application registers its intents at runtime and may
+ * know names this snapshot does not.
+ */
+export type ApplicationIntentName =
+  | "AiGuru.close"
+  | "AiGuru.get-applications"
+  | "AiGuru.has-application"
+  | "AiGuru.is-application-loaded"
+  | "AiGuru.open"
+  | "Application.close_all"
+  | "Application.close-application"
+  | "Application.expand-application"
+  | "Application.get-identity-token"
+  | "Commerce.open-cart"
+  | "Commerce.open-products"
+  | "Commerce.open-purchases"
+  | "DataProvider.pick-multiple"
+  | "DataProvider.pick-single"
+  | "Logging.get-logs";

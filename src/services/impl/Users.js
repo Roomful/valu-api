@@ -1,5 +1,5 @@
 // ===========================================================================
-// Users — 8 functions, channel `roomful`.
+// Users — 9 functions, channel `roomful`.
 //
 // Ported from valu-guru-server/src/valu-tools/users.ts, which itself mirrors
 // valusocial-web/src/Services/Users/UsersService.js. Both sides already agreed
@@ -11,7 +11,7 @@
 // that `Users.get` uses. That is what the SDK does, and it works in both
 // runtimes — which is why it is here and not behind an app-state capability.
 // ===========================================================================
-import { rpc, str, num, selfId, invalid } from './support.js';
+import { rpc, raw, str, num, selfId, invalid, ok, isAckError } from './support.js';
 
 /** The user the caller asked for, out of a `getUsersSimpleInfo` answer. */
 const pickUser = (id) => (data) => {
@@ -72,7 +72,40 @@ export function register(registry) {
       rpc(ctx, 'social:declineRequest', { targetUser: str(params.userId) }, () => ({})))
 
     .define('Users.cancel-connection-request', (params, ctx) =>
-      rpc(ctx, 'social:deleteRequest', { targetUser: str(params.userId) }, () => ({})));
+      rpc(ctx, 'social:deleteRequest', { targetUser: str(params.userId) }, () => ({})))
+
+    // The read the manifest never declared (scripts/extensions.js). Two RPCs:
+    // `request:listRequests` answers with request rows carrying user IDS, and
+    // an id is not an answer to "who wants to connect with me" — so the other
+    // party is resolved in ONE batched getUsersSimpleInfo. The app does the
+    // same resolution one user at a time, per row
+    // (ContactsDataProvider.#requestToUser).
+    .define('Users.list-connection-requests', async (params, ctx) => {
+      const size = num(params.size, 20);
+      const ack = await raw(ctx, 'request:listRequests', {
+        type: 'Connection',
+        category: str(params.category) || 'received',
+        status: str(params.status) || 'pending',
+        offset: num(params.offset, 0),
+        size,
+      });
+      if (isAckError(ack)) return ack;
+
+      const requests = ack.data?.requests ?? [];
+      // The FE derives hasMore from a full page rather than trusting a flag
+      // (ContactsDataProvider:352), and so does this: the flag is not on every
+      // deployment and a wrong `false` silently truncates a list.
+      const hasMore = requests.length === size;
+      const ids = [...new Set(requests
+        .flatMap((request) => [request?.initiatorUserId, request?.targetUserId])
+        .filter(Boolean))];
+      if (!ids.length) return ok({ requests, users: [], hasMore });
+
+      const users = await raw(ctx, 'social:getUsersSimpleInfo', { ids });
+      // The requests are the answer; the users are the courtesy. A failed
+      // lookup loses the names, not the list.
+      return ok({ requests, users: isAckError(users) ? [] : (users.data?.users ?? []), hasMore });
+    });
 
   return registry;
 }

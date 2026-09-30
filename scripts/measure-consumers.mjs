@@ -105,10 +105,15 @@ line('registered but not accounted for', unaccounted.length ? unaccounted.join('
 line('accounted for but not registered', phantom.length ? phantom.join(', ') : 'none');
 
 console.log(`\n## Coverage\n`);
-line('declared intents', SERVICE_DESCRIPTORS.length);
-line('SDK-able (socket + local)', sdkable.length);
+line('intents the application declares', SERVICE_DESCRIPTORS.filter((d) => d.declaredBy === 'manifest').length);
+line('functions this package declares itself', SERVICE_DESCRIPTORS.filter((d) => d.declaredBy === 'sdk').length);
+line('service functions (socket + local)', sdkable.length);
 line('implemented in this package', sdkable.filter((d) => implemented.has(d.key)).length);
-line('frame commands (postMessage-bound)', SERVICE_DESCRIPTORS.length - sdkable.length);
+line('application intents (postMessage-bound)', SERVICE_DESCRIPTORS.length - sdkable.length);
+const adoptable = SERVICE_DESCRIPTORS.filter((d) => d.channel === 'roomful' || d.channel === 'local');
+line('server-adoptable (roomful + local)', adoptable.length);
+line('  … the server already has', adoptable.filter((d) => serverKeys.has(d.key)).length);
+line('  … net new for a server agent', adoptable.filter((d) => !serverKeys.has(d.key)).length);
 line('server tools mapped to an intent', serverKeys.size);
 line('  … of those, implemented here', [...serverKeys].filter((k) => implemented.has(k)).length);
 line('server tools with no declared intent', SERVER_ONLY_TOOLS.length);
