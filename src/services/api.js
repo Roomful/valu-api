@@ -146,6 +146,7 @@ export class ValuServiceApi {
    */
   async close() {
     await this.#client.close();
+    await this.transport.close();
     await this.#connection?.close();
   }
 

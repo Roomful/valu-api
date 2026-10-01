@@ -362,14 +362,26 @@ test('connectValuServices opens the connection, owns it, and closes it', async (
 test('connectValuServices never closes a connection it was handed', async () => {
   const responder = currentUser();
   const appService = new FakeWebSocketService(responder);
+  let subscriptions = 0;
 
-  const valu = await connectValuServices({ socket: appService, userId: 'user-1' });
+  const valu = await connectValuServices({
+    socket: appService, userId: 'user-1',
+    onResourceUpdated: () => {
+      subscriptions++;
+      return () => subscriptions--;
+    },
+  });
 
   assert.equal((await valu.data.Users.current()).user.id, 'user-1');
   assert.equal(valu.connection, null, 'adopted, not owned');
   assert.equal(valu.socket.transport, appService);
+  assert.equal(subscriptions, 1);
 
   await valu.close();   // the application's socket is still the application's
+  assert.equal(subscriptions, 0, 'release the SDK push listener on the shared socket');
+  assert.equal(valu.socket, null);
+  await valu.close();
+  assert.equal(subscriptions, 0, 'closing twice is harmless');
   assert.equal((await appService.emitAsync(USERS_RPC)).data.users[0].id, 'user-1');
 });
 
