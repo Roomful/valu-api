@@ -1,20 +1,22 @@
 // ===========================================================================
-// Application state — the five functions no RPC can answer.
+// Application state — the three functions no RPC can answer.
 //
 // The manifest declares them like any other service intent, so they look
 // socket-backed. There is no RPC: the answer lives in the memory of whatever
 // is running the application.
 //
-//   AiGuru.get-chat-history    the session's in-memory message list
-//   AiGuru.get-agent-history   the agent's in-memory message list
 //   Developer.list-applications   DeveloperPortalStore's application list
 //   Developer.create-application  the same store, plus the app registry
-//   VerusWallet.get-balance    the balance AiGuruStore cached off a push
+//   VerusWallet.get-balance       the balance the store cached off a push
 //
-// `channel` names the SOURCE of an answer, which for these five is not a
+// `channel` names the SOURCE of an answer, which for these three is not a
 // connection at all — so the runtime supplies it. The Valu Social application
-// holds it in a browser; a headless runtime (the Valu Guru server, say, which
-// has its own chat history and its own application rows) holds its own.
+// holds it in a browser; a headless runtime holds its own (or holds none, and
+// is told so by name).
+//
+// `decryptMessage` is here for the same reason without being one of the three:
+// TextChat.get-channel-history IS a socket call, and only the decryption needs
+// state the browser holds.
 //
 // The SDK does NOT invent a network call for them. A runtime that holds the
 // state implements this interface and passes it to `SocketTransport` as
@@ -27,13 +29,10 @@ import { ERROR_CODES, errorAck } from '../Errors.js';
 
 /**
  * @typedef {object} AppState
- * @property {(chatId: string|null) => Promise<{session: object, messages: object[]}|null>} [getChatHistory]
- *   The session and its messages. `null` chatId means the active session.
- * @property {(agentId: string) => Promise<{agent: object, messages: object[]}|null>} [getAgentHistory]
  * @property {() => Promise<object[]>} [listDeveloperApplications]
  * @property {(manifest: {name: string, description?: string, url?: string, icon?: string}) => Promise<object>} [createDeveloperApplication]
  * @property {(agentId: string) => Promise<{identityName: string, iAddress: string, balance: number|null, status?: string}|null>} [getAgentWallet]
- *   The wallet attached to an agent, as AiGuruStore.getWalletForAgent returns
+ *   The wallet attached to an agent, as the app's wallet store returns
  *   it. Used by VerusWallet.get-balance AND by VerusWallet.transfer, which
  *   needs the identity before it can emit `verus:sendCurrency`.
  * @property {(body: string, message: object) => Promise<string>} [decryptMessage]

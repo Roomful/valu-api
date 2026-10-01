@@ -339,11 +339,12 @@ Check out the repository here and feel free to leave comments or feedback:
 
 ## The service SDK
 
-Alongside the application bridge, the package carries **78 service functions** —
-users, rooms, communities, commerce, chat, resources — as functions you call.
-Every one of them runs over a **socket**, so the same 78 work from a Valu Social
-build, from the Valu Guru server, from a Node script and from an iframe
-application that has a socket.
+Alongside the application bridge, the package carries **65 service functions** —
+users, rooms, communities, chat, resources, events — as functions you call.
+Every one of them runs over the **Roomful platform socket**, the one connection
+this package holds, so the same 65 work from a Valu Social build, from a Node
+script, from a server-side agent and from an iframe application that has a
+socket.
 
 ```javascript
 import { createValuServices, BrowserSocketAdapter } from '@arkeytyp/valu-api';
@@ -368,10 +369,12 @@ const valu = createValuServices({ socket: new NodeSocketAdapter({ connection }) 
 A name resolves by any form the platform already writes — `Users.get`,
 `Users.get_user`, `Users.getUser` or `service__Users__get`.
 
-**Anything only the Valu Social application can do is not a function here** —
-opening a dock, expanding a pane, showing a picker. The application registers
-its intents at runtime, so this package declares none of them and you ask for
-one by name instead, over the bridge above:
+**Anything the Valu Social application serves itself is not a function here** —
+opening a dock, expanding a pane, showing a picker, and anything a *different*
+server answers on a socket this package does not hold (the Commerce catalogue
+and the knowledge-base search, which are the Valu Guru server's). The
+application registers its intents at runtime, so this package declares none of
+them and you ask for one by name instead, over the bridge above:
 
 ```javascript
 await api.callService(new Intent('AiGuru', 'open', { applicationId: 'cart' }));
@@ -379,6 +382,8 @@ await api.callService(new Intent('AiGuru', 'open', { applicationId: 'cart' }));
 
 - [docs/socket-functions.md](docs/socket-functions.md) — every function, the
   feature it provides and what it needs. **Start here.** (generated)
+- [docs/socket-adapters.md](docs/socket-adapters.md) — what a socket is here,
+  what the browser and node adapters do, and how to supply one
 - [docs/service-api.md](docs/service-api.md) — the same functions, as the call
   you would write (generated)
 - [docs/sdk.md](docs/sdk.md) — what the package is, the architecture, and how to
@@ -392,6 +397,6 @@ await api.callService(new Intent('AiGuru', 'open', { applicationId: 'cart' }));
 - [docs/parity.md](docs/parity.md) — who implements what, and the known
   behaviour deltas (generated)
 - [docs/transition.md](docs/transition.md) — how Valu Social and the Valu Guru
-  server adopt this
+  server adopt this, measured against both checkouts
 - [valu-app-api.md](valu-app-api.md) — giving your app a REST API that other
   Valuverse applications and AI agents can call while nobody has it open

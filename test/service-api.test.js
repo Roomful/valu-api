@@ -21,7 +21,7 @@ import { FakeRoomfulConnection, Responder, FakeWindow } from './helpers/fakes.js
 
 const ok = (data) => ({ data });
 
-/** The surface a Valu Guru server agent would build: a socket, nothing else. */
+/** The surface a headless agent would build: a socket, nothing else. */
 function headless(script = {}) {
   const responder = new Responder(script);
   const socket = new NodeSocketAdapter({ connection: new FakeRoomfulConnection(responder) });
@@ -46,10 +46,10 @@ test('every service function is on the tree, under its service', () => {
   const onTree = ValuServiceApi.services()
     .reduce((n, service) => n + Object.keys(valu[service]).length, 0);
   assert.equal(onTree, methods, 'the tree is the catalogue, not a subset of it');
-  assert.equal(methods, 78);
+  assert.equal(methods, 65);
 });
 
-test('no application-only intent is on the tree, by any of its names', () => {
+test('no application-served intent is on the tree, by any of its names', () => {
   const { valu } = headless();
   const camel = (action) => action.replace(/[-_](\w)/g, (_, c) => c.toUpperCase());
   for (const key of APPLICATION_ONLY_INTENTS) {
@@ -57,11 +57,14 @@ test('no application-only intent is on the tree, by any of its names', () => {
     assert.equal(valu[service]?.[camel(action)], undefined, key);
     assert.equal(findDescriptor(key), undefined, key);
   }
-  // Commerce is the case worth naming: it declares both kinds, and the nine
-  // catalogue functions are here while `open-cart` — which navigates the
-  // application to a screen — is not, on any transport.
-  assert.equal(typeof valu.Commerce.listProducts, 'function');
-  assert.equal(valu.Commerce.openCart, undefined);
+  // Commerce is the case worth naming. It used to be half here: ten catalogue
+  // functions on the tree and three `open-*` intents off it. All thirteen are
+  // off it now — the catalogue ones run on the Valu Guru server's own socket,
+  // which this package does not hold — so the service has no namespace at all,
+  // and a caller is pointed at `api.callService` rather than at a method that
+  // could only work in one runtime.
+  assert.equal(valu.Commerce, undefined);
+  assert.equal(valu.AiGuru, undefined);
 });
 
 test('a method is the string call with the name already resolved', async () => {

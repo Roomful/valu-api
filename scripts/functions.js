@@ -1,71 +1,46 @@
 // ===========================================================================
-// Per-function Phase 2 metadata — the channel that serves a function, and the
-// shape it answers with.
+// Per-function metadata — the channel that serves a function, and the shape it
+// answers with.
 //
-// WHAT PHASE 2 FOUND. Phase 1 recorded `binding: socket | local | postmessage`,
-// taken
-// from the manifest plus one decision per intent. Writing the service
-// functions against the real sources showed that "socket" is THREE different
-// things, and a function written for the wrong one fails in a way the ack
-// envelope cannot explain:
+// Phase 1 recorded `binding: socket | local | postmessage`. Writing the
+// handlers against the real sources showed that what a handler actually needs
+// is WHICH connection answers, and this package now has exactly one:
 //
 //   roomful     `ValuSocket.emit(ns, payload)` — the Roomful platform socket.
-//               53 functions: Users, Rooms, Community, Events, Groups,
+//               54 functions: Users, Rooms, Community, Events, Groups,
 //               Networks, TextChat, Cbac, Profile, CMS, ApplicationStorage,
 //               Resources.list-bot-avatars, VerusWallet.transfer.
-//   valuguru    `ValuGuruSocket.request(op, params)` — the Valu Guru server's
-//               data_request/data_response channel, op catalogue
-//               `valuguru.*`. 11 functions: the ten socket-backed Commerce
-//               intents and AiGuru.query-knowledge-base. NOT the same socket,
-//               NOT the same envelope, NOT the same auth.
-//   app-state   served from state only the Valu Social application holds — no
-//               RPC exists, and outside a frame nothing can produce it. 5
-//               functions: the two AiGuru history reads (in-memory sessions),
-//               the two Developer Portal reads/writes (DeveloperPortalStore),
-//               and VerusWallet.get-balance (the store's cached balance, which
-//               is exactly the case the implementation plan warned about).
+//   app-state   served from state only the process running the application
+//               holds — no RPC exists. 3 functions: the two Developer Portal
+//               reads/writes (DeveloperPortalStore) and VerusWallet.get-balance
+//               (the store's cached balance, which is exactly the case the
+//               implementation plan warned about).
+//   local       computed by the SDK from configuration, the clock or `fetch`.
+//               8 functions.
 //
-// The binding counts are unchanged — 69 socket / 8 local / 15 postmessage — so
-// the parity target still holds; `channel` says WHICH socket, which is what a
-// handler needs to know and what the plan's matrix could not express.
+// There is no fourth channel. There used to be `valuguru`, for the Commerce
+// catalogue and the knowledge-base search — a SECOND socket, to the Valu Guru
+// server, with its own envelope and auth. It is gone: this is the user-facing
+// library for the Valu platform, it holds one connection, and it carries no
+// knowledge of the Valu Guru server. Those 13 intents are served by the Valu
+// Social application over the bridge and are listed in scripts/bindings.js
+// under the `valu-guru` reason.
 //
 // `returns` completes the descriptor: Phase 1 shipped every function with
 // `{type: 'unknown'}` and the definition-of-done requires a declared return
 // shape per function.
 // ===========================================================================
 
-/** Declared functions served by the Valu Guru socket, not the Roomful one. */
-export const VALUGURU_CHANNEL = [
-  // Commerce rides AiGuruService.request() — `valuguru.commerce.*` ops
-  // (valusocial-web src/Services/Commerce/CommerceDataService.js).
-  'Commerce.add-to-cart',
-  'Commerce.check-entitlements',
-  'Commerce.create-product',
-  'Commerce.get-cart',
-  'Commerce.get-my-product',
-  'Commerce.get-product',
-  'Commerce.list-categories',
-  'Commerce.list-my-products',
-  'Commerce.list-products',
-  'Commerce.update-product',
-  // RAG search is a typed catalogue message on the same socket
-  // (AiGuruService.queryKnowledgeBase -> {type: 'rag_search'}).
-  'AiGuru.query-knowledge-base',
-];
-
 /**
  * Declared functions that no RPC serves: the answer lives in application state.
  *
- * They stay `binding: 'socket'` because that is what the manifest declares and
- * what the parity count is taken from — but a socket cannot answer them, so
- * the handler reads `ctx.appState` and says plainly what is missing when the
- * runtime did not provide it. Phase 3.1 (invert the store relationship) is what turns
- * these into real functions; until then the SDK must not pretend.
+ * The manifest declares them like any other intent — but a socket cannot
+ * answer them, so the handler reads `ctx.appState` and says plainly what is
+ * missing when the runtime did not provide it. Phase 3.1 (invert the store
+ * relationship) is what turns these into real functions; until then the SDK
+ * must not pretend.
  */
 export const APP_STATE_CHANNEL = [
-  // AiGuruService.onNewIntent reads the in-memory session/agent message lists.
-  'AiGuru.get-chat-history',
-  'AiGuru.get-agent-history',
   // DeveloperService goes through DeveloperPortalStore + ApplicationCenter.
   'Developer.create-application',
   'Developer.list-applications',
@@ -352,14 +327,6 @@ export const KNOWN_DELTAS = [
       + 'and meet in it.',
   },
   {
-    key: 'Commerce.create-product',
-    delta:
-      'Without a `title` the app opens the platform\'s create-product FORM and waits for the '
-      + 'seller. There is no SDK equivalent of a modal, so the SDK answers 501 naming the '
-      + 'application surface rather than failing obscurely. With a title it creates the draft directly, '
-      + 'exactly as the app does.',
-  },
-  {
     key: 'Rooms.create-room-from-template',
     delta:
       'The app also reloads the Rooms data provider\'s cached lists so a new room appears '
@@ -393,12 +360,6 @@ export const KNOWN_DELTAS = [
 //   appState.<capability>? optional; the function degrades rather than refusing
 // ---------------------------------------------------------------------------
 export const REQUIREMENTS = {
-  // Commerce scopes the buyer-facing catalogue to the calling app. The seller
-  // functions do not: they are scoped to the authenticated SELLER instead, so
-  // an app id would narrow them wrongly.
-  'Commerce.list-products': ['applicationId'],
-  'Commerce.get-product': ['applicationId'],
-  'Commerce.add-to-cart': ['applicationId'],
   // The shelf IS `app:{applicationId}:userSortingTable:{userId}` — without the
   // app id there is no address to read or write. `resource-delete` takes a
   // resource id and is enforced by the platform, so it needs none.
@@ -415,8 +376,6 @@ export const REQUIREMENTS = {
   'Resources.generate-best-view-url': ['config'],
   'Resources.generate-direct-public-url': ['config'],
   'Resources.get-thumbnail-url': ['config'],
-  'AiGuru.get-chat-history': ['appState.getChatHistory'],
-  'AiGuru.get-agent-history': ['appState.getAgentHistory'],
   'Developer.list-applications': ['appState.listDeveloperApplications'],
   'Developer.create-application': ['appState.createDeveloperApplication'],
   'VerusWallet.get-balance': ['appState.getAgentWallet'],

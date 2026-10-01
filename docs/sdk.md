@@ -1,16 +1,18 @@
 # The Valu Service SDK
 
-A library of **78 socket functions**: one implementation of every Valu service
-call, reusable from the Valu Social application, from the Valu Guru server, from
-a Node script, and from an iframe application once it has a socket.
+A library of **65 socket functions** over **one** connection, the Roomful
+platform socket: one implementation of every Valu service call, reusable from
+the Valu Social application, from a Node script, from a server-side agent, and
+from an iframe application once it has a socket.
 
 That is the whole of it. There is no second surface, no per-intent method for
-things only the application can do, and nothing in the catalogue that behaves
-differently depending on where it runs.
+things only the application can do, no second socket to a second server, and
+nothing in the catalogue that behaves differently depending on where it runs.
 
 | read this | for |
 |---|---|
 | [socket-functions.md](socket-functions.md) | **every function, the feature it provides and what it needs** — start here |
+| [socket-adapters.md](socket-adapters.md) | what a socket *is* here, and how to supply one in a browser or in Node |
 | [service-api.md](service-api.md) | the same functions as the call you would write, one line each |
 | [api-pointers.md](api-pointers.md) | the postMessage bridge: API pointers, and any application intent by name |
 | [parity.md](parity.md) | who implements what, the server-only tools, the known deltas |
@@ -22,12 +24,16 @@ differently depending on where it runs.
 
 **Can this package run it itself, given a connection?**
 
-If yes it is a function here, with a descriptor, params that are validated, a
-cache policy and a handler. If no — a dock that opens, a picker that renders, a
-log buffer only the application holds — it is not here at all. The iframe
-application asks the Valu Social application for it **by name**, over the
-postMessage bridge, and nothing has to be declared on this side for that to
-work:
+More precisely: *can it run over the Roomful socket, or with no connection at
+all?* If yes it is a function here, with a descriptor, params that are
+validated, a cache policy and a handler. If no it is not here at all, for one
+of two reasons — nothing but the application process can answer it (a dock that
+opens, a picker that renders, a log buffer only the application holds), or a
+**different server** answers it on a socket this package does not hold (the
+Commerce catalogue and the knowledge-base search, which are the Valu Guru
+server's). Either way the iframe application asks the Valu Social application
+for it **by name**, over the postMessage bridge, and nothing has to be declared
+on this side for that to work:
 
 ```javascript
 const api = new ValuApi();
@@ -38,13 +44,14 @@ const usersApi = await api.getApi('users');   // an API pointer
 
 The application registers its intents at runtime, so a method per intent here
 would be a copy of a list that moves without us. The manifest declares 92
-intents; 77 of them are functions in this package, and the other 15 are named
-in [parity.md](parity.md) with the reason each one cannot be.
+intents; 64 of them are functions in this package, and the other 28 are named
+in [parity.md](parity.md) and [api-pointers.md](api-pointers.md), grouped by
+which of the two reasons keeps them out.
 
 ## The shape of it
 
 ```
-   your runtime            createValuServices({ socket, guru, appState })
+   your runtime            createValuServices({ socket, appState })
         │                                     │
         └── ValuSocket ──▶ SocketTransport ──▶ ServiceClient ──▶ valu.Users.get()
             (browser or      (the only             │
@@ -65,10 +72,9 @@ in [parity.md](parity.md) with the reason each one cannot be.
 | Policy | `src/CallPolicy.js` | timeout, retry, ordering, reconnect — **frozen** |
 | Cache | `src/cache/ServiceCache.js` | what replaces the store for data services |
 | Auth | `src/auth/` | the app token, and never the session |
-| Guru socket | `src/socket/ValuGuruSocket.js` | the SECOND socket — `valuguru.*` ops |
-| Application state | `src/app-state/AppState.js` | the five functions no RPC can answer |
+| Application state | `src/app-state/AppState.js` | the three functions no RPC can answer |
 | Upload | `src/upload/ResourceUpload.js` | register → link → PUT → complete |
-| Implementations | `src/services/impl/` | the 78 functions themselves |
+| Implementations | `src/services/impl/` | the 65 functions themselves |
 | Function surface | `src/services/api.js` | `valu.Users.current()` — the tree, and `createValuServices` |
 | SDK-declared | `scripts/extensions.js` | functions this package declares where the manifest has a gap |
 
@@ -82,7 +88,7 @@ const valu = createValuServices({ socket });
 const user = await valu.data.Users.get({ userId }); // the payload, throws on failure
 ```
 
-Headless — the Valu Guru server, or any Node process:
+Headless — a server-side agent, or any Node process:
 
 ```javascript
 const socket = new NodeSocketAdapter({ connection: roomfulConnection });
@@ -95,54 +101,56 @@ const byName = await valu.call('Users.get', { userId }); // what an LLM tool cal
 A function resolves by any name the platform already writes: `Users.get`,
 `Users.get_user`, `Users.getUser`, `service__Users__get`.
 
-## Four channels
+## Three channels
 
-`channel` is the only axis on a descriptor, and it says which connection
-answers — which is what a handler needs and what a caller has to supply:
+`channel` is the only axis on a descriptor, and it says what answers — which is
+what a handler needs and what a caller has to supply:
 
 | channel | count | what serves it | what a handler gets |
 |---|---|---|---|
-| `roomful` | 54 | the platform socket | `ctx.socket.emit(ns, payload)` |
-| `valuguru` | 11 | the Valu Guru server's `data_request` channel | `ctx.guru.request(op, params)` |
-| `app-state` | 5 | nothing — the runtime holds the answer | `ctx.appState.<capability>()` |
+| `roomful` | 54 | the platform socket, and the only one | `ctx.socket.emit(ns, payload)` |
+| `app-state` | 3 | nothing — the runtime holds the answer | `ctx.appState.<capability>()` |
 | `local` | 8 | the SDK itself | `ctx.config`, `ctx.fetchImpl`, `ctx.now` |
 
-A transport that lacks a channel refuses the functions that need it **by
-name**, before the handler runs:
+There used to be a fourth, `valuguru`: a second socket to the Valu Guru server
+for the Commerce catalogue and the knowledge-base search. It is gone, with its
+13 intents. A user-facing platform library holds the platform's connection and
+nothing else; those intents are the Valu Social application's to serve and are
+asked for by name ([api-pointers.md](api-pointers.md)).
+
+A runtime that lacks an `appState` capability is refused **by name**, with the
+capability in the message rather than a guess:
 
 ```javascript
-const valu = createValuServices({ socket });      // no guru, no appState
-await valu.call('Commerce.get-cart');
-// → 503 "Commerce.get-cart needs the Valu Guru socket, and none was supplied"
+const valu = createValuServices({ socket });     // no appState
+await valu.call('VerusWallet.get-balance');
+// → 501 "VerusWallet.get-balance needs application state (getAgentWallet),
+//        and this runtime has none"
 ```
 
-Supplying them:
+Supplying the rest:
 
 ```javascript
 const valu = createValuServices({
-  socket,                                       // the Roomful socket — always
-  guru: guruAdapter(aiGuruService),             // for the 11 valuguru functions
-  appState: { getAgentWallet, getChatHistory }, // for the 5 app-state ones
-  applicationId: 'my-app',                      // Commerce + ApplicationStorage scope
-  config: { webBase, apiGate },                 // the local resource-URL builders
+  socket,                             // the Roomful socket — always
+  appState: { getAgentWallet },       // for the 3 app-state functions
+  applicationId: 'my-app',            // ApplicationStorage + CMS scope
+  config: { webBase, apiGate },       // the local resource-URL builders
 });
 ```
 
 `applicationId` is stamped by the **runtime** and never read from a caller's
-params: Commerce scopes every catalogue read and write to it, and a framed app
-must not be able to sell as another app. A transport without one answers those
-functions 403.
-
-The Valu Guru server must **not** route the 11 `valuguru` functions through
-this package: that server *is* the other end of that channel.
+params: an application's own resource shelf is addressed by it, and a framed
+app must not be able to read another application's storage. A transport without
+one answers those functions 403.
 
 ## The catalogue
 
 ```javascript
 catalogSummary();
-// { total: 78, roomful: 54, valuguru: 11, 'app-state': 5, local: 8, socket: 65,
-//   implemented: 32, declared: 77, sdkDeclared: 1, serviceFunctions: 78,
-//   applicationOnly: 15, remaining: 46, serverOnly: 7 }
+// { total: 65, roomful: 54, 'app-state': 3, local: 8, socket: 54,
+//   implemented: 32, declared: 64, sdkDeclared: 1, serviceFunctions: 65,
+//   applicationOnly: 28, remaining: 33, serverOnly: 7 }
 ```
 
 `declared` is what the application's manifest says and does not move when this
@@ -189,9 +197,10 @@ Things a handler must not do, because the layers above already do them:
 validate params, check scopes, read or write the cache, retry, or time itself
 out.
 
-An intent that only the application can serve is added to `APPLICATION_ONLY`
-in `scripts/bindings.js` instead, with a line saying why — that is the list the
-generator excludes by, and the list a reader of [parity.md](parity.md) sees.
+An intent the application serves itself is added to the right group of
+`APPLICATION_ONLY_GROUPS` in `scripts/bindings.js` instead — `no-rpc` or
+`valu-guru` — with a line saying why. That is the list the generator excludes
+by, and the list a reader of [parity.md](parity.md) sees.
 
 ## Known behaviour deltas
 

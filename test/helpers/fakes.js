@@ -113,46 +113,8 @@ export class FakeClock {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 2 fakes: the other two channels, and the bucket.
+// Phase 2 fakes: application state, and the bucket.
 // ---------------------------------------------------------------------------
-
-/**
- * The Valu Guru socket, scripted by op.
- *
- * It REJECTS the way the app's transport rejects — with a `code` — because the
- * whole reason `guruAck` exists is to turn that into the ack envelope every
- * other channel answers in.
- */
-export class FakeGuru {
-  calls = [];
-  sent = [];
-
-  constructor(ops = {}, messages = {}) {
-    this.ops = new Map(Object.entries(ops));
-    this.messages = new Map(Object.entries(messages));
-  }
-
-  on(op, answer) { this.ops.set(op, answer); return this; }
-
-  async request(op, params = {}, options = {}) {
-    this.calls.push({ op, params, options });
-    const answer = this.ops.get(op);
-    if (answer === undefined) {
-      throw Object.assign(new Error(`no fake for ${op}`), { code: 'not_found' });
-    }
-    if (answer === 'timeout') throw Object.assign(new Error(`data_request '${op}' timed out`), { code: 'timeout' });
-    return typeof answer === 'function' ? answer(params) : answer;
-  }
-
-  async send(message, options = {}) {
-    this.sent.push({ message, options });
-    const answer = this.messages.get(message.type);
-    if (answer === undefined) throw new Error(`no fake for message ${message.type}`);
-    return typeof answer === 'function' ? answer(message) : answer;
-  }
-
-  callsTo(op) { return this.calls.filter((c) => c.op === op); }
-}
 
 /** Application state, as a runtime that holds it would supply it. */
 export class FakeAppState {

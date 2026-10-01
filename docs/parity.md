@@ -8,11 +8,11 @@ without `npm run check:generated` failing.
 
 | | count |
 |---|---|
-| functions in the catalogue | **78** |
-| — of them declared by the application's manifest | 77 |
+| functions in the catalogue | **65** |
+| — of them declared by the application's manifest | 64 |
 | — of them declared by this package (scripts/extensions.js) | 1 |
-| implemented in this package | **78** |
-| declared intents excluded (only the application can serve them) | **15** |
+| implemented in this package | **65** |
+| declared intents excluded (only the application can serve them) | **28** |
 | server tools with no declared intent | **7** |
 
 ## Channels
@@ -24,17 +24,13 @@ and the one a caller has to satisfy before the call can work.
 | channel | count | what serves it |
 |---|---|---|
 | `roomful` | 54 | the Roomful platform socket — `ValuSocket.emit(ns, payload)` |
-| `valuguru` | 11 | the Valu Guru server's `data_request` channel — `valuguru.*` ops |
-| `app-state` | 5 | no RPC exists; the runtime holding that state supplies it |
+| `app-state` | 3 | no RPC exists; the runtime holding that state supplies it |
 | `local` | 8 | computed by the SDK |
 
 ## Functions
 
 | service | function | channel | mutates | cache | server tool | status |
 |---|---|---|---|---|---|---|
-| AiGuru | `get-agent-history` | `app-state` | read | `none` | — | implemented |
-| AiGuru | `get-chat-history` | `app-state` | read | `none` | — | implemented |
-| AiGuru | `query-knowledge-base` | `valuguru` | read | `read-through` | — | implemented |
 | ApplicationStorage | `resource-delete` | `roomful` | write | `none` | — | implemented |
 | ApplicationStorage | `resource-search` | `roomful` | read | `read-through` | — | implemented |
 | ApplicationStorage | `resource-upload` | `roomful` | write | `none` | — | implemented |
@@ -46,16 +42,6 @@ and the one a caller has to satisfy before the call can work.
 | CMS | `resource-delete` | `roomful` | write | `none` | — | implemented |
 | CMS | `resource-search` | `roomful` | read | `read-through` | — | implemented |
 | CMS | `resource-upload` | `roomful` | write | `none` | — | implemented |
-| Commerce | `add-to-cart` | `valuguru` | write | `none` | — | implemented |
-| Commerce | `check-entitlements` | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `create-product` | `valuguru` | write | `none` | — | implemented |
-| Commerce | `get-cart` | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `get-my-product` | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `get-product` | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `list-categories` | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `list-my-products` | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `list-products` | `valuguru` | read | `read-through` | — | implemented |
-| Commerce | `update-product` | `valuguru` | write | `none` | — | implemented |
 | Community | `get-channels` | `roomful` | read | `read-through` | `service__Community__get_channels` | implemented |
 | Community | `get-community-info` | `roomful` | read | `read-through` | `service__Community__get_community_info` | implemented |
 | Community | `get-posts` | `roomful` | read | `read-through` | `service__Community__get_posts` | implemented |
@@ -113,15 +99,17 @@ and the one a caller has to satisfy before the call can work.
 
 ## Declared, and deliberately not here
 
-15 intents in the application's manifest get no descriptor, no method
-and no tool definition. No RPC serves any of them — they open a dock, render a
-picker, or read the application's own log buffer — so a function here would be
-a method that fails everywhere this library is meant to run.
+28 intents in the application's manifest get no descriptor, no method
+and no tool definition, for one of two reasons.
 
 They are not unreachable. An iframe application asks for any intent **by name**
 over the postMessage bridge, and the application's own registry (not this
 snapshot) is the authority for what those names are:
 [api-pointers.md](api-pointers.md).
+
+### Only the application process can answer them — 15
+
+No RPC serves any of these: they open a dock, render a picker, or read the application's own memory. A function here would be a method that fails everywhere this library is meant to run.
 
 - `AiGuru.close` — Closes (unloads) an application by its ID from the dock.
 - `AiGuru.get-applications` — Returns a list of all registered applications with their id, slug, icon, and title.
@@ -138,6 +126,24 @@ snapshot) is the authority for what those names are:
 - `DataProvider.pick-multiple` — Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"].
 - `DataProvider.pick-single` — Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that.
 - `Logging.get-logs` — Returns the captured console log buffer (log, info, warn, error) since app start. Choose the format: "text" returns { format: "text", text: <string> } with one line per entry; "file" returns { format: "file", filename, mimeType, size, file: File } — the File is for direct callers (upload/download) and is omitted in the AI/MCP serialized response, which still includes filename, mimeType, and size.
+
+### The Valu Guru server answers them, on its own socket — 13
+
+These do not ride the Roomful socket at all. Commerce is a catalogue of `valuguru.*` ops on the Valu Guru server's `data_request` channel (valusocial-web src/Services/Commerce/CommerceDataService.js); the knowledge-base query is a typed `rag_search` message on the same channel; the two history reads are the Valu Guru chat's own in-memory message lists. A second server, a second envelope and a second auth — and none of it is this package's. The Valu Social application holds that connection and serves these intents over the bridge.
+
+- `AiGuru.get-agent-history` — Returns the in-memory message history for a background agent.
+- `AiGuru.get-chat-history` — Returns the in-memory message history for a chat session. Omit chatId to get the currently active session.
+- `AiGuru.query-knowledge-base` — Queries the RAG knowledge base directly over the Valu Guru server's socket connection, bypassing chat entirely. Returns the raw tool result text.
+- `Commerce.add-to-cart` — Put a product in the user's cart, credited to your app. The server re-checks that it can be bought here before accepting it, so a refusal comes back with a code to show.
+- `Commerce.check-entitlements` — Which of these products the current user owns. This is how an app unlocks a ticket, a seat or an in-app good it sold through the shared cart.
+- `Commerce.create-product` — Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, and stays with the seller in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
+- `Commerce.get-cart` — Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Read-only: change the cart with `add-to-cart`, or send the user to it with `open-cart`.
+- `Commerce.get-my-product` — One of the seller's own products with its content, in exactly the shape update-product takes: `{product, items}`. Read it before changing the content — `items` in update-product REPLACES the whole tree, so edit this list and send it back rather than sending only the new files.
+- `Commerce.get-product` — One product with its price, its parts when it is a bundle, its store, its reviews and whether the current user already owns it.
+- `Commerce.list-categories` — The platform's product categories as `{categories: [{id, label}]}`. Every product is filed under exactly one; pass an `id` to list-products as `category`, and show the `label`.
+- `Commerce.list-my-products` — List the SELLER's own products in their store — drafts, unlisted, live and archived — unlike list-products, which is the buyer's shelf and never shows drafts. Use it to find the productId to edit. Each product carries `editable`: true only for a draft (never published, or unlisted by the seller). Returns `{hasStore, products}`.
+- `Commerce.list-products` — Search the products YOUR app lists that are available in the user's current network. Products the network or its admins have refused are simply absent from the answer.
+- `Commerce.update-product` — Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted by the seller in the Merchant Console first). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`.
 
 ## Server-only tools — the Phase 2b decisions
 
@@ -196,10 +202,6 @@ Outbound bodies are not encrypted, for the same reason — the app encrypts thro
 ### `Events.create-meeting`
 
 A `direct` meeting with more than one participant is REFUSED. The app silently creates a new Group for it (GroupBuilder + GroupsStore.createGroupAux) — a second write, with its own failure modes and no undo. Creating a group as a side effect of booking a meeting is a UI decision, not a service one; the caller is told to create the group and meet in it.
-
-### `Commerce.create-product`
-
-Without a `title` the app opens the platform's create-product FORM and waits for the seller. There is no SDK equivalent of a modal, so the SDK answers 501 naming the application surface rather than failing obscurely. With a title it creates the draft directly, exactly as the app does.
 
 ### `Rooms.create-room-from-template`
 

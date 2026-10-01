@@ -6,14 +6,18 @@
 // from the app's SERVICE_MANIFESTS (scripts/generate.mjs); this module is the
 // runtime view over it — lookup, listing, and the name forms a caller may use.
 //
-// EVERY descriptor is a function this package can run itself, given the
-// connection its `channel` names. Declared intents that only the Valu Social
-// application can serve are not in the catalogue at all: no RPC serves them,
-// and they are asked for by name over the postMessage bridge instead
-// (scripts/bindings.js APPLICATION_ONLY, docs/api-pointers.md).
+// EVERY descriptor is a function this package can run itself, given the one
+// connection it holds — the Roomful socket — or with no connection at all.
+// Declared intents the Valu Social application serves itself are not in the
+// catalogue: either no RPC exists (window management, pickers) or the Valu
+// Guru server answers them on a socket this package does not hold (Commerce,
+// the knowledge-base search). Both kinds are asked for by name over the
+// postMessage bridge instead, and `APPLICATION_INTENT_REASON` says which is
+// which (scripts/bindings.js APPLICATION_ONLY, docs/api-pointers.md).
 // ===========================================================================
 import {
   SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, APPLICATION_ONLY_INTENTS,
+  APPLICATION_INTENT_REASON,
 } from './catalog.generated.js';
 
 /**
@@ -35,8 +39,8 @@ import {
  * @property {string} description
  * @property {string[]} availability `ai` / `developer`.
  * @property {string[]} scopes Scopes a caller must hold.
- * @property {'roomful'|'valuguru'|'app-state'|'local'} channel WHICH connection
- *   answers it — the two sockets are not interchangeable.
+ * @property {'roomful'|'app-state'|'local'} channel WHAT answers it: the
+ *   Roomful socket, state the runtime holds, or the SDK itself.
  * @property {'manifest'|'sdk'} declaredBy Who says this function exists: the
  *   app's SERVICE_MANIFESTS, or this package (scripts/extensions.js).
  * @property {boolean} mutates
@@ -112,7 +116,7 @@ export function listServices() {
 export function catalogSummary() {
   const summary = {
     total: SERVICE_DESCRIPTORS.length,
-    roomful: 0, valuguru: 0, 'app-state': 0, local: 0,
+    roomful: 0, 'app-state': 0, local: 0,
     implemented: 0,
     // WHO declared them. `declared` is a fact about valusocial-web and does not
     // move when this package adds a function; `sdkDeclared` is a fact about
@@ -125,7 +129,7 @@ export function catalogSummary() {
     if (d.implementedBy) summary.implemented++;
     if (d.declaredBy === 'sdk') summary.sdkDeclared++; else summary.declared++;
   }
-  summary.socket = summary.roomful + summary.valuguru;
+  summary.socket = summary.roomful;
   summary.serviceFunctions = summary.total;
   summary.applicationOnly = APPLICATION_ONLY_INTENTS.length;
   summary.remaining = summary.total - summary.implemented;
@@ -133,4 +137,7 @@ export function catalogSummary() {
   return summary;
 }
 
-export { SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, APPLICATION_ONLY_INTENTS };
+export {
+  SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, APPLICATION_ONLY_INTENTS,
+  APPLICATION_INTENT_REASON,
+};

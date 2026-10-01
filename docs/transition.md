@@ -7,9 +7,9 @@ checked rather than believed.
 
 | repository | commit measured | role |
 |---|---|---|
-| `valu-api` | `48331f7` | this package — one implementation of the platform's service surface |
+| `valu-api` | `20087a7` + this change | this package — one implementation of the platform's **socket** service surface |
 | `valusocial-web` | `a4407df8` | declares the manifest, serves all 92 intents in the browser, hosts framed apps |
-| `valu-guru-server` | `898d699` | runs headless agents over the Roomful socket; **owns** the `valuguru.*` API |
+| `valu-guru-server` | `0c95826` | runs headless agents over the Roomful socket; **owns** the `valuguru.*` API |
 
 **The Valu Guru server has adopted this package** (2026-09-30): its eight
 hand-written socket-wrapper modules are deleted and its registry builds those
@@ -20,38 +20,52 @@ tools from these descriptors. Valu Social has not moved yet.
 | | count |
 |---|---|
 | intents the platform declares | **92** |
-| functions in this package | **78** — 77 of the declared 92 + 1 it declares itself |
-| declared intents excluded | **15** — only the Valu Social application can serve them, and it is asked by name |
+| functions in this package | **65** — 64 of the declared 92 + 1 it declares itself |
+| declared intents excluded | **28** — 15 only the application process can answer, 13 the Valu Guru server answers |
 | server tools in valu-guru-server | **39** — the same 39 as before the adoption |
 | … now served by this package | **31** |
 | … still the server's own | **8** — 3 TextChat, curl, Torah ×2, timezone, image |
-| intents the app exposes to the AI | **60** — this package serves **58** (the 2 pickers need a frame) |
+| intents the app exposes to the AI | **60** — this package serves **48** |
 | server-adoptable functions not yet offered there | **31** |
 
 The vendored manifest snapshot is byte-identical to the app's live
 `SERVICE_MANIFESTS`, and every tool the server's registry holds is accounted
 for here. There is no drift.
 
-## The finding that decides the order of work
+## One connection, and what that excluded
 
-`valu-guru-server` is not just a consumer of the Valu Guru socket — it **is**
-that socket's server. It registers `valuguru.commerce.*`, `valuguru.sessions.*`
-and `rag_search` itself.
+This package holds the **Roomful platform socket** and nothing else. The
+earlier catalogue also carried a `valuguru` channel: a second socket, to the
+Valu Guru server's `data_request` endpoint, for the ten Commerce intents, the
+knowledge-base search and the two chat-history reads. Those **13 intents are no
+longer in the catalogue** — no descriptor, no method, no tool definition.
 
-So the 11 functions this package routes down the `valuguru` channel are, from
-inside that repo, its own handlers. Delegating them through a `ValuGuruSocket`
-would be the server calling itself over a socket it is serving. **They are not
-adopted there** — `sdk.ts` refuses one at import. On the browser side they are
-exactly right: the app is a client of that server.
+The reason is what this package is for. It is the user-facing platform library,
+installed by the Valu Social build and by framed applications; a second
+server's API, with its own envelope and its own auth, does not belong in it.
+And the Valu Guru server *is* the other end of that socket, so it could never
+have adopted those functions anyway.
 
-That splits the package cleanly by consumer:
+What it changes per consumer:
+
+- **`valu-guru-server`** — nothing. It never offered one of the 13: `sdk.ts`
+  refused them at import, and its own `valuguru.commerce.*` and `rag_search`
+  handlers are untouched. It is still pinned to a commit that predates this
+  removal; bumping the pin changes none of its 39 tools.
+- **`valusocial-web`** — it keeps serving all 13 itself, as it does today
+  (`src/Services/Commerce/CommerceDataService.js`, the AiGuru socket service).
+  There is no SDK function to delegate them to and there will not be one.
+- **A framed application** — unchanged: it asks for them by name over the
+  bridge, exactly as it asks for a dock to open. The 13 are listed with their
+  params in [api-pointers.md](api-pointers.md).
+
+## The split by consumer
 
 | channel | n | valu-guru-server | valusocial-web |
 |---|---|---|---|
 | `roomful` | 54 | **adopted** — 28 offered today, 26 available | adopt |
 | `local` | 8 | **adopted** — 3 offered today, 5 available | adopt |
-| `valuguru` | 11 | **never** — it is the provider | adopt |
-| `app-state` | 5 | the 2 Verus ones are wired to an honest refusal | adopt, supplying `AppState` |
+| `app-state` | 3 | the 2 Verus ones are wired to an honest refusal | adopt, supplying `AppState` |
 
 Server-adoptable: **62** (`roomful` + `local`). It offers **31** of them.
 
@@ -59,6 +73,11 @@ One of the 62 is declared by this package rather than by the app's manifest:
 `Users.list-connection-requests`, over `request:listRequests`. The rule that
 allows it, and the three candidates it deliberately leaves out, are in
 [parity.md](parity.md).
+
+Either consumer supplies the socket through an adapter — the app's WebSocket
+service through `BrowserSocketAdapter`, `RoomfulConnectionManager` through
+`NodeSocketAdapter`. What those do, and what a third runtime would have to
+implement, is [socket-adapters.md](socket-adapters.md).
 
 ## Valu Guru server — done
 
@@ -162,21 +181,24 @@ these functions came from. Its transition is the inverse of the server's: not
   the five `AiGuru` dock intents (`open`, `close`, `has-application`,
   `get-applications`, `is-application-loaded`) as `builtin` tools in
   `AiGuruTools.js`, dispatched to `ApplicationCenterStore` rather than through
-  a service at all. This package excludes exactly those five from its
-  catalogue, which matches.
-- **Nothing about the app's intent registry changes.** The 15 it keeps are the
-  15 this package never declares, so there is no list here to keep in step with
-  it and no method to remove when the app adds an intent.
-- 60 intents carry `availability: ['ai']`. This package serves 58 of them; the
-  two it does not are `DataProvider.pick-single` and `pick-multiple`, which
-  render the application's own UI and return the user's choice.
+  a service at all.
+- **Nothing about the app's intent registry changes.** The 28 it keeps serving
+  itself are the 28 this package never declares, so there is no list here to
+  keep in step with it and no method to remove when the app adds an intent.
+- 60 intents carry `availability: ['ai']`. This package serves **48**. The 12 it
+  does not are the ten Commerce intents — the Valu Guru server's own catalogue,
+  which the app reaches over that server's socket — and
+  `DataProvider.pick-single` / `pick-multiple`, which render the application's
+  own UI and return the user's choice.
 - The delegation point is each service's `onNewIntent`: build one
   `ServiceClient` over `BrowserSocketAdapter`, and have the service return
   `client.call(...)` instead of its own socket work. `Time` and `Resources` are
   the two-line cases; `Rooms` is the one with real orchestration behind it
   (storyline ordering, the paste pipeline, prop grouping) and should go last.
+- `Commerce` and `AiGuru` are not on that list at all. They keep their own
+  services, because the socket they speak to is not the one this package holds.
 
-### The six places behaviour differs
+### The five places behaviour differs
 
 These are decisions, recorded in [parity.md](parity.md), and each one has to be
 settled **before** the app delegates that function — the app is the runtime
@@ -184,16 +206,19 @@ where the difference is visible to a user.
 
 | function | the difference | what it needs |
 |---|---|---|
-| `Resources.get-thumbnail-url` | the SDK builds the public URL; the app's RPC also returns decryption metadata, so an encrypted resource gets a URL it cannot decrypt with | reclassify to `socket` and emit `resource:getThumbnailUrl`. Moves the frozen 8/69 local/socket split, so it is a Phase 3 change, not a quiet one |
+| `Resources.get-thumbnail-url` | the SDK builds the public URL; the app's RPC also returns decryption metadata, so an encrypted resource gets a URL it cannot decrypt with | reclassify to `roomful` and emit `resource:getThumbnailUrl`. Moves the frozen local/socket split, so it is a Phase 3 change, not a quiet one |
 | `TextChat.get-channel-history` | the SDK does not decrypt | the app already has the key material — pass `appState.decryptMessage`, which the `AppState` interface already declares |
 | `TextChat.send-message` | the SDK does not encrypt outbound bodies | needs the mirror of the above: an outbound `appState.encryptMessage`. Not yet declared |
 | `Events.create-meeting` | a `direct` meeting with more than one participant is refused; the app silently creates a Group for it | keep the group creation in the app's service, above the SDK call. It is a UI decision with a second write and no undo |
-| `Commerce.create-product` | with no `title` the app opens the platform's form; the SDK answers 501 naming that surface | keep the form in the app: check for a title, open the modal if absent, call the SDK if present |
 | `Rooms.create-room-from-template` | the app also reloads the Rooms data provider's cached lists | keep the reload in the app's service, after the SDK call |
 
-Four of the six resolve by leaving a thin layer of app-specific behaviour
+Three of the five resolve by leaving a thin layer of app-specific behaviour
 *above* the SDK call, which is where it belongs. Two need something added to
 this package first.
+
+(The sixth, `Commerce.create-product` — where the app opens its own listing form
+and the SDK answered 501 — is no longer a delta, because the function is no
+longer here.)
 
 ## What is left, in order
 
@@ -202,12 +227,16 @@ this package first.
    this SDK. That works and needs no credentials — the repository is public —
    but a published `2.0.0` is what the app should depend on. The version is
    breaking: `api.services`, `api.intents` and `ApplicationIntents` are gone,
-   and the postMessage bridge no longer serves service functions.
-2. **Turn on some of the 31** the server can already reach — minus the two
+   the postMessage bridge no longer serves service functions, and the Commerce
+   and knowledge-base functions are gone with the second socket.
+2. **Bump the server's pin** to a commit of this package that has one socket, so
+   the two repositories agree about what a service function is. Nothing in its
+   39 tools changes.
+3. **Turn on some of the 31** the server can already reach — minus the two
    `ApplicationStorage` ones until question 2 above has an answer, and with an
    eye on how many tools an agent's prompt can carry.
-3. **Settle the `Http` trio** so the AI-facing surface has one shape.
-4. **Then the app**, service by service, cheapest first, with the six deltas
+4. **Settle the `Http` trio** so the AI-facing surface has one shape.
+5. **Then the app**, service by service, cheapest first, with the five deltas
    handled as the table says. Its `onNewIntent` is the delegation point and
    `BrowserSocketAdapter` is the socket; nothing about the app's own intent
    registry changes, because this package no longer declares any of it.

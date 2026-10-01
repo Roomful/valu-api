@@ -247,19 +247,16 @@ declare module '@arkeytyp/valu-api' {
     export class SocketTransport extends Transport {
         constructor(options: {
             socket: ValuSocket;
-            /** For the 11 `valuguru` functions. Absent means they answer 503. */
-            guru?: ValuGuruSocket;
-            /** For the 5 `app-state` functions. */
+            /** For the 3 `app-state` functions. */
             appState?: AppState;
             fetchImpl?: typeof fetch;
             config?: Partial<ValuConfig>;
             now?: () => Date;
-            /** The calling application — Commerce and ApplicationStorage need it. */
+            /** The calling application — ApplicationStorage and CMS need it. */
             applicationId?: string | null;
             registry?: ServiceRegistry;
         });
         get socket(): ValuSocket;
-        get guru(): ValuGuruSocket | null;
         get appState(): AppState | null;
         get config(): ValuConfig;
         get applicationId(): string | null;
@@ -301,7 +298,7 @@ declare module '@arkeytyp/valu-api' {
      * has to satisfy. There is no 'postmessage': this package declares nothing
      * it cannot run itself over a connection.
      */
-    export type ServiceChannel = 'roomful' | 'valuguru' | 'app-state' | 'local';
+    export type ServiceChannel = 'roomful' | 'app-state' | 'local';
     export type CacheMode = 'none' | 'read-through' | 'seeded';
 
     export interface DescriptorParam {
@@ -339,11 +336,18 @@ declare module '@arkeytyp/valu-api' {
     /** The catalogue, under the name that says what it is. Same array. */
     export const SERVICE_FUNCTIONS: readonly ServiceDescriptor[];
     /**
-     * Declared intents only the Valu Social application can serve — names, not
-     * descriptors, because this package has no function for any of them. Ask
-     * for one by name over the bridge: `ValuApi.callService`.
+     * Declared intents the Valu Social application serves and this package does
+     * not — names, not descriptors, because there is no function for any of
+     * them here. Ask for one by name over the bridge: `ValuApi.callService`.
      */
     export const APPLICATION_ONLY_INTENTS: readonly string[];
+    /**
+     * Why each of those is not a function here:
+     * `'no-rpc'` — nothing but the application process can answer it;
+     * `'valu-guru'` — the Valu Guru server answers it, on its own socket,
+     * which this package does not hold.
+     */
+    export const APPLICATION_INTENT_REASON: Readonly<Record<string, 'no-rpc' | 'valu-guru'>>;
 
     /** Resolve `Users.get`, `Users.getUser`, `Users.get_user` or the tool name. */
     export function findDescriptor(name: string): ServiceDescriptor | undefined;
@@ -359,7 +363,7 @@ declare module '@arkeytyp/valu-api' {
     export function isServiceFunction(name: string): boolean;
     export function listServices(): string[];
     export function catalogSummary(): {
-        total: number; roomful: number; valuguru: number; 'app-state': number;
+        total: number; roomful: number; 'app-state': number;
         local: number; socket: number;
         implemented: number; declared: number; sdkDeclared: number;
         serviceFunctions: number; applicationOnly: number;
@@ -382,9 +386,7 @@ declare module '@arkeytyp/valu-api' {
     export interface ServiceCallContext {
         /** The Roomful socket. Always present. */
         socket: ValuSocket;
-        /** The Valu Guru socket — present for `channel: 'valuguru'`. */
-        guru: ValuGuruSocket | null;
-        /** State only the Valu Social application holds — needed by
+        /** State only the application's own process holds — needed by
          * `channel: 'app-state'`. */
         appState: AppState | null;
         /** `fetch`, for the local HTTP functions and the upload pipeline. */
@@ -493,13 +495,12 @@ declare module '@arkeytyp/valu-api' {
 
     /**
      * Build the function surface: a socket in, every service function out.
-     * Runs the same in a Valu Social build, on the Valu Guru server, in a Node
-     * script and in an iframe application that has a socket.
+     * Runs the same in a Valu Social build, in a Node script, in a server-side
+     * agent and in an iframe application that has a socket.
      */
     export function createValuServices(options: {
         transport?: SocketTransport;
         socket?: ValuSocket;
-        guru?: ValuGuruSocket;
         appState?: AppState;
         fetchImpl?: typeof fetch;
         config?: Partial<ValuConfig>;
@@ -580,35 +581,11 @@ declare module '@arkeytyp/valu-api' {
     // ---------------------------------------------------------------------
 
     /**
-     * The Valu Guru server's request/response channel — a DIFFERENT socket
-     * from `ValuSocket`, with a different envelope and different auth. Commerce
-     * and the RAG search ride it.
-     */
-    export interface ValuGuruSocket {
-        readonly networkId?: string;
-        /** Run a `valuguru.*` op and resolve its response data. */
-        request(op: string, params?: object, options?: { timeoutMs?: number }): Promise<any>;
-        /** Send a typed catalogue message (e.g. `{type: 'rag_search'}`). */
-        send?(message: object, options?: { timeoutMs?: number }): Promise<any>;
-    }
-
-    /** Wrap an AiGuruService-shaped object as a ValuGuruSocket. */
-    export function guruAdapter(service: {
-        request(op: string, params?: object, options?: object): Promise<any>;
-        send?(message: object, options?: object): Promise<any>;
-        networkId?: string;
-    }): ValuGuruSocket;
-    export function guruAck(call: () => Promise<any>, what: string): Promise<ValuAck>;
-    export function isGuruSocket(guru: unknown): boolean;
-
-    /**
-     * State only the Valu Social application holds. The five `app-state`
-     * functions read it;
-     * without it they answer 501 naming the capability they wanted.
+     * State no RPC can produce — the application's own memory. The three
+     * `app-state` functions read it; without it they answer 501 naming the
+     * capability they wanted.
      */
     export interface AppState {
-        getChatHistory?(chatId: string | null): Promise<{ session: any; messages: any[] } | null>;
-        getAgentHistory?(agentId: string): Promise<{ agent: any; messages: any[] } | null>;
         listDeveloperApplications?(): Promise<any[]>;
         createDeveloperApplication?(manifest: {
             name: string; description?: string; url?: string; icon?: string;

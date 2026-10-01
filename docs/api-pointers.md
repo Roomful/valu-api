@@ -306,9 +306,14 @@ registered after this package was published works exactly as well as one that
 predates it. That is why this package declares no application intents: a method
 per intent would be a copy of a list that moves without us.
 
-15 intents in the manifest snapshot can ONLY be run this way — no RPC
-serves them, so [socket-functions.md](socket-functions.md) has no function for
-any of them:
+28 intents in the manifest snapshot can ONLY be run this way, so
+[socket-functions.md](socket-functions.md) has no function for any of them.
+They fall into two groups, and the difference matters when you are deciding
+whether to wait for an SDK function or wire the intent now.
+
+### Only the application process can answer them — 15
+
+No RPC serves any of these: they open a dock, render a picker, or read the application's own memory. A function here would be a method that fails everywhere this library is meant to run.
 
 | intent | params | what it does |
 |---|---|---|
@@ -327,6 +332,26 @@ any of them:
 | `DataProvider.pick-multiple` | `{providers, title?, confirmLabel?, confirmIcon?, width?, height?}` | Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"]. |
 | `DataProvider.pick-single` | `{providers, title?, width?, height?}` | Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that. |
 | `Logging.get-logs` | `{format?}` | Returns the captured console log buffer (log, info, warn, error) since app start. Choose the format: "text" returns { format: "text", text: <string> } with one line per entry; "file" returns { format: "file", filename, mimeType, size, file: File } — the File is for direct callers (upload/download) and is omitted in the AI/MCP serialized response, which still includes filename, mimeType, and size. |
+
+### The Valu Guru server answers them, on its own socket — 13
+
+These do not ride the Roomful socket at all. Commerce is a catalogue of `valuguru.*` ops on the Valu Guru server's `data_request` channel (valusocial-web src/Services/Commerce/CommerceDataService.js); the knowledge-base query is a typed `rag_search` message on the same channel; the two history reads are the Valu Guru chat's own in-memory message lists. A second server, a second envelope and a second auth — and none of it is this package's. The Valu Social application holds that connection and serves these intents over the bridge.
+
+| intent | params | what it does |
+|---|---|---|
+| `AiGuru.get-agent-history` | `{agentId}` | Returns the in-memory message history for a background agent. |
+| `AiGuru.get-chat-history` | `{chatId?}` | Returns the in-memory message history for a chat session. Omit chatId to get the currently active session. |
+| `AiGuru.query-knowledge-base` | `{query, toolName?, args?}` | Queries the RAG knowledge base directly over the Valu Guru server's socket connection, bypassing chat entirely. Returns the raw tool result text. |
+| `Commerce.add-to-cart` | `{productId, qty?}` | Put a product in the user's cart, credited to your app. The server re-checks that it can be bought here before accepting it, so a refusal comes back with a code to show. |
+| `Commerce.check-entitlements` | `{productIds}` | Which of these products the current user owns. This is how an app unlocks a ticket, a seat or an in-app good it sold through the shared cart. |
+| `Commerce.create-product` | `{title?, description?, priceAmount?, priceCurrency?, category?, tags?, imageResourceId?, items?, stock?}` | Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, and stays with the seller in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside. |
+| `Commerce.get-cart` | — | Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Read-only: change the cart with `add-to-cart`, or send the user to it with `open-cart`. |
+| `Commerce.get-my-product` | `{productId}` | One of the seller's own products with its content, in exactly the shape update-product takes: `{product, items}`. Read it before changing the content — `items` in update-product REPLACES the whole tree, so edit this list and send it back rather than sending only the new files. |
+| `Commerce.get-product` | `{productId}` | One product with its price, its parts when it is a bundle, its store, its reviews and whether the current user already owns it. |
+| `Commerce.list-categories` | — | The platform's product categories as `{categories: [{id, label}]}`. Every product is filed under exactly one; pass an `id` to list-products as `category`, and show the `label`. |
+| `Commerce.list-my-products` | `{status?, limit?}` | List the SELLER's own products in their store — drafts, unlisted, live and archived — unlike list-products, which is the buyer's shelf and never shows drafts. Use it to find the productId to edit. Each product carries `editable`: true only for a draft (never published, or unlisted by the seller). Returns `{hasStore, products}`. |
+| `Commerce.list-products` | `{query?, category?, tag?, attributes?, sort?, limit?, offset?}` | Search the products YOUR app lists that are available in the user's current network. Products the network or its admins have refused are simply absent from the answer. |
+| `Commerce.update-product` | `{productId, title?, description?, priceAmount?, priceCurrency?, stock?, unlimitedStock?, category?, tags?, imageResourceId?, items?}` | Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted by the seller in the Merchant Console first). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`. |
 
 The snapshot is a snapshot, not the authority. Ask the application for anything
 it registers.

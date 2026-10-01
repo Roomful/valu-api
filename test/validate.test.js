@@ -7,7 +7,7 @@ import { ERROR_CODES } from '../src/Errors.js';
 
 const events = findDescriptor('Events.list-events');
 const createMeeting = findDescriptor('Events.create-meeting');
-const listProducts = findDescriptor('Commerce.list-products');
+const connectionRequests = findDescriptor('Users.list-connection-requests');
 
 test('optional-only params: an empty call is valid', () => {
   assert.deepEqual(validateParams(events, {}), { ok: true, errors: [] });
@@ -43,9 +43,9 @@ test('NaN is not a number', () => {
 });
 
 test('an enum param only accepts its options', () => {
-  assert.equal(validateParams(listProducts, { sort: 'newest' }).ok, true);
-  assert.deepEqual(validateParams(listProducts, { sort: 'cheapest' }).errors,
-    ['param "sort" must be one of: newest, popular, priceAsc, priceDesc, rating']);
+  assert.equal(validateParams(connectionRequests, { category: 'received' }).ok, true);
+  assert.deepEqual(validateParams(connectionRequests, { category: 'inbound' }).errors,
+    ['param "category" must be one of: received, sent']);
 });
 
 test('an unknown param is refused, not dropped', () => {

@@ -3,12 +3,11 @@
 //
 // A handler takes `(params, ctx)` and RESOLVES an ack — it never throws, never
 // retries, and never reaches past `ctx` (docs/callbacks-policy.md). These are
-// the six things all 78 of them need, in one place, so a handler is the RPC it
-// performs and nothing else.
+// the handful of things all 65 of them need, in one place, so a handler is the
+// RPC it performs and nothing else.
 // ===========================================================================
 import { ERROR_CODES, errorAck } from '../../Errors.js';
 import { isAckError, ackErrorMessage } from '../../socket/ValuSocket.js';
-import { guruAck } from '../../socket/ValuGuruSocket.js';
 import { appStateCapability } from '../../app-state/AppState.js';
 
 /** A successful ack. `dataAck` with a name that reads at a call site. */
@@ -47,28 +46,6 @@ export async function rpc(ctx, ns, payload = {}, pick) {
  */
 export const raw = (ctx, ns, payload = {}, timeoutMs) =>
   ctx.socket.emit(ns, payload, timeoutMs ?? ctx.timeoutMs);
-
-/** One Valu Guru op, mapped into the ack envelope. */
-export function guru(ctx, op, params = {}, pick) {
-  return guruAck(async () => {
-    const data = await ctx.guru.request(op, params, { timeoutMs: ctx.timeoutMs });
-    return pick ? pick(data ?? {}) : (data ?? {});
-  }, ctx.descriptor.key);
-}
-
-/** One typed Valu Guru catalogue message (`{type: 'rag_search', …}`). */
-export function guruSend(ctx, message, pick) {
-  if (typeof ctx.guru?.send !== 'function') {
-    return Promise.resolve(fail(
-      ERROR_CODES.UNSUPPORTED,
-      `${ctx.descriptor.key} needs a Valu Guru socket that can send catalogue messages`,
-    ));
-  }
-  return guruAck(async () => {
-    const reply = await ctx.guru.send(message, { timeoutMs: ctx.timeoutMs });
-    return pick ? pick(reply ?? {}) : (reply ?? {});
-  }, ctx.descriptor.key);
-}
 
 /**
  * One `app-state` capability, or the ack that says which one was missing.

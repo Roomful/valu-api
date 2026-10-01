@@ -10,17 +10,12 @@ import assert from 'node:assert/strict';
 import {
   planDistribution, groupProps, propDisplayName, propGroupId, templateGroupCount,
 } from '../src/services/impl/propGroups.js';
-import {
-  productItemsFromIntent, productItemsToIntent, asBundlePrice, includesProducts,
-  sellerProductForIntent, isEditableProduct,
-} from '../src/services/impl/commerceItems.js';
 import { sanitizeButtons, sanitizeCustomParams } from '../src/services/impl/TextChat.js';
 import { computeDateRange, hexToRgba, rgbaToHex, parseOccurrence } from '../src/services/impl/Events.js';
 import { normalizeIcon } from '../src/services/impl/Developer.js';
 import { resolveBelonging, applicationStorageBelonging } from '../src/services/impl/belonging.js';
 import { getLocalTime } from '../src/services/impl/Time.js';
 import { readFile, toFileArray, uploadResources, MAX_UPLOAD_BYTES } from '../src/upload/ResourceUpload.js';
-import { guruErrorCode, guruAck, guruAdapter, isGuruSocket } from '../src/socket/ValuGuruSocket.js';
 import { resolveConfig } from '../src/Config.js';
 import { ERROR_CODES } from '../src/Errors.js';
 import { Responder, FakeRoomfulConnection, fakeFetch } from './helpers/fakes.js';
@@ -85,57 +80,6 @@ test('a template declares its group count in a tag, spelled several ways', () =>
   assert.equal(templateGroupCount(['prop-groups_5']), 5);
   assert.equal(templateGroupCount(['3-groups']), 3);
   assert.equal(templateGroupCount(['community']), null);
-});
-
-// --- commerce --------------------------------------------------------------
-
-test('a content tree survives the round trip it was designed for', () => {
-  const intent = [{ folder: 'Unit 1', items: ['res-1', { resourceId: 'res-2', title: 'Two' }] }, { productId: 'prd-1' }];
-  const wire = productItemsFromIntent(intent);
-
-  assert.deepEqual(wire.map((i) => [i.ref, i.type, i.parentRef]), [
-    ['i1', 'folder', null], ['i2', 'resource', 'i1'], ['i3', 'resource', 'i1'], ['i4', 'product', null],
-  ]);
-
-  // The server answers rows, not the wire — and a read has to come back in the
-  // shape a write takes, or an edit is a rewrite.
-  const rows = [
-    { id: 'f1', item_type: 'folder', parent_item_id: null, title: 'Unit 1', sort_order: 0 },
-    { id: 'r1', item_type: 'resource', parent_item_id: 'f1', resource_id: 'res-1', sort_order: 0 },
-    { id: 'r2', item_type: 'resource', parent_item_id: 'f1', resource_id: 'res-2', title: 'Two', sort_order: 1 },
-    { id: 'p1', item_type: 'product', parent_item_id: null, child_product_id: 'prd-1', sort_order: 1 },
-  ];
-  // The bare-id shorthand is an INPUT convenience; the read answers the long
-  // form, which is what a caller edits and hands straight back.
-  assert.deepEqual(productItemsToIntent(rows), [
-    { folder: 'Unit 1', items: [{ resourceId: 'res-1' }, { resourceId: 'res-2', title: 'Two' }] },
-    { productId: 'prd-1' },
-  ]);
-  assert.deepEqual(productItemsFromIntent(productItemsToIntent(rows)), wire,
-    'and the long form maps to the same wire the shorthand did');
-});
-
-test('a bundle price becomes a curator fee, because the bundle price is never charged', () => {
-  assert.deepEqual(asBundlePrice({ title: 'B', priceAmount: 7 }),
-    { title: 'B', priceAmount: 0, curatorFeeType: 'fixed', curatorFeeValue: 7 });
-  assert.deepEqual(asBundlePrice({ title: 'B', priceAmount: 0 }),
-    { title: 'B', priceAmount: 0, curatorFeeType: null, curatorFeeValue: null });
-  assert.deepEqual(asBundlePrice({ title: 'B' }), { title: 'B' }, 'no price, no translation');
-});
-
-test('a tree that holds a product is a bundle, whichever spelling it arrived in', () => {
-  assert.equal(includesProducts([{ type: 'product' }]), true);
-  assert.equal(includesProducts([{ childProductId: 'x' }]), true);
-  assert.equal(includesProducts([{ child_product_id: 'x' }]), true);
-  assert.equal(includesProducts([{ type: 'resource' }]), false);
-});
-
-test('null stock is unlimited, not sold out', () => {
-  const product = sellerProductForIntent({ id: 'p', status: 'draft', stock: null, price_amount: '3.5' });
-  assert.equal(product.stock, null);
-  assert.equal(product.priceAmount, 3.5);
-  assert.equal(product.editable, true);
-  assert.equal(isEditableProduct({ status: 'active' }), false);
 });
 
 // --- text chat -------------------------------------------------------------
@@ -283,42 +227,6 @@ test('a bucket that refuses the bytes is reported, not swallowed', async () => {
 
   assert.deepEqual(resolved, []);
   assert.match(failed[0].error, /HTTP 403/);
-});
-
-// --- the Valu Guru channel -------------------------------------------------
-
-test('a Valu Guru rejection becomes the ack code the caller already handles', async () => {
-  assert.equal(guruErrorCode({ code: 'timeout' }), ERROR_CODES.TIMEOUT);
-  assert.equal(guruErrorCode({ name: 'AbortError' }), ERROR_CODES.TIMEOUT);
-  assert.equal(guruErrorCode({ code: 'forbidden' }), ERROR_CODES.FORBIDDEN);
-  assert.equal(guruErrorCode({ code: 404 }), 404);
-  assert.equal(guruErrorCode({ message: 'not connected' }), ERROR_CODES.DISCONNECTED);
-
-  const ok = await guruAck(async () => ({ items: [] }), 'Commerce.get-cart');
-  assert.deepEqual(ok.data, { items: [] });
-
-  const bad = await guruAck(async () => { throw Object.assign(new Error('gone'), { code: 'timeout' }); }, 'Commerce.get-cart');
-  assert.equal(bad.error.code, ERROR_CODES.TIMEOUT);
-  assert.match(bad.error.message, /Commerce.get-cart: gone/);
-});
-
-test('the adapter needs a request method, and forwards send when there is one', async () => {
-  assert.throws(() => guruAdapter({}), /request\(op, params\)/);
-  assert.equal(isGuruSocket(null), false);
-
-  const calls = [];
-  const adapter = guruAdapter({
-    networkId: 'roomful',
-    request: (op, params) => { calls.push(['request', op, params]); return 'r'; },
-    send: (message) => { calls.push(['send', message.type]); return 's'; },
-  });
-  assert.equal(isGuruSocket(adapter), true);
-  assert.equal(adapter.networkId, 'roomful');
-  assert.equal(await adapter.request('valuguru.x', { a: 1 }), 'r');
-  assert.equal(await adapter.send({ type: 'rag_search' }), 's');
-  assert.deepEqual(calls, [['request', 'valuguru.x', { a: 1 }], ['send', 'rag_search']]);
-
-  assert.equal(typeof guruAdapter({ request: () => {} }).send, 'undefined', 'no send, no pretence of one');
 });
 
 // --- config ----------------------------------------------------------------

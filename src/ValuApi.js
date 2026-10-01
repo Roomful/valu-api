@@ -26,6 +26,7 @@ export { ServiceClient } from "./services/ServiceClient.js";
 export { ValuServiceApi, createValuServices } from "./services/api.js";
 export {
   SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, SERVICE_FUNCTIONS, APPLICATION_ONLY_INTENTS,
+  APPLICATION_INTENT_REASON,
   findDescriptor, listDescriptors, listServiceFunctions,
   isServiceFunction, listServices, catalogSummary,
 } from "./services/descriptors.js";
@@ -43,7 +44,6 @@ export {
 // given its own. It is imported for that effect, not for its exports.
 import "./services/impl/index.js";
 export { registerAll } from "./services/impl/index.js";
-export { guruAdapter, guruAck, isGuruSocket } from "./socket/ValuGuruSocket.js";
 export { noAppStateAck } from "./app-state/AppState.js";
 export { resolveConfig } from "./Config.js";
 export {

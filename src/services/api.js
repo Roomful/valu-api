@@ -4,15 +4,15 @@
 // `client.call('Users.current')` is a string and an object; this is
 // `valu.Users.current()`. The difference is not sugar — a string is checked
 // when it runs and a method is checked when it is written, and the caller that
-// matters here is an agent runtime wiring 78 functions into an LLM, where a
+// matters here is an agent runtime wiring 65 functions into an LLM, where a
 // typo in a service name is a tool that silently never works.
 //
 // What is on this tree: the service functions — everything in the catalogue,
-// which is everything this package can run itself over a connection. An intent
-// only the Valu Social application can serve is not declared here at all; an
-// iframe application asks for one by name (ValuApi.callService). One rule, no
-// exceptions, so "is there a function for it" and "can this run outside a
-// frame" are the same question.
+// which is everything this package can run itself over the ONE connection it
+// holds, the Roomful socket. An intent the Valu Social application serves
+// itself is not declared here at all; an iframe application asks for one by
+// name (ValuApi.callService). One rule, no exceptions, so "is there a function
+// for it" and "can this run outside a frame" are the same question.
 //
 //   import { createValuServices, NodeSocketAdapter } from '@arkeytyp/valu-api';
 //
@@ -32,7 +32,7 @@ import { ServiceClient } from './ServiceClient.js';
 import { SERVICE_FUNCTIONS, catalogSummary, listServices } from './descriptors.js';
 import { toolDefinitions } from './toolDefs.js';
 import { SocketTransport } from '../transport/SocketTransport.js';
-// Imported for its effect: this is what puts the 78 handlers in the default
+// Imported for its effect: this is what puts the 65 handlers in the default
 // registry. A function on the tree with nothing behind it would be the one
 // thing worse than no function at all.
 import './impl/index.js';
@@ -142,15 +142,13 @@ export class ValuServiceApi {
  *
  * Give it a socket and it builds a {@link SocketTransport}:
  *
- *   createValuServices({ socket })        // Node, a browser, an iframe app
- *   createValuServices({ socket, guru })  // + the Commerce/RAG channel
+ *   createValuServices({ socket })   // Node, a browser, an iframe app
  *
  * @param {object} options
  * @param {import('../transport/SocketTransport.js').SocketTransport} [options.transport]
  *   Use this transport as it is — it must serve service functions, so in
  *   practice a `SocketTransport`. Everything below is ignored when it is given.
  * @param {import('../socket/ValuSocket.js').ValuSocket} [options.socket]
- * @param {import('../socket/ValuGuruSocket.js').ValuGuruSocket} [options.guru]
  * @param {import('../app-state/AppState.js').AppState} [options.appState]
  * @param {Function} [options.fetchImpl]
  * @param {object} [options.config]

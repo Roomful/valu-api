@@ -24,7 +24,7 @@ import { registerAll } from '../../src/services/impl/index.js';
 import { SocketTransport } from '../../src/transport/SocketTransport.js';
 import { findDescriptor, SERVICE_DESCRIPTORS } from '../../src/services/descriptors.js';
 import { ERROR_CODES } from '../../src/Errors.js';
-import { Responder, FakeGuru, FakeAppState, fakeFetch } from '../helpers/fakes.js';
+import { Responder, FakeAppState, fakeFetch } from '../helpers/fakes.js';
 import { computeDateRange } from '../../src/services/impl/Events.js';
 
 const APPLICATION_ID = 'app-1';
@@ -972,207 +972,6 @@ export const CASES = [
     expect: ({ calls }) => assert.deepEqual(calls[0].data, { resourceId: 'res-1' }),
   },
 
-  // --- Commerce (channel: valuguru) ----------------------------------------
-  {
-    key: 'Commerce.list-products',
-    params: { query: 'poster' },
-    guru: { 'valuguru.commerce.catalog.search': { products: [{ id: 'prd-1' }], nextOffset: 10 } },
-    expect: ({ ack, guru, calls }) => {
-      assert.equal(ack.data.products.length, 1);
-      assert.equal(guru.calls[0].params.appId, APPLICATION_ID, 'the RUNTIME names the caller, never the params');
-      assert.equal(calls.length, 0, 'not a Roomful call');
-    },
-  },
-  {
-    key: 'Commerce.list-products',
-    name: 'an unidentified caller is 403, not a guess',
-    params: {},
-    applicationId: null,
-    guru: { 'valuguru.commerce.catalog.search': { products: [] } },
-    expect: ({ ack, guru }) => {
-      assert.equal(ack.error.code, ERROR_CODES.FORBIDDEN);
-      assert.equal(guru.calls.length, 0);
-    },
-  },
-  {
-    key: 'Commerce.get-product',
-    params: { productId: 'prd-1' },
-    guru: { 'valuguru.commerce.catalog.get': { product: { id: 'prd-1' } } },
-    expect: ({ ack }) => assert.equal(ack.data.product.id, 'prd-1'),
-  },
-  {
-    key: 'Commerce.list-categories',
-    params: {},
-    guru: { 'valuguru.commerce.catalog.categories': { categories: [{ id: 'art', label: 'Art' }] } },
-    expect: ({ ack }) => assert.equal(ack.data.categories[0].id, 'art'),
-  },
-  {
-    key: 'Commerce.add-to-cart',
-    params: { productId: 'prd-1', qty: 2 },
-    guru: { 'valuguru.commerce.cart.add': { items: [{ id: 'ci-1' }] } },
-    expect: ({ ack, guru }) => {
-      assert.equal(ack.data.items.length, 1);
-      assert.equal(guru.calls[0].params.qty, 2);
-    },
-  },
-  {
-    key: 'Commerce.check-entitlements',
-    params: { productIds: ['prd-1'] },
-    guru: { 'valuguru.commerce.entitlements.check': { 'prd-1': true } },
-    expect: ({ ack }) => assert.deepEqual(ack.data.entitlements, { 'prd-1': true }),
-  },
-  {
-    key: 'Commerce.get-cart',
-    params: {},
-    guru: { 'valuguru.commerce.cart.get': { items: [{ id: 'a' }, { id: 'b', savedForLater: true }] } },
-    expect: ({ ack }) => {
-      assert.equal(ack.data.items.length, 2);
-      assert.equal(ack.data.count, 1, 'saved-for-later is in the cart but not in the count');
-    },
-  },
-  {
-    key: 'Commerce.create-product',
-    params: { title: 'Poster', priceAmount: 5, items: ['res-1'] },
-    guru: {
-      'valuguru.commerce.products.create': { product: { id: 'prd-9', title: 'Poster', status: 'draft', price_amount: 5 } },
-      'valuguru.commerce.products.items.set': {},
-    },
-    expect: ({ ack, guru }) => {
-      assert.equal(ack.data.product.id, 'prd-9');
-      assert.equal(ack.data.product.editable, true, 'a draft, and never more');
-      const set = guru.callsTo('valuguru.commerce.products.items.set')[0];
-      assert.deepEqual(set.params.items, [{ ref: 'i1', type: 'resource', parentRef: null, resourceId: 'res-1', resourceKind: 'file' }]);
-    },
-  },
-  {
-    key: 'Commerce.create-product',
-    name: 'a bundle price becomes the curator fee the server actually charges',
-    params: { title: 'Bundle', priceAmount: 3, items: [{ productId: 'prd-1' }] },
-    guru: {
-      'valuguru.commerce.products.create': (params) => ({ product: { id: 'prd-10', status: 'draft', ...params } }),
-      'valuguru.commerce.products.items.set': {},
-    },
-    expect: ({ guru }) => {
-      const create = guru.callsTo('valuguru.commerce.products.create')[0];
-      assert.equal(create.params.priceAmount, 0, 'a bundle\'s own price is never charged');
-      assert.equal(create.params.curatorFeeType, 'fixed');
-      assert.equal(create.params.curatorFeeValue, 3);
-    },
-  },
-  {
-    key: 'Commerce.create-product',
-    name: 'no title means the platform FORM, which is an application surface',
-    params: {},
-    guru: {},
-    expect: ({ ack, guru }) => {
-      assert.equal(ack.error.code, ERROR_CODES.UNSUPPORTED);
-      assert.equal(guru.calls.length, 0);
-    },
-  },
-  {
-    key: 'Commerce.list-my-products',
-    params: {},
-    guru: { 'valuguru.commerce.products.list': { store: { id: 'st-1' }, products: [{ id: 'prd-1', status: 'draft', price_amount: '4', content_count: 2 }] } },
-    expect: ({ ack }) => {
-      assert.equal(ack.data.hasStore, true);
-      // Raw snake_case rows in, the vocabulary update-product takes out.
-      assert.equal(ack.data.products[0].priceAmount, 4);
-      assert.equal(ack.data.products[0].contentCount, 2);
-    },
-  },
-  {
-    key: 'Commerce.get-my-product',
-    params: { productId: 'prd-1' },
-    guru: {
-      'valuguru.commerce.products.get': { product: { id: 'prd-1', status: 'draft' } },
-      'valuguru.commerce.products.items.get': {
-        items: [
-          { id: 'f1', item_type: 'folder', parent_item_id: null, title: 'Unit 1', sort_order: 0 },
-          { id: 'r1', item_type: 'resource', parent_item_id: 'f1', resource_id: 'res-1', sort_order: 0 },
-        ],
-      },
-    },
-    expect: ({ ack }) => {
-      // A read → edit → write round trip has to keep the tree it started with.
-      assert.deepEqual(ack.data.items, [{ folder: 'Unit 1', items: [{ resourceId: 'res-1' }] }]);
-    },
-  },
-  {
-    key: 'Commerce.update-product',
-    params: { productId: 'prd-1', title: 'New name' },
-    guru: {
-      'valuguru.commerce.products.get': { product: { id: 'prd-1', status: 'draft' } },
-      'valuguru.commerce.products.update': { product: { id: 'prd-1', status: 'draft', title: 'New name' } },
-    },
-    expect: ({ ack, guru }) => {
-      assert.equal(ack.data.product.title, 'New name');
-      assert.deepEqual(guru.callsTo('valuguru.commerce.products.update')[0].params, { productId: 'prd-1', title: 'New name' });
-    },
-  },
-  {
-    key: 'Commerce.update-product',
-    name: 'a live product is frozen for its buyers, and the status is read FIRST',
-    params: { productId: 'prd-1', title: 'New name' },
-    guru: { 'valuguru.commerce.products.get': { product: { id: 'prd-1', status: 'active' } } },
-    expect: ({ ack, guru }) => {
-      assert.equal(ack.error.code, ERROR_CODES.FORBIDDEN);
-      assert.equal(guru.callsTo('valuguru.commerce.products.update').length, 0);
-    },
-  },
-  {
-    key: 'Commerce.update-product',
-    name: 'an empty items list is refused rather than obeyed',
-    params: { productId: 'prd-1', items: [] },
-    guru: {},
-    expect: ({ ack, guru }) => {
-      assert.equal(ack.error.code, ERROR_CODES.INVALID_PARAMS);
-      assert.equal(guru.calls.length, 0, 'a caller that meant to add one file and sent none must not empty the product');
-    },
-  },
-
-  // --- AiGuru --------------------------------------------------------------
-  {
-    key: 'AiGuru.get-chat-history',
-    params: { chatId: 'chat-1' },
-    appState: { getChatHistory: async (id) => ({ session: { id }, messages: [{ body: 'hi' }] }) },
-    expect: ({ ack, calls }) => {
-      assert.equal(ack.data.session.id, 'chat-1');
-      assert.equal(calls.length, 0, 'there is no RPC for this — it is application state');
-    },
-  },
-  {
-    key: 'AiGuru.get-chat-history',
-    name: 'a runtime without the state says which capability is missing',
-    params: {},
-    appState: null,
-    expect: ({ ack }) => {
-      assert.equal(ack.error.code, ERROR_CODES.UNSUPPORTED);
-      assert.match(ack.error.message, /getChatHistory/);
-    },
-  },
-  {
-    key: 'AiGuru.get-agent-history',
-    params: { agentId: 'agent-1' },
-    appState: { getAgentHistory: async (id) => ({ agent: { id }, messages: [] }) },
-    expect: ({ ack }) => assert.equal(ack.data.agent.id, 'agent-1'),
-  },
-  {
-    key: 'AiGuru.query-knowledge-base',
-    params: { query: 'what is verus' },
-    guruMessages: { rag_search: { ok: true, toolName: 'kb', result: 'an answer' } },
-    expect: ({ ack, guru }) => {
-      assert.deepEqual(ack.data, { toolName: 'kb', result: 'an answer' });
-      assert.equal(guru.sent[0].message.type, 'rag_search');
-    },
-  },
-  {
-    key: 'AiGuru.query-knowledge-base',
-    name: 'a refusal from the RAG backend is an error ack',
-    params: { query: 'x' },
-    guruMessages: { rag_search: { ok: false, error: 'two tools registered, name one' } },
-    expect: ({ ack }) => assert.match(ack.error.message, /name one/),
-  },
-
   // --- Developer -----------------------------------------------------------
   {
     key: 'Developer.list-applications',
@@ -1251,13 +1050,11 @@ export function runFunctionSuite({ name, makeSocket }) {
 
       const responder = new Responder(testCase.rpc ?? {});
       const { socket } = makeSocket(responder);
-      const guru = new FakeGuru(testCase.guru ?? {}, testCase.guruMessages ?? {});
       const appState = testCase.appState === null ? null : new FakeAppState(testCase.appState ?? {});
       const fetch = fakeFetch();
 
       const transport = new SocketTransport({
         socket,
-        guru,
         appState,
         fetchImpl: fetch,
         config: CONFIG,
@@ -1270,7 +1067,7 @@ export function runFunctionSuite({ name, makeSocket }) {
       const client = new ServiceClient({ transport, cache: null });
 
       const ack = await client.call(testCase.key, testCase.params, { retries: 0 });
-      testCase.expect({ ack, calls: responder.calls, responder, guru, appState, fetch });
+      testCase.expect({ ack, calls: responder.calls, responder, appState, fetch });
     });
   }
 

@@ -1,19 +1,19 @@
 # Callbacks policy
 
 **Status: frozen (Phase 1.4), and Phase 2 was written against it unchanged.**
-All 77 implemented functions obey it. A change here is a version bump, not a
+All 65 implemented functions obey it. A change here is a version bump, not a
 patch.
 
 Implemented in `src/CallPolicy.js`; the conformance suite asserts every clause
 below against both adapters.
 
 **One clarification Phase 2 added, not a change.** A function's `channel`
-(docs/parity.md) says which thing serves it, and a transport that lacks that
-channel refuses the function with `501 UNSUPPORTED` — deliberately NOT one of
-the retriable codes. A socket that was never supplied cannot appear between
-attempts, and retrying it would buy three attempts and two backoffs for an
-answer that cannot improve. The Valu Guru channel's own timeouts and
-disconnections map onto `408` / `503` like any other, and retry normally.
+(docs/parity.md) says what serves it, and a runtime that cannot supply it
+refuses the function with `501 UNSUPPORTED` — deliberately NOT one of the
+retriable codes. An `appState` capability that was never supplied cannot appear
+between attempts, and retrying it would buy three attempts and two backoffs for
+an answer that cannot improve. The socket's own timeouts and disconnections map
+onto `408` / `503` as always, and retry normally.
 
 ## 1. The shape of an answer
 

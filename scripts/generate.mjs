@@ -11,10 +11,11 @@
 // ===========================================================================
 import { readFileSync, writeFileSync } from 'node:fs';
 import {
-  APPLICATION_ONLY, LOCAL, SERVER_TOOLS, SERVER_ONLY_TOOLS, mutates, defaultCache,
+  APPLICATION_ONLY, APPLICATION_ONLY_GROUPS, APPLICATION_ONLY_REASON,
+  LOCAL, SERVER_TOOLS, SERVER_ONLY_TOOLS, mutates, defaultCache,
 } from './bindings.js';
 import {
-  VALUGURU_CHANNEL, APP_STATE_CHANNEL, RETURNS, SERVER_ONLY_RECONCILIATION, KNOWN_DELTAS,
+  APP_STATE_CHANNEL, RETURNS, SERVER_ONLY_RECONCILIATION, KNOWN_DELTAS,
   REQUIREMENTS,
 } from './functions.js';
 import {
@@ -36,7 +37,6 @@ const snapshot = JSON.parse(
 const applicationOnly = new Set(APPLICATION_ONLY);
 const local = new Set(LOCAL);
 const serverTools = new Set(SERVER_TOOLS);
-const valuguru = new Set(VALUGURU_CHANNEL);
 const appStateChannel = new Set(APP_STATE_CHANNEL);
 
 /**
@@ -45,12 +45,14 @@ const appStateChannel = new Set(APP_STATE_CHANNEL);
  *
  * There used to be a second axis, `binding`, whose third value was
  * `postmessage`. It is gone with the intents it described: this package
- * declares nothing it cannot run itself over a connection, so every descriptor
- * now names the connection that answers it.
+ * declares nothing it cannot run itself over its one connection, so every
+ * descriptor now names what answers it.
+ *
+ * There is no `valuguru`. A second socket, to a second server, is not part of
+ * a user-facing platform library (scripts/bindings.js, reason `valu-guru`).
  */
 function channelFor(key) {
   if (local.has(key)) return 'local';
-  if (valuguru.has(key)) return 'valuguru';
   if (appStateChannel.has(key)) return 'app-state';
   return 'roomful';
 }
@@ -117,7 +119,9 @@ for (const service of snapshot.services) {
   for (const intent of service.intents) {
     const key = `${service.id}.${intent.action}`;
     if (applicationOnly.has(key)) {
-      applicationOnlyIntents.push({ key, service: service.id, ...intent });
+      applicationOnlyIntents.push({
+        key, service: service.id, reason: APPLICATION_ONLY_REASON[key], ...intent,
+      });
       continue;
     }
     descriptors.push(buildDescriptor(service, intent, 'manifest'));
@@ -178,9 +182,16 @@ const catalogJs = `${banner}
 /** @type {ServiceDescriptor[]} */
 export const SERVICE_DESCRIPTORS = ${JSON.stringify(descriptors, null, 2)};
 
-/** Declared intents only the Valu Social application can serve — asked for by
- * name over the postMessage bridge, never functions of this package. */
+/** Declared intents the Valu Social application serves and this package does
+ * not — asked for by name over the postMessage bridge, never functions here.
+ * \`APPLICATION_INTENT_REASON\` says why each one is out: \`'no-rpc'\` (nothing
+ * but the application process can answer it) or \`'valu-guru'\` (the Valu Guru
+ * server answers it, on a socket this package does not hold). */
 export const APPLICATION_ONLY_INTENTS = ${JSON.stringify(applicationOnlyIntents.map((i) => i.key), null, 2)};
+
+/** @type {Record<string, 'no-rpc'|'valu-guru'>} */
+export const APPLICATION_INTENT_REASON = ${JSON.stringify(
+  Object.fromEntries(applicationOnlyIntents.map((i) => [i.key, i.reason])), null, 2)};
 
 /** Server tools that implement no declared intent. */
 export const SERVER_ONLY_TOOLS = ${JSON.stringify(SERVER_ONLY_TOOLS, null, 2)};
@@ -226,9 +237,10 @@ let dts = `${banner}
 // resolve.
 import type { ValuAck } from '@arkeytyp/valu-api';
 
-/** Which connection answers a function. There is no 'postmessage': this
- * package declares only what it can run itself. */
-export type ServiceChannel = 'roomful' | 'valuguru' | 'app-state' | 'local';
+/** Which connection answers a function. There is no 'postmessage' and no
+ * second socket: this package holds one connection and declares only what it
+ * can run itself over it. */
+export type ServiceChannel = 'roomful' | 'app-state' | 'local';
 export type IntentAvailability = 'ai' | 'developer';
 
 `;
@@ -327,7 +339,6 @@ and the one a caller has to satisfy before the call can work.
 | channel | count | what serves it |
 |---|---|---|
 | \`roomful\` | ${byChannel.roomful ?? 0} | the Roomful platform socket — \`ValuSocket.emit(ns, payload)\` |
-| \`valuguru\` | ${byChannel.valuguru ?? 0} | the Valu Guru server's \`data_request\` channel — \`valuguru.*\` ops |
 | \`app-state\` | ${byChannel['app-state'] ?? 0} | no RPC exists; the runtime holding that state supplies it |
 | \`local\` | ${byChannel.local ?? 0} | computed by the SDK |
 
@@ -345,17 +356,23 @@ parity += `
 ## Declared, and deliberately not here
 
 ${applicationOnlyIntents.length} intents in the application's manifest get no descriptor, no method
-and no tool definition. No RPC serves any of them — they open a dock, render a
-picker, or read the application's own log buffer — so a function here would be
-a method that fails everywhere this library is meant to run.
+and no tool definition, for one of two reasons.
 
 They are not unreachable. An iframe application asks for any intent **by name**
 over the postMessage bridge, and the application's own registry (not this
 snapshot) is the authority for what those names are:
 [api-pointers.md](api-pointers.md).
-
-${applicationOnlyIntents.map((i) => `- \`${i.key}\` — ${i.description}`).join('\n')}
 `;
+for (const group of APPLICATION_ONLY_GROUPS) {
+  const members = applicationOnlyIntents.filter((i) => i.reason === group.reason);
+  parity += `
+### ${group.title} — ${members.length}
+
+${group.why}
+
+${members.map((i) => `- \`${i.key}\` — ${i.description}`).join('\n')}
+`;
+}
 
 parity += `
 ## Server-only tools — the Phase 2b decisions
@@ -400,15 +417,12 @@ for (const d of descriptors) {
 // (what you can do over a socket). The catalogue no longer holds anything but
 // socket functions, so all three were describing the same list from three
 // angles, and a reader had to hold the difference between them in their head.
-const implementedFns = descriptors.filter((d) => implemented.has(d.key));
-const onSocket = implementedFns.filter((d) => d.channel === 'roomful' || d.channel === 'valuguru');
 const appStateFns = descriptors.filter((d) => d.channel === 'app-state');
 const localFns = descriptors.filter((d) => d.channel === 'local');
 const roomfulCount = descriptors.filter((d) => d.channel === 'roomful').length;
-const guruCount = descriptors.filter((d) => d.channel === 'valuguru').length;
 
 const SOCKET_LABEL = {
-  roomful: 'Roomful socket', valuguru: 'Valu Guru socket',
+  roomful: 'Roomful socket',
   'app-state': 'application state', local: 'local',
 };
 
@@ -431,7 +445,7 @@ const signature = (d) => {
 
 /** The runtime requirements of a function: its channel, plus anything extra. */
 const requirementsOf = (d) => {
-  const channelReq = { roomful: '`socket`', valuguru: '`guru`', 'app-state': null, local: null }[d.channel];
+  const channelReq = { roomful: '`socket`', 'app-state': null, local: null }[d.channel];
   const extra = (REQUIREMENTS[d.key] ?? []).map((r) => `\`${r}\``);
   return [channelReq, ...extra].filter(Boolean).join(', ') || '—';
 };
@@ -483,6 +497,12 @@ const paramTable = (d) => {
   return table;
 };
 
+/** Manifest services with no function here at all — every intent is the
+ * application's to serve. Naming them stops a reader hunting for Commerce. */
+const absentServices = snapshot.services
+  .map((svc) => svc.id)
+  .filter((id) => !descriptors.some((d) => d.service === id));
+
 const docByService = new Map();
 for (const d of descriptors) {
   if (!docByService.has(d.service)) docByService.set(d.service, []);
@@ -496,50 +516,53 @@ The ${descriptors.length} functions this package answers **itself**, given a con
 the feature each one provides.
 
 That is the whole of this package's function surface. A socket points *away*
-from the browser: it is a connection this library holds to a server and speaks
-itself, so the same call runs in the Valu Social application, in a Valu Guru
-server agent, in a Node script, and in an iframe application that has one. No
-Valu Social application is needed at any point.
+from the browser: it is **one** connection this library holds to the Roomful
+platform and speaks itself, so the same call runs in the Valu Social
+application, in a Node script, in a server-side agent, and in an iframe
+application that has a socket. No Valu Social application is needed at any
+point.
 
-${roomfulCount} run on the **Roomful socket** and ${guruCount} on the **Valu Guru socket**.
-${appStateFns.length} read state a socket cannot produce and ${localFns.length} need no connection at
-all; both are below.
+${roomfulCount} run on the **Roomful socket**. ${appStateFns.length} read state a socket cannot produce
+and ${localFns.length} need no connection at all; both are below.
 
 Where to read what:
 
 | doc | question it answers |
 |---|---|
 | **this file** | what can I do, and what does each function need? |
+| [socket-adapters.md](socket-adapters.md) | what *is* a socket here, and how do I supply one? |
 | [service-api.md](service-api.md) | the whole tree as calls, one line each |
 | [parity.md](parity.md) | what is implemented today, and what is knowingly different |
 | [api-pointers.md](api-pointers.md) | the postMessage bridge: any application intent, by name |
 | [callbacks-policy.md](callbacks-policy.md) | timeouts, retries, error codes, what a reconnect does |
 
-## The two sockets
+## The socket
 
-| socket | functions | what it is | how you supply it | without it |
-|---|---|---|---|---|
-| Roomful | ${roomfulCount} | the platform's own WebSocket — every RPC the app's services already use | \`createValuServices({ socket })\` | \`SocketTransport\` refuses to construct |
-| Valu Guru | ${guruCount} | the Valu Guru server's \`data_request\` channel — a different server, envelope and auth | \`createValuServices({ socket, guru })\` | those ${guruCount} answer 503 **by name**, before the handler runs |
+There is exactly one, and it is the platform's own: the Roomful WebSocket, the
+same connection every service in the Valu Social application already emits on.
+You hand it in as a [\`ValuSocket\`](../src/socket/ValuSocket.js) — in a browser
+through \`BrowserSocketAdapter\`, headless through \`NodeSocketAdapter\`, and the
+handler cannot tell which ([socket-adapters.md](socket-adapters.md)). Without
+one, \`SocketTransport\` refuses to construct.
 
-Both are the same contract to a handler
-([\`ValuSocket\`](../src/socket/ValuSocket.js)), and both come in a browser and
-a headless flavour, so a function written once runs in either runtime. What the
-socket carries is the platform's own RPC, unchanged: \`Users.get\` emits
+What it carries is the platform's own RPC, unchanged: \`Users.get\` emits
 \`social:getUsersSimpleInfo\`, \`Rooms.get-permissions\` emits
 \`room:permissions\` — the same messages the Valu Social app emits for the same
 data.
 
-A Valu Guru server must NOT route the ${guruCount} \`valuguru\` functions through this
-package: that server *is* the other end of that channel, and calling them there
-is a server talking to itself over its own socket.
+**There is no second socket.** The Commerce catalogue and the knowledge-base
+search run on the Valu Guru server's own \`data_request\` channel, which is a
+different server with a different envelope and a different auth; this package
+holds no connection to it and declares none of those intents. They are the Valu
+Social application's to serve, asked for by name over the bridge
+([api-pointers.md](api-pointers.md)). That is why ${absentServices.map((id) => `\`${id}\``).join(', ')}
+have no functions here: every intent they declare is one of those.
 
 ## What a runtime must supply
 
 | requirement | what it is | what happens without it |
 |---|---|---|
 | \`socket\` | a [\`ValuSocket\`](../src/socket/ValuSocket.js) — \`NodeSocketAdapter\` over a \`RoomfulConnectionManager\`, or \`BrowserSocketAdapter\` over the app's WebSocket service | \`SocketTransport\` refuses to construct |
-| \`guru\` | a [\`ValuGuruSocket\`](../src/socket/ValuGuruSocket.js) — the Valu Guru server's \`data_request\` channel | the ${guruCount} \`valuguru\` functions answer 503 **by name**, before the handler runs |
 | \`appState\` | an [\`AppState\`](../src/app-state/AppState.js): state no RPC can produce, held by the Valu Social application or by your own runtime | the function answers 501 naming the capability it wanted |
 | \`applicationId\` | WHICH application is calling, stamped by the runtime and never read from a caller's params | the functions scoped to an app answer 403 |
 | \`config\` | \`{ webBase, apiGate }\` — the origins a resource URL is built on | defaults are used; a share link may point at the wrong deployment |
@@ -552,13 +575,15 @@ answer is in the memory of whatever is running the application. A runtime that
 holds it passes it in as \`{ appState }\`; one that does not gets an ack naming
 the capability it wanted, never a guess.
 
-| function | the state it reads | \`appState\` capability |
+| function | what it answers | \`appState\` capability |
 |---|---|---|
-| \`AiGuru.get-chat-history\` | the session's in-memory message list | \`getChatHistory\` |
-| \`AiGuru.get-agent-history\` | an agent's in-memory message list | \`getAgentHistory\` |
-| \`Developer.list-applications\` | the Developer Portal's application list | \`listDeveloperApplications\` |
-| \`Developer.create-application\` | the same store, plus the app registry | \`createDeveloperApplication\` |
-| \`VerusWallet.get-balance\` | the balance the store cached off a push | \`getAgentWallet\` |
+${appStateFns.map((d) => {
+  const caps = (REQUIREMENTS[d.key] ?? [])
+    .filter((r) => r.startsWith('appState.'))
+    .map((r) => `\`${r.replace('appState.', '').replace(/\?$/, '')}\``)
+    .join(', ') || '—';
+  return `| \`${d.key}\` | ${d.returns.description || d.description} | ${caps} |`;
+}).join('\n')}
 
 ## ${localFns.length} functions with no connection at all
 
@@ -570,8 +595,8 @@ ${localFns.map((d) => `\`${d.key}\``).join(', ')}.
 Every function resolves an ack — \`{data}\` or \`{error}\` — and never throws;
 \`invoke\` is the throwing wrapper. The codes a caller must handle are in
 [callbacks-policy.md](callbacks-policy.md); the ones specific to a missing
-runtime piece are 503 (no such channel), 501 (no \`appState\` capability, or a
-declared function with no handler yet) and 403 (no application identity).
+runtime piece are 501 (no \`appState\` capability, or a declared function with
+no handler yet) and 403 (no application identity).
 
 ## The functions, by service
 
@@ -594,7 +619,7 @@ for (const [service, fns] of [...docByService].sort()) {
   if (missing.length) {
     socketMd += `*${missing.length} more \`${service}\` intent${missing.length === 1 ? '' : 's'} `
       + `(${missing.map((i) => `\`${i.key.split('.')[1]}\``).join(', ')}) `
-      + `${missing.length === 1 ? 'is' : 'are'} served only by the Valu Social application — `
+      + `${missing.length === 1 ? 'is' : 'are'} served by the Valu Social application, not here — `
       + `ask for ${missing.length === 1 ? 'it' : 'them'} by name over the bridge `
       + `([api-pointers.md](api-pointers.md)).*\n\n`;
   }
@@ -627,7 +652,6 @@ import { createValuServices, NodeSocketAdapter } from '@arkeytyp/valu-api';
 
 const valu = createValuServices({
   socket: new NodeSocketAdapter({ connection }), // the Roomful socket — required
-  guru,                                          // the Valu Guru socket — for the ${guruCount} above
   appState,                                      // state no socket can produce
   applicationId,                                 // WHO is calling; the runtime stamps it
   config: { webBase, apiGate },                  // origins for the URL builders
@@ -643,10 +667,6 @@ Every function is on \`valu.<Service>.<method>\` — [service-api.md](service-ap
 is the whole tree, one line each. A function resolves by any name the platform
 already writes — \`Users.get\`, \`Users.get_user\`, \`Users.getUser\`,
 \`service__Users__get\`.
-
-${SERVER_ONLY_TOOLS.length} tools in valu-guru-server implement no declared intent and are not
-functions of this package. [parity.md](parity.md) records the decision for each
-one: ${SERVER_ONLY_TOOLS.map((t) => `\`${t}\``).join(', ')}.
 `;
 
 // --- docs/api-pointers.md --------------------------------------------------
@@ -818,17 +838,29 @@ registered after this package was published works exactly as well as one that
 predates it. That is why this package declares no application intents: a method
 per intent would be a copy of a list that moves without us.
 
-${applicationOnlyIntents.length} intents in the manifest snapshot can ONLY be run this way — no RPC
-serves them, so [socket-functions.md](socket-functions.md) has no function for
-any of them:
+${applicationOnlyIntents.length} intents in the manifest snapshot can ONLY be run this way, so
+[socket-functions.md](socket-functions.md) has no function for any of them.
+They fall into two groups, and the difference matters when you are deciding
+whether to wait for an SDK function or wire the intent now.
+`;
+
+for (const group of APPLICATION_ONLY_GROUPS) {
+  const members = applicationOnlyIntents.filter((i) => i.reason === group.reason);
+  pointerMd += `
+### ${group.title} — ${members.length}
+
+${group.why}
 
 | intent | params | what it does |
 |---|---|---|
-${applicationOnlyIntents.map((i) => {
+${members.map((i) => {
   const all = [...i.params.required.map((x) => x.name), ...i.params.optional.map((x) => `${x.name}?`)];
   return `| \`${i.key}\` | ${all.length ? `\`{${all.join(', ')}}\`` : '—'} | ${i.description} |`;
 }).join('\n')}
+`;
+}
 
+pointerMd += `
 The snapshot is a snapshot, not the authority. Ask the application for anything
 it registers.
 `;
@@ -849,7 +881,6 @@ const apiReturn = (d) => (d.returns?.type && d.returns.type !== 'unknown' ? d.re
 
 const CHANNEL_NOTE = {
   roomful: 'Roomful socket',
-  valuguru: 'Valu Guru socket',
   'app-state': 'application state — no RPC exists',
   local: 'answered by the SDK',
 };
@@ -859,15 +890,15 @@ let apiMd = `<!-- GENERATED by scripts/generate.mjs. Do not edit: run \`npm run 
 
 Every service function this package offers, as the call you would write. There
 are **${descriptors.length}** of them, on **${serviceByService.size}** services, and the same
-${descriptors.length} are available from a Valu Social build, from the Valu Guru server, from a
-Node script and from an iframe application that has a socket — that is what
-makes them service functions.
+${descriptors.length} are available from a Valu Social build, from a Node script, from a
+server-side agent and from an iframe application that has a socket — that is
+what makes them service functions.
 
 \`\`\`javascript
 import { createValuServices, NodeSocketAdapter } from '@arkeytyp/valu-api';
 
-// anywhere there is a connection: the Valu Guru server, a Node agent, the app
-const valu = createValuServices({ socket, guru });
+// anywhere there is a Roomful connection: a browser, a Node agent, the app
+const valu = createValuServices({ socket });
 
 const me    = await valu.data.Users.current();                  // the payload
 const ack   = await valu.Users.current();                       // or the envelope
@@ -880,13 +911,15 @@ is the same call with the envelope taken off: it returns the payload and throws
 which is what an LLM tool call has.
 
 What is **not** here: application intents — open a dock, expand a pane, show a
-picker. Only the Valu Social application can serve those, and it is asked for
-one **by name**, with nothing declared on this side:
+picker, or anything the Valu Guru server answers on its own socket (Commerce,
+the knowledge-base search). The Valu Social application serves those, and it is
+asked for one **by name**, with nothing declared on this side:
 \`api.callService(new Intent('AiGuru', 'open', {applicationId}))\`. See
 [api-pointers.md](api-pointers.md).
 
 | | |
 |---|---|
+| what a socket is here, and how to supply one | [socket-adapters.md](socket-adapters.md) |
 | read the feature each one provides, and what it needs | [socket-functions.md](socket-functions.md) |
 | who implements what today | [parity.md](parity.md) |
 | the bridge: any application intent, by name | [api-pointers.md](api-pointers.md) |
@@ -961,8 +994,8 @@ if (check && stale) process.exit(1);
 if (check) console.log(`generated output is up to date (${outputs.length} files)`);
 if (!check) {
   console.log(
-    `${descriptors.length} functions: ${counts.roomful} roomful, ${counts.valuguru} valuguru, `
+    `${descriptors.length} functions: ${counts.roomful} roomful, `
     + `${counts['app-state']} app-state, ${counts.local} local `
-    + `(+ ${applicationOnlyIntents.length} declared intents only the application can serve)`,
+    + `(+ ${applicationOnlyIntents.length} declared intents the application serves itself)`,
   );
 }

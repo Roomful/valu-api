@@ -9,142 +9,6 @@
 /** @type {ServiceDescriptor[]} */
 export const SERVICE_DESCRIPTORS = [
   {
-    "key": "AiGuru.get-agent-history",
-    "service": "AiGuru",
-    "action": "get-agent-history",
-    "fn": "get_agent_history",
-    "method": "getAgentHistory",
-    "toolName": "service__AiGuru__get_agent_history",
-    "serviceTitle": "Valu Guru Service",
-    "serviceDescription": "System service for managing applications via AI. Provides tools to open, close, list, and check application status.",
-    "source": "src/Services/AiGuru/AiGuruService.js",
-    "description": "Returns the in-memory message history for a background agent.",
-    "availability": [
-      "developer"
-    ],
-    "permissions": [],
-    "scopes": [
-      "aiguru:read"
-    ],
-    "mutates": false,
-    "cache": {
-      "mode": "none"
-    },
-    "channel": "app-state",
-    "returns": {
-      "type": "{agent: object, messages: object[]}",
-      "description": "The agent header and its in-memory messages."
-    },
-    "params": {
-      "required": [
-        {
-          "name": "agentId",
-          "type": "string",
-          "description": "ID of the background agent whose message history to retrieve."
-        }
-      ],
-      "optional": []
-    },
-    "sdkParams": [],
-    "declaredBy": "manifest",
-    "implementedBy": null
-  },
-  {
-    "key": "AiGuru.get-chat-history",
-    "service": "AiGuru",
-    "action": "get-chat-history",
-    "fn": "get_chat_history",
-    "method": "getChatHistory",
-    "toolName": "service__AiGuru__get_chat_history",
-    "serviceTitle": "Valu Guru Service",
-    "serviceDescription": "System service for managing applications via AI. Provides tools to open, close, list, and check application status.",
-    "source": "src/Services/AiGuru/AiGuruService.js",
-    "description": "Returns the in-memory message history for a chat session. Omit chatId to get the currently active session.",
-    "availability": [
-      "developer"
-    ],
-    "permissions": [],
-    "scopes": [
-      "aiguru:read"
-    ],
-    "mutates": false,
-    "cache": {
-      "mode": "none"
-    },
-    "channel": "app-state",
-    "returns": {
-      "type": "{session: object, messages: object[]}",
-      "description": "The session header and its in-memory messages."
-    },
-    "params": {
-      "required": [],
-      "optional": [
-        {
-          "name": "chatId",
-          "type": "string",
-          "description": "ID of the chat session. Omit to use the currently active session."
-        }
-      ]
-    },
-    "sdkParams": [],
-    "declaredBy": "manifest",
-    "implementedBy": null
-  },
-  {
-    "key": "AiGuru.query-knowledge-base",
-    "service": "AiGuru",
-    "action": "query-knowledge-base",
-    "fn": "query_knowledge_base",
-    "method": "queryKnowledgeBase",
-    "toolName": "service__AiGuru__query_knowledge_base",
-    "serviceTitle": "Valu Guru Service",
-    "serviceDescription": "System service for managing applications via AI. Provides tools to open, close, list, and check application status.",
-    "source": "src/Services/AiGuru/AiGuruService.js",
-    "description": "Queries the RAG knowledge base directly over the Valu Guru server's socket connection, bypassing chat entirely. Returns the raw tool result text.",
-    "availability": [
-      "developer"
-    ],
-    "permissions": [],
-    "scopes": [
-      "aiguru:read"
-    ],
-    "mutates": false,
-    "cache": {
-      "mode": "read-through",
-      "ttlMs": 30000,
-      "key": null
-    },
-    "channel": "valuguru",
-    "returns": {
-      "type": "{toolName: string, result: string}",
-      "description": "The RAG tool that answered and its raw result text."
-    },
-    "params": {
-      "required": [
-        {
-          "name": "query",
-          "type": "string",
-          "description": "The search query text."
-        }
-      ],
-      "optional": [
-        {
-          "name": "toolName",
-          "type": "string",
-          "description": "Name of the RAG tool to call. Only needed if the RAG server exposes more than one tool — omit to auto-pick the sole registered tool."
-        },
-        {
-          "name": "args",
-          "type": "object",
-          "description": "Extra arguments merged into the RAG tool call alongside `query` (tool-specific, e.g. scope filters)."
-        }
-      ]
-    },
-    "sdkParams": [],
-    "declaredBy": "manifest",
-    "implementedBy": null
-  },
-  {
     "key": "ApplicationStorage.resource-delete",
     "service": "ApplicationStorage",
     "action": "resource-delete",
@@ -768,578 +632,6 @@ export const SERVICE_DESCRIPTORS = [
           "name": "propId",
           "type": "string",
           "description": "The prop to move the uploaded resources into."
-        }
-      ]
-    },
-    "sdkParams": [],
-    "declaredBy": "manifest",
-    "implementedBy": null
-  },
-  {
-    "key": "Commerce.add-to-cart",
-    "service": "Commerce",
-    "action": "add-to-cart",
-    "fn": "add_to_cart",
-    "method": "addToCart",
-    "toolName": "service__Commerce__add_to_cart",
-    "serviceTitle": "Commerce",
-    "serviceDescription": "Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.",
-    "source": "src/Services/Commerce/CommerceService.js",
-    "description": "Put a product in the user's cart, credited to your app. The server re-checks that it can be bought here before accepting it, so a refusal comes back with a code to show.",
-    "availability": [
-      "ai",
-      "developer"
-    ],
-    "permissions": [],
-    "scopes": [
-      "commerce:write"
-    ],
-    "mutates": true,
-    "cache": {
-      "mode": "none"
-    },
-    "channel": "valuguru",
-    "returns": {
-      "type": "{items: object[]}",
-      "description": "The cart after the addition."
-    },
-    "params": {
-      "required": [
-        {
-          "name": "productId",
-          "type": "string",
-          "description": "the product to add"
-        }
-      ],
-      "optional": [
-        {
-          "name": "qty",
-          "type": "number",
-          "description": "how many, at least 1 (default 1)"
-        }
-      ]
-    },
-    "sdkParams": [],
-    "declaredBy": "manifest",
-    "implementedBy": null
-  },
-  {
-    "key": "Commerce.check-entitlements",
-    "service": "Commerce",
-    "action": "check-entitlements",
-    "fn": "check_entitlements",
-    "method": "checkEntitlements",
-    "toolName": "service__Commerce__check_entitlements",
-    "serviceTitle": "Commerce",
-    "serviceDescription": "Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.",
-    "source": "src/Services/Commerce/CommerceService.js",
-    "description": "Which of these products the current user owns. This is how an app unlocks a ticket, a seat or an in-app good it sold through the shared cart.",
-    "availability": [
-      "ai",
-      "developer"
-    ],
-    "permissions": [],
-    "scopes": [
-      "commerce:read"
-    ],
-    "mutates": false,
-    "cache": {
-      "mode": "read-through",
-      "ttlMs": 30000,
-      "key": null
-    },
-    "channel": "valuguru",
-    "returns": {
-      "type": "{entitlements: object[]}",
-      "description": "What the buyer owns of the products asked about."
-    },
-    "params": {
-      "required": [
-        {
-          "name": "productIds",
-          "type": "array",
-          "description": "the product ids to check"
-        }
-      ],
-      "optional": []
-    },
-    "sdkParams": [],
-    "declaredBy": "manifest",
-    "implementedBy": null
-  },
-  {
-    "key": "Commerce.create-product",
-    "service": "Commerce",
-    "action": "create-product",
-    "fn": "create_product",
-    "method": "createProduct",
-    "toolName": "service__Commerce__create_product",
-    "serviceTitle": "Commerce",
-    "serviceDescription": "Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.",
-    "source": "src/Services/Commerce/CommerceService.js",
-    "description": "Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, and stays with the seller in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.",
-    "availability": [
-      "ai",
-      "developer"
-    ],
-    "permissions": [],
-    "scopes": [
-      "commerce:write"
-    ],
-    "mutates": true,
-    "cache": {
-      "mode": "none"
-    },
-    "channel": "valuguru",
-    "returns": {
-      "type": "{product: object}",
-      "description": "The DRAFT product that was created. Publishing stays with the seller."
-    },
-    "params": {
-      "required": [],
-      "optional": [
-        {
-          "name": "title",
-          "type": "string",
-          "description": "the product's name; giving one creates the draft directly instead of opening the form"
-        },
-        {
-          "name": "description",
-          "type": "string",
-          "description": "what a buyer reads before paying"
-        },
-        {
-          "name": "priceAmount",
-          "type": "number",
-          "description": "the price; 0 or omitted is a free product. When items include other products, this is the price ON TOP of theirs"
-        },
-        {
-          "name": "priceCurrency",
-          "type": "string",
-          "description": "VRSC (default) or USD",
-          "options": [
-            "VRSC",
-            "USD"
-          ]
-        },
-        {
-          "name": "category",
-          "type": "string",
-          "description": "one of the platform's category ids — see list-categories; required before the seller can publish"
-        },
-        {
-          "name": "tags",
-          "type": "array",
-          "description": "up to 10 tags of up to 24 characters; normalised (lowercase, trimmed)"
-        },
-        {
-          "name": "imageResourceId",
-          "type": "string",
-          "description": "the cover: a resource id in the seller's own Media, e.g. one you generated"
-        },
-        {
-          "name": "items",
-          "type": "array",
-          "description": "the content a buyer receives: resource ids (\"res_1\"), named files ({resourceId, title}), folders ({folder: \"Unit 1\", items: […]}) or other products ({productId}) for a bundle"
-        },
-        {
-          "name": "stock",
-          "type": "number",
-          "description": "how many may be sold; omit for unlimited"
-        }
-      ]
-    },
-    "sdkParams": [],
-    "declaredBy": "manifest",
-    "implementedBy": null
-  },
-  {
-    "key": "Commerce.get-cart",
-    "service": "Commerce",
-    "action": "get-cart",
-    "fn": "get_cart",
-    "method": "getCart",
-    "toolName": "service__Commerce__get_cart",
-    "serviceTitle": "Commerce",
-    "serviceDescription": "Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.",
-    "source": "src/Services/Commerce/CommerceService.js",
-    "description": "Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Read-only: change the cart with `add-to-cart`, or send the user to it with `open-cart`.",
-    "availability": [
-      "ai",
-      "developer"
-    ],
-    "permissions": [],
-    "scopes": [
-      "commerce:read"
-    ],
-    "mutates": false,
-    "cache": {
-      "mode": "read-through",
-      "ttlMs": 30000,
-      "key": null
-    },
-    "channel": "valuguru",
-    "returns": {
-      "type": "{items: object[], count: number}",
-      "description": "The whole cart; count excludes saved-for-later rows."
-    },
-    "params": {
-      "required": [],
-      "optional": []
-    },
-    "sdkParams": [],
-    "declaredBy": "manifest",
-    "implementedBy": null
-  },
-  {
-    "key": "Commerce.get-my-product",
-    "service": "Commerce",
-    "action": "get-my-product",
-    "fn": "get_my_product",
-    "method": "getMyProduct",
-    "toolName": "service__Commerce__get_my_product",
-    "serviceTitle": "Commerce",
-    "serviceDescription": "Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.",
-    "source": "src/Services/Commerce/CommerceService.js",
-    "description": "One of the seller's own products with its content, in exactly the shape update-product takes: `{product, items}`. Read it before changing the content — `items` in update-product REPLACES the whole tree, so edit this list and send it back rather than sending only the new files.",
-    "availability": [
-      "ai"
-    ],
-    "permissions": [],
-    "scopes": [
-      "commerce:read"
-    ],
-    "mutates": false,
-    "cache": {
-      "mode": "read-through",
-      "ttlMs": 30000,
-      "key": "productId"
-    },
-    "channel": "valuguru",
-    "returns": {
-      "type": "{product: object, items: object[]}",
-      "description": "One of the seller's products with its content tree."
-    },
-    "params": {
-      "required": [
-        {
-          "name": "productId",
-          "type": "string",
-          "description": "the product, from list-my-products"
-        }
-      ],
-      "optional": []
-    },
-    "sdkParams": [],
-    "declaredBy": "manifest",
-    "implementedBy": null
-  },
-  {
-    "key": "Commerce.get-product",
-    "service": "Commerce",
-    "action": "get-product",
-    "fn": "get_product",
-    "method": "getProduct",
-    "toolName": "service__Commerce__get_product",
-    "serviceTitle": "Commerce",
-    "serviceDescription": "Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.",
-    "source": "src/Services/Commerce/CommerceService.js",
-    "description": "One product with its price, its parts when it is a bundle, its store, its reviews and whether the current user already owns it.",
-    "availability": [
-      "ai",
-      "developer"
-    ],
-    "permissions": [],
-    "scopes": [
-      "commerce:read"
-    ],
-    "mutates": false,
-    "cache": {
-      "mode": "read-through",
-      "ttlMs": 30000,
-      "key": "productId"
-    },
-    "channel": "valuguru",
-    "returns": {
-      "type": "{product: object}",
-      "description": "One catalogue product."
-    },
-    "params": {
-      "required": [
-        {
-          "name": "productId",
-          "type": "string",
-          "description": "the product to read"
-        }
-      ],
-      "optional": []
-    },
-    "sdkParams": [],
-    "declaredBy": "manifest",
-    "implementedBy": null
-  },
-  {
-    "key": "Commerce.list-categories",
-    "service": "Commerce",
-    "action": "list-categories",
-    "fn": "list_categories",
-    "method": "listCategories",
-    "toolName": "service__Commerce__list_categories",
-    "serviceTitle": "Commerce",
-    "serviceDescription": "Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.",
-    "source": "src/Services/Commerce/CommerceService.js",
-    "description": "The platform's product categories as `{categories: [{id, label}]}`. Every product is filed under exactly one; pass an `id` to list-products as `category`, and show the `label`.",
-    "availability": [
-      "ai",
-      "developer"
-    ],
-    "permissions": [],
-    "scopes": [
-      "commerce:read"
-    ],
-    "mutates": false,
-    "cache": {
-      "mode": "read-through",
-      "ttlMs": 30000,
-      "key": null
-    },
-    "channel": "valuguru",
-    "returns": {
-      "type": "{categories: object[]}",
-      "description": "The platform category list."
-    },
-    "params": {
-      "required": [],
-      "optional": []
-    },
-    "sdkParams": [],
-    "declaredBy": "manifest",
-    "implementedBy": null
-  },
-  {
-    "key": "Commerce.list-my-products",
-    "service": "Commerce",
-    "action": "list-my-products",
-    "fn": "list_my_products",
-    "method": "listMyProducts",
-    "toolName": "service__Commerce__list_my_products",
-    "serviceTitle": "Commerce",
-    "serviceDescription": "Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.",
-    "source": "src/Services/Commerce/CommerceService.js",
-    "description": "List the SELLER's own products in their store — drafts, unlisted, live and archived — unlike list-products, which is the buyer's shelf and never shows drafts. Use it to find the productId to edit. Each product carries `editable`: true only for a draft (never published, or unlisted by the seller). Returns `{hasStore, products}`.",
-    "availability": [
-      "ai"
-    ],
-    "permissions": [],
-    "scopes": [
-      "commerce:read"
-    ],
-    "mutates": false,
-    "cache": {
-      "mode": "read-through",
-      "ttlMs": 30000,
-      "key": null
-    },
-    "channel": "valuguru",
-    "returns": {
-      "type": "{hasStore: boolean, products: object[]}",
-      "description": "The seller's own catalogue, drafts included."
-    },
-    "params": {
-      "required": [],
-      "optional": [
-        {
-          "name": "status",
-          "type": "string",
-          "description": "only products in this state",
-          "options": [
-            "draft",
-            "active",
-            "archived",
-            "broken"
-          ]
-        },
-        {
-          "name": "limit",
-          "type": "number",
-          "description": "how many to return"
-        }
-      ]
-    },
-    "sdkParams": [],
-    "declaredBy": "manifest",
-    "implementedBy": null
-  },
-  {
-    "key": "Commerce.list-products",
-    "service": "Commerce",
-    "action": "list-products",
-    "fn": "list_products",
-    "method": "listProducts",
-    "toolName": "service__Commerce__list_products",
-    "serviceTitle": "Commerce",
-    "serviceDescription": "Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.",
-    "source": "src/Services/Commerce/CommerceService.js",
-    "description": "Search the products YOUR app lists that are available in the user's current network. Products the network or its admins have refused are simply absent from the answer.",
-    "availability": [
-      "ai",
-      "developer"
-    ],
-    "permissions": [],
-    "scopes": [
-      "commerce:read"
-    ],
-    "mutates": false,
-    "cache": {
-      "mode": "read-through",
-      "ttlMs": 30000,
-      "key": null
-    },
-    "channel": "valuguru",
-    "returns": {
-      "type": "{products: object[], total: number}",
-      "description": "The buyer-facing catalogue page for the calling application."
-    },
-    "params": {
-      "required": [],
-      "optional": [
-        {
-          "name": "query",
-          "type": "string",
-          "description": "free-text search over the product title, or a whole tag"
-        },
-        {
-          "name": "category",
-          "type": "string",
-          "description": "one of the platform's category ids — see list-categories"
-        },
-        {
-          "name": "tag",
-          "type": "string",
-          "description": "one tag, matched exactly (case and spacing do not matter)"
-        },
-        {
-          "name": "attributes",
-          "type": "object",
-          "description": "app-defined facets to filter by, e.g. {\"subject\": \"Mathematics\"}"
-        },
-        {
-          "name": "sort",
-          "type": "string",
-          "description": "newest | popular | priceAsc | priceDesc | rating",
-          "options": [
-            "newest",
-            "popular",
-            "priceAsc",
-            "priceDesc",
-            "rating"
-          ]
-        },
-        {
-          "name": "limit",
-          "type": "number",
-          "description": "page size, up to 100 (default 24)"
-        },
-        {
-          "name": "offset",
-          "type": "number",
-          "description": "where the page starts"
-        }
-      ]
-    },
-    "sdkParams": [],
-    "declaredBy": "manifest",
-    "implementedBy": null
-  },
-  {
-    "key": "Commerce.update-product",
-    "service": "Commerce",
-    "action": "update-product",
-    "fn": "update_product",
-    "method": "updateProduct",
-    "toolName": "service__Commerce__update_product",
-    "serviceTitle": "Commerce",
-    "serviceDescription": "Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.",
-    "source": "src/Services/Commerce/CommerceService.js",
-    "description": "Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted by the seller in the Merchant Console first). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`.",
-    "availability": [
-      "ai"
-    ],
-    "permissions": [],
-    "scopes": [
-      "commerce:write"
-    ],
-    "mutates": true,
-    "cache": {
-      "mode": "none"
-    },
-    "channel": "valuguru",
-    "returns": {
-      "type": "{product: object}",
-      "description": "The updated draft."
-    },
-    "params": {
-      "required": [
-        {
-          "name": "productId",
-          "type": "string",
-          "description": "the draft to edit, from list-my-products"
-        }
-      ],
-      "optional": [
-        {
-          "name": "title",
-          "type": "string",
-          "description": "the product's name"
-        },
-        {
-          "name": "description",
-          "type": "string",
-          "description": "what a buyer reads before paying; an empty string clears it"
-        },
-        {
-          "name": "priceAmount",
-          "type": "number",
-          "description": "the price; 0 makes it free. On a product that includes other products this is the price ON TOP of theirs (a buyer pays the included products plus this)"
-        },
-        {
-          "name": "priceCurrency",
-          "type": "string",
-          "description": "VRSC or USD",
-          "options": [
-            "VRSC",
-            "USD"
-          ]
-        },
-        {
-          "name": "stock",
-          "type": "number",
-          "description": "how many may be sold (the quantity on sale)"
-        },
-        {
-          "name": "unlimitedStock",
-          "type": "boolean",
-          "description": "true removes the quantity limit"
-        },
-        {
-          "name": "category",
-          "type": "string",
-          "description": "one of the platform's category ids — see list-categories; an empty string clears it"
-        },
-        {
-          "name": "tags",
-          "type": "array",
-          "description": "the full tag list (replaces the current one): up to 10 tags of up to 24 characters"
-        },
-        {
-          "name": "imageResourceId",
-          "type": "string",
-          "description": "the cover: a resource id in the seller's own Media"
-        },
-        {
-          "name": "items",
-          "type": "array",
-          "description": "the WHOLE new content: resource ids (\"res_1\"), named files ({resourceId, title}), folders ({folder: \"Unit 1\", items: […]}) or other products ({productId}) for a bundle"
         }
       ]
     },
@@ -4223,25 +3515,73 @@ export const SERVICE_DESCRIPTORS = [
   }
 ];
 
-/** Declared intents only the Valu Social application can serve — asked for by
- * name over the postMessage bridge, never functions of this package. */
+/** Declared intents the Valu Social application serves and this package does
+ * not — asked for by name over the postMessage bridge, never functions here.
+ * `APPLICATION_INTENT_REASON` says why each one is out: `'no-rpc'` (nothing
+ * but the application process can answer it) or `'valu-guru'` (the Valu Guru
+ * server answers it, on a socket this package does not hold). */
 export const APPLICATION_ONLY_INTENTS = [
   "AiGuru.close",
+  "AiGuru.get-agent-history",
   "AiGuru.get-applications",
+  "AiGuru.get-chat-history",
   "AiGuru.has-application",
   "AiGuru.is-application-loaded",
   "AiGuru.open",
+  "AiGuru.query-knowledge-base",
   "Application.close_all",
   "Application.close-application",
   "Application.expand-application",
   "Application.get-identity-token",
+  "Commerce.add-to-cart",
+  "Commerce.check-entitlements",
+  "Commerce.create-product",
+  "Commerce.get-cart",
+  "Commerce.get-my-product",
+  "Commerce.get-product",
+  "Commerce.list-categories",
+  "Commerce.list-my-products",
+  "Commerce.list-products",
   "Commerce.open-cart",
   "Commerce.open-products",
   "Commerce.open-purchases",
+  "Commerce.update-product",
   "DataProvider.pick-multiple",
   "DataProvider.pick-single",
   "Logging.get-logs"
 ];
+
+/** @type {Record<string, 'no-rpc'|'valu-guru'>} */
+export const APPLICATION_INTENT_REASON = {
+  "AiGuru.close": "no-rpc",
+  "AiGuru.get-agent-history": "valu-guru",
+  "AiGuru.get-applications": "no-rpc",
+  "AiGuru.get-chat-history": "valu-guru",
+  "AiGuru.has-application": "no-rpc",
+  "AiGuru.is-application-loaded": "no-rpc",
+  "AiGuru.open": "no-rpc",
+  "AiGuru.query-knowledge-base": "valu-guru",
+  "Application.close_all": "no-rpc",
+  "Application.close-application": "no-rpc",
+  "Application.expand-application": "no-rpc",
+  "Application.get-identity-token": "no-rpc",
+  "Commerce.add-to-cart": "valu-guru",
+  "Commerce.check-entitlements": "valu-guru",
+  "Commerce.create-product": "valu-guru",
+  "Commerce.get-cart": "valu-guru",
+  "Commerce.get-my-product": "valu-guru",
+  "Commerce.get-product": "valu-guru",
+  "Commerce.list-categories": "valu-guru",
+  "Commerce.list-my-products": "valu-guru",
+  "Commerce.list-products": "valu-guru",
+  "Commerce.open-cart": "no-rpc",
+  "Commerce.open-products": "no-rpc",
+  "Commerce.open-purchases": "no-rpc",
+  "Commerce.update-product": "valu-guru",
+  "DataProvider.pick-multiple": "no-rpc",
+  "DataProvider.pick-single": "no-rpc",
+  "Logging.get-logs": "no-rpc"
+};
 
 /** Server tools that implement no declared intent. */
 export const SERVER_ONLY_TOOLS = [

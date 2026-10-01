@@ -2,16 +2,16 @@
 # The service API
 
 Every service function this package offers, as the call you would write. There
-are **78** of them, on **18** services, and the same
-78 are available from a Valu Social build, from the Valu Guru server, from a
-Node script and from an iframe application that has a socket — that is what
-makes them service functions.
+are **65** of them, on **16** services, and the same
+65 are available from a Valu Social build, from a Node script, from a
+server-side agent and from an iframe application that has a socket — that is
+what makes them service functions.
 
 ```javascript
 import { createValuServices, NodeSocketAdapter } from '@arkeytyp/valu-api';
 
-// anywhere there is a connection: the Valu Guru server, a Node agent, the app
-const valu = createValuServices({ socket, guru });
+// anywhere there is a Roomful connection: a browser, a Node agent, the app
+const valu = createValuServices({ socket });
 
 const me    = await valu.data.Users.current();                  // the payload
 const ack   = await valu.Users.current();                       // or the envelope
@@ -24,32 +24,18 @@ is the same call with the envelope taken off: it returns the payload and throws
 which is what an LLM tool call has.
 
 What is **not** here: application intents — open a dock, expand a pane, show a
-picker. Only the Valu Social application can serve those, and it is asked for
-one **by name**, with nothing declared on this side:
+picker, or anything the Valu Guru server answers on its own socket (Commerce,
+the knowledge-base search). The Valu Social application serves those, and it is
+asked for one **by name**, with nothing declared on this side:
 `api.callService(new Intent('AiGuru', 'open', {applicationId}))`. See
 [api-pointers.md](api-pointers.md).
 
 | | |
 |---|---|
+| what a socket is here, and how to supply one | [socket-adapters.md](socket-adapters.md) |
 | read the feature each one provides, and what it needs | [socket-functions.md](socket-functions.md) |
 | who implements what today | [parity.md](parity.md) |
 | the bridge: any application intent, by name | [api-pointers.md](api-pointers.md) |
-
-## AiGuru
-
-System service for managing applications via AI. Provides tools to open, close, list, and check application status.
-
-**Reads**
-
-- `valu.AiGuru.getAgentHistory({ agentId })` → `{agent: object, messages: object[]}`
-  Returns the in-memory message history for a background agent.
-  <sub>application state — no RPC exists</sub>
-- `valu.AiGuru.getChatHistory({ chatId? }?)` → `{session: object, messages: object[]}`
-  Returns the in-memory message history for a chat session. Omit chatId to get the currently active session.
-  <sub>application state — no RPC exists</sub>
-- `valu.AiGuru.queryKnowledgeBase({ query, toolName?, args? })` → `{toolName: string, result: string}`
-  Queries the RAG knowledge base directly over the Valu Guru server's socket connection, bypassing chat entirely. Returns the raw tool result text.
-  <sub>Valu Guru socket</sub>
 
 ## ApplicationStorage
 
@@ -113,46 +99,6 @@ Content management service for uploading, searching, and deleting resources scop
 - `valu.CMS.resourceUpload({ files, communityId?, channelId?, directoryId?, postId?, roomId?, propId? })` → `{resolved: object[], failed: object[], placed?: string}`
   Uploads files to a resource storage scoped by belonging (room, prop, community, channel, directory, or post).
   <sub>Roomful socket</sub>
-
-## Commerce
-
-Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.
-
-**Reads**
-
-- `valu.Commerce.checkEntitlements({ productIds })` → `{entitlements: object[]}`
-  Which of these products the current user owns. This is how an app unlocks a ticket, a seat or an in-app good it sold through the shared cart.
-  <sub>Valu Guru socket</sub>
-- `valu.Commerce.getCart()` → `{items: object[], count: number}`
-  Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Read-only: change the cart with `add-to-cart`, or send the user to it with `open-cart`.
-  <sub>Valu Guru socket</sub>
-- `valu.Commerce.getMyProduct({ productId })` → `{product: object, items: object[]}`
-  One of the seller's own products with its content, in exactly the shape update-product takes: `{product, items}`. Read it before changing the content — `items` in update-product REPLACES the whole tree, so edit this list and send it back rather than sending only the new files.
-  <sub>Valu Guru socket</sub>
-- `valu.Commerce.getProduct({ productId })` → `{product: object}`
-  One product with its price, its parts when it is a bundle, its store, its reviews and whether the current user already owns it.
-  <sub>Valu Guru socket</sub>
-- `valu.Commerce.listCategories()` → `{categories: object[]}`
-  The platform's product categories as `{categories: [{id, label}]}`. Every product is filed under exactly one; pass an `id` to list-products as `category`, and show the `label`.
-  <sub>Valu Guru socket</sub>
-- `valu.Commerce.listMyProducts({ status?, limit? }?)` → `{hasStore: boolean, products: object[]}`
-  List the SELLER's own products in their store — drafts, unlisted, live and archived — unlike list-products, which is the buyer's shelf and never shows drafts. Use it to find the productId to edit. Each product carries `editable`: true only for a draft (never published, or unlisted by the seller). Returns `{hasStore, products}`.
-  <sub>Valu Guru socket</sub>
-- `valu.Commerce.listProducts({ query?, category?, tag?, attributes?, sort?, limit?, offset? }?)` → `{products: object[], total: number}`
-  Search the products YOUR app lists that are available in the user's current network. Products the network or its admins have refused are simply absent from the answer.
-  <sub>Valu Guru socket</sub>
-
-**Writes**
-
-- `valu.Commerce.addToCart({ productId, qty? })` → `{items: object[]}`
-  Put a product in the user's cart, credited to your app. The server re-checks that it can be bought here before accepting it, so a refusal comes back with a code to show.
-  <sub>Valu Guru socket</sub>
-- `valu.Commerce.createProduct({ title?, description?, priceAmount?, priceCurrency?, category?, tags?, imageResourceId?, items?, stock? }?)` → `{product: object}`
-  Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, and stays with the seller in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
-  <sub>Valu Guru socket</sub>
-- `valu.Commerce.updateProduct({ productId, title?, description?, priceAmount?, priceCurrency?, stock?, unlimitedStock?, category?, tags?, imageResourceId?, items? })` → `{product: object}`
-  Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted by the seller in the Merchant Console first). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`.
-  <sub>Valu Guru socket</sub>
 
 ## Community
 

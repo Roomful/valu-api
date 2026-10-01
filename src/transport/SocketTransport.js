@@ -4,8 +4,8 @@
 // Serves declared functions over a `ValuSocket` — the browser adapter or the
 // node adapter, the same contract either way. This is the ONLY transport that
 // serves service functions, which is the shape of the package: every function
-// in the catalogue is one a connection can answer, so a Valu Social build, a
-// Valu Guru server agent, a Node script and an iframe application with a
+// in the catalogue is one the Roomful connection can answer, so a Valu Social
+// build, a Node script, a server-side agent and an iframe application with a
 // socket all reach the same list.
 //
 // It does not speak the postMessage bridge at all. Nothing here needs to: an
@@ -19,12 +19,10 @@ import { Transport } from './Transport.js';
 import { ERROR_CODES, errorAck } from '../Errors.js';
 import { DEFAULT_TIMEOUT_MS } from '../CallPolicy.js';
 import { serviceRegistry, notImplementedAck } from '../services/registry.js';
-import { isGuruSocket, noGuruAck } from '../socket/ValuGuruSocket.js';
 import { resolveConfig } from '../Config.js';
 
 export class SocketTransport extends Transport {
   #socket;
-  #guru;
   #appState;
   #fetchImpl;
   #config;
@@ -36,13 +34,10 @@ export class SocketTransport extends Transport {
   /**
    * @param {object} options
    * @param {import('../socket/ValuSocket.js').ValuSocket} options.socket
-   *   The Roomful socket. Required — it is what 54 of the 65 socket functions
-   *   use, and what the upload pipeline runs on.
-   * @param {import('../socket/ValuGuruSocket.js').ValuGuruSocket} [options.guru]
-   *   The Valu Guru socket, for the 11 functions whose channel is `valuguru`.
-   *   Absent means those functions answer 503 saying so — never a wrong socket.
+   *   The Roomful socket, and the only one. Required — it is what 54 of the 65
+   *   functions use, and what the upload pipeline runs on.
    * @param {import('../app-state/AppState.js').AppState} [options.appState]
-   *   State no RPC can produce, for the 5 functions whose channel is
+   *   State no RPC can produce, for the 3 functions whose channel is
    *   `app-state`. The Valu Social application holds it in a browser; a
    *   headless runtime supplies its own.
    * @param {Function} [options.fetchImpl] `fetch`, for the local HTTP
@@ -52,18 +47,18 @@ export class SocketTransport extends Transport {
    *   The two origins the `local` resource-URL builders need (src/Config.js).
    * @param {() => Date} [options.now] The clock, for `Time.get-local-time`.
    * @param {string} [options.applicationId] WHICH application is calling. In
-   *   a frame the Valu Social app stamps this — Commerce scopes every catalogue read and write to it,
-   *   and it is never taken from a caller's params (a framed app controls
-   *   those, and must not be able to sell as another app).
+   *   a frame the Valu Social app stamps this — an application's own resource
+   *   shelf is addressed by it — and it is never taken from a caller's params
+   *   (a framed app controls those, and must not be able to read another
+   *   application's storage).
    * @param {import('../services/registry.js').ServiceRegistry} [options.registry]
    */
-  constructor({ socket, guru, appState, fetchImpl, config, now, applicationId, registry = serviceRegistry } = {}) {
+  constructor({ socket, appState, fetchImpl, config, now, applicationId, registry = serviceRegistry } = {}) {
     super();
     if (!socket || typeof socket.emit !== 'function') {
       throw new TypeError('SocketTransport needs a ValuSocket');
     }
     this.#socket = socket;
-    this.#guru = guru ?? null;
     this.#appState = appState ?? null;
     this.#fetchImpl = fetchImpl ?? null;
     this.#config = resolveConfig(config);
@@ -76,15 +71,13 @@ export class SocketTransport extends Transport {
   get connected() { return Boolean(this.#socket); }
   get servesServiceFunctions() { return true; }
   get socket() { return this.#socket; }
-  get guru() { return this.#guru; }
   get appState() { return this.#appState; }
   get config() { return this.#config; }
   get applicationId() { return this.#applicationId; }
-  /** Channels this transport can actually serve — what a 503 here means. */
+  /** Channels this transport can actually serve. */
   get channels() {
     return {
       roomful: Boolean(this.#socket),
-      valuguru: isGuruSocket(this.#guru),
       'app-state': Boolean(this.#appState),
       local: true,
     };
@@ -96,21 +89,14 @@ export class SocketTransport extends Transport {
     if (!this.#socket) {
       return errorAck(ERROR_CODES.DISCONNECTED, `${descriptor.key}: no socket`);
     }
-    // A function is refused for the channel it needs BEFORE its handler runs,
-    // so "the Valu Guru socket is missing" never arrives dressed as a Roomful
-    // failure. `app-state` is left to the handler: it names the one
-    // capability it wanted, which is more useful than "no application state".
-    if (descriptor.channel === 'valuguru' && !isGuruSocket(this.#guru)) {
-      return noGuruAck(descriptor);
-    }
-
+    // `app-state` is left to the handler: it names the one capability it
+    // wanted, which is more useful than "no application state".
     const handler = this.#registry.get(descriptor.key);
     if (!handler) return notImplementedAck(descriptor);
 
     try {
       const ack = await handler(params, {
         socket: this.#socket,
-        guru: this.#guru,
         appState: this.#appState,
         fetchImpl: this.#fetchImpl,
         config: this.#config,

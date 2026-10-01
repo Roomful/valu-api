@@ -21,10 +21,10 @@ import { SocketTransport } from '../src/transport/SocketTransport.js';
 import { NodeSocketAdapter } from '../src/socket/NodeSocketAdapter.js';
 import { ERROR_CODES } from '../src/Errors.js';
 import { REQUIREMENTS } from '../scripts/functions.js';
-import { Responder, FakeRoomfulConnection, FakeGuru, FakeAppState, fakeFetch } from './helpers/fakes.js';
+import { Responder, FakeRoomfulConnection, FakeAppState, fakeFetch } from './helpers/fakes.js';
 
 const implemented = new Set(serviceRegistry.implemented());
-const served = SERVICE_DESCRIPTORS.filter((d) => d.binding !== 'postmessage' && implemented.has(d.key));
+const served = SERVICE_DESCRIPTORS.filter((d) => implemented.has(d.key));
 
 /** The requirement tags the generator knows how to render. */
 const TAGS = /^(applicationId\??|fetch|config|appState\.[A-Za-z]+\??)$/;
@@ -65,18 +65,15 @@ function paramsFor(descriptor) {
 /**
  * Every served function, called once against a transport that is complete
  * EXCEPT for whatever `omit` takes away. Nothing reaches a network: the
- * connection, the guru socket and the bucket are all fakes, and a call that
- * gets past its requirement check simply fails on a missing fake — which is
- * not the refusal these sweeps look for.
+ * connection and the bucket are both fakes, and a call that gets past its
+ * requirement check simply fails on a missing fake — which is not the refusal
+ * these sweeps look for.
  */
 async function sweep(omit = {}) {
   const socket = new NodeSocketAdapter({ connection: new FakeRoomfulConnection(new Responder()) });
   const transport = new SocketTransport({
     socket,
-    guru: new FakeGuru(),
     appState: new FakeAppState({
-      getChatHistory: async () => ({ session: {}, messages: [] }),
-      getAgentHistory: async () => ({ agent: {}, messages: [] }),
       listDeveloperApplications: async () => [],
       createDeveloperApplication: async () => ({ appId: 'a' }),
       getAgentWallet: async () => ({ identityName: 'i', iAddress: 'i@', balance: 0, status: 'created' }),
@@ -100,7 +97,6 @@ test('every documented requirement belongs to a function this package serves', (
   for (const [key, reqs] of Object.entries(REQUIREMENTS)) {
     const descriptor = findDescriptor(key);
     assert.ok(descriptor, `REQUIREMENTS names ${key}, which is not a declared function`);
-    assert.notEqual(descriptor.binding, 'postmessage', `${key} is postMessage-bound — it is not served here`);
     assert.ok(implemented.has(key), `REQUIREMENTS names ${key}, which has no handler`);
     assert.ok(reqs.length > 0, `${key} lists no requirement — drop the entry instead`);
     for (const req of reqs) {
@@ -153,10 +149,10 @@ test('the reference covers every served function', () => {
   // channel. This asserts the doc's denominator instead: the count in the
   // heading is the registry's, so a new function cannot appear without the
   // reference growing a row for it.
-  assert.equal(served.length, 78);
+  assert.equal(served.length, 65);
   assert.equal(
     served.filter((d) => d.channel === 'app-state').length,
-    5,
+    3,
     'app-state is the channel with no RPC behind it — the count is load-bearing',
   );
 });

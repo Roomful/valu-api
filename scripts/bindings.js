@@ -9,24 +9,40 @@
 // every descriptor.
 //
 // APPLICATION_ONLY is the one that REMOVES functions rather than labelling
-// them: this package is a library of socket functions, so an intent only the
-// application can serve gets no descriptor, no method and no tool definition.
-// It is still reachable — by name, over the postMessage bridge, like any other
-// intent the application registers (docs/api-pointers.md). That is the whole
-// argument for not declaring it here: the application's registry is the
-// authority and it moves without this package.
+// them: this package is a library of Roomful-socket functions, so an intent
+// this package cannot run over that one connection gets no descriptor, no
+// method and no tool definition. It is still reachable — by name, over the
+// postMessage bridge, like any other intent the application registers
+// (docs/api-pointers.md). That is the whole argument for not declaring it
+// here: the application's registry is the authority and it moves without this
+// package.
 //
-// Counts asserted by test/catalog.test.js — 77 catalogue functions from the
-// manifest (92 declared − 15 application-only) + 1 this package declares.
+// Counts asserted by test/catalog.test.js — 64 catalogue functions from the
+// manifest (92 declared − 28 the application serves itself) + 1 this package
+// declares.
 // ===========================================================================
 
 /**
- * Declared intents this package does NOT put in its catalogue.
+ * Declared intents this package does NOT put in its catalogue, grouped by the
+ * reason it does not.
  *
- * No RPC serves any of them: they are window management, pickers that render
- * application UI, and reads of the application's own memory. A socket cannot
- * answer one, so a function here would be a method that fails everywhere this
- * library is meant to run.
+ * Two reasons, and they are different enough to be worth separating:
+ *
+ *   no-rpc     nothing can answer them but the application process itself —
+ *              window management, pickers that render application UI, reads of
+ *              the application's own memory. There is no RPC to call.
+ *   valu-guru  the Valu Guru server answers them, over ITS socket. This
+ *              package is the user-facing library for the Valu platform: it
+ *              holds one connection, the Roomful one, and it carries no
+ *              knowledge of the Valu Guru server, its op catalogue or its
+ *              envelope. The Valu Social application has that connection and
+ *              serves these intents over the bridge.
+ *
+ * Either way the intent is still reachable — by name, over the postMessage
+ * bridge, like any other intent the application registers
+ * (docs/api-pointers.md). That is the whole argument for not declaring it
+ * here: the application's registry is the authority and it moves without this
+ * package.
  *
  * Kept as a list (rather than deleted) for three reasons: the generator
  * excludes by it, docs/api-pointers.md prints it so a frame app can see what
@@ -34,28 +50,76 @@
  * intent that is on neither side — a new intent must be classified, never
  * silently dropped.
  */
-export const APPLICATION_ONLY = [
-  // The app dock / AI Guru surface — window management, not data.
-  'AiGuru.open',
-  'AiGuru.close',
-  'AiGuru.has-application',
-  'AiGuru.get-applications',
-  'AiGuru.is-application-loaded',
-  // Application lifecycle — the frame asking the app about the frame.
-  'Application.get-identity-token',
-  'Application.close_all',
-  'Application.expand-application',
-  'Application.close-application',
-  // Pickers: they render application UI and return the user's choice.
-  'DataProvider.pick-single',
-  'DataProvider.pick-multiple',
-  // Reads the application's own log buffer.
-  'Logging.get-logs',
-  // "open" = navigate the application to a screen.
-  'Commerce.open-cart',
-  'Commerce.open-purchases',
-  'Commerce.open-products',
+export const APPLICATION_ONLY_GROUPS = [
+  {
+    reason: 'no-rpc',
+    title: 'Only the application process can answer them',
+    why:
+      'No RPC serves any of these: they open a dock, render a picker, or read the '
+      + "application's own memory. A function here would be a method that fails "
+      + 'everywhere this library is meant to run.',
+    keys: [
+      // The app dock surface — window management, not data.
+      'AiGuru.open',
+      'AiGuru.close',
+      'AiGuru.has-application',
+      'AiGuru.get-applications',
+      'AiGuru.is-application-loaded',
+      // Application lifecycle — the frame asking the app about the frame.
+      'Application.get-identity-token',
+      'Application.close_all',
+      'Application.expand-application',
+      'Application.close-application',
+      // Pickers: they render application UI and return the user's choice.
+      'DataProvider.pick-single',
+      'DataProvider.pick-multiple',
+      // Reads the application's own log buffer.
+      'Logging.get-logs',
+      // "open" = navigate the application to a screen.
+      'Commerce.open-cart',
+      'Commerce.open-purchases',
+      'Commerce.open-products',
+    ],
+  },
+  {
+    reason: 'valu-guru',
+    title: 'The Valu Guru server answers them, on its own socket',
+    why:
+      'These do not ride the Roomful socket at all. Commerce is a catalogue of '
+      + '`valuguru.*` ops on the Valu Guru server\'s `data_request` channel '
+      + '(valusocial-web src/Services/Commerce/CommerceDataService.js); the knowledge-base '
+      + 'query is a typed `rag_search` message on the same channel; the two history reads '
+      + "are the Valu Guru chat's own in-memory message lists. A second server, a second "
+      + 'envelope and a second auth — and none of it is this package\'s. The Valu Social '
+      + 'application holds that connection and serves these intents over the bridge.',
+    keys: [
+      // valuguru.commerce.* — CommerceDataService.
+      'Commerce.add-to-cart',
+      'Commerce.check-entitlements',
+      'Commerce.create-product',
+      'Commerce.get-cart',
+      'Commerce.get-my-product',
+      'Commerce.get-product',
+      'Commerce.list-categories',
+      'Commerce.list-my-products',
+      'Commerce.list-products',
+      'Commerce.update-product',
+      // AiGuruService.queryKnowledgeBase -> {type: 'rag_search'}.
+      'AiGuru.query-knowledge-base',
+      // AiGuruService/AgentsService in-memory session and agent message lists.
+      'AiGuru.get-chat-history',
+      'AiGuru.get-agent-history',
+    ],
+  },
 ];
+
+/** Every excluded intent, flat — what the generator filters by. */
+export const APPLICATION_ONLY = APPLICATION_ONLY_GROUPS.flatMap((g) => g.keys);
+
+/** Why each one is excluded: `'no-rpc'` or `'valu-guru'`. */
+export const APPLICATION_ONLY_REASON = Object.fromEntries(
+  APPLICATION_ONLY_GROUPS.flatMap((g) => g.keys.map((k) => [k, g.reason])),
+);
 
 /** Answered by the SDK itself — no socket, no server. */
 export const LOCAL = [

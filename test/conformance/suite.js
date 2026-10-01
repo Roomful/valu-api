@@ -204,19 +204,6 @@ export function runConformanceSuite({ name, makeSocket }) {
     assert.match(ack.error.message, /no implementation registered/);
   });
 
-  test(`${name}: a valuguru function with no Valu Guru socket is 503, not a Roomful call`, async () => {
-    // The Phase 2 finding, asserted: "socket" is three channels, and asking
-    // the wrong one is refused by name rather than failing somewhere deeper.
-    const { client, responder } = setup();
-
-    const ack = await client.call('Commerce.list-products', {});
-
-    assert.equal(ack.error.code, ERROR_CODES.UNSUPPORTED,
-      'not retriable — a missing socket cannot appear between attempts');
-    assert.match(ack.error.message, /Valu Guru socket/);
-    assert.equal(responder.calls.length, 0, 'the Roomful socket was never asked');
-  });
-
   test(`${name}: a read is served from cache, a write bypasses and invalidates it`, async () => {
     const { client, responder } = setup({
       handlers: {

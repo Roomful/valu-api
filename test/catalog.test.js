@@ -8,26 +8,26 @@ import {
   SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, SERVICE_FUNCTIONS, APPLICATION_ONLY_INTENTS,
   findDescriptor, listDescriptors, listServices, catalogSummary, isServiceFunction,
 } from '../src/services/descriptors.js';
-import { APPLICATION_ONLY } from '../scripts/bindings.js';
+import { APPLICATION_INTENT_REASON } from '../src/services/catalog.generated.js';
+import { APPLICATION_ONLY, APPLICATION_ONLY_GROUPS } from '../scripts/bindings.js';
 import { toolDefinition, toolDefinitions } from '../src/services/toolDefs.js';
 import { ServiceRegistry } from '../src/services/registry.js';
 
 test('the catalogue matches the parity target', () => {
   assert.deepEqual(catalogSummary(), {
-    total: 78,       // everything in the catalogue — all of it runnable here
-    roomful: 54,     // the Roomful platform socket
-    valuguru: 11,    // the Valu Guru server's data_request channel
-    'app-state': 5,  // no RPC exists; the runtime supplies the state
+    total: 65,       // everything in the catalogue — all of it runnable here
+    roomful: 54,     // the Roomful platform socket, and the only one
+    'app-state': 3,  // no RPC exists; the runtime supplies the state
     local: 8,        // answered by the SDK itself
-    socket: 65,      // roomful + valuguru
+    socket: 54,      // there is one socket; this is it
     implemented: 32, // already server tools, exact name match
-    // WHO declared them. 77 is a fact about valusocial-web and must not move
+    // WHO declared them. 64 is a fact about valusocial-web and must not move
     // when this package adds a function; 1 is scripts/extensions.js.
-    declared: 77,
+    declared: 64,
     sdkDeclared: 1,
-    serviceFunctions: 78,
-    applicationOnly: 15,
-    remaining: 46,
+    serviceFunctions: 65,
+    applicationOnly: 28,
+    remaining: 33,
     serverOnly: 7,
   });
 });
@@ -37,13 +37,13 @@ test('every descriptor in the catalogue is a function this package can run', () 
   // runs this itself, given the connection its channel names. There is no
   // second kind of entry any more.
   assert.equal(SERVICE_FUNCTIONS.length, SERVICE_DESCRIPTORS.length);
-  assert.equal(SERVICE_FUNCTIONS.length, 78);
+  assert.equal(SERVICE_FUNCTIONS.length, 65);
   assert.equal(isServiceFunction('Users.current'), true);
   assert.equal(isServiceFunction('Users.teleport'), false);
 });
 
-test('the 15 application-only intents are declared by the app and absent here', () => {
-  assert.equal(APPLICATION_ONLY_INTENTS.length, 15);
+test('the 28 application-served intents are declared by the app and absent here', () => {
+  assert.equal(APPLICATION_ONLY_INTENTS.length, 28);
   assert.deepEqual([...APPLICATION_ONLY_INTENTS].sort(), [...APPLICATION_ONLY].sort());
   for (const key of APPLICATION_ONLY_INTENTS) {
     // No descriptor, no method, no tool definition, no alias: a caller who
@@ -55,6 +55,44 @@ test('the 15 application-only intents are declared by the app and absent here', 
   // declaration at all. api-pointers.md is where that is written down.
   assert.ok(APPLICATION_ONLY_INTENTS.includes('AiGuru.open'));
   assert.ok(APPLICATION_ONLY_INTENTS.includes('DataProvider.pick-single'));
+});
+
+test('no trace of the Valu Guru server is left in the catalogue', () => {
+  // The rule this package is shaped by, as a test: it holds ONE connection,
+  // the Roomful socket. The Commerce catalogue and the knowledge-base search
+  // are the Valu Guru server's, on its own channel with its own envelope and
+  // auth, and a user-facing platform library carries none of that.
+  for (const d of SERVICE_DESCRIPTORS) {
+    assert.notEqual(d.channel, 'valuguru', d.key);
+    assert.ok(['roomful', 'app-state', 'local'].includes(d.channel), `${d.key}: ${d.channel}`);
+  }
+  assert.equal(listServices().includes('Commerce'), false, 'Commerce is the application\'s to serve');
+  assert.equal(findDescriptor('Commerce.get-cart'), undefined);
+  assert.equal(findDescriptor('AiGuru.query-knowledge-base'), undefined);
+  assert.equal(findDescriptor('AiGuru.get-chat-history'), undefined);
+
+  // They did not vanish — they moved to the list a frame app asks for by name,
+  // with the reason attached so nobody has to guess which kind they are.
+  const guruIntents = Object.entries(APPLICATION_INTENT_REASON)
+    .filter(([, reason]) => reason === 'valu-guru')
+    .map(([key]) => key);
+  assert.equal(guruIntents.length, 13, '10 Commerce + the RAG search + 2 chat histories');
+  assert.ok(guruIntents.includes('Commerce.get-cart'));
+  assert.ok(guruIntents.includes('AiGuru.query-knowledge-base'));
+});
+
+test('every excluded intent says why it is excluded', () => {
+  assert.deepEqual(Object.keys(APPLICATION_INTENT_REASON).sort(), [...APPLICATION_ONLY].sort());
+  const reasons = new Set(APPLICATION_ONLY_GROUPS.map((g) => g.reason));
+  assert.deepEqual([...reasons].sort(), ['no-rpc', 'valu-guru']);
+  for (const [key, reason] of Object.entries(APPLICATION_INTENT_REASON)) {
+    assert.ok(reasons.has(reason), `${key} has reason "${reason}"`);
+  }
+  // A group with no stated argument is a list of names, not a decision.
+  for (const group of APPLICATION_ONLY_GROUPS) {
+    assert.ok(group.why.length > 80, group.reason);
+    assert.ok(group.keys.length > 0, group.reason);
+  }
 });
 
 test('every manifest intent is either a function here or explicitly excluded', async () => {
@@ -82,16 +120,16 @@ test('an SDK-declared function is a service function with its provenance on it',
   for (const d of sdkDeclared) {
     // It must be reachable without the application: declaring a function this
     // package cannot run would be worse than leaving the gap open.
-    assert.ok(['roomful', 'valuguru', 'local'].includes(d.channel), d.key);
+    assert.ok(['roomful', 'local'].includes(d.channel), d.key);
     assert.ok(d.description.length > 0, d.key);
   }
   // And the manifest's own count is untouched by it.
-  assert.equal(listDescriptors({ declaredBy: 'manifest' }).length, 77);
+  assert.equal(listDescriptors({ declaredBy: 'manifest' }).length, 64);
 });
 
 test('every service in the catalogue has at least one function', () => {
   const services = listServices();
-  assert.equal(services.length, 18);
+  assert.equal(services.length, 16, 'AiGuru and Commerce are the application\'s entirely');
   for (const service of services) {
     assert.ok(listDescriptors({ service }).length > 0, service);
   }
@@ -104,7 +142,7 @@ test('every descriptor is complete and frozen', () => {
     assert.equal(d.fn, d.action.replace(/-/g, '_'));
     assert.equal(d.toolName, `service__${d.service}__${d.fn}`);
     assert.ok(d.description.length > 0, `${d.key} has no description`);
-    assert.ok(['roomful', 'valuguru', 'app-state', 'local'].includes(d.channel), d.key);
+    assert.ok(['roomful', 'app-state', 'local'].includes(d.channel), d.key);
     assert.equal(d.binding, undefined, `${d.key} still carries the removed binding field`);
     assert.equal(typeof d.mutates, 'boolean');
     assert.ok(d.scopes.length > 0, `${d.key} declares no scope`);
@@ -172,9 +210,10 @@ test('tool definitions are valid JSON schema and match the descriptor', () => {
 });
 
 test('an enum param becomes a schema enum', () => {
-  const def = toolDefinition(findDescriptor('Commerce.list-products'));
-  assert.deepEqual(def.function.parameters.properties.sort.enum,
-    ['newest', 'popular', 'priceAsc', 'priceDesc', 'rating']);
+  const def = toolDefinition(findDescriptor('Users.list-connection-requests'));
+  assert.deepEqual(def.function.parameters.properties.category.enum, ['received', 'sent']);
+  assert.deepEqual(def.function.parameters.properties.status.enum,
+    ['pending', 'accepted', 'declined']);
 });
 
 test('the default tool surface is AI-available, and every tool has a handler', async () => {
@@ -220,30 +259,21 @@ test('every declared function is implemented', async () => {
   const { serviceRegistry } = await import('../src/services/impl/index.js');
   const implemented = new Set(serviceRegistry.implemented());
 
-  assert.equal(SERVICE_DESCRIPTORS.length, 78, '65 socket + 5 app-state + 8 local');
+  assert.equal(SERVICE_DESCRIPTORS.length, 65, '54 socket + 3 app-state + 8 local');
 
   const missing = SERVICE_DESCRIPTORS.map((d) => d.key).filter((key) => !implemented.has(key));
   assert.deepEqual(missing, [], 'a declared function with no handler answers 501');
-  assert.equal(implemented.size, 78);
+  assert.equal(implemented.size, 65);
 });
 
-test('the channel says WHICH connection, and every function has one', () => {
-  const counts = { roomful: 0, valuguru: 0, 'app-state': 0, local: 0 };
+test('the channel says WHAT answers, and every function has one', () => {
+  const counts = { roomful: 0, 'app-state': 0, local: 0 };
   for (const d of SERVICE_DESCRIPTORS) {
     assert.ok(d.channel in counts, `${d.key} has channel "${d.channel}"`);
     counts[d.channel]++;
   }
-  assert.deepEqual(counts, { roomful: 54, valuguru: 11, 'app-state': 5, local: 8 });
-  assert.equal(counts.roomful + counts.valuguru, 65, 'the socket functions');
-});
-
-test('Commerce rides the Valu Guru socket, not the Roomful one', () => {
-  // The finding that made `channel` necessary: ten Commerce intents and the
-  // RAG search are `valuguru.*` ops over a different socket entirely.
-  for (const d of listDescriptors({ service: 'Commerce' })) {
-    assert.equal(d.channel, 'valuguru', d.key);
-  }
-  assert.equal(findDescriptor('AiGuru.query-knowledge-base').channel, 'valuguru');
+  assert.deepEqual(counts, { roomful: 54, 'app-state': 3, local: 8 });
+  assert.equal(counts.roomful, 54, 'the socket functions');
   assert.equal(findDescriptor('Users.get').channel, 'roomful');
 });
 

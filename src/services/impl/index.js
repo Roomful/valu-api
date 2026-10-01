@@ -1,13 +1,15 @@
 // ===========================================================================
 // Every implemented function, in one registry.
 //
-// The 78 service functions — 65 socket (54 roomful, 11 valuguru), 5 app-state
-// and 8 local. Seventy-seven come from the application's manifest; the
-// seventy-eighth is declared by this package (scripts/extensions.js).
+// The 65 service functions — 54 on the Roomful socket, 3 app-state and 8
+// local. Sixty-four come from the application's manifest; the sixty-fifth is
+// declared by this package (scripts/extensions.js).
 //
-// Every one of them is a function a CONNECTION answers. Declared intents that
-// only the Valu Social application can serve are not in the catalogue at all,
-// so there is nothing here to leave out (scripts/bindings.js).
+// Every one of them is a function the Roomful connection answers, or that the
+// SDK answers without one. Declared intents the Valu Social application serves
+// itself — window management, pickers, and everything the Valu Guru server
+// answers on its own socket — are not in the catalogue at all, so there is
+// nothing here to leave out (scripts/bindings.js).
 //
 // Importing this module registers into the DEFAULT registry, which is what a
 // SocketTransport uses unless it is given its own. `registerAll(registry)`
@@ -27,8 +29,6 @@ import { register as profile } from './Profile.js';
 import { register as resources } from './Resources.js';
 import { register as cms } from './CMS.js';
 import { register as applicationStorage } from './ApplicationStorage.js';
-import { register as commerce } from './Commerce.js';
-import { register as aiGuru } from './AiGuru.js';
 import { register as developer } from './Developer.js';
 import { register as verusWallet } from './VerusWallet.js';
 import { register as http } from './Http.js';
@@ -36,7 +36,7 @@ import { register as time } from './Time.js';
 
 /** Registration order is alphabetical; nothing depends on it. */
 const REGISTRARS = [
-  aiGuru, applicationStorage, cbac, cms, commerce, community, developer, events,
+  applicationStorage, cbac, cms, community, developer, events,
   groups, http, networks, profile, resources, rooms, textChat, time, users, verusWallet,
 ];
 
