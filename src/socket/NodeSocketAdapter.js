@@ -11,10 +11,13 @@
 // ===========================================================================
 import { ERROR_CODES, errorAck } from '../Errors.js';
 import { DEFAULT_TIMEOUT_MS } from '../CallPolicy.js';
-import { normalizeAck } from './ValuSocket.js';
+import { normalizeAck, VALU_SOCKET } from './ValuSocket.js';
 
 /** @implements {import('./ValuSocket.js').ValuSocket} */
 export class NodeSocketAdapter {
+  /** @see VALU_SOCKET — this is already a ValuSocket; never wrap it again. */
+  [VALU_SOCKET] = true;
+
   #connection;
   #networkId;
 

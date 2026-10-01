@@ -16,14 +16,26 @@ export { PostMessageTransport } from "./transport/PostMessageTransport.js";
 export { SocketTransport } from "./transport/SocketTransport.js";
 export { BrowserSocketAdapter } from "./socket/BrowserSocketAdapter.js";
 export { NodeSocketAdapter } from "./socket/NodeSocketAdapter.js";
+export { SocketIoSocketAdapter } from "./socket/SocketIoSocketAdapter.js";
 export {
   isAckError, ackErrorMessage, unwrapAck, dataAck, normalizeAck,
+  isValuSocket, VALU_SOCKET,
 } from "./socket/ValuSocket.js";
+// Getting a socket: open one from a session, or adapt one that is already
+// authorized. See docs/connecting.md.
+export { openValuSocket, adoptValuSocket } from "./socket/open.js";
+export {
+  ValuSocketConnection, DEFAULT_API_HOST, READY_TIMEOUT_MS, RECOVERY_TIMEOUT_MS,
+} from "./socket/ValuSocketConnection.js";
+export {
+  ROOMFUL_SOCKET_PATH, SOCKET_IO_OPTIONS, emitOverSocketIo, isSocketIoSocket, loadSocketIo,
+} from "./socket/socketio.js";
+export { readUserInfo, displayNameOf } from "./socket/user-info.js";
 export { ValuServiceError, ERROR_CODES, errorAck } from "./Errors.js";
 export { ServiceClient } from "./services/ServiceClient.js";
 // The function surface: `valu.Users.current()` rather than
 // `client.call('Users.current')`. See src/services/api.js.
-export { ValuServiceApi, createValuServices } from "./services/api.js";
+export { ValuServiceApi, createValuServices, connectValuServices } from "./services/api.js";
 export {
   SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, SERVICE_FUNCTIONS, APPLICATION_ONLY_INTENTS,
   APPLICATION_INTENT_REASON,

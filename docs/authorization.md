@@ -16,6 +16,22 @@ the refresh-token spellings. A leak is not a bug that shows up as a wrong
 answer; it is one that never shows up at all, so it is checked rather than
 intended.
 
+### `ValuSocketConnection` takes a `sessionId`. That is not an exception to it.
+
+`openValuSocket({ sessionId })` ([connecting.md](connecting.md)) opens a socket
+with the user's session — because the runtimes that use that door are the ones
+**already holding** it: the Valu Social application itself, and a process the
+user ran. It is not a way to give a third-party application a session, and
+nothing about it relaxes the rule above:
+
+- The credential goes into the handshake and nowhere else. No getter reads it
+  back, `describe()` redacts it, and every message leaving the connection passes
+  through a redactor in both raw and percent-encoded form.
+- `assertNoCredentialLeak` is unchanged and still refuses a params object
+  carrying one, so a session cannot travel as a call parameter.
+- A framed application reaching services over this package still gets an
+  application token, and still gets no socket until 3.3 (below).
+
 ## Acquisition
 
 `AuthProvider({acquire})`. The SDK never mints a token:

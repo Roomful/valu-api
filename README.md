@@ -369,6 +369,36 @@ const valu = createValuServices({ socket: new NodeSocketAdapter({ connection }) 
 A name resolves by any form the platform already writes — `Users.get`,
 `Users.get_user`, `Users.getUser` or `service__Users__get`.
 
+### Getting the socket
+
+Two ways, and the same 65 functions after either
+([docs/connecting.md](docs/connecting.md)):
+
+```javascript
+import { connectValuServices } from '@arkeytyp/valu-api';
+
+// 1. You already have an authorized connection — pass the instance. The
+//    package works out which adapter it needs; it opens nothing and closes
+//    nothing, because the connection is yours.
+const valu = await connectValuServices({ socket: webSocketService, userId });
+
+// 2. You have a session and no connection. The package opens the socket,
+//    authorizes it, waits for the platform's `user_info`, and owns it.
+import io from 'socket.io-client';
+const valu = await connectValuServices({ sessionId, io });
+await valu.close();
+```
+
+Pass `io`: socket.io-client is deliberately **not** a dependency of this package
+— every runtime with a Roomful connection already has one, and a second copy in
+your bundle is a second connection pool.
+
+The `sessionId` door is for runtimes that already hold the user's session: the
+Valu Social application, and a process the user ran. A framed third-party
+application still reaches services through the bridge, and gets a socket of its
+own when it can be handed a scoped, revocable token
+([docs/authorization.md](docs/authorization.md)).
+
 **Anything the Valu Social application serves itself is not a function here** —
 opening a dock, expanding a pane, showing a picker, and anything a *different*
 server answers on a socket this package does not hold (the Commerce catalogue
@@ -382,8 +412,10 @@ await api.callService(new Intent('AiGuru', 'open', { applicationId: 'cart' }));
 
 - [docs/socket-functions.md](docs/socket-functions.md) — every function, the
   feature it provides and what it needs. **Start here.** (generated)
+- [docs/connecting.md](docs/connecting.md) — **getting a socket**: open one from
+  a session id, or share the one your runtime already has
 - [docs/socket-adapters.md](docs/socket-adapters.md) — what a socket is here,
-  what the browser and node adapters do, and how to supply one
+  what the three adapters do, and how to supply one
 - [docs/service-api.md](docs/service-api.md) — the same functions, as the call
   you would write (generated)
 - [docs/sdk.md](docs/sdk.md) — what the package is, the architecture, and how to

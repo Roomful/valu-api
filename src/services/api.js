@@ -32,6 +32,7 @@ import { ServiceClient } from './ServiceClient.js';
 import { SERVICE_FUNCTIONS, catalogSummary, listServices } from './descriptors.js';
 import { toolDefinitions } from './toolDefs.js';
 import { SocketTransport } from '../transport/SocketTransport.js';
+import { openValuSocket } from '../socket/open.js';
 // Imported for its effect: this is what puts the 65 handlers in the default
 // registry. A function on the tree with nothing behind it would be the one
 // thing worse than no function at all.
@@ -86,20 +87,38 @@ function buildTree(run) {
 export class ValuServiceApi {
   #client;
   #data;
+  #connection;
 
   /**
    * @param {object} options
    * @param {ServiceClient} options.client
+   * @param {{close: Function}} [options.connection] A connection this API
+   *   OWNS — set only by `connectValuServices({ sessionId })`, which opened it.
+   *   An adopted socket never appears here: closing somebody else's connection
+   *   because you were done with your calls is not this object's business.
    */
-  constructor({ client } = {}) {
+  constructor({ client, connection } = {}) {
     if (!client) throw new TypeError('ValuServiceApi needs a ServiceClient');
     this.#client = client;
+    this.#connection = connection ?? null;
     Object.assign(this, buildTree((d, params, opts) => client.call(d.key, params, opts)));
   }
 
   get client() { return this.#client; }
   get transport() { return this.#client.transport; }
   get cache() { return this.#client.cache; }
+
+  /**
+   * The socket every function here runs over.
+   *
+   * Exposed so a runtime can SHARE one connection: the Valu Social application
+   * opens the socket, builds this, and hands `valu.socket` to anything else
+   * that needs the same connection rather than opening a second one.
+   */
+  get socket() { return this.#client.transport?.socket ?? null; }
+
+  /** The connection this API opened, or null when it adopted somebody else's. */
+  get connection() { return this.#connection; }
 
   /**
    * The same tree, unwrapped: every method resolves the payload and throws
@@ -120,7 +139,15 @@ export class ValuServiceApi {
   subscribe(event, handler) { return this.#client.subscribe(event, handler); }
   /** @see ServiceClient#seed */
   seed(name, params, data, options) { this.#client.seed(name, params, data, options); return this; }
-  close() { return this.#client.close(); }
+
+  /**
+   * Drop the caches and subscriptions — and close the connection, but only if
+   * this object opened it.
+   */
+  async close() {
+    await this.#client.close();
+    await this.#connection?.close();
+  }
 
   /** Every service function, as descriptors. */
   static functions() { return [...SERVICE_FUNCTIONS]; }
@@ -180,4 +207,68 @@ export function createValuServices(options = {}) {
     ...(hooks !== undefined ? { hooks } : {}),
   });
   return new ValuServiceApi({ client });
+}
+
+/**
+ * Keys that belong to GETTING a socket rather than to serving functions over
+ * one. Kept out of the transport's options so that `sessionId` in particular
+ * travels exactly as far as the handshake and no further.
+ */
+const SOCKET_DOOR_KEYS = [
+  'socket', 'sessionId', 'host', 'io', 'bootstrap', 'socketOptions',
+  'userId', 'networkId', 'selfUserId', 'onResourceUpdated',
+  'timeoutMs', 'readyTimeoutMs', 'recoveryTimeoutMs', 'onConnectionLost',
+];
+
+/**
+ * The function surface, socket and all — the one call that covers both doors.
+ *
+ *   // the package opens the connection and authorizes it
+ *   const valu = await connectValuServices({ sessionId, io });
+ *
+ *   // the runtime already has one, and shares the instance
+ *   const valu = await connectValuServices({ socket: webSocketService, userId });
+ *
+ * `createValuServices({ socket })` is still the whole of it when you already
+ * hold a `ValuSocket` and want no asynchrony; this adds three things a caller
+ * would otherwise write themselves:
+ *
+ * 1. **Either door**, resolved by {@link openValuSocket}, so switching from an
+ *    adopted socket to one of its own is one key in an options object.
+ * 2. **Reconnect is wired.** A connection that drops and re-authorizes tells
+ *    the transport, which drops the caches it can no longer trust — the one
+ *    thing a consumer most reliably forgets, and the one whose symptom is a
+ *    stale answer rather than an error.
+ * 3. **Ownership.** A connection this call opened is closed by
+ *    `valu.close()`; an adopted one never is.
+ *
+ * @param {object} [options] Everything {@link openValuSocket} takes, plus
+ *   everything {@link createValuServices} takes.
+ * @returns {Promise<ValuServiceApi>}
+ */
+export async function connectValuServices(options = {}) {
+  const socket = await openValuSocket(options);
+  const owned = options.socket ? null : socket;
+
+  const serviceOptions = { ...options };
+  for (const key of SOCKET_DOOR_KEYS) delete serviceOptions[key];
+
+  const { transport, cache, auth, hooks, ...transportOptions } = serviceOptions;
+  const socketTransport = transport ?? new SocketTransport({ ...transportOptions, socket });
+  const client = new ServiceClient({
+    transport: socketTransport,
+    ...(cache !== undefined ? { cache } : {}),
+    ...(auth !== undefined ? { auth } : {}),
+    ...(hooks !== undefined ? { hooks } : {}),
+  });
+
+  // A socket we opened announces its own recovery; one we adopted is the
+  // owner's to re-announce (the application already has a reconnect path, and
+  // two handlers racing to clear one cache is worse than none).
+  if (owned && typeof owned.onReconnected === 'function'
+    && typeof socketTransport.handleReconnect === 'function') {
+    owned.onReconnected(() => socketTransport.handleReconnect(owned));
+  }
+
+  return new ValuServiceApi({ client, ...(owned ? { connection: owned } : {}) });
 }

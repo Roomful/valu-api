@@ -71,6 +71,142 @@ export class FakeRoomfulConnection {
 }
 
 /**
+ * A socket.io client socket, as the platform behaves.
+ *
+ * Answers through the shared `Responder`, so the connection this package opens
+ * is driven by the same script as the two adapters. `'timeout'` means the ack
+ * never comes (pass a small `timeoutMs` rather than waiting 30 seconds).
+ */
+export class FakeIoSocket {
+  connected = false;
+  /** Every `{ns, payload}` as it went on the wire — envelope included. */
+  wire = [];
+  /** @type {Map<string, Set<Function>>} */
+  listeners = new Map();
+  connects = 0;
+  closed = false;
+
+  constructor(responder, { url = '', options = {} } = {}) {
+    this.responder = responder;
+    this.url = url;
+    this.options = options;
+  }
+
+  on(event, handler) {
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set());
+    this.listeners.get(event).add(handler);
+    return this;
+  }
+
+  off(event, handler) { this.listeners.get(event)?.delete(handler); return this; }
+
+  removeAllListeners() { this.listeners.clear(); return this; }
+
+  connect() { this.connects++; this.connected = true; return this; }
+
+  close() { this.connected = false; this.closed = true; return this; }
+
+  disconnect() { return this.close(); }
+
+  emit(ns, payload, ack) {
+    this.wire.push({ ns, payload });
+    const answer = this.responder.answer(ns, payload?.data, undefined);
+    // The scripted failures, in the shape the TRANSPORT reports them — a bare
+    // error with no code, which is what `normalizeAck` exists to complete. Fast
+    // on purpose: the shared suite emits with the policy's 30s timeout, so a
+    // fake that really went quiet would make it wait that long.
+    if (answer === 'timeout') {
+      ack?.({ error: { status: true, message: `emit ${ns} timed out` } });
+      return this;
+    }
+    if (answer === 'disconnect') {
+      ack?.({ error: { status: true, message: 'socket not ready' } });
+      return this;
+    }
+    // The ack that never comes — for a test driving the adapter's OWN timer,
+    // which is the one thing the two above deliberately skip past.
+    if (answer === 'no-ack') return this;
+    if (answer === 'throw') throw new Error('socket is half torn down');
+    ack?.(answer);
+    return this;
+  }
+
+  /** Deliver a platform push. */
+  push(event, payload) {
+    for (const handler of [...(this.listeners.get(event) ?? [])]) handler(payload);
+    return this;
+  }
+
+  /** The handshake's end: `user_info`, in the wrapped shape the platform sends. */
+  ready({ userId = 'user-1', networkId = 'roomful', name = 'Ada Lovelace' } = {}) {
+    return this.push('user_info', {
+      data: { user: { id: userId, name }, network: { id: networkId, fullName: 'Roomful' } },
+    });
+  }
+
+  /** The transport dropped; socket.io is retrying underneath. */
+  drop(reason = 'transport close') {
+    this.connected = false;
+    return this.push('disconnect', reason);
+  }
+
+  /** It came back. The platform re-announces the user afterwards. */
+  reopen() {
+    this.connected = true;
+    return this.push('connect');
+  }
+}
+
+/**
+ * An `io` factory over {@link FakeIoSocket}, recording what it was asked for.
+ *
+ * `onSocket` runs as soon as the socket exists — before `connect()` — which is
+ * how a test can make `user_info` arrive on the same tick as the handshake.
+ */
+export function fakeIo(responder, { onSocket } = {}) {
+  const factory = (url, options) => {
+    const socket = new FakeIoSocket(responder, { url, options });
+    factory.calls.push({ url, options });
+    factory.sockets.push(socket);
+    factory.last = socket;
+    onSocket?.(socket);
+    return socket;
+  };
+  factory.calls = [];
+  factory.sockets = [];
+  factory.last = null;
+  return factory;
+}
+
+/**
+ * An `io` whose socket answers the handshake: `user_info` lands as soon as the
+ * caller connects. The common case, and what a connected platform looks like.
+ */
+export function readyIo(responder, userInfo = {}) {
+  return fakeIo(responder, {
+    onSocket: (socket) => {
+      const connect = socket.connect.bind(socket);
+      socket.connect = () => { connect(); socket.ready(userInfo); return socket; };
+    },
+  });
+}
+
+/** A `fetch` that answers the `init.client` bootstrap. */
+export function fakeBootstrapFetch({ status = 200, data = {} } = {}) {
+  const impl = async (url, options) => {
+    impl.calls.push({ url, options });
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => ({ data }),
+      text: async () => '',
+    };
+  };
+  impl.calls = [];
+  return impl;
+}
+
+/**
  * A window that carries postMessage traffic between an app and the Valu Social
  * application embedding it.
  *

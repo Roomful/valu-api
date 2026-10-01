@@ -7,13 +7,17 @@ checked rather than believed.
 
 | repository | commit measured | role |
 |---|---|---|
-| `valu-api` | `20087a7` + this change | this package — one implementation of the platform's **socket** service surface |
-| `valusocial-web` | `a4407df8` | declares the manifest, serves all 92 intents in the browser, hosts framed apps |
-| `valu-guru-server` | `0c95826` | runs headless agents over the Roomful socket; **owns** the `valuguru.*` API |
+| `valu-api` | `0d10df8` + this change | this package — one implementation of the platform's **socket** service surface |
+| `valusocial-web` | `a76546c6` + this change | declares the manifest, serves all 92 intents in the browser, hosts framed apps |
+| `valu-guru-server` | `7a7f985` | runs headless agents over the Roomful socket; **owns** the `valuguru.*` API |
 
 **The Valu Guru server has adopted this package** (2026-09-30): its eight
 hand-written socket-wrapper modules are deleted and its registry builds those
-tools from these descriptors. Valu Social has not moved yet.
+tools from these descriptors.
+
+**Valu Social has started** (2026-10-01): 24 of its service intents are now
+served by this package over the socket the app already had, through one wrapper
+at one registration point. The section below is what it did and what it left.
 
 ## Headline
 
@@ -171,11 +175,58 @@ decision. `SDK_TOOLS` is the one list to edit.
    that assumes readable history needs to expect the flag. It is one of the 31
    not yet offered.
 
-## Valu Social — next
+## Valu Social — started
 
 The app is not a consumer of a missing capability — it is where every one of
 these functions came from. Its transition is the inverse of the server's: not
 "gain functions" but "stop having two implementations".
+
+**What landed (2026-10-01).** Three files and two edits, in `valusocial-web`:
+
+| | |
+|---|---|
+| `src/Services/ValuApi/ValuApiService.js` | holds the client over the app's own socket, and **shares the socket instance** |
+| `src/Services/ValuApi/serviceIntents.js` | the table: which intents the package serves, and how its answer becomes the app's |
+| `…/serviceIntents.parity.test.js` | every delegated intent, package vs the service's own code, same fake socket, asserted equal |
+| `ApplicationStore.#registerServices` | installs the wrapper at registration |
+| `MultipleApplication` / `SingleApplication` | register the new service |
+
+- **The socket is the app's.** `adoptValuSocket(webSocketService, …)` wraps the
+  `WebSocket` service the whole tab already shares. The package opens nothing,
+  authenticates nothing and reconnects nothing. Its other door — `sessionId` —
+  exists for runtimes that do not have what this one has
+  ([connecting.md](connecting.md)).
+- **One wrapper, three callers.** `installSdkIntents` replaces a service's
+  `onNewIntent` with one that delegates the intents in the table. All three
+  intent paths end there — the iframe bridge (`ApplicationCenterStore`), the
+  native shell (`ApplicationCenterStoreAPI.run`) and the AI (`AiGuruTools`) — so
+  none of them changed and none of them can go around it.
+- **24 intents, 7 services**: `Time` (1), `Networks` (1), `Profile` (2), `Cbac`
+  (5), `Groups` (4), `Community` (4), `Users` (7 of 9). Each service keeps its
+  own methods, its socket event subscriptions and its stores; what moved is the
+  RPC behind an intent, and only that.
+- **`cache: null`**, for the reason the server chose it: the app writes through
+  its stores, not through this package, so a 30-second read-through cache would
+  serve an answer the app has already invalidated.
+- **The app's answer shapes did not change.** They are not the package's —
+  `Cbac.list-policies` answers a bare array, `Groups.join-group` answers
+  `{success}`, a Cbac failure answers a human sentence — and framed apps and AI
+  prompts read them today. The table maps each one, and the parity test proves
+  the mapping by running both implementations against the same scripted socket.
+- **The fallback is the old code.** An intent not in the table, or any intent at
+  all before there is a connection to delegate over, runs the service's own
+  implementation. Delegation is additive; it is not a new way for a screen to go
+  blank.
+
+**What it did not take, and why** — each one is a line in that table away:
+`Rooms` (orchestration above the RPCs), `TextChat` (the package neither encrypts
+nor decrypts; needs `appState.encryptMessage` / `decryptMessage`), `Events`
+(`create-meeting` creates a Group as a side effect), `ApplicationStorage` + `CMS`
+(scoped to the CALLING application, and one shared client cannot carry a
+per-caller id), `Resources` (three of five build URLs from a configured origin,
+and `get-thumbnail-url` has a known delta), `Http` (same call, different CORS
+story), and `Users.current` (the app has the answer in `baseUser`; the package
+spends an RPC on it because headless has no `baseUser`).
 
 - All 92 intents are served today: 87 through a service's `onNewIntent`, and
   the five `AiGuru` dock intents (`open`, `close`, `has-application`,
@@ -190,11 +241,19 @@ these functions came from. Its transition is the inverse of the server's: not
   which the app reaches over that server's socket — and
   `DataProvider.pick-single` / `pick-multiple`, which render the application's
   own UI and return the user's choice.
-- The delegation point is each service's `onNewIntent`: build one
-  `ServiceClient` over `BrowserSocketAdapter`, and have the service return
-  `client.call(...)` instead of its own socket work. `Time` and `Resources` are
-  the two-line cases; `Rooms` is the one with real orchestration behind it
-  (storyline ordering, the paste pipeline, prop grouping) and should go last.
+- The delegation point is each service's `onNewIntent`, and it now has one
+  wrapper rather than an edit per service — `installSdkIntents`, installed at
+  service registration. Taking another service is a line in
+  `DELEGATED_INTENTS` plus a parity case; `Rooms` is the one with real
+  orchestration behind it (storyline ordering, the paste pipeline, prop
+  grouping) and still goes last.
+- **The one thing a reader of this document should expect to find in the app
+  that is NOT here**: a per-intent answer-shape map. The package's shapes are
+  uniform by design (`{users}`, `{policies}`, `{user}`); the app's grew per
+  intent and are what framed apps and AI prompts read today. The app maps
+  between them in one table and tests the mapping against its own old code.
+  Collapsing that table means changing a published contract, which is a
+  decision, not a refactor.
 - `Commerce` and `AiGuru` are not on that list at all. They keep their own
   services, because the socket they speak to is not the one this package holds.
 
@@ -220,15 +279,44 @@ this package first.
 and the SDK answered 501 — is no longer a delta, because the function is no
 longer here.)
 
+## Do we need a release?
+
+**No — and yes.** Nothing is blocked on one, and one should still happen.
+
+A consumer can depend on a **commit** (`github:Roomful/valu-api#<sha>`), which
+needs no npm credentials because the repository is public, and which the Valu
+Guru server has done since its own adoption. That is how `valusocial-web` takes
+this package today: the pin is in its `package.json`, it resolves on a clean
+`npm ci`, and no release stood between the work and a working build.
+
+What a release buys, and why it is still wanted:
+
+- A **version** instead of a hash in three repositories' lockfiles. A pin is
+  precise and unreadable; `^2.0.0` tells a reader which API they are on.
+- One place to **say what changed**. Two consumers already read the docs in this
+  repository; a third-party app developer reads npm.
+- `npm install @arkeytyp/valu-api` is the first line of the README, and it
+  currently installs a package that predates everything in these docs.
+
+The version in `package.json` is now **2.0.0**, and it is a major for reasons
+that predate this change: `api.services`, `api.intents` and
+`ApplicationIntents` are gone, the postMessage bridge no longer serves service
+functions, and the Commerce and knowledge-base functions went with the second
+socket. The published `1.1.3` predates the SDK entirely.
+
+Publishing is one command by whoever holds the npm token, and it changes nothing
+in either consumer until somebody edits a dependency line:
+
+```bash
+npm test && npm run build && npm publish --access public
+```
+
+After that, `valusocial-web` swaps its commit pin for `^2.0.0` and the server
+bumps its own. Both are one line, and neither is urgent.
+
 ## What is left, in order
 
-1. **Publish the package.** The server currently depends on a COMMIT
-   (`github:Roomful/valu-api#<sha>`), because the npm release (1.1.3) predates
-   this SDK. That works and needs no credentials — the repository is public —
-   but a published `2.0.0` is what the app should depend on. The version is
-   breaking: `api.services`, `api.intents` and `ApplicationIntents` are gone,
-   the postMessage bridge no longer serves service functions, and the Commerce
-   and knowledge-base functions are gone with the second socket.
+1. **Publish `2.0.0`** — see above. Optional, and still worth doing.
 2. **Bump the server's pin** to a commit of this package that has one socket, so
    the two repositories agree about what a service function is. Nothing in its
    39 tools changes.
@@ -236,10 +324,16 @@ longer here.)
    `ApplicationStorage` ones until question 2 above has an answer, and with an
    eye on how many tools an agent's prompt can carry.
 4. **Settle the `Http` trio** so the AI-facing surface has one shape.
-5. **Then the app**, service by service, cheapest first, with the five deltas
-   handled as the table says. Its `onNewIntent` is the delegation point and
-   `BrowserSocketAdapter` is the socket; nothing about the app's own intent
-   registry changes, because this package no longer declares any of it.
+5. **The app, service by service.** Seven services are in (above). The rest, in
+   the order their blockers clear: `Resources` and `Http` need a look at
+   configuration and CORS; `Events` needs a decision about the Group it creates;
+   `TextChat` needs `appState.encryptMessage` / `decryptMessage`;
+   `ApplicationStorage` and `CMS` need per-caller application identity — the same
+   question that blocks them on the server; `Rooms` last.
+6. **Then decide whether the two sides' answer shapes should converge**, and
+   delete the app's mapping table if they do. That is a published-contract
+   change for framed apps and AI prompts, so it is its own piece of work with
+   its own announcement — not a tidy-up.
 
 ## What is still advisory
 

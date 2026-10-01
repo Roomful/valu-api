@@ -1,22 +1,31 @@
 # The socket, and what an adapter is
 
 The 65 functions in this package all run over **one** connection: the Roomful
-platform socket. This package never opens it. The runtime that already has a
-connection hands it in, and an **adapter** is the thin piece that makes that
-particular connection look like the one thing every function here depends on.
+platform socket. Usually the runtime that already has a connection hands it in,
+and an **adapter** is the thin piece that makes that particular connection look
+like the one thing every function here depends on. For a runtime that has a
+session and no connection, the package can also open one itself —
+[connecting.md](connecting.md) is the two doors, and this file is what is behind
+the first of them.
 
-Two adapters ship:
+Three adapters ship:
 
 | adapter | you give it | the runtime |
 |---|---|---|
 | `BrowserSocketAdapter` | the Valu Social application's WebSocket service | a browser tab — the app itself, or an iframe app that has been handed a socket |
 | `NodeSocketAdapter` | a `RoomfulConnectionManager` | a server process, a script, a CLI |
+| `SocketIoSocketAdapter` | a `socket.io` socket | anywhere: a shell, a harness, a framed app once it may open one |
 
-They exist because those two connections are **not** interchangeable as they
-are, and the difference is not cosmetic: one rejects when a call fails, the
-other resolves an error object with no code on it. A library of 65 functions
-cannot have two error paths, so each adapter converts its connection into one
-shape and nothing above them ever learns which is underneath.
+They exist because those connections are **not** interchangeable as they are,
+and the difference is not cosmetic: one rejects when a call fails, one resolves
+an error object with no code on it, and one answers through a callback and does
+not time itself out at all. A library of 65 functions cannot have three error
+paths, so each adapter converts its connection into one shape and nothing above
+them ever learns which is underneath.
+
+You rarely have to pick. `adoptValuSocket(socket)` — and
+`connectValuServices({ socket })`, which calls it — sorts out which of the three
+a given object needs ([connecting.md](connecting.md)).
 
 ## What a socket is here
 
@@ -40,6 +49,7 @@ That is the whole protocol this package needs, and `ValuSocket`
 | `selfUserId` | yes | the resolved "me" id; may be `null` until the connection is ready |
 | `onResourceUpdated(handler)` | no | a `resource:updated` push subscription, returning an unsubscribe |
 | `underlying` | no | the real connection, when this socket is a wrapper around one |
+| `[VALU_SOCKET]` | no | the brand. Carry it and `adoptValuSocket` passes you through untouched rather than wrapping you in `NodeSocketAdapter` |
 
 Two things in that table carry most of the weight.
 
@@ -117,9 +127,9 @@ bridge to the Valu Social application, and that bridge does not serve service
 functions — `ServiceClient` refuses a postMessage transport rather than
 pretending. So a framed app today asks the application for intents by name
 (`api.callService`, [api-pointers.md](api-pointers.md)), and the day it is
-handed a socket of its own, `BrowserSocketAdapter` is where it plugs in and all
-65 functions arrive at once. Nothing in the catalogue changes for that to
-happen.
+handed a socket of its own, `SocketIoSocketAdapter` is where it plugs in — or
+`openValuSocket({ socket })`, which picks that adapter for it — and all 65
+functions arrive at once. Nothing in the catalogue changes for that to happen.
 
 Scope checking is still client-side and advisory ([authorization.md](authorization.md)),
 which is the reason a third-party framed app does not get one yet.
@@ -157,15 +167,20 @@ recording socket) and the adapter key the same per-connection state.
 | push | only if you pass `onResourceUpdated` | present when the connection has it |
 | the real connection | `.transport` | `.underlying` |
 
-Both answer every one of the 65 functions identically, and that is tested
+`SocketIoSocketAdapter` sits between them: it adds the `{data}` envelope and
+times the call out itself (socket.io v2 has neither), always has push because a
+socket.io socket can always subscribe, and republishes the socket as
+`.transport`.
+
+All three answer every one of the 65 functions identically, and that is tested
 rather than asserted in prose: `test/conformance.test.js` runs the same suite
-and the same 86-case per-function table against both adapters, with no
+and the same 86-case per-function table against each adapter, with no
 adapter-specific expectations anywhere in it. A function that behaves
 differently in a browser than in Node fails the build.
 
-## Writing a third adapter
+## Writing a fourth adapter
 
-A different runtime — a mobile shell, a test harness, a connection pool — needs
+A different runtime — a mobile shell, a native bridge, a connection pool — needs
 no change here. Implement `ValuSocket`:
 
 1. `emit(ns, data, timeoutMs)` resolves `{data}` or `{error}` and **never
@@ -176,12 +191,20 @@ no change here. Implement `ValuSocket`:
 4. Add `onResourceUpdated` **only** if you can really push. Omitting it is a
    supported answer and `supportsPush` reports it; a hook that never fires is a
    cache that looks fresher than it is.
-5. Run the conformance suite against it. It is parameterized by adapter
-   (`runConformanceSuite`, `runPushSuite`, `runFunctionSuite`), so a third
-   entry in `test/conformance.test.js` is the whole of the work.
+5. Carry the `VALU_SOCKET` brand, so `adoptValuSocket` hands you through rather
+   than wrapping you in `NodeSocketAdapter` (harmless if it does —
+   [connecting.md](connecting.md) says why).
+6. Run the conformance suite against it. It is parameterized by adapter
+   (`runConformanceSuite`, `runPushSuite`, `runFunctionSuite`), so a fourth
+   entry in `test/conformance.test.js` is the whole of the work — that is
+   literally all `SocketIoSocketAdapter` needed.
 
 ## What an adapter is not
 
+- **Not a connection.** An adapter opens nothing and closes nothing: the runtime
+  that owns the connection keeps owning it. The one thing in this package that
+  *does* own a connection is `ValuSocketConnection`, which is a different file
+  and the other door ([connecting.md](connecting.md)).
 - **Not a transport.** `SocketTransport` is the transport: it takes a socket,
   validates params, applies the cache and the retry policy, and dispatches to a
   handler. The adapter only makes the connection speak `ValuSocket`.

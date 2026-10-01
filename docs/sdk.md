@@ -12,6 +12,7 @@ nothing in the catalogue that behaves differently depending on where it runs.
 | read this | for |
 |---|---|
 | [socket-functions.md](socket-functions.md) | **every function, the feature it provides and what it needs** — start here |
+| [connecting.md](connecting.md) | **getting a socket**: open one from a session id, or share one you already have |
 | [socket-adapters.md](socket-adapters.md) | what a socket *is* here, and how to supply one in a browser or in Node |
 | [service-api.md](service-api.md) | the same functions as the call you would write, one line each |
 | [api-pointers.md](api-pointers.md) | the postMessage bridge: API pointers, and any application intent by name |
@@ -51,13 +52,19 @@ which of the two reasons keeps them out.
 ## The shape of it
 
 ```
-   your runtime            createValuServices({ socket, appState })
+   your runtime        connectValuServices({ socket | sessionId, appState })
         │                                     │
-        └── ValuSocket ──▶ SocketTransport ──▶ ServiceClient ──▶ valu.Users.get()
-            (browser or      (the only             │
-             node adapter)    service transport)   descriptor → validate →
-                                                   scope → cache → retry
+        │   ┌── a socket you already have ──┐ │
+        └───┤                               ├─┴─ ValuSocket ──▶ SocketTransport
+            └── or one opened from a ───────┘       │           (the only
+                session id                          │            service transport)
+                                                    ▼
+                                             ServiceClient ──▶ valu.Users.get()
+                                                 descriptor → validate →
+                                                 scope → cache → retry
 ```
+
+Two ways in, one path after that — [connecting.md](connecting.md).
 
 | piece | file | what it decides |
 |---|---|---|
@@ -65,7 +72,9 @@ which of the two reasons keeps them out.
 | Socket | `src/transport/SocketTransport.js` | declared functions over a `ValuSocket` — the only transport that serves them |
 | Bridge | `src/transport/PostMessageTransport.js` | the iframe ↔ application traffic: pointers, intents, console, routes |
 | Socket contract | `src/socket/ValuSocket.js` | the ack envelope, and what a socket must offer |
-| Adapters | `src/socket/{Browser,Node}SocketAdapter.js` | the app's WebSocket service / `RoomfulConnectionManager` |
+| Adapters | `src/socket/{Browser,Node,SocketIo}SocketAdapter.js` | the app's WebSocket service / `RoomfulConnectionManager` / a raw socket.io socket |
+| Connection | `src/socket/ValuSocketConnection.js` | a socket this package opens from a session id, and authorizes |
+| Either door | `src/socket/open.js` | `openValuSocket` — adopt a socket, or open one |
 | Descriptors | `src/services/catalog.generated.js` | every function, generated from the manifest |
 | Registry | `src/services/registry.js` | where a function's implementation is registered |
 | Validation | `src/services/validate.js` | whether a call is well-formed |
@@ -96,6 +105,15 @@ const valu = createValuServices({ socket });
 
 const ack = await valu.Users.get({ userId });          // { data } | { error }
 const byName = await valu.call('Users.get', { userId }); // what an LLM tool call has
+```
+
+With a session and no connection at all — a script, a CLI, a harness. The
+package opens the socket and authorizes it ([connecting.md](connecting.md)):
+
+```javascript
+import io from 'socket.io-client';
+const valu = await connectValuServices({ sessionId, io });
+await valu.close();                                    // it opened it, so it closes it
 ```
 
 A function resolves by any name the platform already writes: `Users.get`,

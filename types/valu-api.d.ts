@@ -293,6 +293,148 @@ declare module '@arkeytyp/valu-api' {
         emit(ns: string, data?: Record<string, unknown>, timeoutMs?: number): Promise<ValuAck>;
     }
 
+    // ---------------------------------------------------------------------
+    // Getting a socket — the two doors. See docs/connecting.md.
+    // ---------------------------------------------------------------------
+
+    /** A socket.io client socket, in the little this package needs of one. */
+    export interface SocketIoLike {
+        emit(event: string, ...args: any[]): any;
+        on(event: string, handler: (...args: any[]) => void): any;
+        off?(event: string, handler: (...args: any[]) => void): any;
+        removeListener?(event: string, handler: (...args: any[]) => void): any;
+        removeAllListeners?(): any;
+        connect?(): any;
+        close?(): any;
+        disconnect?(): any;
+        readonly connected?: boolean;
+    }
+
+    /** The brand: a socket this package built carries it, and is never re-wrapped. */
+    export const VALU_SOCKET: symbol;
+    export function isValuSocket(value: unknown): boolean;
+
+    /** A socket.io socket somebody else opened and authorized, as a ValuSocket. */
+    export class SocketIoSocketAdapter implements ValuSocket {
+        constructor(options: {
+            socket: SocketIoLike;
+            userId?: string;
+            networkId?: string;
+            selfUserId?: string | null;
+            timeoutMs?: number;
+        });
+        readonly userId: string;
+        readonly networkId: string;
+        readonly selfUserId: string | null;
+        /** The socket.io socket, for consumers keying per-connection state. */
+        readonly transport: SocketIoLike;
+        emit(ns: string, data?: Record<string, unknown>, timeoutMs?: number): Promise<ValuAck>;
+        onResourceUpdated(handler: (data: any) => void): () => void;
+    }
+
+    export type ValuConnectionState =
+        'idle' | 'connecting' | 'ready' | 'reconnecting' | 'failed' | 'closed';
+
+    export interface ValuUserInfo {
+        selfUserId: string | null;
+        networkId: string | null;
+        user: Record<string, unknown> | null;
+        network: Record<string, unknown> | null;
+    }
+
+    export interface ValuSocketConnectionOptions {
+        /** The user's Roomful session id. First-party runtimes only — see
+         * docs/connecting.md and docs/authorization.md. */
+        sessionId: string;
+        host?: string;
+        /** The socket.io-client factory. Pass it: socket.io is not a dependency. */
+        io?: Function;
+        fetchImpl?: typeof fetch;
+        /** Run the init.client bootstrap. Default: true when a fetch exists. */
+        bootstrap?: boolean;
+        userId?: string;
+        networkId?: string;
+        /** Merged over SOCKET_IO_OPTIONS. */
+        socketOptions?: Record<string, unknown>;
+        timeoutMs?: number;
+        readyTimeoutMs?: number;
+        recoveryTimeoutMs?: number;
+        onConnectionLost?(reason: string): void;
+    }
+
+    /** A Roomful socket this package opens from a session id and authorizes. */
+    export class ValuSocketConnection implements ValuSocket {
+        constructor(options: ValuSocketConnectionOptions);
+        /** Opens, authorizes, and resolves on the platform's `user_info` push.
+         * The one call here that rejects — there is no ack to fail into. */
+        connect(): Promise<ValuSocketConnection>;
+        readonly userId: string;
+        readonly networkId: string;
+        readonly selfUserId: string | null;
+        readonly state: ValuConnectionState;
+        readonly connected: boolean;
+        readonly connectedAt: number | null;
+        readonly host: string;
+        readonly user: Record<string, unknown> | null;
+        readonly network: Record<string, unknown> | null;
+        readonly displayName: string | null;
+        readonly transport: SocketIoLike | null;
+        emit(ns: string, data?: Record<string, unknown>, timeoutMs?: number): Promise<ValuAck>;
+        onResourceUpdated(handler: (data: any) => void): () => void;
+        /** After a drop that re-authorized. */
+        onReconnected(handler: (info: { selfUserId: string | null; networkId: string }) => void): () => void;
+        onConnectionLost(handler: (reason: string) => void): () => void;
+        /** Any platform push, forwarded exactly as it arrived. */
+        on(event: string, handler: (payload: any) => void): () => void;
+        close(): Promise<void>;
+        /** Safe to print: never the session id. */
+        describe(): {
+            host: string;
+            state: ValuConnectionState;
+            networkId: string;
+            userId: string;
+            selfUserId: string | null;
+            connectedAt: number | null;
+            connectErrors: number;
+            lastError: string | null;
+            session: string;
+        };
+    }
+
+    export const DEFAULT_API_HOST: string;
+    export const READY_TIMEOUT_MS: number;
+    export const RECOVERY_TIMEOUT_MS: number;
+    export const ROOMFUL_SOCKET_PATH: '/socket';
+    export const SOCKET_IO_OPTIONS: Readonly<Record<string, unknown>>;
+    export function isSocketIoSocket(value: unknown): boolean;
+    export function loadSocketIo(injected?: Function | { default: Function }): Promise<Function>;
+    export function emitOverSocketIo(
+        socket: SocketIoLike,
+        ns: string,
+        data?: Record<string, unknown>,
+        timeoutMs?: number,
+    ): Promise<ValuAck>;
+    export function readUserInfo(payload: any): ValuUserInfo;
+    export function displayNameOf(user: Record<string, any> | null): string | null;
+
+    /** Options for adapting a connection that is already authorized. */
+    export interface AdoptSocketOptions {
+        userId?: string;
+        networkId?: string;
+        selfUserId?: string | null;
+        onResourceUpdated?(handler: (data: any) => void): () => void;
+        timeoutMs?: number;
+    }
+
+    /** Make a ValuSocket out of whatever authorized connection you hold. */
+    export function adoptValuSocket(input: unknown, options?: AdoptSocketOptions): ValuSocket;
+
+    /** A ValuSocket by either door: adopt `socket`, or open one from `sessionId`. */
+    export function openValuSocket(
+        options: ({ socket: unknown } & AdoptSocketOptions)
+            | ValuSocketConnectionOptions,
+    ): Promise<ValuSocket>;
+
     /**
      * WHICH connection answers a function — the only axis, and the one a caller
      * has to satisfy. There is no 'postmessage': this package declares nothing
@@ -468,6 +610,12 @@ declare module '@arkeytyp/valu-api' {
         readonly cache: ServiceCache | null;
         /** The same functions, returning the payload and throwing on error. */
         readonly data: ValuServicesData;
+        /** The socket every function here runs over — share this, do not open a
+         * second one. */
+        readonly socket: ValuSocket | null;
+        /** The connection this API opened, or null when it adopted somebody
+         * else's. Only `close()` cares, and only about the first case. */
+        readonly connection: ValuSocketConnection | null;
 
         call<T = any>(name: string, params?: object, options?: {
             timeoutMs?: number; retries?: number; bypassCache?: boolean;
@@ -484,7 +632,7 @@ declare module '@arkeytyp/valu-api' {
     };
 
     export const ValuServiceApi: {
-        new (options: { client: ServiceClient }): ValuServiceApi;
+        new (options: { client: ServiceClient; connection?: { close(): unknown } }): ValuServiceApi;
         functions(): ServiceDescriptor[];
         services(): string[];
         summary: typeof catalogSummary;
@@ -511,6 +659,24 @@ declare module '@arkeytyp/valu-api' {
         auth?: AuthProvider;
         hooks?: { sleep?: (ms: number) => Promise<void>; random?: () => number };
     }): ValuServiceApi;
+
+    /** Everything `createValuServices` takes, minus the socket it no longer has
+     * to be handed. */
+    export type ValuServiceOptions = Omit<Parameters<typeof createValuServices>[0], 'socket'>;
+
+    /**
+     * The function surface, socket and all — either door (docs/connecting.md).
+     *
+     *   await connectValuServices({ socket: webSocketService, userId })  // adopt
+     *   await connectValuServices({ sessionId, io })                     // open
+     *
+     * Adds three things over `createValuServices`: either door, reconnect wired
+     * for a connection it opened, and `close()` closing only what it opened.
+     */
+    export function connectValuServices(
+        options: ValuServiceOptions
+            & (({ socket: unknown } & AdoptSocketOptions) | ValuSocketConnectionOptions),
+    ): Promise<ValuServiceApi>;
 
     export interface AppToken {
         token: string;

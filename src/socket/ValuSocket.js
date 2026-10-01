@@ -44,6 +44,44 @@ import { ERROR_CODES, ValuServiceError, errorAck } from '../Errors.js';
  */
 
 /**
+ * The brand. A socket that carries it IS a `ValuSocket` and is used as it is,
+ * never wrapped a second time.
+ *
+ * This exists because `openValuSocket` has to tell three look-alikes apart —
+ * a ValuSocket, the app's WebSocket service and a raw socket.io socket all
+ * have an `emit` — and guessing from shape alone gets the answer wrong for the
+ * one case that matters most: handed an already-adapted socket, a structural
+ * guess wraps it again, and a consumer keying per-connection state on identity
+ * (a cache, the service client's WeakMap) then sees two sockets where the
+ * runtime has one.
+ *
+ * `Symbol.for` rather than a module-local symbol on purpose: two copies of this
+ * package in one bundle must still recognise each other's sockets.
+ */
+export const VALU_SOCKET = Symbol.for('valu.socket');
+
+/**
+ * True when `value` is a socket this package built.
+ *
+ * The brand and nothing else. A structural check was tried and removed: a
+ * `RoomfulConnectionManager` satisfies this interface structurally — promise
+ * `emit`, `userId`, `networkId`, `selfUserId` — and so does a third-party
+ * adapter, so "looks like a ValuSocket" cannot distinguish a socket that needs
+ * no adapter from one of the two that do. Guessing wrong there is silent: the
+ * raw connection works for most calls and differs exactly where its adapter was
+ * added to help (a missing ack, a throw from a half-torn-down connection).
+ *
+ * So an unbranded socket goes through `NodeSocketAdapter`, which is a no-op for
+ * one that already complies and republishes it as `underlying` — the member
+ * that exists precisely so wrapping does not cost a consumer its identity
+ * keying (src/socket/open.js).
+ * @param {any} value
+ */
+export function isValuSocket(value) {
+  return Boolean(value && typeof value === 'object' && value[VALU_SOCKET] === true);
+}
+
+/**
  * True when an ack reports a failure.
  *
  * Roomful sets `error.status`, but some RPCs answer with a bare `error`
