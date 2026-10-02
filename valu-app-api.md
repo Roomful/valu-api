@@ -45,8 +45,7 @@ If your iframe is served from `https://your-app.com/`, that is where the
 platform will look, and you declare nothing. If your API lives somewhere else —
 a separate host, a different path — say so in the manifest (§5).
 
-Callers do not use that URL. They use a single standardized one, the same for
-every app in the Valuverse:
+Callers do not use that URL. They use a standardized one:
 
 ```
 https://<valu-guru-host>/api/apps/v1/your-app-id/…
@@ -55,6 +54,14 @@ https://<valu-guru-host>/api/apps/v1/your-app-id/…
 The gateway holds the mapping and forwards. This means your API's public address
 never changes even if you move hosts, and it means you are not reachable by the
 open internet without a valid token.
+
+**If Valu Guru built your app for a workspace, that address carries one more
+segment** — `/api/apps/v1/{workspace}/your-app-id/…` — because such an app's id
+is its project slug, which is unique only inside its own workspace. The whole
+string is **your app's ADDRESS**, and §2 is where it matters: the address is what
+you verify as the token's `aud`. The Developer Portal's REST API tab prints it
+for your app under **Token audience**, and a project chat's own context names it
+`apiAudience`. Everything else in this guide is identical either way.
 
 ---
 
@@ -71,7 +78,7 @@ npm install jose
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 const ISSUER = process.env.VALU_ISSUER;        // e.g. https://valuguru.texpo.io
-const MY_APP_ID = 'notes';                     // YOUR application id
+const MY_AUDIENCE = 'notes';                   // YOUR app's ADDRESS (see §1)
 const JWKS = createRemoteJWKSet(new URL(`${ISSUER}/.well-known/jwks.json`));
 
 export async function verifyValuToken(authorizationHeader) {
@@ -80,7 +87,7 @@ export async function verifyValuToken(authorizationHeader) {
 
   const { payload } = await jwtVerify(token, JWKS, {
     issuer:     ISSUER,
-    audience:   MY_APP_ID,      // never a wildcard, never from the request
+    audience:   MY_AUDIENCE,    // never a wildcard, never from the request
     algorithms: ['RS256'],
   });
 
@@ -96,16 +103,22 @@ export async function verifyValuToken(authorizationHeader) {
 `jose` caches the key set and refetches on an unknown `kid`, so key rotation
 needs nothing from you.
 
-**`audience: MY_APP_ID` is the line that matters.** It is what stops a token
+**`audience: MY_AUDIENCE` is the line that matters.** It is what stops a token
 minted for some other app being replayed against yours. Never read the expected
 audience from the request.
+
+For an app Valu Guru serves for a workspace, that value is
+`{workspace}/your-app-id` and **not** the bare id (§1). Pin the bare id there and
+the signature verifies, the audience check fails, and every call the platform
+makes comes back `401` — with nothing in it naming which of two similar strings
+was wrong.
 
 Fail closed on every branch. A token you cannot verify is a request you refuse —
 not one you let through with a warning.
 
 Not on Node? Any JWT library does this. Verify RS256 against
-`{ISSUER}/.well-known/jwks.json`, require `iss`, require `aud == your app id`,
-require `exp` in the future. There is no Valu-specific cryptography.
+`{ISSUER}/.well-known/jwks.json`, require `iss`, require `aud == your app's
+address`, require `exp` in the future. There is no Valu-specific cryptography.
 
 ---
 
