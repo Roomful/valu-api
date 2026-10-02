@@ -323,6 +323,6 @@ app in the same network.
 | Your OpenAPI document | `{baseUrl}/openapi.json` |
 | Your health check | `{baseUrl}/health` |
 | Your descriptor (optional) | `https://your-app.com/.well-known/valu-app.json` |
-| What callers use | `https://<valu-guru-host>/api/apps/v1/{yourAppId}/…` |
+| What callers use | `https://<valu-guru-host>/api/apps/v1/{yourAddress}/…` — your id, or `{workspace}/{id}` for an app Valu Guru built (§1) |
 | Keys you verify against | `{ISSUER}/.well-known/jwks.json` |
 | Token claims | `iss`, `sub` (caller app), `aud` (you), `scope`, `net`, `act.sub` (user), `exp` (≤5 min) |
