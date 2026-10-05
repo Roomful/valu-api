@@ -237,7 +237,7 @@ That is a complete declaration for the common case. Everything has a default:
 
 | Field | Default | Meaning |
 |---|---|---|
-| `baseUrl` | `origin(iframe.url)` + `/valu/v1` | Where your API lives. Declare it only if it is somewhere else. |
+| `baseUrl` | `origin(iframe.url)` + `/valu/v1` | Where your API lives. Declare it only if it is somewhere else. For an app Valu Guru built, this is the **gateway address** itself (`…/api/apps/v1/{workspace}/your-app-id`) — where the function behind it runs is recorded on the server and published nowhere. |
 | `spec` | `/openapi.json` | Your OpenAPI document, relative to `baseUrl`. |
 | `scopes` | `[]` | What you offer. A caller can only be granted a scope you declared. |
 | `callers` | `["*"]` | Which applications may call you. Replace with explicit ids to narrow it. |
