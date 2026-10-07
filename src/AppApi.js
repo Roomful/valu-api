@@ -24,7 +24,8 @@
 //
 //   x-valu-network   REQUIRED. The network the call is scoped to — an
 //                    application works in several, and a call is scoped to
-//                    one. In an iframe app, `network.getNetworkId()`.
+//                    one. In an iframe app,
+//                    `(await valuApi.getApi('network')).run('id')`.
 //   x-valu-scope     optional. Space-separated scopes to ask for; absent means
 //                    every scope the target declares.
 //
