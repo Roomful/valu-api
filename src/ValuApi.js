@@ -58,6 +58,9 @@ import "./services/impl/index.js";
 export { registerAll } from "./services/impl/index.js";
 export { noAppStateAck } from "./app-state/AppState.js";
 export { resolveConfig } from "./Config.js";
+// Calling another application's REST API from a page on a Valu host — the
+// trusted-host door of the Valu Guru gateway. See src/AppApi.js.
+export { createAppApiClient, AppApiError, normalizeAddress, NETWORK_HEADER, SCOPE_HEADER } from "./AppApi.js";
 export {
   uploadResource, uploadResources, createUploadSession, MAX_UPLOAD_BYTES,
 } from "./upload/ResourceUpload.js";

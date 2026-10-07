@@ -432,3 +432,6 @@ await api.callService(new Intent('AiGuru', 'open', { applicationId: 'cart' }));
   server adopt this, measured against both checkouts
 - [valu-app-api.md](valu-app-api.md) — giving your app a REST API that other
   Valuverse applications and AI agents can call while nobody has it open
+- `createAppApiClient` (`src/AppApi.js`) — calling another application's REST
+  API from a page on a Valu host, through the Valu Guru gateway's trusted-host
+  door: two headers and the identity token, no client secret

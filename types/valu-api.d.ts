@@ -719,6 +719,63 @@ declare module '@arkeytyp/valu-api' {
     /** Throws if a payload carries the user's own credential. */
     export function assertNoCredentialLeak<T>(payload: T, where?: string): T;
 
+    // ---------------------------------------------------------------------
+    // Another application's REST API, called from a page on a Valu host —
+    // the Valu Guru gateway's trusted-host door. See src/AppApi.js.
+    // ---------------------------------------------------------------------
+
+    /** The header a page names its network in. */
+    export const NETWORK_HEADER: 'x-valu-network';
+    /** The header a page narrows its scopes with (absent = every declared scope). */
+    export const SCOPE_HEADER: 'x-valu-scope';
+
+    /** A refusal, from the gateway or from the target, in the `{ error: { code, message } }` envelope. */
+    export class AppApiError extends Error {
+        constructor(status: number, code: string, message: string, body?: unknown);
+        status: number;
+        code: string;
+        body: unknown;
+    }
+
+    /** `{application}` or `{workspace}/{application}`; anything else throws. */
+    export function normalizeAddress(address: string): string;
+
+    export interface AppApiClientOptions {
+        /** The Valu Guru server origin, e.g. `https://valuguru.texpo.io`. */
+        gatewayBase: string;
+        /** The network id every call is scoped to, or a function answering it. */
+        network: string | (() => string | Promise<string>);
+        /** The signed-in user's platform identity token (the `Application.get-identity-token` intent). */
+        identityToken?: () => Promise<string | { token: string } | null | undefined>;
+        /** Scopes to ask for on every call. Absent = every scope the target declares. */
+        scope?: string | string[];
+        fetch?: typeof fetch;
+        now?: () => number;
+    }
+
+    export type AppApiInit = RequestInit & { scope?: string | string[] };
+
+    export interface AppApiClient {
+        readonly gatewayBase: string;
+        /** The gateway URL for an address and a path after it. */
+        urlFor(address: string, path?: string): string;
+        /** One call; the Response as the target (or the gateway) sent it. */
+        call(address: string, path: string, init?: AppApiInit): Promise<Response>;
+        /** `call` with the body read as JSON; a refusal is thrown as `AppApiError`. */
+        json<T = any>(address: string, path: string, init?: AppApiInit & { body?: any }): Promise<T>;
+        /** The target's OpenAPI document, read through the gateway. Public. */
+        openapi(address: string): Promise<any>;
+        get<T = any>(address: string, path: string, init?: AppApiInit): Promise<T>;
+        post<T = any>(address: string, path: string, body?: any, init?: AppApiInit): Promise<T>;
+        put<T = any>(address: string, path: string, body?: any, init?: AppApiInit): Promise<T>;
+        patch<T = any>(address: string, path: string, body?: any, init?: AppApiInit): Promise<T>;
+        delete<T = any>(address: string, path: string, init?: AppApiInit): Promise<T>;
+        /** Forget the cached identity token (sign-out). */
+        forgetIdentity(): void;
+    }
+
+    export function createAppApiClient(options: AppApiClientOptions): AppApiClient;
+
     export interface ResolvedPolicy {
         timeoutMs: number;
         retries: number;
