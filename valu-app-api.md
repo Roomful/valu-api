@@ -59,15 +59,16 @@ open internet without a valid token.
 
 **Two kinds of caller reach you through it, and you verify both the same way.**
 A backend mints a token from its client credentials. A PAGE — Valu Social
-itself, or a workspace app framed at the platform's site host — cannot hold a
-secret, so the gateway admits it by its `Origin` (a host the platform owns) and
-mints the token on its behalf: the **trusted-host door**. Either way what
-arrives at your API is a token the platform signed, with your address as `aud`.
-The difference is in `sub`: an application id for a backend, `host:<hostname>`
-(e.g. `host:web.texpo.io`) for a page. Narrow `callers` (§5) to admit one or
-the other. A page's signed-in user rides as `act.sub` exactly as a backend's
-does, and only when the platform verified them — so `userContext: "required"`
-is the way to insist a page caller is a real person.
+itself, or a workspace app served from its own host under the platform's site
+domain — cannot hold a secret, so the gateway admits it by its `Origin` (a host
+the platform owns) and mints the token on its behalf: the **trusted-host door**.
+Either way what arrives at your API is a token the platform signed, with your
+address as `aud`. The difference is in `sub`: an application id for a backend,
+`host:<hostname>` (e.g. `host:wallet-ws-4fc02391.valuguru.app`, a workspace
+app's own host) for a page. Narrow `callers` (§5) to admit one or the other. A
+page's signed-in user rides as `act.sub` exactly as a backend's does, and only
+when the platform verified them — so `userContext: "required"` is the way to
+insist a page caller is a real person.
 
 The SDK wraps the page side: `createAppApiClient({ gatewayBase, network,
 identityToken })` from `@arkeytyp/valu-api` sends the two headers the door
@@ -259,7 +260,7 @@ That is a complete declaration for the common case. Everything has a default:
 | `baseUrl` | `origin(iframe.url)` + `/valu/v1` | Where your API lives. Declare it only if it is somewhere else. For an app Valu Guru built, this is the **gateway address** itself (`…/api/apps/v1/{workspace}/your-app-id`) — where the function behind it runs is recorded on the server and published nowhere. |
 | `spec` | `/openapi.json` | Your OpenAPI document, relative to `baseUrl`. |
 | `scopes` | `[]` | What you offer. A caller can only be granted a scope you declared. |
-| `callers` | `["*"]` | Who may call you. Replace with explicit entries to narrow it: an application id admits that app's backend, `host:<hostname>` (e.g. `host:web.texpo.io`) admits pages served from that host through the trusted-host door. |
+| `callers` | `["*"]` | Who may call you. Replace with explicit entries to narrow it: an application id admits that app's backend, `host:<hostname>` (e.g. `host:wallet-ws-4fc02391.valuguru.app` — a workspace app is served from a host of its own, `{slug}-{workspace}.valuguru.app`) admits pages served from that host through the trusted-host door. |
 | `availability` | both | `["ai", "developer"]` — whether AI agents, other applications (and pages), or both may call. |
 | `userContext` | `"optional"` | `"required"` refuses calls with no acting user; `"none"` says you never use one. |
 | `direct` | `false` | Whether you also accept calls straight at your own origin, bypassing the gateway. |
