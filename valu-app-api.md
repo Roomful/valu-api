@@ -241,10 +241,19 @@ measurably different behaviour.
 
 ## 5. Declare It
 
+A declaration is **two links**: the gateway, where your API is served, and the
+OpenAPI document, which is how anything discovers what it can do. The Portal's
+REST API tab asks for exactly those two and nothing else — it has no buttons on
+it, because a link is a thing you type or a thing somebody writes for you, and
+everything else a declaration carries is a fact your document already states.
+An app that fills in neither declares no API.
+
 In your Developer Portal manifest:
 
 ```jsonc
 "api": {
+  "baseUrl": "https://api.notes.example.com/v1",
+  "spec": "/openapi.json",
   "scopes": [
     { "name": "notes.read",  "description": "Read the acting user's notes" },
     { "name": "notes.write", "description": "Create and edit notes" }
@@ -258,7 +267,7 @@ That is a complete declaration for the common case. Everything has a default:
 | Field | Default | Meaning |
 |---|---|---|
 | `baseUrl` | `origin(iframe.url)` + `/valu/v1` | Where your API lives. Declare it only if it is somewhere else. For an app Valu Guru built, this is the **gateway address** itself (`…/api/apps/v1/{workspace}/your-app-id`) — where the function behind it runs is recorded on the server and published nowhere. |
-| `spec` | `/openapi.json` | Your OpenAPI document, relative to `baseUrl`. |
+| `spec` | `/openapi.json` | Your OpenAPI document — the second link. A path under `baseUrl`, or an absolute URL when the description is served somewhere else; an absolute value is taken as given, never joined onto the base. Never an address on the Valu Guru host: the document served there is produced by reading yours, so naming it is a loop and it is refused. An app Valu Guru built always carries both this and `baseUrl` explicitly. |
 | `scopes` | `[]` | What you offer. A caller can only be granted a scope you declared. |
 | `callers` | `["*"]` | Who may call you. Replace with explicit entries to narrow it: an application id admits that app's backend, `host:<hostname>` (e.g. `host:wallet-ws-4fc02391.valuguru.app` — a workspace app is served from a host of its own, `{slug}-{workspace}.valuguru.app`) admits pages served from that host through the trusted-host door. |
 | `availability` | both | `["ai", "developer"]` — whether AI agents, other applications (and pages), or both may call. |
