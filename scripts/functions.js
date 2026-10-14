@@ -22,7 +22,7 @@
 // catalogue and the knowledge-base search — a SECOND socket, to the Valu Guru
 // server, with its own envelope and auth. It is gone: this is the user-facing
 // library for the Valu platform, it holds one connection, and it carries no
-// knowledge of the Valu Guru server. Those 13 intents are served by the Valu
+// knowledge of the Valu Guru server. Those intents are served by the Valu
 // Social application over the bridge and are listed in scripts/bindings.js
 // under the `valu-guru` reason.
 //

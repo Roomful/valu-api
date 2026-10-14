@@ -131,10 +131,10 @@ what a handler needs and what a caller has to supply:
 | `local` | 8 | the SDK itself | `ctx.config`, `ctx.fetchImpl`, `ctx.now` |
 
 There used to be a fourth, `valuguru`: a second socket to the Valu Guru server
-for the Commerce catalogue and the knowledge-base search. It is gone, with its
-13 intents. A user-facing platform library holds the platform's connection and
-nothing else; those intents are the Valu Social application's to serve and are
-asked for by name ([api-pointers.md](api-pointers.md)).
+for the Commerce catalogue and the knowledge-base search. It is gone, with
+every intent it carried. A user-facing platform library holds the platform's
+connection and nothing else; those intents are the Valu Social application's to
+serve and are asked for by name ([api-pointers.md](api-pointers.md)).
 
 A runtime that lacks an `appState` capability is refused **by name**, with the
 capability in the message rather than a guess:

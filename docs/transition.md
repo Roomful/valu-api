@@ -40,9 +40,17 @@ for here. There is no drift.
 
 This package holds the **Roomful platform socket** and nothing else. The
 earlier catalogue also carried a `valuguru` channel: a second socket, to the
-Valu Guru server's `data_request` endpoint, for the ten Commerce intents, the
-knowledge-base search and the two chat-history reads. Those **13 intents are no
-longer in the catalogue** — no descriptor, no method, no tool definition.
+Valu Guru server's `data_request` endpoint, for the Commerce intents, the
+knowledge-base search and the two chat-history reads. **None of those intents
+is in the catalogue any more** — no descriptor, no method, no tool definition.
+
+Nor is there a count of them to keep here. The Commerce service grows in the
+application's manifest, and every intent it adds is, like these, served by the
+application and never a function in this package. The current list — with
+params, and whether the application answers each one itself or over the Valu
+Guru server's socket — is in [api-pointers.md](api-pointers.md), generated from
+the vendored manifest snapshot (`manifests/service-manifests.snapshot.json`)
+and as current as the last `npm run sync:manifests`.
 
 The reason is what this package is for. It is the user-facing platform library,
 installed by the Valu Social build and by framed applications; a second
@@ -52,16 +60,17 @@ have adopted those functions anyway.
 
 What it changes per consumer:
 
-- **`valu-guru-server`** — nothing. It never offered one of the 13: `sdk.ts`
+- **`valu-guru-server`** — nothing. It never offered one of them: `sdk.ts`
   refused them at import, and its own `valuguru.commerce.*` and `rag_search`
   handlers are untouched. It is still pinned to a commit that predates this
   removal; bumping the pin changes none of its 39 tools.
-- **`valusocial-web`** — it keeps serving all 13 itself, as it does today
+- **`valusocial-web`** — it keeps serving all of them itself, as it does today
   (`src/Services/Commerce/CommerceDataService.js`, the AiGuru socket service).
   There is no SDK function to delegate them to and there will not be one.
 - **A framed application** — unchanged: it asks for them by name over the
-  bridge, exactly as it asks for a dock to open. The 13 are listed with their
-  params in [api-pointers.md](api-pointers.md).
+  bridge, exactly as it asks for a dock to open, and an intent the application
+  adds works the day it ships. They are listed with their params in
+  [api-pointers.md](api-pointers.md).
 
 ## The split by consumer
 
@@ -233,12 +242,13 @@ spends an RPC on it because headless has no `baseUser`).
   `get-applications`, `is-application-loaded`) as `builtin` tools in
   `AiGuruTools.js`, dispatched to `ApplicationCenterStore` rather than through
   a service at all.
-- **Nothing about the app's intent registry changes.** The 28 it keeps serving
-  itself are the 28 this package never declares, so there is no list here to
-  keep in step with it and no method to remove when the app adds an intent.
+- **Nothing about the app's intent registry changes.** The intents it keeps
+  serving itself are exactly the ones this package never declares, so there is
+  no list here to keep in step with it and no method to remove when the app
+  adds an intent.
 - 60 intents carry `availability: ['ai']`. This package serves **48**. The 12 it
-  does not are the ten Commerce intents — the Valu Guru server's own catalogue,
-  which the app reaches over that server's socket — and
+  does not are the Commerce intents open to the AI — the Valu Guru server's own
+  catalogue, which the app reaches over that server's socket — and
   `DataProvider.pick-single` / `pick-multiple`, which render the application's
   own UI and return the user's choice.
 - The delegation point is each service's `onNewIntent`, and it now has one
