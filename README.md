@@ -215,8 +215,9 @@ if (entitlements[products[0].id]) unlockPurchase();
 ```
 
 - **A refusal is an answer, not an exception:** `{success: false, code, error}`. Branch on `code`.
-- **Some calls ask the user first.** Anything that costs them money, gives goods away, cannot be undone or speaks for them in public — publishing a product, starting a sale, creating a discount code, rating a product — opens a platform dialog over your app, and the call resolves when they answer. If they close it you get `code: 'cancelled'` and nothing was written. Your app cannot draw, reach or click that dialog.
-- **Cart writes touch your app's own items only.** Reading the cart shows everything in it, from every app.
+- **Some calls ask the user first.** Anything that costs them money, gives goods away, cannot be undone or speaks for them in public — publishing a product, starting a sale, creating a discount code, rating a product — opens a platform dialog over your app, and the call resolves when they answer. If they close it you get `code: 'cancelled'` and nothing was written: do not ask again on your own. While another dialog from your app is open the call is refused `busy`, and where the platform cannot draw one, `unsupported`. Your app cannot draw, reach or click that dialog.
+- **Cart writes touch your app's own rows only.** `update-cart-item` and `remove-from-cart` refuse another app's row with `not_yours`, and `clear-cart` removes only yours (saved-for-later included). Reading the cart (`get-cart`) shows everything in it, from every app.
+- **The seller is a person, not a store.** Buyers see the store's owner: show `get-my-store`'s `sellerName`, and draw the avatar from `sellerUserId`.
 - **The list of actions moves without this package.** The Valu Social application's manifest is the authority: an action it adds works through `callService` as it is, with no new version of this package. [docs/api-pointers.md](docs/api-pointers.md) lists the Commerce intents with their params as of the last manifest sync.
 
 ### Paying: Always in My Cart
@@ -230,20 +231,24 @@ const result = await valuApi.callService(
 );
 
 if (result.success === false) {
-  showRefusal(result.code);            // 'empty': nothing of yours to pay for, so nothing opened
+  // A refusal, and nothing opened. 'empty': none of your items is selected in the cart.
+  showRefusal(result.code);
 } else if (result.outcome === 'paid') {
   unlockPurchase();                    // a free order counts as paid
 } else if (result.outcome === 'pending') {
-  waitForPayment(result.orderId);      // follow it with the order-updated event
+  waitForPayment(result.orderId);      // follow it with get-order or the order-updated event
 }
-// 'cancelled' — the buyer cancelled the order in My Cart
-// 'dismissed' — they closed My Cart without making one
+// 'cancelled' — the order will not be paid (cancelled, expired or failed: `status` says
+//               which), and its items are back in the cart
+// 'dismissed' — the buyer closed My Cart without making an order
+// 'opened'    — My Cart docked instead of opening over your app; there is nothing to wait for
 ```
 
-`checkout` opens My Cart over your app, scoped to your app's items, with the promo code already applied.
-The buyer presses Pay and scans there, and the call resolves when that window closes.
-With `popup: false` My Cart docks beside your app instead, and the call resolves at once with `outcome: 'opened'`.
-To simply show the cart, use `Commerce.open-cart`.
+`checkout` opens My Cart's own cart over your app, showing your items with the promo code typed in and applied.
+The buyer presses Pay and scans there — only My Cart creates the order — and the call resolves with `{success: true, outcome, orderId?, status?}` when they close it.
+With `popup: false`, or where there is no popup to draw, My Cart docks instead and the call resolves at once with `outcome: 'opened'`.
+A second `checkout` while one is open replaces it.
+To simply show the cart, use `Commerce.open-cart`; to send the buyer to one order — to resume a pending payment, or read a receipt — use `Commerce.open-order`.
 
 ### Commerce Events
 
@@ -258,6 +263,7 @@ valuApi.addEventListener(ValuApi.ON_COMMERCE, ({ event, ...data }) => {
   if (event === 'catalogue-updated') refreshShelf();
 });
 
+// Every time the app starts, once connected (ValuApi.API_READY):
 await valuApi.callService(new Intent('Commerce', 'subscribe-events', {
   events: ['catalogue-updated', 'order-updated'],
 }));
@@ -266,16 +272,16 @@ await valuApi.callService(new Intent('Commerce', 'subscribe-events', {
 | Event | Data | When |
 |-------|------|------|
 | `cart-updated` | `{count}` | The cart changed. `count` is the badge number — never which items. |
-| `order-updated` | `{orderId, status}` | An order holding an item from your app was made, paid, expired or cancelled. |
-| `delivery-updated` | `{orderId, status}` | Delivery of such an order moved on. `delivered` means the files are in the buyer's Media. |
+| `order-updated` | `{orderId, status}` | An order holding at least one of your app's items changed: `pending_payment`, `paid`, `failed`, `expired`, `cancelled` or `deleted`. Orders without your items are never sent to you. |
+| `delivery-updated` | `{orderId, status}` | That order's files: `delivered` (they are in the buyer's Media), `unavailable` or `failed`. |
 | `catalogue-updated` | `{productId, change}` | A product was `added` to, `updated` on or `removed` from this network's shelf. `productId: null` means re-read the whole shelf. |
-| `seller-product-updated` | `{productId, change}` | One of the signed-in seller's own products changed. |
-| `seller-store-updated` | `{change, networkId?}` | The seller's store changed. |
-| `seller-promotions-updated` | `{change}` | A sale, volume tier or discount code changed. |
+| `seller-product-updated` | `{productId, change}` | One of the signed-in seller's own products: `created`, `updated`, `content-updated`, `published`, `unlisted`, `archived`, `deleted`, `broken`, `sale-started`, `sale-ended`, `blocked` or `unblocked`. |
+| `seller-store-updated` | `{change, networkId?}` | The seller's store: `created`, `updated`, `donation-updated` or `network-access-updated` (with the network's id). |
+| `seller-promotions-updated` | `{change}` | A promotion changed: `sale`, `tier` or `code`. |
 
 - **An event says what changed, never the new state.** Re-read with the matching intent (`get-cart`, `list-products`, …). A missed event costs a stale screen, never a wrong charge.
-- **`subscribe-events` replaces your set** — send the full list each time. `unsubscribe-events` with no `events` drops them all.
-- **Subscribe when your app starts.** A subscription lasts as long as your frame: a reload, or a move to another dock, restarts the app, and it subscribes again.
+- **`subscribe-events` replaces your set** — send the full list each time; `events: []` stops them all, as does `unsubscribe-events` with no `events`. It answers `{success: true, events}`, your whole set now. An unknown name is refused `validation_failed` and nothing changes; a caller that is not an embedded app, with no frame to post to, is refused `unsupported`.
+- **Subscribe every time your app starts.** A subscription lasts until `unsubscribe-events`, or until your frame closes or reloads — and moving the app to another dock reloads it.
 - If your app extends `ValuApplication`, `onCommerceEvent(event)` receives the same events, after the listeners.
 
 ### Without the Package
