@@ -599,12 +599,12 @@
     {
       "id": "Commerce",
       "title": "Commerce",
-      "description": "Products, cart and purchases shared across apps. An app lists its own goods and adds them to the one cart the user checks out with a single QR scan. Prices, totals and payouts are decided server-side — this surface carries ids and quantities only — and paying is never an action here: the buyer scans the code themselves.",
+      "description": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
       "source": "src/Services/Commerce/CommerceService.js",
       "intents": [
         {
           "action": "list-products",
-          "description": "Search the live products available in the user's current network — the buyer's shelf, every seller's goods, not only yours. Products the network or its admins have refused are simply absent from the answer. For the signed-in seller's OWN products, drafts included, use list-seller-products.",
+          "description": "Search the live products available in the user's current network — the buyer's shelf, every seller's goods, not only yours. Products the network or its admins have refused are simply absent from the answer. Each product names its seller, who is a PERSON, not a store: `sellerName` (their profile name), `sellerUserId` (draw their avatar with the users API's getIcon({userId: sellerUserId})) and `sellerIdentityName` (the Verus ID payments go to). `storeName` carries the same person's name, for older callers; show the person, never a store. For the signed-in seller's OWN products, drafts included, use list-seller-products.",
           "availability": [
             "ai",
             "developer"
@@ -617,6 +617,11 @@
                 "name": "query",
                 "type": "string",
                 "description": "free-text search over the product title, or a whole tag"
+              },
+              {
+                "name": "storeId",
+                "type": "string",
+                "description": "only this seller's products: a product's `storeId`, from list-products or get-product. Every user has one store, so this is everything one person sells (My Cart's \"Everything from this store\")"
               },
               {
                 "name": "category",
@@ -660,7 +665,7 @@
         },
         {
           "action": "get-product",
-          "description": "One product with its price, its parts when it is a bundle, its store, its reviews and whether the current user already owns it. `contents` is what the product holds, as a tree to draw: `{type: \"folder\", title, items}`, `{type: \"file\", resourceId, title, kind, contentType, fileSize}` and `{type: \"product\", productId, title}`. `children` is NOT the content: it is only the products a bundle includes, empty for anything else. `items` is the same content as flat database rows, kept for older callers. A file's `resourceId` (and `resource_id` in items) is null unless the user owns the product or sells it: titles and types are the shop window, the ids open the paid files. For something the user bought, use get-purchase-contents.",
+          "description": "One product with its price, its parts when it is a bundle, its seller, its reviews and whether the current user already owns it. The seller is a PERSON, as in list-products: `sellerName`, `sellerUserId` (their avatar through the users API's getIcon) and `sellerIdentityName`; the store record's name is that person too. `contents` is what the product holds, as a tree to draw: `{type: \"folder\", title, items}`, `{type: \"file\", resourceId, title, kind, contentType, fileSize}` and `{type: \"product\", productId, title}`. `children` is NOT the content: it is only the products a bundle includes, empty for anything else. `items` is the same content as flat database rows, kept for older callers. A file's `resourceId` (and `resource_id` in items) is null unless the user owns the product or sells it: titles and types are the shop window, the ids open the paid files. For something the user bought, use get-purchase-contents.",
           "availability": [
             "ai",
             "developer"
@@ -736,7 +741,7 @@
         },
         {
           "action": "get-cart",
-          "description": "Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Read-only: change the cart with `add-to-cart`, or send the user to it with `open-cart`.",
+          "description": "Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Each item's `appId` says which app added it. An app changes only its own rows: `add-to-cart` adds one, `update-cart-item` changes one, `remove-from-cart` and `clear-cart` take them out. Every other app's items are the buyer's to change in My Cart: send them there with `open-cart`.",
           "availability": [
             "ai",
             "developer"
@@ -749,7 +754,7 @@
         },
         {
           "action": "create-product",
-          "description": "Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, and stays with the seller in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.",
+          "description": "Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, so the seller confirms it separately — in the publish dialog an app opens with publish-product, or in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.",
           "availability": [
             "ai",
             "developer"
@@ -1041,7 +1046,7 @@
         },
         {
           "action": "open-cart",
-          "description": "Open My Cart for the user, scoped to your app's items. With `popup` it is drawn over your own app instead of docking My Cart — mid-purchase, that keeps the user where they were.",
+          "description": "Open My Cart for the user, scoped to your app's items. With `popup` it is drawn over your own app instead of docking My Cart — mid-purchase, that keeps the user where they were. It answers as soon as the cart is open; for a Pay button use `checkout`, which opens the same cart and answers with what the buyer did there.",
           "availability": [
             "developer"
           ],
@@ -1059,7 +1064,7 @@
         },
         {
           "action": "open-purchases",
-          "description": "Open the user's order history in My Cart. With `popup` it is drawn over your own app instead of docking My Cart.",
+          "description": "Open the user's order history in My Cart (one order, expanded: `open-order`). With `popup` it is drawn over your own app instead of docking My Cart.",
           "availability": [
             "developer"
           ],
@@ -1077,7 +1082,7 @@
         },
         {
           "action": "open-products",
-          "description": "Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it after `create-product`, or for a \"My products\" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's. With `popup` it is drawn over your own app instead of docking the console.",
+          "description": "Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it for a \"My products\" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's. With `popup` it is drawn over your own app instead of docking the console.",
           "availability": [
             "developer"
           ],
