@@ -35,8 +35,9 @@ What that costs, concretely:
   emits events (`users` emits `update-user` and
   `update-user:following-status:`), and `APIPointer` here has
   `addEventListener`. Nothing connects the two: the application sends no pointer
-  events over the bridge (`api:trigger` carries `on_route` and nothing else),
-  so a subscription from inside an iframe never fires. Those events are real only
+  events over the bridge (`api:trigger` carries `on_route`, and `commerce`
+  for an app that subscribed to Commerce events — never a pointer's), so a
+  subscription from inside an iframe never fires. Those events are real only
   for callers inside the application itself.
 
 ## The inventory

@@ -39,4 +39,16 @@ export class ValuApplication {
    * @param {string} context
    */
   onUpdateRouterContext(context) {};
+
+  /**
+   * Called with a Commerce event the app subscribed to, after the
+   * `ValuApi.ON_COMMERCE` listeners. Subscribe with the
+   * `Commerce.subscribe-events` service intent; nothing arrives otherwise.
+   *
+   * The event says what changed, never the new state: re-read with the
+   * matching intent.
+   * @param {{event: string} & Record<string, any>} event e.g.
+   *   `{event: 'order-updated', orderId, status}`
+   */
+  onCommerceEvent(event) {};
 }

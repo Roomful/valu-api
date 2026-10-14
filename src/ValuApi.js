@@ -77,6 +77,15 @@ export class ValuApi {
   static API_READY = 'api:ready'
   static ON_ROUTE = `on_route`;
 
+  /**
+   * A Commerce event, for an app that subscribed to it with the
+   * `Commerce.subscribe-events` service intent. The listener gets the host's
+   * `{event, ...fields}` verbatim — e.g. `{event: 'order-updated', orderId,
+   * status}`. It says WHAT changed, never the new state: re-read with the
+   * matching intent.
+   */
+  static ON_COMMERCE = 'commerce';
+
   #eventEmitter;
   #transport;
   #lastIntent;
@@ -126,6 +135,11 @@ export class ValuApi {
       if (message.action === ValuApi.ON_ROUTE) {
         this.#eventEmitter.emit(ValuApi.ON_ROUTE, message.data);
         this.#applicationInstance?.onUpdateRouterContext(message.data);
+      } else if (message.action === ValuApi.ON_COMMERCE) {
+        this.#eventEmitter.emit(ValuApi.ON_COMMERCE, message.data);
+        // Optional: an app registered as a plain object, or written before
+        // the hook existed, may not have it.
+        this.#applicationInstance?.onCommerceEvent?.(message.data);
       }
     });
 
