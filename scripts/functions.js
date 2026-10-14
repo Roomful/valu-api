@@ -91,7 +91,7 @@ export const RETURNS = {
   'CMS.resource-delete': { type: 'void', description: 'The resource was deleted, or detached from the prop/post that held it.' },
 
   // --- Commerce ------------------------------------------------------------
-  'Commerce.list-products': { type: '{products: object[], total: number}', description: 'The buyer-facing catalogue page for the calling application.' },
+  'Commerce.list-products': { type: '{products: object[], total: number}', description: 'A page of the buyer\'s shelf in the user\'s network — every seller\'s live goods, not only the calling application\'s.' },
   'Commerce.get-product': { type: '{product: object}', description: 'One catalogue product.' },
   'Commerce.list-categories': { type: '{categories: object[]}', description: 'The platform category list.' },
   'Commerce.add-to-cart': { type: '{items: object[]}', description: 'The cart after the addition.' },
