@@ -529,9 +529,11 @@ declare module '@arkeytyp/valu-api' {
      * Why each of those is not a function here:
      * `'no-rpc'` — nothing but the application process can answer it;
      * `'valu-guru'` — the Valu Guru server answers it, on its own socket,
-     * which this package does not hold.
+     * which this package does not hold;
+     * `'not-ported'` — the Roomful socket answers it, and this package does
+     * not implement it yet.
      */
-    export const APPLICATION_INTENT_REASON: Readonly<Record<string, 'no-rpc' | 'valu-guru'>>;
+    export const APPLICATION_INTENT_REASON: Readonly<Record<string, 'no-rpc' | 'valu-guru' | 'not-ported'>>;
 
     /** Resolve `Users.get`, `Users.getUser`, `Users.get_user` or the tool name. */
     export function findDescriptor(name: string): ServiceDescriptor | undefined;
