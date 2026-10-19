@@ -97,7 +97,7 @@ npm install jose
 ```js
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
-const ISSUER = process.env.VALU_ISSUER;        // e.g. https://valuguru.texpo.io
+const ISSUER = process.env.VALU_ISSUER;        // e.g. https://valuguru.app
 const MY_AUDIENCE = 'notes';                   // YOUR app's ADDRESS (see §1)
 const JWKS = createRemoteJWKSet(new URL(`${ISSUER}/.well-known/jwks.json`));
 

@@ -86,7 +86,7 @@ export function normalizeAddress(address) {
 /**
  * @typedef {object} AppApiClientOptions
  * @property {string} gatewayBase The Valu Guru server's origin, e.g.
- *   `https://valuguru.texpo.io`. The Portal's REST API tab prints the full
+ *   `https://valuguru.app`. The Portal's REST API tab prints the full
  *   gateway URL for an app; this is that URL up to `/api/apps/v1`.
  * @property {string | (() => string | Promise<string>)} network The network id
  *   every call is scoped to, or a function that answers it.

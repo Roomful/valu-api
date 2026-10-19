@@ -741,7 +741,7 @@ declare module '@arkeytyp/valu-api' {
     export function normalizeAddress(address: string): string;
 
     export interface AppApiClientOptions {
-        /** The Valu Guru server origin, e.g. `https://valuguru.texpo.io`. */
+        /** The Valu Guru server origin, e.g. `https://valuguru.app`. */
         gatewayBase: string;
         /** The network id every call is scoped to, or a function answering it. */
         network: string | (() => string | Promise<string>);
