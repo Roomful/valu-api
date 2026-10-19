@@ -138,6 +138,10 @@ for (const key of applicationOnly) {
 }
 applicationOnlyIntents.sort((a, b) => a.key.localeCompare(b.key));
 
+/** How many reasons there are, in words, for the prose that names them. */
+const reasonCount = ['no', 'one', 'two', 'three', 'four', 'five'][APPLICATION_ONLY_GROUPS.length]
+  ?? String(APPLICATION_ONLY_GROUPS.length);
+
 // The functions this package declares itself (scripts/extensions.js). They are
 // service functions in every respect that matters at runtime — the only thing
 // that separates them is `declaredBy`, and the only thing that separates them
@@ -185,11 +189,13 @@ export const SERVICE_DESCRIPTORS = ${JSON.stringify(descriptors, null, 2)};
 /** Declared intents the Valu Social application serves and this package does
  * not — asked for by name over the postMessage bridge, never functions here.
  * \`APPLICATION_INTENT_REASON\` says why each one is out: \`'no-rpc'\` (nothing
- * but the application process can answer it) or \`'valu-guru'\` (the Valu Guru
- * server answers it, on a socket this package does not hold). */
+ * but the application process can answer it), \`'valu-guru'\` (the Valu Guru
+ * server answers it, on a socket this package does not hold) or
+ * \`'not-ported'\` (the Roomful socket answers it, and this package does not
+ * implement it yet). */
 export const APPLICATION_ONLY_INTENTS = ${JSON.stringify(applicationOnlyIntents.map((i) => i.key), null, 2)};
 
-/** @type {Record<string, 'no-rpc'|'valu-guru'>} */
+/** @type {Record<string, 'no-rpc'|'valu-guru'|'not-ported'>} */
 export const APPLICATION_INTENT_REASON = ${JSON.stringify(
   Object.fromEntries(applicationOnlyIntents.map((i) => [i.key, i.reason])), null, 2)};
 
@@ -356,7 +362,7 @@ parity += `
 ## Declared, and deliberately not here
 
 ${applicationOnlyIntents.length} intents in the application's manifest get no descriptor, no method
-and no tool definition, for one of two reasons.
+and no tool definition, for one of ${reasonCount} reasons.
 
 They are not unreachable. An iframe application asks for any intent **by name**
 over the postMessage bridge, and the application's own registry (not this
@@ -555,8 +561,13 @@ search run on the Valu Guru server's own \`data_request\` channel, which is a
 different server with a different envelope and a different auth; this package
 holds no connection to it and declares none of those intents. They are the Valu
 Social application's to serve, asked for by name over the bridge
-([api-pointers.md](api-pointers.md)). That is why ${absentServices.map((id) => `\`${id}\``).join(', ')}
-have no functions here: every intent they declare is one of those.
+([api-pointers.md](api-pointers.md)).
+
+${absentServices.map((id) => `\`${id}\``).join(', ')} have no functions here at all: every
+intent they declare is one the application serves itself — a Valu Guru server op
+like these, one only the application process can answer, or a socket call this
+package has not ported yet. [api-pointers.md](api-pointers.md) gives the reason
+for each.
 
 ## What a runtime must supply
 
@@ -731,8 +742,9 @@ What that costs, concretely:
   emits events (\`users\` emits \`update-user\` and
   \`update-user:following-status:\`), and \`APIPointer\` here has
   \`addEventListener\`. Nothing connects the two: the application sends no pointer
-  events over the bridge (\`api:trigger\` carries \`on_route\` and nothing else),
-  so a subscription from inside an iframe never fires. Those events are real only
+  events over the bridge (\`api:trigger\` carries \`on_route\`, and \`commerce\`
+  for an app that subscribed to Commerce events — never a pointer's), so a
+  subscription from inside an iframe never fires. Those events are real only
   for callers inside the application itself.
 
 ## The inventory
@@ -840,7 +852,7 @@ per intent would be a copy of a list that moves without us.
 
 ${applicationOnlyIntents.length} intents in the manifest snapshot can ONLY be run this way, so
 [socket-functions.md](socket-functions.md) has no function for any of them.
-They fall into two groups, and the difference matters when you are deciding
+They fall into ${reasonCount} groups, and the difference matters when you are deciding
 whether to wait for an SDK function or wire the intent now.
 `;
 

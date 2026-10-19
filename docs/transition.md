@@ -7,9 +7,9 @@ checked rather than believed.
 
 | repository | commit measured | role |
 |---|---|---|
-| `valu-api` | `0d10df8` + this change | this package — one implementation of the platform's **socket** service surface |
-| `valusocial-web` | `a76546c6` + this change | declares the manifest, serves all 92 intents in the browser, hosts framed apps |
-| `valu-guru-server` | `7a7f985` | runs headless agents over the Roomful socket; **owns** the `valuguru.*` API |
+| `valu-api` | `4923353` + this change | this package — one implementation of the platform's **socket** service surface |
+| `valusocial-web` | `ac1f3dee6` (the embedded-commerce-parity integration branch) | declares the manifest, serves its intents in the browser, hosts framed apps |
+| `valu-guru-server` | `6752acf` (`src/valu-tools/` unchanged on `main` at `53a43e6`) | runs headless agents over the Roomful socket; **owns** the `valuguru.*` API |
 
 **The Valu Guru server has adopted this package** (2026-09-30): its eight
 hand-written socket-wrapper modules are deleted and its registry builds those
@@ -23,13 +23,13 @@ at one registration point. The section below is what it did and what it left.
 
 | | count |
 |---|---|
-| intents the platform declares | **92** |
-| functions in this package | **65** — 64 of the declared 92 + 1 it declares itself |
-| declared intents excluded | **28** — 15 only the application process can answer, 13 the Valu Guru server answers |
+| intents the platform declares | **133** |
+| functions in this package | **65** — 64 of the declared 133 + 1 it declares itself |
+| declared intents excluded | **69** — 33 only the application process can answer, 33 the Valu Guru server answers, 3 the Roomful socket answers and this package has not ported yet |
 | server tools in valu-guru-server | **39** — the same 39 as before the adoption |
 | … now served by this package | **31** |
 | … still the server's own | **8** — 3 TextChat, curl, Torah ×2, timezone, image |
-| intents the app exposes to the AI | **60** — this package serves **48** |
+| intents the app exposes to the AI | **63** — this package serves **48** |
 | server-adoptable functions not yet offered there | **31** |
 
 The vendored manifest snapshot is byte-identical to the app's live
@@ -40,9 +40,17 @@ for here. There is no drift.
 
 This package holds the **Roomful platform socket** and nothing else. The
 earlier catalogue also carried a `valuguru` channel: a second socket, to the
-Valu Guru server's `data_request` endpoint, for the ten Commerce intents, the
-knowledge-base search and the two chat-history reads. Those **13 intents are no
-longer in the catalogue** — no descriptor, no method, no tool definition.
+Valu Guru server's `data_request` endpoint, for the Commerce intents, the
+knowledge-base search and the two chat-history reads. **None of those intents
+is in the catalogue any more** — no descriptor, no method, no tool definition.
+
+Nor is there a count of them to keep here. The Commerce service grows in the
+application's manifest, and every intent it adds is, like these, served by the
+application and never a function in this package. The current list — with
+params, and why the application serves each one rather than this package — is
+in [api-pointers.md](api-pointers.md), generated from
+the vendored manifest snapshot (`manifests/service-manifests.snapshot.json`)
+and as current as the last `npm run sync:manifests`.
 
 The reason is what this package is for. It is the user-facing platform library,
 installed by the Valu Social build and by framed applications; a second
@@ -52,16 +60,17 @@ have adopted those functions anyway.
 
 What it changes per consumer:
 
-- **`valu-guru-server`** — nothing. It never offered one of the 13: `sdk.ts`
+- **`valu-guru-server`** — nothing. It never offered one of them: `sdk.ts`
   refused them at import, and its own `valuguru.commerce.*` and `rag_search`
   handlers are untouched. It is still pinned to a commit that predates this
   removal; bumping the pin changes none of its 39 tools.
-- **`valusocial-web`** — it keeps serving all 13 itself, as it does today
+- **`valusocial-web`** — it keeps serving all of them itself, as it does today
   (`src/Services/Commerce/CommerceDataService.js`, the AiGuru socket service).
   There is no SDK function to delegate them to and there will not be one.
 - **A framed application** — unchanged: it asks for them by name over the
-  bridge, exactly as it asks for a dock to open. The 13 are listed with their
-  params in [api-pointers.md](api-pointers.md).
+  bridge, exactly as it asks for a dock to open, and an intent the application
+  adds works the day it ships. They are listed with their params in
+  [api-pointers.md](api-pointers.md).
 
 ## The split by consumer
 
@@ -228,19 +237,22 @@ and `get-thumbnail-url` has a known delta), `Http` (same call, different CORS
 story), and `Users.current` (the app has the answer in `baseUser`; the package
 spends an RPC on it because headless has no `baseUser`).
 
-- All 92 intents are served today: 87 through a service's `onNewIntent`, and
+- All 92 intents were served at `a76546c6`: 87 through a service's `onNewIntent`, and
   the five `AiGuru` dock intents (`open`, `close`, `has-application`,
   `get-applications`, `is-application-loaded`) as `builtin` tools in
   `AiGuruTools.js`, dispatched to `ApplicationCenterStore` rather than through
   a service at all.
-- **Nothing about the app's intent registry changes.** The 28 it keeps serving
-  itself are the 28 this package never declares, so there is no list here to
-  keep in step with it and no method to remove when the app adds an intent.
-- 60 intents carry `availability: ['ai']`. This package serves **48**. The 12 it
-  does not are the ten Commerce intents — the Valu Guru server's own catalogue,
-  which the app reaches over that server's socket — and
-  `DataProvider.pick-single` / `pick-multiple`, which render the application's
-  own UI and return the user's choice.
+- **Nothing about the app's intent registry changes.** The intents it keeps
+  serving itself are exactly the ones this package never declares, so there is
+  no list here to keep in step with it and no method to remove when the app
+  adds an intent.
+- 63 intents carry `availability: ['ai']`. This package serves **48**. The 15 it
+  does not are the Commerce intents open to the AI — the Valu Guru server's own
+  catalogue, which the app reaches over that server's socket —
+  `DataProvider.pick-single` / `pick-multiple` and the `RoomPoints` editor
+  (`create-room-point` / `edit-room-point`), which render the application's
+  own UI and return the user's choice, and `RoomPoints.list-room-points`, a
+  Roomful-socket read this package has not ported yet.
 - The delegation point is each service's `onNewIntent`, and it now has one
   wrapper rather than an edit per service — `installSdkIntents`, installed at
   service registration. Taking another service is a line in

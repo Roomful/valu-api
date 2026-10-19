@@ -74,6 +74,51 @@ test('api:trigger on_route emits ON_ROUTE and updates the router context', () =>
   assert.deepEqual(seen, ['event:/rooms/1', 'app:/rooms/1']);
 });
 
+// The host posts these to an app that subscribed with the
+// `Commerce.subscribe-events` service intent. The event names and their fields
+// are the host's (its Service_Manifests), so they are passed through verbatim.
+test('api:trigger commerce emits ON_COMMERCE and reaches onCommerceEvent', () => {
+  const { api, target } = setup();
+  const seen = [];
+  api.addEventListener(ValuApi.ON_COMMERCE, (data) => seen.push(['event', data]));
+  api.setApplication({ onCreate: async () => {}, onCommerceEvent: (data) => seen.push(['app', data]) });
+  target.ready();
+
+  target.deliver({
+    name: 'api:trigger',
+    message: { action: 'commerce', data: { event: 'order-updated', orderId: 'o-1', status: 'paid' } },
+  });
+
+  assert.deepEqual(seen, [
+    ['event', { event: 'order-updated', orderId: 'o-1', status: 'paid' }],
+    ['app', { event: 'order-updated', orderId: 'o-1', status: 'paid' }],
+  ]);
+});
+
+test('a commerce event reaches listeners when the application has no onCommerceEvent', () => {
+  const { api, target } = setup();
+  const seen = [];
+  api.addEventListener(ValuApi.ON_COMMERCE, (data) => seen.push(data));
+  // An app written before the hook existed, registered as a plain object.
+  api.setApplication({ onCreate: async () => {}, onUpdateRouterContext: () => {} });
+  target.ready();
+
+  target.deliver({ name: 'api:trigger', message: { action: 'commerce', data: { event: 'cart-updated', count: 2 } } });
+
+  assert.deepEqual(seen, [{ event: 'cart-updated', count: 2 }]);
+});
+
+test('a route change is not a commerce event', () => {
+  const { api, target } = setup();
+  const seen = [];
+  api.addEventListener(ValuApi.ON_COMMERCE, (data) => seen.push(data));
+  target.ready();
+
+  target.deliver({ name: 'api:trigger', message: { action: 'on_route', data: '/rooms/1' } });
+
+  assert.deepEqual(seen, []);
+});
+
 test('messages not addressed to valuApi are ignored', () => {
   const { api, target } = setup();
   target.deliver({ target: 'somethingElse', name: 'api:ready', message: { applicationId: 'x' } });

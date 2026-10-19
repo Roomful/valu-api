@@ -10,6 +10,12 @@ declare module '@arkeytyp/valu-api' {
     export class ValuApi {
         static API_READY: string;
         static ON_ROUTE : string;
+        /**
+         * A Commerce event the app subscribed to with the
+         * `Commerce.subscribe-events` service intent. Listeners receive a
+         * {@link CommerceEvent}.
+         */
+        static ON_COMMERCE: string;
 
         /**
          * @param options Defaults to the postMessage bridge — the connection an
@@ -160,6 +166,42 @@ declare module '@arkeytyp/valu-api' {
          * @param context - updated application route
          */
         onUpdateRouterContext(context: string): void;
+
+        /**
+         * Called with a Commerce event the app subscribed to, after the
+         * `ValuApi.ON_COMMERCE` listeners. Subscribe with the
+         * `Commerce.subscribe-events` service intent; nothing arrives otherwise.
+         *
+         * Optional on an app that does not extend this class.
+         * @param event - what changed, never the new state: re-read with the matching intent
+         */
+        onCommerceEvent(event: CommerceEvent): void;
+    }
+
+    /**
+     * The Commerce event names the platform posts today. The Valu Social
+     * application's manifest is the authority (`Commerce.subscribe-events`),
+     * so any other string is accepted too: a name added after this package was
+     * published still arrives, it just does not autocomplete.
+     */
+    export type CommerceEventName =
+        | 'cart-updated'
+        | 'order-updated'
+        | 'delivery-updated'
+        | 'catalogue-updated'
+        | 'seller-product-updated'
+        | 'seller-store-updated'
+        | 'seller-promotions-updated';
+
+    /**
+     * What an `ON_COMMERCE` listener and `onCommerceEvent` receive: the event
+     * name and its fields, as the host posted them — e.g.
+     * `{event: 'cart-updated', count}`, `{event: 'order-updated', orderId, status}`,
+     * `{event: 'catalogue-updated', productId, change}` (`productId: null` = re-read the shelf).
+     */
+    export interface CommerceEvent {
+        event: CommerceEventName | (string & {});
+        [field: string]: any;
     }
     // ---------------------------------------------------------------------
     // The SDK surface (Phase 1). See docs/callbacks-policy.md for the
@@ -487,9 +529,11 @@ declare module '@arkeytyp/valu-api' {
      * Why each of those is not a function here:
      * `'no-rpc'` — nothing but the application process can answer it;
      * `'valu-guru'` — the Valu Guru server answers it, on its own socket,
-     * which this package does not hold.
+     * which this package does not hold;
+     * `'not-ported'` — the Roomful socket answers it, and this package does
+     * not implement it yet.
      */
-    export const APPLICATION_INTENT_REASON: Readonly<Record<string, 'no-rpc' | 'valu-guru'>>;
+    export const APPLICATION_INTENT_REASON: Readonly<Record<string, 'no-rpc' | 'valu-guru' | 'not-ported'>>;
 
     /** Resolve `Users.get`, `Users.getUser`, `Users.get_user` or the tool name. */
     export function findDescriptor(name: string): ServiceDescriptor | undefined;

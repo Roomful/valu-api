@@ -26,7 +26,7 @@ test('the catalogue matches the parity target', () => {
     declared: 64,
     sdkDeclared: 1,
     serviceFunctions: 65,
-    applicationOnly: 28,
+    applicationOnly: 69,
     remaining: 33,
     serverOnly: 7,
   });
@@ -42,8 +42,8 @@ test('every descriptor in the catalogue is a function this package can run', () 
   assert.equal(isServiceFunction('Users.teleport'), false);
 });
 
-test('the 28 application-served intents are declared by the app and absent here', () => {
-  assert.equal(APPLICATION_ONLY_INTENTS.length, 28);
+test('the 69 application-served intents are declared by the app and absent here', () => {
+  assert.equal(APPLICATION_ONLY_INTENTS.length, 69);
   assert.deepEqual([...APPLICATION_ONLY_INTENTS].sort(), [...APPLICATION_ONLY].sort());
   for (const key of APPLICATION_ONLY_INTENTS) {
     // No descriptor, no method, no tool definition, no alias: a caller who
@@ -76,7 +76,7 @@ test('no trace of the Valu Guru server is left in the catalogue', () => {
   const guruIntents = Object.entries(APPLICATION_INTENT_REASON)
     .filter(([, reason]) => reason === 'valu-guru')
     .map(([key]) => key);
-  assert.equal(guruIntents.length, 13, '10 Commerce + the RAG search + 2 chat histories');
+  assert.equal(guruIntents.length, 33, '30 Commerce + the RAG search + 2 chat histories');
   assert.ok(guruIntents.includes('Commerce.get-cart'));
   assert.ok(guruIntents.includes('AiGuru.query-knowledge-base'));
 });
@@ -84,7 +84,7 @@ test('no trace of the Valu Guru server is left in the catalogue', () => {
 test('every excluded intent says why it is excluded', () => {
   assert.deepEqual(Object.keys(APPLICATION_INTENT_REASON).sort(), [...APPLICATION_ONLY].sort());
   const reasons = new Set(APPLICATION_ONLY_GROUPS.map((g) => g.reason));
-  assert.deepEqual([...reasons].sort(), ['no-rpc', 'valu-guru']);
+  assert.deepEqual([...reasons].sort(), ['no-rpc', 'not-ported', 'valu-guru']);
   for (const [key, reason] of Object.entries(APPLICATION_INTENT_REASON)) {
     assert.ok(reasons.has(reason), `${key} has reason "${reason}"`);
   }
@@ -111,7 +111,7 @@ test('every manifest intent is either a function here or explicitly excluded', a
       assert.ok(findDescriptor(key) || excluded.has(key), `${key} is neither implemented nor excluded`);
     }
   }
-  assert.equal(declared, 92, "the app's manifest declares 92 intents");
+  assert.equal(declared, 133, "the app's manifest declares 133 intents");
 });
 
 test('an SDK-declared function is a service function with its provenance on it', () => {
@@ -129,7 +129,7 @@ test('an SDK-declared function is a service function with its provenance on it',
 
 test('every service in the catalogue has at least one function', () => {
   const services = listServices();
-  assert.equal(services.length, 16, 'AiGuru and Commerce are the application\'s entirely');
+  assert.equal(services.length, 16, 'AiGuru, Commerce, RoomPoints and the rest have none: the application serves them entirely');
   for (const service of services) {
     assert.ok(listDescriptors({ service }).length > 0, service);
   }

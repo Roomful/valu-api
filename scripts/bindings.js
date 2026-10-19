@@ -18,7 +18,7 @@
 // package.
 //
 // Counts asserted by test/catalog.test.js — 64 catalogue functions from the
-// manifest (92 declared − 28 the application serves itself) + 1 this package
+// manifest (133 declared − 69 the application serves itself) + 1 this package
 // declares.
 // ===========================================================================
 
@@ -26,19 +26,26 @@
  * Declared intents this package does NOT put in its catalogue, grouped by the
  * reason it does not.
  *
- * Two reasons, and they are different enough to be worth separating:
+ * Three reasons, and they are different enough to be worth separating:
  *
- *   no-rpc     nothing can answer them but the application process itself —
- *              window management, pickers that render application UI, reads of
- *              the application's own memory. There is no RPC to call.
- *   valu-guru  the Valu Guru server answers them, over ITS socket. This
- *              package is the user-facing library for the Valu platform: it
- *              holds one connection, the Roomful one, and it carries no
- *              knowledge of the Valu Guru server, its op catalogue or its
- *              envelope. The Valu Social application has that connection and
- *              serves these intents over the bridge.
+ *   no-rpc      nothing can answer them but the application process itself —
+ *               window management, pickers and consent dialogs that render
+ *               application UI, subscriptions held for the calling frame, reads
+ *               of the application's own memory. There is no RPC to call
+ *               without the user or the frame.
+ *   valu-guru   the Valu Guru server answers them, over ITS socket. This
+ *               package is the user-facing library for the Valu platform: it
+ *               holds one connection, the Roomful one, and it carries no
+ *               knowledge of the Valu Guru server, its op catalogue or its
+ *               envelope. The Valu Social application has that connection and
+ *               serves these intents over the bridge.
+ *   not-ported  the Roomful socket DOES answer them, so each could be a
+ *               function here, and none is yet. A descriptor is a promise that
+ *               this package runs it; until a port lands with a parity test,
+ *               the application serves them. The one reason that is a backlog
+ *               rather than a boundary.
  *
- * Either way the intent is still reachable — by name, over the postMessage
+ * Every way the intent is still reachable — by name, over the postMessage
  * bridge, like any other intent the application registers
  * (docs/api-pointers.md). That is the whole argument for not declaring it
  * here: the application's registry is the authority and it moves without this
@@ -55,7 +62,9 @@ export const APPLICATION_ONLY_GROUPS = [
     reason: 'no-rpc',
     title: 'Only the application process can answer them',
     why:
-      'No RPC serves any of these: they open a dock, render a picker, or read the '
+      'Nothing but the application process can answer these: they open a dock or one of '
+      + 'its screens, draw a picker or a consent dialog the user must answer before anything '
+      + 'is written, hold an event subscription for the calling frame, or read the '
       + "application's own memory. A function here would be a method that fails "
       + 'everywhere this library is meant to run.',
     keys: [
@@ -75,10 +84,38 @@ export const APPLICATION_ONLY_GROUPS = [
       'DataProvider.pick-multiple',
       // Reads the application's own log buffer.
       'Logging.get-logs',
-      // "open" = navigate the application to a screen.
+      // "open" = navigate the application to a screen, or draw one over the
+      // calling app's pane.
       'Commerce.open-cart',
       'Commerce.open-purchases',
       'Commerce.open-products',
+      'Commerce.open-order',
+      'Commerce.open-purchase-in-media',
+      'Commerce.preview-purchase',
+      // Payment is My Cart's, always: checkout opens it over the app and
+      // resolves when the buyer closes it. No intent pays.
+      'Commerce.checkout',
+      // Consent dialogs: the host draws them over the calling app's pane and
+      // nothing is written until the user answers (update-discount-code asks
+      // only when the change is not a pure stop, but it may ask).
+      'Commerce.rate-product',
+      'Commerce.set-donation-tiers',
+      'Commerce.publish-product',
+      'Commerce.unlist-product',
+      'Commerce.archive-product',
+      'Commerce.delete-product',
+      'Commerce.set-sale',
+      'Commerce.set-volume-tier',
+      'Commerce.create-discount-code',
+      'Commerce.update-discount-code',
+      // Event subscriptions are held for the calling FRAME and delivered as
+      // api:trigger posts to it; a caller with no frame is refused.
+      'Commerce.subscribe-events',
+      'Commerce.unsubscribe-events',
+      // The room point editor: opens the application's modal and BLOCKS until
+      // the user saves or cancels, as the DataProvider pickers do.
+      'RoomPoints.create-room-point',
+      'RoomPoints.edit-room-point',
     ],
   },
   {
@@ -104,6 +141,29 @@ export const APPLICATION_ONLY_GROUPS = [
       'Commerce.list-my-products',
       'Commerce.list-products',
       'Commerce.update-product',
+      // Buyer: purchases, the app's own cart rows, promo preview, display, orders.
+      'Commerce.list-purchases',
+      'Commerce.get-purchase-contents',
+      'Commerce.update-cart-item',
+      'Commerce.remove-from-cart',
+      'Commerce.clear-cart',
+      'Commerce.preview-promo',
+      'Commerce.get-display',
+      'Commerce.list-orders',
+      'Commerce.get-order',
+      // Seller: store, network access, products, promotions that only stop a
+      // discount, analytics — the writes that need no consent.
+      'Commerce.list-seller-products',
+      'Commerce.get-my-store',
+      'Commerce.create-store',
+      'Commerce.list-network-access',
+      'Commerce.request-network-access',
+      'Commerce.quote-bundle',
+      'Commerce.list-promotions',
+      'Commerce.end-sale',
+      'Commerce.remove-volume-tier',
+      'Commerce.delete-discount-code',
+      'Commerce.get-analytics',
       // AiGuruService.queryKnowledgeBase -> {type: 'rag_search'}.
       'AiGuru.query-knowledge-base',
       // AiGuruService/AgentsService in-memory session and agent message lists.
@@ -111,12 +171,29 @@ export const APPLICATION_ONLY_GROUPS = [
       'AiGuru.get-agent-history',
     ],
   },
+  {
+    reason: 'not-ported',
+    title: 'The Roomful socket answers them, and this package does not yet',
+    why:
+      'These ride the Roomful socket — `room:getRoom`, `room:addCameraPosition` / '
+      + '`room:updateCameraPosition`, `room:deleteCameraPosition` (valusocial-web '
+      + 'src/Services/RoomPoints/RoomPointsApi.js) — so each could be a function here, as the '
+      + '`Rooms` intents are. None is yet: a function in this catalogue is a promise that the '
+      + 'package runs it itself, and these carry the application\'s point normalisation and, '
+      + 'for the writes, its room edit-permission check. Until a port lands with a parity '
+      + 'test, the Valu Social application serves them over the bridge.',
+    keys: [
+      'RoomPoints.list-room-points',
+      'RoomPoints.save-room-point',
+      'RoomPoints.delete-room-point',
+    ],
+  },
 ];
 
 /** Every excluded intent, flat — what the generator filters by. */
 export const APPLICATION_ONLY = APPLICATION_ONLY_GROUPS.flatMap((g) => g.keys);
 
-/** Why each one is excluded: `'no-rpc'` or `'valu-guru'`. */
+/** Why each one is excluded: `'no-rpc'`, `'valu-guru'` or `'not-ported'`. */
 export const APPLICATION_ONLY_REASON = Object.fromEntries(
   APPLICATION_ONLY_GROUPS.flatMap((g) => g.keys.map((k) => [k, g.reason])),
 );

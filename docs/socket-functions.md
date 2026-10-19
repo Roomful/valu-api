@@ -44,8 +44,13 @@ search run on the Valu Guru server's own `data_request` channel, which is a
 different server with a different envelope and a different auth; this package
 holds no connection to it and declares none of those intents. They are the Valu
 Social application's to serve, asked for by name over the bridge
-([api-pointers.md](api-pointers.md)). That is why `AiGuru`, `Application`, `Commerce`, `DataProvider`, `Logging`
-have no functions here: every intent they declare is one of those.
+([api-pointers.md](api-pointers.md)).
+
+`AiGuru`, `Application`, `Commerce`, `DataProvider`, `Logging`, `RoomPoints` have no functions here at all: every
+intent they declare is one the application serves itself — a Valu Guru server op
+like these, one only the application process can answer, or a socket call this
+package has not ported yet. [api-pointers.md](api-pointers.md) gives the reason
+for each.
 
 ## What a runtime must supply
 

@@ -185,6 +185,143 @@ const intent = new Intent('ApplicationStorage', 'resource-search', {
 const result = await valuApi.callService(intent);
 ```
 
+## Commerce
+
+Your app can sell through Valu Social's shared cart, show the user what they bought, and run the signed-in seller's store — its products, promotions and sales numbers.
+All of it is the **`Commerce` service**, and you reach it with **service intents over the bridge**: `callService(new Intent('Commerce', action, params))`.
+Commerce is not one of this package's service functions (see [The service SDK](#the-service-sdk) below) — the Valu Social application serves it, so you ask for it by name.
+
+### Example: Sell a Product
+
+```javascript
+import { Intent } from "@arkeytyp/valu-api";
+
+const { products } = await valuApi.callService(
+  new Intent('Commerce', 'list-products', { query: 'starter', sort: 'popular' })
+);
+
+const added = await valuApi.callService(
+  new Intent('Commerce', 'add-to-cart', { productId: products[0].id, qty: 1 })
+);
+if (added.success === false) {
+  console.warn(added.code, added.error); // e.g. not_available_in_network, out_of_stock
+}
+
+// Unlock what the user owns: entitlements are the receipt your app can trust.
+const { entitlements } = await valuApi.callService(
+  new Intent('Commerce', 'check-entitlements', { productIds: [products[0].id] })
+);
+if (entitlements[products[0].id]) unlockPurchase();
+```
+
+- **A refusal is an answer, not an exception:** `{success: false, code, error}`. Branch on `code`.
+- **Some calls ask the user first.** Anything that costs them money, gives goods away, cannot be undone or speaks for them in public — publishing a product, starting a sale, creating a discount code, rating a product — opens a platform dialog over your app, and the call resolves when they answer. If they close it you get `code: 'cancelled'` and nothing was written: do not ask again on your own. While another dialog from your app is open the call is refused `busy`, and where the platform cannot draw one, `unsupported`. Your app cannot draw, reach or click that dialog.
+- **Cart writes touch your app's own rows only.** `update-cart-item` and `remove-from-cart` refuse another app's row with `not_yours`, and `clear-cart` removes only yours (saved-for-later included). Reading the cart (`get-cart`) shows everything in it, from every app.
+- **The seller is a person, not a store.** Buyers see the store's owner: show `get-my-store`'s `sellerName`, and draw the avatar from `sellerUserId`.
+- **The list of actions moves without this package.** The Valu Social application's manifest is the authority: an action it adds works through `callService` as it is, with no new version of this package. [docs/api-pointers.md](docs/api-pointers.md) lists the Commerce intents with their params as of the last manifest sync.
+
+### Paying: Always in My Cart
+
+**Your app never takes a payment.** Every payment goes through My Cart, always — a free order too — so no intent creates an order, pays one or shows a payment code.
+To let the buyer pay for what your app put in the cart, hand them to My Cart with `Commerce.checkout`:
+
+```javascript
+const result = await valuApi.callService(
+  new Intent('Commerce', 'checkout', { promoCode: 'SPRING' })
+);
+
+if (result.success === false) {
+  // A refusal, and nothing opened. 'empty': none of your items is selected in the cart.
+  showRefusal(result.code);
+} else if (result.outcome === 'paid') {
+  unlockPurchase();                    // a free order counts as paid
+} else if (result.outcome === 'pending') {
+  waitForPayment(result.orderId);      // follow it with get-order or the order-updated event
+}
+// 'cancelled' — the order will not be paid (cancelled, expired or failed: `status` says
+//               which), and its items are back in the cart
+// 'dismissed' — the buyer closed My Cart without making an order
+// 'opened'    — My Cart docked instead of opening over your app; there is nothing to wait for
+```
+
+`checkout` opens My Cart's own cart over your app, showing your items with the promo code typed in and applied.
+The buyer presses Pay and scans there — only My Cart creates the order — and the call resolves with `{success: true, outcome, orderId?, status?}` when they close it.
+With `popup: false`, or where there is no popup to draw, My Cart docks instead and the call resolves at once with `outcome: 'opened'`.
+A second `checkout` while one is open replaces it.
+To simply show the cart, use `Commerce.open-cart`; to send the buyer to one order — to resume a pending payment, or read a receipt — use `Commerce.open-order`.
+
+### Commerce Events
+
+Your app can react when the cart, an order, the network's shelf or the seller's own store changes.
+Events are **opt-in**: listen for `ValuApi.ON_COMMERCE`, then subscribe to the events you want with `Commerce.subscribe-events`.
+
+```javascript
+import { ValuApi, Intent } from "@arkeytyp/valu-api";
+
+valuApi.addEventListener(ValuApi.ON_COMMERCE, ({ event, ...data }) => {
+  if (event === 'order-updated') refreshOrder(data.orderId);
+  if (event === 'catalogue-updated') refreshShelf();
+});
+
+// Every time the app starts, once connected (ValuApi.API_READY):
+await valuApi.callService(new Intent('Commerce', 'subscribe-events', {
+  events: ['catalogue-updated', 'order-updated'],
+}));
+```
+
+| Event | Data | When |
+|-------|------|------|
+| `cart-updated` | `{count}` | The cart changed. `count` is the badge number — never which items. |
+| `order-updated` | `{orderId, status}` | An order holding at least one of your app's items changed: `pending_payment`, `paid`, `failed`, `expired`, `cancelled` or `deleted`. Orders without your items are never sent to you. |
+| `delivery-updated` | `{orderId, status}` | That order's files: `delivered` (they are in the buyer's Media), `unavailable` or `failed`. |
+| `catalogue-updated` | `{productId, change}` | A product was `added` to, `updated` on or `removed` from this network's shelf. `productId: null` means re-read the whole shelf. |
+| `seller-product-updated` | `{productId, change}` | One of the signed-in seller's own products: `created`, `updated`, `content-updated`, `published`, `unlisted`, `archived`, `deleted`, `broken`, `sale-started`, `sale-ended`, `blocked` or `unblocked`. |
+| `seller-store-updated` | `{change, networkId?}` | The seller's store: `created`, `updated`, `donation-updated` or `network-access-updated` (with the network's id). |
+| `seller-promotions-updated` | `{change}` | A promotion changed: `sale`, `tier` or `code`. |
+
+- **An event says what changed, never the new state.** Re-read with the matching intent (`get-cart`, `list-products`, …). A missed event costs a stale screen, never a wrong charge.
+- **`subscribe-events` replaces your set** — send the full list each time; `events: []` stops them all, as does `unsubscribe-events` with no `events`. It answers `{success: true, events}`, your whole set now. An unknown name is refused `validation_failed` and nothing changes; a caller that is not an embedded app, with no frame to post to, is refused `unsupported`.
+- **Subscribe every time your app starts.** A subscription lasts until `unsubscribe-events`, or until your frame closes or reloads — and moving the app to another dock reloads it.
+- If your app extends `ValuApplication`, `onCommerceEvent(event)` receives the same events, after the listeners.
+
+### Without the Package
+
+Nothing above needs this package. The bridge is plain `window.postMessage`, and an app with no dependencies at all speaks it directly — `callService` posts exactly this `api:service-intent` message, and `ON_COMMERCE` is the `api:trigger` message with `action: 'commerce'`:
+
+```javascript
+let host;                 // the Valu Social application — known from api:ready
+const pending = new Map();
+let nextRequestId = 0;
+
+window.addEventListener('message', (event) => {
+  const { target, name, message, requestId } = event.data ?? {};
+  if (target !== 'valuApi') return;
+
+  if (name === 'api:ready') {
+    host = { window: event.source, origin: event.origin };
+    callService('Commerce', 'subscribe-events', { events: ['cart-updated'] });
+  }
+  if (name === 'api:run-console-completed' && pending.has(requestId)) {
+    pending.get(requestId)(message);   // a service intent's answer
+    pending.delete(requestId);
+  }
+  if (name === 'api:trigger' && message.action === 'commerce') {
+    console.log(message.data);         // e.g. {event: 'cart-updated', count: 3}
+  }
+});
+
+function callService(applicationId, action, params = {}) {
+  return new Promise((resolve) => {
+    const requestId = ++nextRequestId;
+    pending.set(requestId, resolve);
+    host.window.postMessage(
+      { name: 'api:service-intent', message: { applicationId, action, params, requestId } },
+      host.origin,
+    );
+  });
+}
+```
+
 ## Handling Application Lifecycle
 
 The `valu-api` package lets your iframe app handle **application lifecycle events**.
@@ -227,6 +364,7 @@ valuApi.setApplication(new MyApp());
 - `onCreate(intent)` — Triggered when the application is first launched with an intent.
 - `onNewIntent(intent)` — Triggered when a new intent is sent while the application is already running.
 - `onDestroy()` — Triggered when the application is about to be destroyed.
+- `onCommerceEvent(event)` — Triggered with a Commerce event your app subscribed to (see [Commerce Events](#commerce-events)).
 
 #### Lifecycle Flow
 
@@ -327,6 +465,9 @@ console.log(reply);
 | `currentUser.name` | Field doesn't exist | Use `currentUser.firstName` and `currentUser.lastName` |
 | `currentUser.avatar` | Field doesn't exist | Use `await usersApi.run('get-icon', { userId: currentUser.id })` |
 | Creating multiple `new ValuApi()` | Causes duplicate connections | Store singleton on `globalThis` |
+| Building your own checkout or payment screen | Apps never take payments — My Cart does | `await valuApi.callService(new Intent('Commerce', 'checkout'))` |
+| Listening for `ValuApi.ON_COMMERCE` without subscribing | Commerce events are opt-in; nothing arrives otherwise | `callService(new Intent('Commerce', 'subscribe-events', { events: [...] }))` |
+| Reading the new state from a Commerce event | Events say what changed, not what it is now | Re-read with the matching intent (`get-cart`, `list-products`, …) |
 
 ## Sample Project
 
@@ -404,10 +545,11 @@ opening a dock, expanding a pane, showing a picker, and anything a *different*
 server answers on a socket this package does not hold (the Commerce catalogue
 and the knowledge-base search, which are the Valu Guru server's). The
 application registers its intents at runtime, so this package declares none of
-them and you ask for one by name instead, over the bridge above:
+them and you ask for one by name instead, over the bridge above
+([Commerce](#commerce) is the worked example):
 
 ```javascript
-await api.callService(new Intent('AiGuru', 'open', { applicationId: 'cart' }));
+await api.callService(new Intent('Commerce', 'open-cart'));
 ```
 
 - [docs/socket-functions.md](docs/socket-functions.md) — every function, the
