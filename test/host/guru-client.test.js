@@ -5,7 +5,7 @@
 // the test opens it, answers on it or drops it, so what the client does on the
 // wire is asserted frame by frame. Timing tests use a few tens of milliseconds
 // and are ordered by the timers' own expiry, not by a race; the backoff
-// sequence runs on mocked timers so its delays are exact.
+// sequences run on mocked timers so their delays are exact.
 // ===========================================================================
 import { test as nodeTest, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -107,6 +107,35 @@ async function readyThenManual(t, options) {
   h.socket = await socketAt(h.WebSocketImpl);
   h.socket.open();
   await connecting;
+  return h;
+}
+
+/**
+ * Ready on its first socket, on mocked `setTimeout` and with the jitter at
+ * exactly 1.0: backoff 100 ms doubling to 350 ms, a connection stable after
+ * 1000 ms. `dropAndRetry(delay)` drops the live socket, checks that nothing
+ * happens for `delay - 1` ms and that a new socket is made at `delay`, and
+ * opens it. Close the client at the end of the test, while the mocks are on.
+ */
+async function mockedHarness(t, options) {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  t.mock.method(Math, 'random', () => 0.5);
+  const h = harness(t, { backoff: { initialMs: 100, maxMs: 350 }, stableMs: 1000, ...options });
+  const connecting = h.client.connect();
+  await flush();
+  h.WebSocketImpl.last.open();
+  await connecting;
+  h.dropAndRetry = async (delay) => {
+    const count = h.WebSocketImpl.sockets.length;
+    h.WebSocketImpl.last.drop();
+    t.mock.timers.tick(delay - 1);
+    await flush();
+    assert.equal(h.WebSocketImpl.sockets.length, count, `no attempt before ${delay} ms`);
+    t.mock.timers.tick(1);
+    await flush();
+    assert.equal(h.WebSocketImpl.sockets.length, count + 1, `an attempt at ${delay} ms`);
+    h.WebSocketImpl.last.open();
+  };
   return h;
 }
 
@@ -287,7 +316,7 @@ test('a request that cannot be built is rejected alone and leaves nothing pendin
   await assert.rejects(h.client.request('a', circular), TypeError);
   await assert.rejects(h.client.request(''), TypeError);
   await assert.rejects(h.client.request(7), TypeError);
-  for (const timeoutMs of [0, -1, NaN, Infinity]) {
+  for (const timeoutMs of [0, -1, NaN, '5', null]) {
     await assert.rejects(h.client.request('a', {}, { timeoutMs }), RangeError);
   }
   assert.deepEqual(h.socket.sent, []);
@@ -565,13 +594,13 @@ test('frames from a socket that was replaced are ignored', async (t) => {
   assert.equal(await answer, 'from the live one');
 });
 
-test('backoff: doubles from initialMs, caps at maxMs, starts over once a connection was made', async (t) => {
+test('backoff doubles from initialMs and caps at maxMs, however the attempts fail', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   t.mock.method(Math, 'random', () => 0.5);                 // jitter factor 1.0 exactly
   const mintToken = mock.fn(async () => { throw new Error('mint failed'); });
   const h = harness(t, { mintToken, backoff: { initialMs: 100, maxMs: 350 } });
 
-  const connecting = h.client.connect();
+  settle(h.client.connect());
   await flush();
   assert.equal(mintToken.mock.callCount(), 1);
   assert.equal(h.client.state, 'reconnecting');
@@ -586,23 +615,62 @@ test('backoff: doubles from initialMs, caps at maxMs, starts over once a connect
     attempts += 1;
     assert.equal(mintToken.mock.callCount(), attempts, `an attempt at ${delay} ms`);
   }
+  h.client.close();
+});
 
-  mintToken.mock.mockImplementation(async () => 'good');
-  t.mock.timers.tick(350);
-  await flush();
-  h.WebSocketImpl.last.open();
-  await connecting;
-  assert.equal(h.client.state, 'ready');
+test('a connection that closes as soon as it opens does not reset the backoff', async (t) => {
+  const h = await mockedHarness(t);
+  for (const delay of [100, 200, 350, 350]) await h.dropAndRetry(delay);
+  h.client.close();
+});
 
-  attempts = mintToken.mock.callCount();
-  h.WebSocketImpl.last.drop();
-  t.mock.timers.tick(99);
+test('the backoff starts over once a connection has stayed open for stableMs', async (t) => {
+  const h = await mockedHarness(t);
+  await h.dropAndRetry(100);
+  t.mock.timers.tick(999);                                  // one millisecond short of stable
+  await h.dropAndRetry(200);
+  t.mock.timers.tick(1000);                                 // stable
+  await h.dropAndRetry(100);
+  await h.dropAndRetry(200);
+  h.client.close();
+});
+
+test('the backoff starts over once a connection has delivered a frame', async (t) => {
+  const h = await mockedHarness(t);
+  await h.dropAndRetry(100);
+  h.WebSocketImpl.last.frame({ type: 'session_event', event: 'x' });    // the server is talking: it is a real connection
+  await h.dropAndRetry(100);
+  await h.dropAndRetry(200);
+  h.client.close();
+});
+
+test('backoff values that are not positive numbers fall back to the defaults', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  t.mock.method(Math, 'random', () => 0.5);
+  const failing = () => mock.fn(async () => { throw new Error('mint failed'); });
+
+  const bad = failing();
+  const first = harness(t, { mintToken: bad, backoff: { initialMs: -5, maxMs: NaN } });
+  settle(first.client.connect());
   await flush();
-  assert.equal(mintToken.mock.callCount(), attempts, 'after a connection the wait starts at initialMs again');
+  t.mock.timers.tick(999);
+  await flush();
+  assert.equal(bad.mock.callCount(), 1, 'the default 1000 ms, not -5');
   t.mock.timers.tick(1);
   await flush();
-  assert.equal(mintToken.mock.callCount(), attempts + 1);
-  h.client.close();
+  assert.equal(bad.mock.callCount(), 2);
+  first.client.close();
+
+  const partial = failing();
+  const second = harness(t, { mintToken: partial, backoff: { initialMs: 100, maxMs: 0 } });
+  settle(second.client.connect());
+  await flush();
+  for (const delay of [100, 200, 400]) {                    // maxMs 0 is not a cap: the default 30 s is
+    t.mock.timers.tick(delay);
+    await flush();
+  }
+  assert.equal(partial.mock.callCount(), 4);
+  second.client.close();
 });
 
 test('backoffDelayMs is min(maxMs, initialMs * 2^attempt) * (0.8 + 0.4 * random)', () => {
@@ -619,6 +687,229 @@ test('backoffDelayMs is min(maxMs, initialMs * 2^attempt) * (0.8 + 0.4 * random)
 });
 
 // ---------------------------------------------------------------------------
+// Bounded attempts
+// ---------------------------------------------------------------------------
+
+test('a socket stuck in CONNECTING is abandoned after connectTimeoutMs and retried with a fresh token', async (t) => {
+  const h = harness(t, { connectTimeoutMs: 30 });
+  const connecting = h.client.connect();
+  const first = await socketAt(h.WebSocketImpl, 0);         // the handshake never completes
+  assert.equal(h.client.state, 'connecting');
+
+  const second = await socketAt(h.WebSocketImpl, 1);
+  assert.equal(first.closedWith.code, 1000, 'the stuck socket was closed');
+  assert.equal(h.client.state, 'reconnecting');
+  assert.deepEqual({ ...h.client.lastError }, { code: 'timeout', message: 'the connection attempt timed out' });
+  first.open();                                             // a late open of the abandoned socket changes nothing
+  assert.equal(h.client.state, 'reconnecting');
+
+  second.open();
+  await connecting;
+  assert.equal(h.client.state, 'ready');
+  assert.deepEqual(h.WebSocketImpl.urls.map((url) => new URL(url).searchParams.get('token')), ['tok-1', 'tok-2']);
+});
+
+test('a mint that never settles is abandoned, and its late token opens nothing', async (t) => {
+  const mints = [];
+  const mintToken = mock.fn(() => new Promise((resolve, reject) => { mints.push({ resolve, reject }); }));
+  const h = harness(t, { mintToken, connectTimeoutMs: 30 });
+  const connecting = h.client.connect();
+
+  await until(() => mints.length === 2, 'the second attempt to mint');   // the first one timed out
+  assert.equal(h.WebSocketImpl.sockets.length, 0);
+  mints[0].resolve('late-token');                           // the abandoned attempt's token arrives
+  await flush();
+  assert.equal(h.WebSocketImpl.sockets.length, 0, 'a superseded attempt opens no socket');
+
+  mints[1].resolve('current-token');
+  const socket = await socketAt(h.WebSocketImpl);
+  assert.match(h.WebSocketImpl.urls[0], /token=current-token&client=host$/);
+  socket.open();
+  await connecting;
+  assert.equal(h.WebSocketImpl.sockets.length, 1);
+});
+
+test('the late failure of a superseded attempt changes nothing', async (t) => {
+  const mints = [];
+  const mintToken = mock.fn(() => new Promise((resolve, reject) => { mints.push({ resolve, reject }); }));
+  const h = harness(t, { mintToken, connectTimeoutMs: 30, autoOpen: true });
+  const connecting = h.client.connect();
+  await until(() => mints.length === 2, 'the second attempt to mint');
+  mints[1].resolve('current-token');
+  await connecting;
+  assert.equal(h.client.lastError, null);
+
+  mints[0].reject(Object.assign(new Error('late'), { code: 'sign_in_required' }));
+  await flush();
+
+  assert.equal(h.client.state, 'ready');
+  assert.equal(h.client.lastError, null);
+  assert.equal(mints.length, 2, 'no retry was scheduled for it');
+});
+
+test('the attempt timer does not touch a connection that opened in time', async (t) => {
+  const h = await readyHarness(t, { connectTimeoutMs: 30 });
+  await sleep(70);
+  assert.equal(h.client.state, 'ready');
+  assert.equal(h.WebSocketImpl.sockets.length, 1);
+  assert.equal(h.socket.closedWith, null);
+});
+
+test('online ends the backoff wait at once', async (t) => {
+  const h = await readyHarness(t, { backoff: { initialMs: 10_000, maxMs: 10_000 } });
+  h.socket.drop();
+  assert.equal(h.client.state, 'reconnecting');
+  assert.equal(h.listeners.size, 1);
+
+  h.goOnline();
+
+  await socketAt(h.WebSocketImpl, 1);                       // not ten seconds from now
+  await until(() => h.client.state === 'ready', 'ready again');
+  assert.equal(h.mintToken.mock.callCount(), 2);
+  assert.equal(h.listeners.size, 0);
+});
+
+test('online restarts an attempt that began on the old network', async (t) => {
+  const h = harness(t);
+  const connecting = h.client.connect();
+  const stuck = await socketAt(h.WebSocketImpl, 0);         // CONNECTING, and going nowhere
+  h.onlineSource.onLine = false;                            // the network flapped ...
+
+  h.goOnline();                                             // ... and came back
+
+  const fresh = await socketAt(h.WebSocketImpl, 1);
+  assert.equal(stuck.closedWith.code, 1000);
+  fresh.open();
+  await connecting;
+  assert.equal(h.client.state, 'ready');
+  assert.deepEqual(h.WebSocketImpl.urls.map((url) => new URL(url).searchParams.get('token')), ['tok-1', 'tok-2']);
+});
+
+// ---------------------------------------------------------------------------
+// Failures a caller can see
+// ---------------------------------------------------------------------------
+
+test('lastError says why, in fixed text, and never carries the token or the underlying message', async (t) => {
+  const h = await readyHarness(t);
+  assert.equal(h.client.lastError, null);
+
+  h.socket.drop(1006);
+  assert.deepEqual({ ...h.client.lastError }, { code: 'disconnected', message: 'the connection closed (code 1006)' });
+  assert.ok(Object.isFrozen(h.client.lastError));
+  await until(() => h.client.state === 'ready', 'ready again');
+  assert.equal(h.client.lastError, null, 'null while ready');
+
+  const secret = 'sess-SECRET-123';
+  const mintToken = mock.fn(async () => { throw new Error(`HTTP 503 for session ${secret}`); });
+  const failing = harness(t, { mintToken });
+  const held = settle(failing.client.request('a', {}, { timeoutMs: 1000 }));
+  await until(() => failing.client.lastError, 'a failure');
+  assert.deepEqual({ ...failing.client.lastError }, { code: 'mint_failed', message: 'could not mint a Valu Guru token' });
+  assert.equal(await peek(held), PENDING, 'an ordinary mint failure only keeps the request waiting');
+
+  for (const client of [h.client, failing.client]) {
+    const text = JSON.stringify(client.lastError ?? {});
+    assert.ok(!text.includes(secret) && !text.includes('tok-'), 'no secret in lastError');
+  }
+});
+
+test('a session error from mintToken answers held and new requests at once, and a renewed session recovers', async (t) => {
+  for (const code of ['sign_in_required', 'session_expired']) {
+    let signedOut = true;
+    const mintToken = mock.fn(async () => {
+      if (signedOut) throw Object.assign(new Error('401 for sess-SECRET-123'), { code });
+      return 'renewed-token';
+    });
+    const h = harness(t, { mintToken, autoOpen: true });
+
+    const held = await settle(h.client.request('a', {}, { timeoutMs: 5000 }));
+    assert.ok(held.error instanceof GuruError);
+    assert.equal(held.error.code, code, 'it did not wait for its timeout');
+    assert.ok(!held.error.message.includes('SECRET'));
+    assert.equal(h.client.lastError.code, code);
+
+    const later = await settle(h.client.request('b', {}, { timeoutMs: 5000 }));
+    assert.equal(later.error.code, code, 'a request made now does not wait either');
+
+    await until(() => mintToken.mock.callCount() >= 3, 'the retries to go on');
+    signedOut = false;
+    await h.client.connect();
+    assert.equal(h.client.lastError, null);
+    const answer = h.client.request('c');
+    h.WebSocketImpl.last.reply(h.WebSocketImpl.last.sent[0].requestId, { data: 'fine' });
+    assert.equal(await answer, 'fine');
+    h.client.close();
+  }
+});
+
+test('once the session is known to be gone, a new request answers at once, not at the next retry', async (t) => {
+  const mintToken = mock.fn(async () => { throw Object.assign(new Error('401'), { code: 'sign_in_required' }); });
+  const h = harness(t, { mintToken, backoff: { initialMs: 10_000, maxMs: 10_000 } });
+  const first = await settle(h.client.request('a', {}, { timeoutMs: 300 }));
+  assert.equal(first.error.code, 'sign_in_required');
+
+  const later = await settle(h.client.request('b', {}, { timeoutMs: 300 }));
+
+  assert.equal(later.error.code, 'sign_in_required', 'it did not wait for its timeout or for a retry');
+  assert.equal(mintToken.mock.callCount(), 1);
+});
+
+// ---------------------------------------------------------------------------
+// Held requests, timers
+// ---------------------------------------------------------------------------
+
+test('the wait for the socket and the wait for the answer each get the full timeoutMs', async (t) => {
+  const h = harness(t);
+  const answer = settle(h.client.request('a', {}, { timeoutMs: 60 }));
+  const socket = await socketAt(h.WebSocketImpl);
+
+  await sleep(35);
+  socket.open();                                            // sent 35 ms in: the silence timer starts here ...
+  await sleep(40);                                          // ... so 75 ms in is fine, though the budget was 60
+  socket.reply('req-1', { data: 'done' });
+
+  assert.deepEqual(await answer, { value: 'done' });
+});
+
+test('a request is held, not marked sent, while the socket is not open', async (t) => {
+  const h = await readyThenManual(t);
+  h.socket.readyState = 2;                                  // CLOSING: the server began to close, onclose has not fired
+
+  const answer = settle(h.client.request('a', {}, { timeoutMs: 1000 }));
+  h.socket.drop();                                          // had it been marked sent, this would reject it
+
+  const second = await socketAt(h.WebSocketImpl, 1);
+  second.open();
+  assert.deepEqual(second.sent.map((frame) => frame.op), ['a']);
+  second.reply('req-1', { data: 1 });
+  assert.deepEqual(await answer, { value: 1 });
+});
+
+test('an abort whose cancel cannot be sent still rejects the request', async (t) => {
+  const h = await readyHarness(t);
+  const controller = new AbortController();
+  const answer = settle(h.client.request('a', {}, { signal: controller.signal }));
+  h.socket.send = () => { throw new Error('socket exploded'); };
+
+  controller.abort();
+
+  const { error } = await answer;
+  assert.ok(error instanceof GuruError);
+  assert.equal(error.code, 'aborted');
+});
+
+test('a timeoutMs beyond what a timer can hold is clamped, not fired at once', async (t) => {
+  const h = await readyHarness(t);
+  const huge = settle(h.client.request('a', {}, { timeoutMs: 1e12 }));
+  const endless = settle(h.client.request('b', {}, { timeoutMs: Infinity }));
+
+  assert.equal(await peek(huge, 30), PENDING);
+  assert.equal(await peek(endless, 30), PENDING);
+  h.client.close();
+  assert.equal((await huge).error.code, 'disconnected');
+});
+
+// ---------------------------------------------------------------------------
 // Offline
 // ---------------------------------------------------------------------------
 
@@ -628,17 +919,17 @@ test('offline pauses reconnect until online', async (t) => {
   h.socket.drop();
 
   assert.equal(h.client.state, 'offline');
-  assert.equal(h.listeners.size, 1, 'it listens for `online`, and only now');
+  assert.equal(h.listeners.size, 1, 'it listens for `online` while it is not ready');
   await sleep(100);
   assert.equal(h.WebSocketImpl.sockets.length, 1, 'no new socket while offline');
   assert.equal(h.mintToken.mock.callCount(), 1, 'no token is minted while offline');
 
   h.goOnline();
-  assert.equal(h.listeners.size, 0, 'the listener is gone once it fired');
   const second = await socketAt(h.WebSocketImpl, 1);
   second.open();
   await until(() => h.client.state === 'ready', 'ready again');
   assert.equal(h.mintToken.mock.callCount(), 2);
+  assert.equal(h.listeners.size, 0, 'a ready client listens for nothing');
 });
 
 test('going offline while a retry is waiting pauses it when the timer fires', async (t) => {
@@ -669,6 +960,28 @@ test('connect while offline waits for online before it mints or opens anything',
   await connecting;
   assert.equal(h.client.state, 'ready');
   assert.equal(h.WebSocketImpl.sockets.length, 1);
+});
+
+test('a request or connect that arrives while offline looks at the flag, in case the online event was missed', async (t) => {
+  const h = await readyHarness(t);
+  h.onlineSource.onLine = false;
+  h.socket.drop();
+  assert.equal(h.client.state, 'offline');
+
+  h.onlineSource.onLine = true;                             // iOS resume: the flag is true, the event never came
+  const answer = settle(h.client.request('a', {}, { timeoutMs: 1000 }));
+  const second = await socketAt(h.WebSocketImpl, 1);
+  await until(() => second.sent.length === 1, 'the request to go out');
+  second.reply(second.sent[0].requestId, { data: 1 });
+  assert.deepEqual(await answer, { value: 1 });
+
+  const again = await readyHarness(t);
+  again.onlineSource.onLine = false;
+  again.socket.drop();
+  assert.equal(again.client.state, 'offline');
+  again.onlineSource.onLine = true;
+  await again.client.connect();
+  assert.equal(again.client.state, 'ready');
 });
 
 test('an environment with no online source or no event source never pauses', async (t) => {
