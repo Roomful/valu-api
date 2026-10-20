@@ -36,7 +36,13 @@
 // `host:error {code:'nested'}` and nothing else is ever served.
 //
 // Hellos are handled one at a time, in arrival order, so two that overlap (the
-// resolver and the session restore are asynchronous) cannot bind twice.
+// resolver and the session restore are asynchronous) cannot bind twice. Each of
+// those two waits is bounded (`resolveTimeoutMs`, `restoreTimeoutMs`), so one
+// that never answers cannot hold up every hello behind it.
+//
+// The config is read from the keys the bridge knows and nothing else
+// (`normalizeConfig`): a wrong-typed or missing value takes its default, and the
+// dev switch, which bypasses the resolver, is on only for the boolean `true`.
 // Nothing here throws out of the listener: a message that is not an app message
 // is ignored, and a failure inside a handler is logged.
 //
@@ -48,6 +54,7 @@ import { displayNameOf } from '../socket/user-info.js';
 import { RESOLVE_UNAVAILABLE } from './AppResolver.js';
 import * as CommerceIntents from './CommerceIntents.js';
 import * as Permissions from './Permissions.js';
+import { isLocalOrigin, isOrigin, matchesOrigin } from './origins.js';
 import {
   HOST_ERRORS, MSG, PROTOCOL_VERSION, assertNoHostLeak, parseAppMessage, toParent,
 } from './protocol.js';
@@ -61,50 +68,63 @@ import {
  * @property {string[]} [allowedAncestors] Origin patterns a framing page may have
  *   (`https://*.valuguru.app`: any subdomain; `http://localhost:*`: any port).
  * @property {string[]} [devAncestors] Added to `allowedAncestors` when `dev`.
- * @property {boolean} [dev] Accept `message.app` from a localhost parent.
+ * @property {boolean} [dev] Accept `message.app` from a localhost parent. Only
+ *   the boolean `true` turns it on.
  * @property {number} [maxInFlight] Concurrent requests per bound app.
  * @property {number} [callTimeoutMs]
  * @property {number} [restoreTimeoutMs] How long a stored session may take to
  *   check before the user is treated as signed out.
+ * @property {number} [resolveTimeoutMs] How long the resolver may take before the
+ *   hello is answered `resolve_unavailable`.
  */
 
-/** @type {Readonly<Required<Omit<HostConfig, 'hostOrigin'>>>} */
 const DEFAULT_CONFIG = Object.freeze({
   master: 'api.roomful.net',
   signInOrigins: Object.freeze([]),
   brandOrigins: Object.freeze([]),
   allowedAncestors: Object.freeze(['https://*.valuguru.app']),
   devAncestors: Object.freeze(['http://localhost:*', 'http://127.0.0.1:*']),
-  dev: false,
   maxInFlight: 16,
   callTimeoutMs: 30_000,
   restoreTimeoutMs: 5_000,
+  resolveTimeoutMs: 10_000,
 });
 
-/** `http(s)://host[:port]`, lower case: what a browser reports as an origin. */
-const ORIGIN_RE = /^(https?):\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)*)(?::(\d{1,5}))?$/;
-/** An origin pattern: `*.` stands for one or more labels, `:*` for any port or none. */
-const PATTERN_RE = /^(https?):\/\/(\*\.)?([a-z0-9-]+(?:\.[a-z0-9-]+)*)(?::(\d{1,5}|\*))?$/;
-/** The origins a dev claim may come from. */
-const LOCAL_ORIGIN_RE = /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d{1,5})?$/;
-/** `<workspace>/<slug>`. */
-const CLAIM_RE = /^([\w-][\w.-]*)\/([\w-][\w.-]*)$/;
+const text = (value) => (typeof value === 'string' && value !== '' ? value : null);
+const positive = (value, fallback) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback);
+const positiveInteger = (value, fallback) => (Number.isInteger(value) && value > 0 ? value : fallback);
+const originList = (value, fallback) => (Array.isArray(value)
+  ? Object.freeze(value.filter((item) => typeof item === 'string'))
+  : fallback);
 
-const isOrigin = (value) => typeof value === 'string' && ORIGIN_RE.test(value);
-
-/** Does `origin` fit `pattern`? A pattern or an origin that is not well formed never matches. */
-function matchesOrigin(pattern, origin) {
-  const want = PATTERN_RE.exec(String(pattern).toLowerCase());
-  const got = ORIGIN_RE.exec(String(origin).toLowerCase());
-  if (!want || !got) return false;
-  const [, wantScheme, subdomain, wantHost, wantPort] = want;
-  const [, scheme, host, port] = got;
-  if (wantScheme !== scheme) return false;
-  if (wantPort !== '*' && wantPort !== port) return false;
-  return subdomain ? host.endsWith(`.${wantHost}`) : host === wantHost;
+/**
+ * The config the bridge runs on, built from the keys it knows and nothing else.
+ * A key that is missing or the wrong kind takes its default, so an `undefined`
+ * override cannot turn a timeout into 0 or a list into a crash, and `dev` is on
+ * only for the boolean `true`: it is the one switch that bypasses the resolver,
+ * and `'false'` or `1` must not turn it on. A key a later task needs is added
+ * here, with its default.
+ * @param {Partial<HostConfig>} [config]
+ */
+function normalizeConfig(config) {
+  const given = config && typeof config === 'object' ? config : {};
+  return Object.freeze({
+    hostOrigin: text(given.hostOrigin),
+    master: text(given.master) ?? DEFAULT_CONFIG.master,
+    signInOrigins: originList(given.signInOrigins, DEFAULT_CONFIG.signInOrigins),
+    brandOrigins: originList(given.brandOrigins, DEFAULT_CONFIG.brandOrigins),
+    allowedAncestors: originList(given.allowedAncestors, DEFAULT_CONFIG.allowedAncestors),
+    devAncestors: originList(given.devAncestors, DEFAULT_CONFIG.devAncestors),
+    dev: given.dev === true,
+    maxInFlight: positiveInteger(given.maxInFlight, DEFAULT_CONFIG.maxInFlight),
+    callTimeoutMs: positive(given.callTimeoutMs, DEFAULT_CONFIG.callTimeoutMs),
+    restoreTimeoutMs: positive(given.restoreTimeoutMs, DEFAULT_CONFIG.restoreTimeoutMs),
+    resolveTimeoutMs: positive(given.resolveTimeoutMs, DEFAULT_CONFIG.resolveTimeoutMs),
+  });
 }
 
-const text = (value) => (typeof value === 'string' && value !== '' ? value : null);
+/** `<workspace>/<slug>`. */
+const CLAIM_RE = /^([\w-][\w.-]*)\/([\w-][\w.-]*)$/;
 
 /** A request id the way a client writes it: a number, else none (a reply to nobody names no id). */
 const idOf = (requestId) => (typeof requestId === 'number' && Number.isFinite(requestId) ? requestId : undefined);
@@ -127,12 +147,15 @@ const consoleLog = (level, message) => {
   globalThis.console?.[level === 'error' ? 'error' : 'warn']?.(`[valu-host] ${message}`);
 };
 
-/** `promise`, or `null` once `ms` have passed. The timer never outlives the race. */
-function orNullAfter(promise, ms) {
+/** `promise`, or `fallback` once `ms` have passed. The timer never outlives the race. */
+function orAfter(promise, ms, fallback = null) {
   let timer;
-  const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(null), ms); });
+  const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(fallback), ms); });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
+
+/** What a resolve that ran out of time answers, apart from `null` (the server said "no such app"). */
+const RESOLVE_TIMED_OUT = Symbol('resolve timed out');
 
 /**
  * The default `makeServices`: the 65 functions over the master socket, for
@@ -217,7 +240,7 @@ export class HostBridge {
     this.#makeGrants = makeGrants;
     this.#commerce = commerce;
     this.#permissions = permissions;
-    this.#config = Object.freeze({ ...DEFAULT_CONFIG, ...config });
+    this.#config = normalizeConfig(config);
     this.#logger = log;
   }
 
@@ -338,6 +361,9 @@ export class HostBridge {
 
   async #onHello(origin, message) {
     if (this.#stopped) return;
+    // Bound to another origin for the life of the page: not even an answer, and
+    // before anything that could answer (a nesting refusal is an answer).
+    if (this.#bound && this.#bound.origin !== origin) return;
     // An opaque origin ('null') has nowhere to be answered, and no app.
     if (!isOrigin(origin)) return;
 
@@ -346,8 +372,6 @@ export class HostBridge {
       this.#post(MSG.ERROR, { code: HOST_ERRORS.NESTED, message: refusal }, undefined, origin);
       return;
     }
-    // Bound to another origin for the life of the page: not even an answer.
-    if (this.#bound && this.#bound.origin !== origin) return;
 
     const { protocol } = message;
     if (typeof protocol === 'number' && protocol > PROTOCOL_VERSION) {
@@ -370,7 +394,8 @@ export class HostBridge {
     let app = this.#claimedApp(origin, message);
     if (!app) {
       try {
-        app = await this.#resolver.resolve(origin);
+        // Bounded, so a resolver that never answers cannot hold up every hello behind this one.
+        app = await orAfter(this.#resolver.resolve(origin), this.#config.resolveTimeoutMs, RESOLVE_TIMED_OUT);
       } catch (error) {
         this.#log('warn', `the app could not be resolved (${error?.code ?? RESOLVE_UNAVAILABLE})`);
         this.#post(MSG.ERROR, {
@@ -379,6 +404,13 @@ export class HostBridge {
         return;
       }
       if (this.#stopped) return;
+      if (app === RESOLVE_TIMED_OUT) {
+        this.#log('warn', 'the app could not be resolved (timeout)');
+        this.#post(MSG.ERROR, {
+          code: RESOLVE_UNAVAILABLE, message: 'the app could not be looked up in time; try again',
+        }, undefined, origin);
+        return;
+      }
       if (!app) {
         this.#post(MSG.ERROR, {
           code: HOST_ERRORS.UNKNOWN_APP, message: 'this origin is not a published Valu app',
@@ -399,7 +431,7 @@ export class HostBridge {
    * `<workspace>/<slug>`) instead of being resolved. Production has neither.
    */
   #claimedApp(origin, message) {
-    if (!this.#config.dev || !LOCAL_ORIGIN_RE.test(origin) || typeof message.app !== 'string') return null;
+    if (!this.#config.dev || !isLocalOrigin(origin) || typeof message.app !== 'string') return null;
     const claim = CLAIM_RE.exec(message.app);
     if (!claim) return null;
     return {
@@ -428,7 +460,7 @@ export class HostBridge {
   async #restoreSession(app) {
     let stored = null;
     try {
-      stored = await orNullAfter(
+      stored = await orAfter(
         this.#auth.restore({ homeNetworkId: app.homeNetworkId }),
         this.#config.restoreTimeoutMs,
       );

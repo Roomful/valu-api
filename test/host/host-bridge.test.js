@@ -4,15 +4,11 @@
 // §4.5). `api:call` / `api:service-intent` bodies, consent and the sign-in
 // token channel are later tasks; here they answer `not_available` / are absent.
 //
-// Everything runs on the fakes, synchronously except where the bridge awaits
-// (the resolver, `auth.restore`, `connect`); `settle()` lets those finish.
-//
-// Reading the wire: the host answers through `win.parent.postMessage(msg,
-// origin)`, which on the pair is a call ON `app`: it is recorded in
-// `app.posted` and delivered to the app's own listeners. Most tests read
-// `app.posted` (every reply, in order, with its target origin) and send into the
-// host with `host.dispatch`, which lets a test choose the origin and source; one
-// test runs the whole round trip through `host.postMessage` and an app listener.
+// Everything runs on the fakes and the harness in `test/helpers/hostBridgeFakes.js`
+// (`setup`, `fakeResolver`, `fakeAuth`, `fakeMaker`); `settle()` lets the bridge's
+// async steps finish. Replies are read from `app.posted`, and sent into the host
+// with `host.dispatch`; one test runs the round trip through `host.postMessage`
+// and an app listener.
 // ===========================================================================
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,126 +18,11 @@ import { AppResolver } from '../../src/host/AppResolver.js';
 import { HostAuth } from '../../src/host/HostAuth.js';
 import { SessionStore } from '../../src/host/SessionStore.js';
 import { MSG, HOST_ERRORS, PROTOCOL_VERSION } from '../../src/host/protocol.js';
+import { FakeWindowPair, FakeStorage, fakeResolveFetch, fakeAuthFetch } from '../helpers/hostFakes.js';
 import {
-  FakeWindowPair, FakeStorage, fakeResolveFetch, fakeAuthFetch,
-} from '../helpers/hostFakes.js';
-
-const APP_ORIGIN = 'https://demo-ws-1.valuguru.app';
-const HOST_ORIGIN = 'https://valuguru.texpo.io';
-const OTHER_ORIGIN = 'https://other-ws-1.valuguru.app';
-const LOCAL_ORIGIN = 'http://localhost:3005';
-
-const APP = {
-  address: 'ws_1/demo', workspaceId: 'ws_1', slug: 'demo', devAppId: 'dev-1', name: 'Demo', homeNetworkId: 'net-1',
-};
-const INFO = {
-  userId: 'u1',
-  networkId: 'n1',
-  user: { id: 'u1', name: 'Ada Lovelace' },
-  network: { id: 'n1', fullName: 'Roomful' },
-};
-const SESSION = { userId: 'u1', sessionId: 'sess-SECRET-1' };
-
-/** Let every promise the bridge is awaiting run to its next real wait. */
-const settle = () => new Promise((resolve) => { setImmediate(resolve); });
-
-const deferred = () => {
-  let resolve; let reject;
-  const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
-  return { promise, resolve, reject };
-};
-
-const codedError = (code) => Object.assign(new Error(`failed (${code})`), { code });
-
-/** A resolver over a table of origin -> app (`null`: unknown); records every ask. */
-function fakeResolver(table = { [APP_ORIGIN]: APP }) {
-  const resolver = {
-    calls: [],
-    async resolve(origin) {
-      resolver.calls.push(origin);
-      return Object.hasOwn(table, origin) ? table[origin] : null;
-    },
-  };
-  return resolver;
-}
-
-/** An `auth` whose `restore` answers `session` (or runs `restore`), recording what it was asked. */
-function fakeAuth({ session = null, restore } = {}) {
-  const auth = {
-    restoreCalls: [],
-    signOutCalls: 0,
-    restore: async (options) => {
-      auth.restoreCalls.push(options);
-      return restore ? restore(options) : session;
-    },
-    signOut() { auth.signOutCalls += 1; },
-  };
-  return auth;
-}
-
-/** `makeConnection` over a scripted master: `connect` answers `info`, or rejects with `error`. */
-function fakeMaker({ info = INFO, error = null, connect } = {}) {
-  const maker = {
-    sessions: [],
-    connections: [],
-    make(sessionId) {
-      maker.sessions.push(sessionId);
-      const connection = {
-        closed: 0,
-        socket: { emit: async () => ({ data: {} }) },
-        connect: connect ? () => connect(connection) : async () => { if (error) throw error; return info; },
-        close: async () => { connection.closed += 1; },
-      };
-      maker.connections.push(connection);
-      return connection;
-    },
-  };
-  return maker;
-}
-
-const noopStore = { onChange: () => () => {} };
-
-/**
- * A bridge on a window pair, started. `send` posts an app message into the
- * host as the app (the parent window) unless told otherwise.
- */
-function setup({
-  appOrigin = APP_ORIGIN, resolver = fakeResolver(), auth = fakeAuth(), maker = fakeMaker(),
-  config = {}, sessionStore = noopStore, start = true, ancestors, ...rest
-} = {}) {
-  const pair = FakeWindowPair({ appOrigin, hostOrigin: HOST_ORIGIN });
-  const { app, host } = pair;
-  if (ancestors) host.location = { ancestorOrigins: ancestors };
-  const logs = [];
-  const bridge = new HostBridge({
-    win: host,
-    resolver,
-    auth,
-    sessionStore,
-    makeConnection: (sessionId) => maker.make(sessionId),
-    config: { hostOrigin: HOST_ORIGIN, signInOrigins: [], ...config },
-    log: (level, message) => logs.push({ level, message }),
-    ...rest,
-  });
-  if (start) bridge.start();
-
-  const send = (data, { origin = appOrigin, source = app } = {}) => host.dispatch({ data, origin, source });
-  const hello = (extra, options) => send({ name: MSG.HELLO, message: { protocol: PROTOCOL_VERSION, client: 'test', ...extra } }, options);
-  const call = (name, message = {}, options) => send({ name, message }, options);
-  /** What the host posted to the app, in order: `{data, targetOrigin}`. */
-  const posts = () => app.posted;
-  const names = () => app.posted.map((p) => p.data.name);
-  const last = () => app.posted.at(-1);
-  /** Run the handshake to the end and forget what it posted. */
-  const open = async (extra) => {
-    hello(extra);
-    await settle();
-    app.posted.length = 0;
-  };
-  return {
-    pair, app, host, bridge, resolver, auth, maker, logs, send, hello, call, posts, names, last, open,
-  };
-}
+  APP_ORIGIN, HOST_ORIGIN, OTHER_ORIGIN, LOCAL_ORIGIN, APP, INFO, SESSION,
+  settle, deferred, codedError, fakeResolver, fakeAuth, fakeMaker, setup,
+} from '../helpers/hostBridgeFakes.js';
 
 // ---------------------------------------------------------------------------
 // The handshake
@@ -1011,4 +892,215 @@ test('the default makeServices serves over the master socket for the app slug, w
   assert.equal(services.transport.applicationId, 'demo', 'the slug, stamped by the host');
   assert.deepEqual({ ...services.transport.config }, { webBase: 'https://live.valuverse.io', apiGate: 'https://api.roomful.net' });
   assert.equal(services.cache, null, 'no cache in the host');
+});
+
+// ---------------------------------------------------------------------------
+// The config, and the dev gate
+// ---------------------------------------------------------------------------
+
+test('dev is on only for the boolean true: a truthy string or number does not open the resolver bypass', async () => {
+  const claim = { app: 'ws_evil/steal' };
+  for (const dev of ['false', 'true', 'yes', '1', 1, 2, {}, [], () => true, 'dev']) {
+    const resolver = fakeResolver({});
+    const { hello, last, bridge } = setup({ appOrigin: LOCAL_ORIGIN, resolver, config: { dev } });
+    hello(claim);
+    await settle();
+    assert.equal(resolver.calls.length, 1, `dev: ${String(dev)} still asks the resolver`);
+    assert.equal(last().data.name, MSG.ERROR, `dev: ${String(dev)}`);
+    assert.equal(last().data.message.code, HOST_ERRORS.UNKNOWN_APP, `dev: ${String(dev)}`);
+    assert.equal(bridge.state.bound, null, `dev: ${String(dev)}`);
+  }
+  for (const dev of [undefined, null, false, 0, '']) {
+    const resolver = fakeResolver({});
+    const { hello, last } = setup({ appOrigin: LOCAL_ORIGIN, resolver, config: { dev } });
+    hello(claim);
+    await settle();
+    assert.equal(last().data.message.code, HOST_ERRORS.UNKNOWN_APP, `dev: ${String(dev)}`);
+  }
+
+  const on = setup({ appOrigin: LOCAL_ORIGIN, resolver: fakeResolver({}), config: { dev: true } });
+  on.hello(claim);
+  await settle();
+  assert.equal(on.last().data.message.applicationId, 'ws_evil/steal', 'the one value that does turn it on');
+});
+
+test('dev does not open the dev ancestors either, unless it is the boolean true', async () => {
+  for (const dev of ['false', 1, {}]) {
+    const { hello, last } = setup({
+      appOrigin: LOCAL_ORIGIN, ancestors: [LOCAL_ORIGIN], resolver: fakeResolver({ [LOCAL_ORIGIN]: APP }), config: { dev },
+    });
+    hello();
+    await settle();
+    assert.equal(last().data.message.code, HOST_ERRORS.NESTED, `dev: ${String(dev)}`);
+  }
+});
+
+test('the config is copied at construction: changing the object afterwards changes nothing', async () => {
+  const config = { dev: false, allowedAncestors: ['https://*.valuguru.app'] };
+  const resolver = fakeResolver({});
+  const { hello, last } = setup({ appOrigin: LOCAL_ORIGIN, resolver, config });
+  config.dev = true;
+  config.allowedAncestors.push('http://localhost:*');
+  hello({ app: 'ws_evil/steal' });
+  await settle();
+  assert.equal(last().data.message.code, HOST_ERRORS.UNKNOWN_APP);
+  assert.equal(resolver.calls.length, 1);
+});
+
+test('a missing or mistyped config value takes its default: undefined does not become a zero timeout', async () => {
+  // The session takes 30 ms to check. A restore timeout of 0 (or 1) would call
+  // the user signed out; the 5 s default lets it finish.
+  const slowSession = () => new Promise((resolve) => { setTimeout(() => resolve(SESSION), 30); });
+  const bad = [undefined, null, 0, -5, NaN, Infinity, '10', '', {}, [], true];
+  for (const restoreTimeoutMs of bad) {
+    const { hello, last, maker } = setup({
+      auth: fakeAuth({ restore: slowSession }), config: { restoreTimeoutMs },
+    });
+    hello();
+    await new Promise((resolve) => { setTimeout(resolve, 80); });
+    assert.equal(last().data.name, MSG.READY, `restoreTimeoutMs: ${String(restoreTimeoutMs)}`);
+    assert.equal(last().data.message.host.signedIn, true, `restoreTimeoutMs: ${String(restoreTimeoutMs)}`);
+    assert.equal(maker.sessions.length, 1);
+  }
+});
+
+test('a missing or mistyped origin list takes its default and cannot throw inside the queue', async () => {
+  const ancestors = ['https://demo-ws-1.valuguru.app'];
+  for (const allowedAncestors of [undefined, null, 'https://evil.example', 7, {}]) {
+    const { hello, last, logs } = setup({ ancestors, config: { allowedAncestors, devAncestors: undefined, signInOrigins: undefined } });
+    hello();
+    await settle();
+    assert.equal(last().data.name, MSG.READY, `allowedAncestors: ${String(allowedAncestors)}`);
+    assert.deepEqual(logs, []);
+  }
+
+  // A list with nothing usable in it allows nobody: refused, not open.
+  for (const allowedAncestors of [[], [123, null, {}]]) {
+    const { hello, last } = setup({ ancestors, config: { allowedAncestors } });
+    hello();
+    await settle();
+    assert.equal(last().data.message.code, HOST_ERRORS.NESTED, JSON.stringify(allowedAncestors));
+  }
+});
+
+test('the constructor takes a missing, null or non-object config as all defaults', async () => {
+  for (const config of [undefined, null, 'dev', 7, []]) {
+    const { app, host } = FakeWindowPair({ appOrigin: APP_ORIGIN, hostOrigin: HOST_ORIGIN });
+    const bridge = new HostBridge({
+      win: host, resolver: fakeResolver(), auth: fakeAuth(), makeConnection: () => ({}), config, log: () => {},
+    });
+    bridge.start();
+    host.dispatch({ data: { name: MSG.HELLO, message: { protocol: 1 } }, origin: APP_ORIGIN, source: app });
+    await settle();
+    assert.equal(app.posted.at(-1).data.name, MSG.READY, `config: ${String(config)}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// The resolver is bounded
+// ---------------------------------------------------------------------------
+
+test('a resolver that never answers gives resolve_unavailable after resolveTimeoutMs and does not wedge the next hello', async () => {
+  const late = deferred();
+  const resolver = {
+    calls: [],
+    resolve(origin) {
+      resolver.calls.push(origin);
+      return resolver.calls.length === 1 ? late.promise : Promise.resolve(APP);
+    },
+  };
+  const { hello, posts, bridge, logs } = setup({ resolver, config: { resolveTimeoutMs: 15 } });
+
+  hello();
+  await new Promise((resolve) => { setTimeout(resolve, 60); });
+  assert.equal(posts().length, 1);
+  assert.equal(posts()[0].data.name, MSG.ERROR);
+  assert.equal(posts()[0].data.message.code, 'resolve_unavailable');
+  assert.equal(posts()[0].targetOrigin, APP_ORIGIN);
+  assert.equal(bridge.state.bound, null, 'a timed-out resolve binds nothing');
+  assert.equal(logs.length, 1);
+
+  // The queue moved on: the next hello is resolved, and answered.
+  hello();
+  await settle();
+  assert.equal(posts().at(-1).data.name, MSG.READY);
+  assert.equal(bridge.state.bound.origin, APP_ORIGIN);
+
+  // The first lookup finishing now changes nothing.
+  late.resolve({ ...APP, address: 'ws_late/stale' });
+  await settle();
+  assert.equal(posts().length, 2);
+  assert.equal(bridge.state.bound.app.address, 'ws_1/demo');
+});
+
+test('a resolver that answers in time leaves no timer behind', async () => {
+  const timers = () => process.getActiveResourcesInfo().filter((resource) => resource === 'Timeout').length;
+  const before = timers();
+  const { hello, names } = setup({ resolver: fakeResolver({ [APP_ORIGIN]: null }) });
+  hello();
+  await settle();
+  assert.deepEqual(names(), [MSG.ERROR]);
+  assert.equal(timers(), before, 'the 10 s resolve timer is cleared when the lookup answers');
+});
+
+// ---------------------------------------------------------------------------
+// Order of the hello checks
+// ---------------------------------------------------------------------------
+
+test('a hello from another origin is dropped before any refusal is considered', async () => {
+  const { host, hello, posts, open } = setup();
+  await open();
+  host.top = {}; // from now on this page is nested: the bound origin hears about it, a stranger hears nothing
+
+  hello({}, { origin: OTHER_ORIGIN });
+  hello({ protocol: 99 }, { origin: OTHER_ORIGIN });
+  await settle();
+  assert.deepEqual(posts(), [], 'not even a nested error for a stranger');
+
+  hello();
+  await settle();
+  assert.equal(posts().length, 1);
+  assert.equal(posts()[0].data.message.code, HOST_ERRORS.NESTED);
+  assert.equal(posts()[0].targetOrigin, APP_ORIGIN);
+});
+
+// ---------------------------------------------------------------------------
+// 127.0.0.1, and the protocol field
+// ---------------------------------------------------------------------------
+
+test('dev: a hello from http://127.0.0.1 may claim an app and its ancestors are allowed', async () => {
+  const origin = 'http://127.0.0.1:5173';
+  const resolver = fakeResolver({});
+  const dev = setup({ appOrigin: origin, ancestors: [origin], resolver, config: { dev: true } });
+  dev.hello({ app: 'ws_9/playground' });
+  await settle();
+  assert.deepEqual(resolver.calls, []);
+  assert.equal(dev.last().data.name, MSG.READY);
+  assert.equal(dev.last().data.message.applicationId, 'ws_9/playground');
+  assert.equal(dev.last().targetOrigin, origin);
+
+  const prod = setup({ appOrigin: origin, ancestors: [origin], resolver: fakeResolver({ [origin]: APP }) });
+  prod.hello({ app: 'ws_9/playground' });
+  await settle();
+  assert.equal(prod.last().data.message.code, HOST_ERRORS.NESTED, 'a 127.0.0.1 ancestor is not allowed in production');
+
+  const claimOnly = setup({ appOrigin: origin, resolver: fakeResolver({}) });
+  claimOnly.hello({ app: 'ws_9/playground' });
+  await settle();
+  assert.equal(claimOnly.last().data.message.code, HOST_ERRORS.UNKNOWN_APP, 'and a claim from it is not honoured in production');
+});
+
+test('a hello with no protocol, or one that is not a number, is served as protocol 1', async () => {
+  for (const protocol of [undefined, null, '1', '2', 'two', NaN, {}, [], true, 0, -1, 1]) {
+    const { hello, posts, last } = setup();
+    hello({ protocol });
+    await settle();
+    assert.equal(posts().length, 1, `protocol: ${String(protocol)}`);
+    assert.equal(last().data.name, MSG.READY, `protocol: ${String(protocol)}`);
+    assert.equal(last().data.message.host.protocol, PROTOCOL_VERSION);
+  }
+  const noField = setup();
+  noField.send({ name: MSG.HELLO, message: {} });
+  await settle();
+  assert.equal(noField.last().data.name, MSG.READY, 'a hello with an empty message is a hello');
 });
