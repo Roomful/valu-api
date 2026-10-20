@@ -4,10 +4,12 @@
 // The page that embeds a Workspaces app carries a hidden iframe on a Valu
 // origin; this is what runs inside it. It binds to ONE parent origin, works out
 // which app that is, restores the user's session, tells the app it is ready,
-// and then answers everything the app asks. This file is the skeleton: the
-// handshake, the binding, the nesting rule, the dispatch table, sign-out, ping
-// and the pushes. `api:call` / `api:service-intent`, consent and the sign-in
-// token channel are added on top of it.
+// and then answers everything the app asks: the handshake, the binding, the
+// nesting rule, the dispatch table, sign-out, ping and the pushes, and what the
+// app is here for, `api:call` (the SDK's service functions over the master),
+// `api:service-intent` (the Commerce data intents over Valu Guru, Commerce event
+// subscriptions, the identity token) and `host:consent`. The sign-in token
+// channel is added on top of it.
 //
 // Who is listened to:
 //
@@ -20,6 +22,23 @@
 //     a half-built session. (A client waits for `api:ready`; one that does not
 //     gets no answer, which is what its own timeout is for.)
 //
+// What a call, an intent and a consent are held to (spec §4.6), in this order,
+// every one on every path, before anything runs:
+//
+//   1. the function is one the host serves (404 / `not_available`);
+//   2. the user is signed in (401 / `sign_in_required`);
+//   3. the params fit the descriptor (400);
+//   4. the scope's tier: `forbidden` is never run and never asked about,
+//      `basic` runs, `consent` runs only with an unrevoked grant, read from
+//      Valu Guru (cached by `GrantsStore`) and consulted for no other tier.
+//
+// The app never names itself: `applicationId` / `appId` are the binding's slug.
+// At most `maxInFlight` requests run at once; the next answers `busy` at once,
+// and one that takes longer than `callTimeoutMs` answers 408 `timeout` (its late
+// result is dropped). A consent is decided only by a message from the host's own
+// origin (the consent page) that is not from the parent window, for a nonce the
+// app registered, and it never grants more than the app asked for.
+//
 // Where it answers:
 //
 //   - `win.parent.postMessage(msg, boundOrigin)`, never `'*'`. Before binding
@@ -27,7 +46,9 @@
 //     is a real `http(s)` origin: an opaque one (`'null'`) has no address.
 //   - Every outbound payload passes `assertNoHostLeak` first; one that fails is
 //     replaced by `{error:{code:'internal', message:'blocked outbound credential'}}`
-//     and logged by key path, never by value.
+//     and logged by key path, never by value. The one exemption: the top-level
+//     `token` (a string) of the reply to `Application.get-identity-token`, the
+//     app's own short-lived token, which the host builds itself (`IDENTITY_REPLIES`).
 //
 // The nesting rule: the host serves only a page its parent frames directly
 // (`win.parent === win.top`, `win.parent !== win`) and, where the browser says
@@ -49,14 +70,19 @@
 // No DOM at import. The window, the clock and `fetch` are the caller's.
 // ===========================================================================
 import { createValuServices } from '../services/api.js';
-import { ERROR_CODES, errorAck } from '../Errors.js';
 import { displayNameOf } from '../socket/user-info.js';
 import { RESOLVE_UNAVAILABLE } from './AppResolver.js';
 import * as CommerceIntents from './CommerceIntents.js';
+import { GrantsStore } from './GrantsStore.js';
+import { GuruClient } from './GuruClient.js';
+import {
+  CALL_REPLIES, IDENTITY_REPLIES, INTENT_REPLIES, INVALID_REQUEST, NONCE_MAX, UNAVAILABLE, answerCall, answerIntent,
+  cartCount, isPlainObject, notAvailable, validConsentScopes,
+} from './HostDispatch.js';
 import * as Permissions from './Permissions.js';
 import { isLocalOrigin, isOrigin, matchesOrigin } from './origins.js';
 import {
-  HOST_ERRORS, MSG, PROTOCOL_VERSION, assertNoHostLeak, parseAppMessage, toParent,
+  HOST_ERRORS, MSG, POPUP_MSG, PROTOCOL_VERSION, assertNoHostLeak, parseAppMessage, toParent,
 } from './protocol.js';
 
 /**
@@ -71,7 +97,8 @@ import {
  * @property {boolean} [dev] Accept `message.app` from a localhost parent. Only
  *   the boolean `true` turns it on.
  * @property {number} [maxInFlight] Concurrent requests per bound app.
- * @property {number} [callTimeoutMs]
+ * @property {number} [callTimeoutMs] How long a call or an intent may run before it answers 408 `timeout`.
+ * @property {number} [consentTimeoutMs] How long a consent request waits for the popup.
  * @property {number} [restoreTimeoutMs] How long a stored session may take to
  *   check before the user is treated as signed out.
  * @property {number} [resolveTimeoutMs] How long the resolver may take before the
@@ -86,6 +113,7 @@ const DEFAULT_CONFIG = Object.freeze({
   devAncestors: Object.freeze(['http://localhost:*', 'http://127.0.0.1:*']),
   maxInFlight: 16,
   callTimeoutMs: 30_000,
+  consentTimeoutMs: 600_000,
   restoreTimeoutMs: 5_000,
   resolveTimeoutMs: 10_000,
 });
@@ -132,6 +160,7 @@ function normalizeConfig(config) {
     dev: given.dev === true,
     maxInFlight: positiveInteger(given.maxInFlight, DEFAULT_CONFIG.maxInFlight),
     callTimeoutMs: positive(given.callTimeoutMs, DEFAULT_CONFIG.callTimeoutMs),
+    consentTimeoutMs: positive(given.consentTimeoutMs, DEFAULT_CONFIG.consentTimeoutMs),
     restoreTimeoutMs: positive(given.restoreTimeoutMs, DEFAULT_CONFIG.restoreTimeoutMs),
     resolveTimeoutMs: positive(given.resolveTimeoutMs, DEFAULT_CONFIG.resolveTimeoutMs),
   });
@@ -143,10 +172,10 @@ const CLAIM_RE = /^([\w-][\w.-]*)\/([\w-][\w.-]*)$/;
 /** A request id the way a client writes it: a number, else none (a reply to nobody names no id). */
 const idOf = (requestId) => (typeof requestId === 'number' && Number.isFinite(requestId) ? requestId : undefined);
 
-/** The answer for something the host does not do. */
-const notAvailable = (what) => ({
-  error: { code: HOST_ERRORS.NOT_AVAILABLE, message: `${what} is not available through the valu-api host` },
-});
+/** The one Commerce event the host answers with a count it reads itself, and the frame and op for it. */
+const CART_EVENT = 'cart-updated';
+const CART_FRAME = 'commerce.cart.updated';
+const CART_GET = 'valuguru.commerce.cart.get';
 
 /** App -> host names the host refuses, and the name each is answered under. */
 const REFUSED = new Map([
@@ -156,20 +185,32 @@ const REFUSED = new Map([
   [MSG.RUN_CONSOLE, MSG.RUN_CONSOLE_COMPLETED],
 ]);
 
+/** A message without its own top-level `token`. */
+const withoutToken = (message) => Object.fromEntries(Object.entries(message).filter(([key]) => key !== 'token'));
+
 /** The default logger: warnings and errors to the console. A page passes its own. */
 const consoleLog = (level, message) => {
   globalThis.console?.[level === 'error' ? 'error' : 'warn']?.(`[valu-host] ${message}`);
 };
 
-/** `promise`, or `fallback` once `ms` have passed. The timer never outlives the race. */
-function orAfter(promise, ms, fallback = null) {
+/**
+ * `promise`, or `fallback` once `ms` have passed. The timer never outlives the
+ * race; one that is passed `timers` is also listed there while it runs, so a
+ * stop can clear it.
+ * @param {Set<any>} [timers]
+ */
+function orAfter(promise, ms, fallback = null, timers = null) {
   let timer;
   const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(fallback), ms); });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  timers?.add(timer);
+  return Promise.race([promise, timeout]).finally(() => {
+    clearTimeout(timer);
+    timers?.delete(timer);
+  });
 }
 
-/** What a resolve that ran out of time answers, apart from `null` (the server said "no such app"). */
-const RESOLVE_TIMED_OUT = Symbol('resolve timed out');
+/** What a wait that ran out of time answers, apart from `null` (a resolve the server answered "no such app"). */
+const TIMED_OUT = Symbol('timed out');
 
 /**
  * The default `makeServices`: the 65 functions over the master socket, for
@@ -186,6 +227,19 @@ export const defaultMakeServices = (fetchImpl) => (connection, app) => createVal
   config: { webBase: 'https://live.valuverse.io', apiGate: 'https://api.roomful.net' },
 });
 
+/**
+ * The default `makeGuru`: a `GuruClient` over the session seam (`mintToken`,
+ * `getNetworkId`). Made lazily; it opens its socket on the first request. A
+ * page that needs another URL or `WebSocket` passes its own `makeGuru`.
+ * @param {{mintToken: Function, getNetworkId: Function}} session
+ */
+export const defaultMakeGuru = (session) => new GuruClient({
+  mintToken: session.mintToken, getNetworkId: session.getNetworkId,
+});
+
+/** The default `makeGrants`: this app's grants, by its canonical address. */
+export const defaultMakeGrants = (guru, app) => new GrantsStore({ guru, appAddress: app.address });
+
 export class HostBridge {
   #win;
   #resolver;
@@ -193,14 +247,15 @@ export class HostBridge {
   #config;
   #logger;
   #makeConnection;
-
-  // Held for the tasks that build on this one: calls, consent, the sign-in channel.
-  #sessionStore;
   #makeServices;
   #makeGuru;
   #makeGrants;
   #commerce;
   #permissions;
+  #fetch;
+
+  // Held for the sign-in channel, which a later task adds.
+  #sessionStore;
 
   #listening = false;
   #stopped = false;
@@ -211,10 +266,32 @@ export class HostBridge {
   /** `api:ready` has gone out: the host serves the app. */
   #ready = false;
   #connection = null;
-  #guru = null;
   #signedIn = false;
   #user = null;
   #network = null;
+  /** The master session id, for the Guru mint; never posted, never logged. Null when signed out. */
+  #sessionId = null;
+  /** `user_info.user`, whole: what the Commerce intents answer with. */
+  #masterUser = null;
+  /** The SDK's service functions over the master, built on first use. */
+  #services = null;
+  /** The Valu Guru client and the grants over it, built on first need. */
+  #guru = null;
+  #grants = null;
+  /** The Commerce events the app subscribed to. */
+  #subscribed = new Set();
+  /** Which cart read is the latest: an older one that finishes late is not pushed. */
+  #cartSeq = 0;
+  /** `api:call` + `api:service-intent` requests running now. */
+  #inFlight = 0;
+  /** Timers armed for a running request, so a stop can clear them. */
+  #timers = new Set();
+  /** nonce -> a consent request waiting for the popup: `{app, scopes, requestId, timer}`. */
+  #consents = new Map();
+  /** What the consent page reads, while this bridge is on the host origin. */
+  #exposed = null;
+  /** What `answerCall` and `answerIntent` are lent: this bridge's state, read through functions. */
+  #seams;
 
   /**
    * @param {object} options
@@ -226,13 +303,17 @@ export class HostBridge {
    *   A `MasterConnection` for a session id.
    * @param {(connection: object, app: object) => object} [options.makeServices]
    *   Default: {@link defaultMakeServices}.
-   * @param {(session: object, app: object) => object} [options.makeGuru] A `GuruClient`, made when first needed.
-   * @param {(guru: object, app: object) => object} [options.makeGrants] A `GrantsStore`.
+   * @param {(session: {mintToken: () => Promise<string>, getNetworkId: () => string|null}, app: object) => object} [options.makeGuru]
+   *   A `GuruClient`, made when first needed (a grant check or a Commerce op), once per session. `session` is
+   *   what it needs of the host: a one-time token per connect attempt and the master's network. Default:
+   *   {@link defaultMakeGuru}.
+   * @param {(guru: object, app: object) => object} [options.makeGrants] A `GrantsStore` over that client.
+   *   Default: {@link defaultMakeGrants}.
    * @param {object} [options.commerce] The Commerce intent table (default: the module).
    * @param {object} [options.permissions] The permission tiers (default: the module).
    * @param {HostConfig} options.config
    * @param {(level: 'warn'|'error', message: string) => void} [options.log]
-   * @param {Function} [options.fetchImpl] A bound `fetch`, for the default `makeServices`.
+   * @param {Function} [options.fetchImpl] A bound `fetch`: the default `makeServices` and the Guru mint use it.
    */
   constructor({
     win, resolver, auth, sessionStore, makeConnection, makeServices, makeGuru, makeGrants,
@@ -249,13 +330,29 @@ export class HostBridge {
     this.#auth = auth;
     this.#sessionStore = sessionStore;
     this.#makeConnection = makeConnection;
-    this.#makeServices = makeServices ?? defaultMakeServices(fetchImpl ?? globalThis.fetch?.bind(globalThis));
-    this.#makeGuru = makeGuru;
-    this.#makeGrants = makeGrants;
+    this.#fetch = fetchImpl ?? globalThis.fetch?.bind(globalThis);
+    this.#makeServices = makeServices ?? defaultMakeServices(this.#fetch);
+    this.#makeGuru = makeGuru ?? defaultMakeGuru;
+    this.#makeGrants = makeGrants ?? defaultMakeGrants;
     this.#commerce = commerce;
     this.#permissions = permissions;
     this.#config = normalizeConfig(config);
     this.#logger = log;
+    this.#seams = Object.freeze({
+      permissions,
+      commerce,
+      signedIn: () => this.#signedIn,
+      app: () => this.#bound.app,
+      services: () => this.#servicesFor(),
+      grants: () => this.#grantsFor(),
+      guru: () => this.#guruFor(),
+      user: () => this.#masterUser,
+      networkId: () => this.#networkId(),
+      emit: (ns, data) => this.#connection.emit(ns, data),
+      subscribed: () => this.#subscribed,
+      setSubscribed: (events) => { this.#subscribed = events; },
+      log: (level, message) => this.#log(level, message),
+    });
   }
 
   /** Who the host is bound to and what it knows of the user. For tests and the consent page. */
@@ -273,6 +370,7 @@ export class HostBridge {
     if (this.#listening) return this;
     this.#win.addEventListener('message', this.#onMessage);
     this.#listening = true;
+    this.#exposeConsent();
     return this;
   }
 
@@ -284,7 +382,56 @@ export class HostBridge {
       this.#listening = false;
     }
     this.#ready = false;
+    if (this.#exposed && this.#win.__valuHost === this.#exposed) delete this.#win.__valuHost;
+    this.#exposed = null;
+    for (const timer of this.#timers) clearTimeout(timer);
+    this.#timers.clear();
     await this.#dropSession();
+  }
+
+  /**
+   * The consent request waiting for the popup under `nonce`, for the consent
+   * page to show: the app's name and address come from the binding and the
+   * scopes from the request, never from anything the page itself is given.
+   * @param {string} nonce
+   * @returns {{nonce: string, app: {name: string, address: string}, scopes: string[]}|null}
+   */
+  pendingConsent(nonce) {
+    const entry = typeof nonce === 'string' ? this.#consents.get(nonce) : undefined;
+    return entry ? { nonce, app: { ...entry.app }, scopes: [...entry.scopes] } : null;
+  }
+
+  /**
+   * Settle a waiting consent request with the user's decision: the consent
+   * page's message, once it has passed the origin check. An approval writes the
+   * grants (only scopes the app asked for, whatever the decision names), then
+   * answers the app's `host:consent` with `host:consent-completed`. A nonce that
+   * is not waiting is ignored, so a decision counts once.
+   * @param {{nonce: string, approved: boolean, scopes: string[]}} decision
+   * @returns {Promise<boolean>} whether a waiting request was settled
+   */
+  async resolveConsent({ nonce, approved, scopes } = {}) {
+    const entry = typeof nonce === 'string' ? this.#consents.get(nonce) : undefined;
+    if (!entry) return false;
+    this.#consents.delete(nonce);
+    clearTimeout(entry.timer);
+
+    // Only `true` approves, and only of what was asked: a decision that names
+    // nothing the app asked for grants nothing.
+    const granted = approved === true && Array.isArray(scopes) ? entry.scopes.filter((scope) => scopes.includes(scope)) : [];
+    let answer = { approved: false };
+    if (granted.length > 0) {
+      try {
+        const grants = this.#grantsFor();
+        await grants.grant(granted);
+        answer = this.#grants === grants ? { approved: true } : { approved: false, reason: HOST_ERRORS.SIGN_IN_REQUIRED };
+      } catch (error) {
+        this.#log('warn', `a consent could not be written (${error?.code ?? error?.name ?? 'error'})`);
+        answer = { approved: false, reason: UNAVAILABLE };
+      }
+    }
+    this.#post(MSG.CONSENT_COMPLETED, answer, entry.requestId);
+    return true;
   }
 
   /**
@@ -315,6 +462,11 @@ export class HostBridge {
   #onMessage = (event) => {
     try {
       if (this.#stopped || !event) return;
+      const { data } = event;
+      if (isPlainObject(data) && data.type === POPUP_MSG.CONSENT) {
+        this.#onConsentDecision(event);
+        return;
+      }
       const parent = this.#win.parent;
       if (!parent || event.source !== parent) return;
       const parsed = parseAppMessage(event.data);
@@ -348,10 +500,13 @@ export class HostBridge {
         this.#onAuth(message, id);
         return;
       case MSG.CALL:
-        this.#post(MSG.CALL_COMPLETED, errorAck(ERROR_CODES.UNSUPPORTED, HOST_ERRORS.NOT_AVAILABLE), id);
+        void this.#serve(CALL_REPLIES, id, () => answerCall(this.#seams, message));
         return;
       case MSG.SERVICE_INTENT:
-        this.#post(MSG.RUN_CONSOLE_COMPLETED, notAvailable(name), id);
+        void this.#serve(INTENT_REPLIES, id, () => answerIntent(this.#seams, message));
+        return;
+      case MSG.CONSENT:
+        this.#requestConsent(message, id);
         return;
       default:
         // `api:run-command` and anything unknown: in dedicated mode the app owns
@@ -369,6 +524,185 @@ export class HostBridge {
     this.#dropSession();
     this.pushAuth();
     this.#post(MSG.AUTH_COMPLETED, { ok: true }, id);
+  }
+
+  // --- what the app asks ---------------------------------------------------
+
+  /**
+   * Take one `api:call` or `api:service-intent`: at most `maxInFlight` run at
+   * once (the next answers `busy` at once), each is bounded by `callTimeoutMs`
+   * (its late result is dropped), and one that fails answers `failed` and is
+   * logged by code, never by message. `kind` says what each answers.
+   * @param {typeof CALL_REPLIES} kind
+   * @param {number|undefined} id
+   * @param {() => Promise<object>} work
+   */
+  async #serve(kind, id, work) {
+    if (this.#inFlight >= this.#config.maxInFlight) {
+      this.#post(kind.reply, kind.busy, id);
+      return;
+    }
+    this.#inFlight += 1;
+    let answer;
+    try {
+      answer = await orAfter(work(), this.#config.callTimeoutMs, TIMED_OUT, this.#timers);
+      if (answer === TIMED_OUT) answer = kind.timeout;
+    } catch (error) {
+      this.#log('error', `a request failed (${error?.code ?? error?.name ?? 'error'})`);
+      answer = kind.failed;
+    } finally {
+      this.#inFlight -= 1;
+    }
+    this.#post(kind.reply, answer, id);
+  }
+
+  /** The SDK's service functions over this session's master, built on first use. */
+  #servicesFor() {
+    this.#services ??= this.#makeServices(this.#connection, this.#bound.app);
+    return this.#services;
+  }
+
+  // --- Valu Guru -----------------------------------------------------------
+
+  /** The Guru client for this session, with the grants over it: made on first need, closed on sign-out. */
+  #guruFor() {
+    if (this.#guru) return this.#guru;
+    if (!this.#signedIn || !this.#bound) throw new Error('not signed in');
+    const { app } = this.#bound;
+    const guru = this.#makeGuru({ mintToken: () => this.#mintGuruToken(), getNetworkId: () => this.#networkId() }, app);
+    let grants;
+    try {
+      grants = this.#makeGrants(guru, app);
+      guru.onCommerceEvent?.((frame) => this.#onCommerceFrame(guru, frame));
+    } catch (error) {
+      this.#closeQuietly(guru);
+      throw error;
+    }
+    this.#guru = guru;
+    this.#grants = grants;
+    return guru;
+  }
+
+  #grantsFor() {
+    this.#guruFor();
+    return this.#grants;
+  }
+
+  /** The network the master is in now; what a Guru request is addressed to. */
+  #networkId() {
+    return this.#connection?.socket?.networkId ?? this.#network?.id ?? null;
+  }
+
+  /**
+   * A one-time token for the Guru socket, minted with the host's session. A
+   * token works once, so the client asks again for every connect attempt. A
+   * refused session rejects `session_expired`; nothing here carries the session
+   * into a message.
+   */
+  async #mintGuruToken() {
+    const sessionId = this.#sessionId;
+    if (!sessionId) throw Object.assign(new Error('no session to mint a token with'), { code: HOST_ERRORS.SIGN_IN_REQUIRED });
+    if (typeof this.#fetch !== 'function') throw new Error('no fetch to mint a token with');
+    const networkId = this.#networkId();
+    const response = await this.#fetch(`https://${this.#config.master}/api/v1/auth/getOneTimeAuthToken`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Session-Id': sessionId, ...(networkId ? { 'X-Network': networkId } : {}) },
+      body: '{}',
+    });
+    const body = await response.json();
+    // The master signals a refused session in the body (HTTP 200).
+    if (body?.error?.code === 401) {
+      throw Object.assign(new Error('the master refused the session'), { code: HOST_ERRORS.SESSION_EXPIRED });
+    }
+    const token = body?.data?.token;
+    if (!response.ok || typeof token !== 'string' || token === '') throw new Error('the master issued no one-time token');
+    return token;
+  }
+
+  /**
+   * A `commerce_event` frame: pushed to the app when it is one the app
+   * subscribed to and may hear; a cart frame is read for its count instead.
+   */
+  #onCommerceFrame(guru, frame) {
+    if (this.#guru !== guru || !this.#ready) return;
+    try {
+      const mapped = this.#commerce.mapCommerceEvent(frame, {
+        appId: this.#bound.app.slug, networkId: this.#networkId(), subscribed: this.#subscribed,
+      });
+      if (mapped) this.pushCommerce(mapped.event, mapped.data);
+      if (frame?.event === CART_FRAME && this.#subscribed.has(CART_EVENT)) void this.#pushCartCount(guru);
+    } catch (error) {
+      this.#log('error', `a commerce event could not be handled (${error?.name ?? 'error'})`);
+    }
+  }
+
+  /** Read the cart and push `cart-updated {count}`; only the latest read is pushed, and only to a subscriber. */
+  async #pushCartCount(guru) {
+    this.#cartSeq += 1;
+    const seq = this.#cartSeq;
+    try {
+      const data = await guru.request(CART_GET, {});
+      if (seq !== this.#cartSeq || this.#guru !== guru || !this.#subscribed.has(CART_EVENT)) return;
+      this.pushCommerce(CART_EVENT, { count: cartCount(data, this.#bound.app.slug) });
+    } catch (error) {
+      this.#log('warn', `the cart count could not be read (${error?.code ?? error?.name ?? 'error'})`);
+    }
+  }
+
+  // --- consent -------------------------------------------------------------
+
+  /** `host:consent`: register what the consent page will show, and wait for its decision. */
+  #requestConsent({ scopes, nonce }, id) {
+    const refuse = (reason) => this.#post(MSG.CONSENT_COMPLETED, { approved: false, reason }, id);
+    if (!this.#signedIn) return refuse(HOST_ERRORS.SIGN_IN_REQUIRED);
+    const wanted = validConsentScopes(scopes, (scope) => this.#permissions.tierOf(scope));
+    // The nonce names a request, so one that is already waiting is not rewritten.
+    if (!wanted || typeof nonce !== 'string' || nonce === '' || nonce.length > NONCE_MAX || this.#consents.has(nonce)) {
+      return refuse(INVALID_REQUEST);
+    }
+    if (this.#consents.size >= this.#config.maxInFlight) return refuse(HOST_ERRORS.BUSY);
+    const { name, address } = this.#bound.app;
+    const timer = setTimeout(() => this.#expireConsent(nonce), this.#config.consentTimeoutMs);
+    this.#consents.set(nonce, { app: { name, address }, scopes: wanted, requestId: id, timer });
+    return undefined;
+  }
+
+  #expireConsent(nonce) {
+    const entry = this.#consents.get(nonce);
+    if (!entry) return;
+    this.#consents.delete(nonce);
+    this.#post(MSG.CONSENT_COMPLETED, { approved: false, reason: HOST_ERRORS.TIMEOUT }, entry.requestId);
+  }
+
+  /** Tell every waiting app its request is over, and forget them. */
+  #settleConsents(reason) {
+    for (const entry of this.#consents.values()) {
+      clearTimeout(entry.timer);
+      this.#post(MSG.CONSENT_COMPLETED, { approved: false, reason }, entry.requestId);
+    }
+    this.#consents.clear();
+  }
+
+  /**
+   * The consent page's decision. It is accepted from the host's own origin
+   * only, and never from the parent window: the app page is not the consent page
+   * even if it shares the origin.
+   */
+  #onConsentDecision(event) {
+    const { hostOrigin } = this.#config;
+    if (!hostOrigin || event.origin !== hostOrigin || event.source === this.#win.parent) return;
+    const { nonce, approved, scopes } = event.data;
+    this.resolveConsent({ nonce, approved, scopes }).catch((error) => {
+      this.#log('error', `a consent decision failed (${error?.name ?? 'error'})`);
+    });
+  }
+
+  /** Give the consent page its window onto the pending requests, when this page is on the host origin. */
+  #exposeConsent() {
+    const { hostOrigin } = this.#config;
+    if (!hostOrigin || this.#win.location?.origin !== hostOrigin) return;
+    this.#exposed = Object.freeze({ pendingConsent: (nonce) => this.pendingConsent(nonce) });
+    this.#win.__valuHost = this.#exposed;
   }
 
   // --- the handshake -------------------------------------------------------
@@ -409,7 +743,7 @@ export class HostBridge {
     if (!app) {
       try {
         // Bounded, so a resolver that never answers cannot hold up every hello behind this one.
-        app = await orAfter(this.#resolver.resolve(origin), this.#config.resolveTimeoutMs, RESOLVE_TIMED_OUT);
+        app = await orAfter(this.#resolver.resolve(origin), this.#config.resolveTimeoutMs, TIMED_OUT);
       } catch (error) {
         this.#log('warn', `the app could not be resolved (${error?.code ?? RESOLVE_UNAVAILABLE})`);
         this.#post(MSG.ERROR, {
@@ -418,7 +752,7 @@ export class HostBridge {
         return;
       }
       if (this.#stopped) return;
-      if (app === RESOLVE_TIMED_OUT) {
+      if (app === TIMED_OUT) {
         this.#log('warn', 'the app could not be resolved (timeout)');
         this.#post(MSG.ERROR, {
           code: RESOLVE_UNAVAILABLE, message: 'the app could not be looked up in time; try again',
@@ -494,6 +828,8 @@ export class HostBridge {
       const info = await connection.connect();
       if (this.#stopped || this.#connection !== connection) return;
       this.#signedIn = true;
+      this.#sessionId = sessionId;
+      this.#masterUser = isPlainObject(info?.user) ? info.user : null;
       this.#user = text(info?.userId) ? { id: info.userId, name: displayNameOf(info.user) } : null;
       this.#network = text(info?.networkId)
         ? { id: info.networkId, name: text(info.network?.fullName) ?? text(info.network?.name) }
@@ -515,14 +851,26 @@ export class HostBridge {
     }
   }
 
-  /** Close the master connection and the guru client, and forget who the user was. */
+  /**
+   * Close the master connection and the guru client, forget who the user was
+   * and what was held for them: the grants cache, the Commerce subscriptions,
+   * the consent requests (their apps are told they are over).
+   */
   #dropSession() {
     const closing = [this.#connection, this.#guru].filter(Boolean);
+    this.#grants?.invalidate?.();
     this.#connection = null;
     this.#guru = null;
+    this.#grants = null;
+    this.#services = null;
+    this.#sessionId = null;
+    this.#masterUser = null;
+    this.#subscribed = new Set();
+    this.#cartSeq += 1;
     this.#signedIn = false;
     this.#user = null;
     this.#network = null;
+    this.#settleConsents(HOST_ERRORS.SIGN_IN_REQUIRED);
     return Promise.all(closing.map((closable) => this.#closeQuietly(closable)));
   }
 
@@ -565,7 +913,12 @@ export class HostBridge {
 
     let payload;
     try {
-      payload = assertNoHostLeak(toParent(name, message, requestId), `outbound ${name}`);
+      payload = toParent(name, message, requestId);
+      // The identity token reply is the one message whose own `token` may leave:
+      // the guard still reads everything else in it, and a token that is not a
+      // plain string is no token.
+      const exempt = IDENTITY_REPLIES.has(message) && typeof message.token === 'string';
+      assertNoHostLeak(exempt ? toParent(name, withoutToken(message), requestId) : payload, `outbound ${name}`);
     } catch (error) {
       this.#log('error', `blocked an outbound ${name}: ${error.message}`);
       payload = toParent(name, { error: { code: 'internal', message: 'blocked outbound credential' } }, requestId);

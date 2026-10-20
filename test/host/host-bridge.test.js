@@ -1,8 +1,8 @@
 // ===========================================================================
 // HostBridge — the host iframe's message handler: handshake, binding, the
 // nesting rule, the dispatch table, sign-out, ping and pushes (spec §4.3,
-// §4.5). `api:call` / `api:service-intent` bodies, consent and the sign-in
-// token channel are later tasks; here they answer `not_available` / are absent.
+// §4.5). What `api:call`, `api:service-intent` and `host:consent` do is in
+// `host-bridge-calls.test.js`; the sign-in token channel is a later task.
 //
 // Everything runs on the fakes and the harness in `test/helpers/hostBridgeFakes.js`
 // (`setup`, `fakeResolver`, `fakeAuth`, `fakeMaker`); `settle()` lets the bridge's
@@ -594,7 +594,8 @@ test('replies carry target valuApi and a numeric top-level requestId', async () 
   await settle();
 
   const replies = posts().filter((p) => p.data.name !== MSG.TRIGGER);
-  assert.deepEqual(replies.map((p) => p.data.requestId), [7, 8, 9, 10, 11, 12, 13, 14]);
+  // The synchronous replies come first; a call and an intent are answered when their work ends.
+  assert.deepEqual(replies.map((p) => p.data.requestId).sort((a, b) => a - b), [7, 8, 9, 10, 11, 12, 13, 14]);
   for (const { data } of posts()) {
     assert.equal(data.target, 'valuApi');
     assert.ok(Object.hasOwn(data, 'requestId'), 'the key is always there, as toParent writes it');
@@ -610,20 +611,6 @@ test('a request id that is not a number is not echoed', async () => {
   await settle();
   assert.equal(posts().length, 3);
   assert.deepEqual(posts().map((p) => p.data.requestId), [undefined, undefined, undefined]);
-});
-
-test('api:call and api:service-intent answer not_available until they are served', async () => {
-  const { call, posts, open } = setup();
-  await open();
-  call(MSG.CALL, { service: 'Users', action: 'current', params: {}, requestId: 1 });
-  call(MSG.SERVICE_INTENT, { applicationId: 'Commerce', action: 'list-products', params: {}, requestId: 2 });
-  await settle();
-
-  assert.equal(posts()[0].data.name, MSG.CALL_COMPLETED);
-  assert.deepEqual(posts()[0].data.message, { error: { status: true, code: 501, message: 'not_available' } });
-  assert.equal(posts()[1].data.name, MSG.RUN_CONSOLE_COMPLETED);
-  assert.equal(posts()[1].data.message.error.code, 'not_available');
-  assert.equal(typeof posts()[1].data.message.error.message, 'string');
 });
 
 test('the four refused names answer with their usual reply and not_available', async () => {
@@ -650,7 +637,7 @@ test('api:run-command and unknown names are ignored', async () => {
   await open();
   call(MSG.RUN_COMMAND, { requestId: 1, command: 'x' });
   call('api:invented', { requestId: 2 });
-  call('host:consent', { requestId: 3 });
+  call(MSG.CONSENT_COMPLETED, { requestId: 3 });
   call(MSG.PONG, { requestId: 4 });
   call('__proto__', { requestId: 5 });
   call('toString', { requestId: 6 });
@@ -862,7 +849,7 @@ test('the constructor refuses a missing window, resolver, auth or makeConnection
   assert.throws(() => new HostBridge(), TypeError);
 });
 
-test('the factories for the later tasks are accepted and not called by the skeleton', async () => {
+test('the factories are lazy: a handshake, a ping and a sign-out call none of them', async () => {
   const called = [];
   const { open, call, posts } = setup({
     auth: fakeAuth({ session: SESSION }),

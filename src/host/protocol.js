@@ -42,6 +42,16 @@ export const MSG = Object.freeze({
 });
 
 /**
+ * The `type` of a message a popup posts to the host iframe (not an app message:
+ * it has no `name`). Accepted only from the origin the popup is served from;
+ * see HostBridge.
+ */
+export const POPUP_MSG = Object.freeze({
+  /** `{type, nonce, approved, scopes}` from the consent page. */
+  CONSENT: 'valu-host:consent',
+});
+
+/**
  * Host-level string codes: what `host:error`, a rejected `open()` or an auth
  * outcome carries. Not the numeric ack codes of `src/Errors.js` — those answer
  * a call; these say why the host itself cannot.
