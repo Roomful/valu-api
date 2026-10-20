@@ -146,7 +146,7 @@ test('no action reaches an op outside the commerce catalogue, and appId is never
     await runCommerceIntent(action, {
       appId: 'evil', scope: 'evil', productId: 'p1', productIds: ['p1'], itemId: 'i1', orderId: 'o1', title: 'T',
       code: 'abc', saleId: 's1', tierId: 't1', codeId: 'c1', networkId: 'n1', qty: 1,
-    }, { guru, appId: APP });
+    }, { guru, appId: APP, user: { id: 'u1' } });
     for (const call of guru.calls) {
       reached.add(call.op);
       assert.match(call.op, /^valuguru\.commerce\./, `${action} -> ${call.op}`);
@@ -250,6 +250,22 @@ test('idempotency keys are minted fresh each time', () => {
   const b = mintIdempotencyKey();
   assert.match(a, /^[\w-]{8,}$/);
   assert.notEqual(a, b);
+});
+
+test('without crypto.randomUUID the key falls back to ck_<timestamp>_<random>', () => {
+  const real = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+  try {
+    for (const stub of [undefined, {}]) {
+      Object.defineProperty(globalThis, 'crypto', { value: stub, configurable: true, writable: true });
+      const a = mintIdempotencyKey();
+      const b = mintIdempotencyKey();
+      assert.match(a, /^ck_[0-9a-z]+_[0-9a-z]{1,8}$/);
+      assert.notEqual(a, b);
+    }
+  } finally {
+    Object.defineProperty(globalThis, 'crypto', real);
+  }
+  assert.match(mintIdempotencyKey(), /^[0-9a-f]{8}-[0-9a-f]{4}-/, 'and with it, a uuid again');
 });
 
 test('the runner gives an entry a ctx with the stamp and idempotency keys, and honours its timeout', async () => {
@@ -775,8 +791,22 @@ test('get-my-store: the store read is the point, and its refusal is the answer',
     'valuguru.commerce.store.get': guruError('unauthorized', 'sign in'),
     'valuguru.commerce.network.memberCount': { memberCount: 1 },
     'valuguru.commerce.network.policy.get': { policy: null },
-  });
+  }, { user: { id: 'u1' } });
   assert.deepEqual(result, { success: false, code: 'unauthorized', error: 'sign in' });
+});
+
+test('get-my-store and create-store refuse, before any op, when the host does not know the signed-in user', async () => {
+  const script = {
+    'valuguru.commerce.store.get': { store: STORE_ROW },
+    'valuguru.commerce.store.create': { store: STORE_ROW },
+  };
+  for (const action of ['get-my-store', 'create-store']) {
+    for (const options of [{}, { user: null }, { user: undefined, networkId: 'roomful' }]) {
+      const { result, calls } = await run(action, { name: 'Mine' }, script, options);
+      assert.deepEqual(result, { success: false, code: 'unsupported', error: 'signed-in user unknown' }, action);
+      assert.deepEqual(calls, [], `${action} sent nothing`);
+    }
+  }
 });
 
 test('create-store opens the store under the owner\'s profile name when none is given', async () => {
@@ -787,20 +817,21 @@ test('create-store opens the store under the owner\'s profile name when none is 
   assert.deepEqual(result, { success: true, store: STORE_ANSWER });
 });
 
-test('create-store: a name is trimmed and checked; with no name and no profile, the server decides', async () => {
-  const named = await run('create-store', { name: '  Mine  ' }, { 'valuguru.commerce.store.create': { store: STORE_ROW } });
+test('create-store: a name is trimmed and checked; with no name and no profile name, the server decides', async () => {
+  const user = { id: 'u1' };
+  const named = await run('create-store', { name: '  Mine  ' }, { 'valuguru.commerce.store.create': { store: STORE_ROW } }, { user });
   assert.deepEqual(named.calls[0].params, { name: 'Mine' });
 
-  const bare = await run('create-store', {}, { 'valuguru.commerce.store.create': { store: STORE_ROW } });
+  const bare = await run('create-store', {}, { 'valuguru.commerce.store.create': { store: STORE_ROW } }, { user });
   assert.deepEqual(bare.calls[0].params, {});
 
   for (const params of [{ name: 5 }, { name: '   ' }, { name: 'x'.repeat(121) }, { name: 'ok', description: 5 }, { name: 'ok', description: 'x'.repeat(2001) }]) {
-    const bad = await run('create-store', params, {});
+    const bad = await run('create-store', params, {}, { user });
     assert.equal(bad.result.code, 'validation_failed', JSON.stringify(params).slice(0, 40));
     assert.deepEqual(bad.calls, []);
   }
 
-  const kyc = await run('create-store', {}, { 'valuguru.commerce.store.create': guruError('not_eligible_kyc', 'Verify your identity first') });
+  const kyc = await run('create-store', {}, { 'valuguru.commerce.store.create': guruError('not_eligible_kyc', 'Verify your identity first') }, { user });
   assert.deepEqual(kyc.result, { success: false, code: 'not_eligible_kyc', error: 'Verify your identity first' });
 });
 
@@ -1072,9 +1103,24 @@ test('create-product without a title would open a form, which the host has no sc
   for (const params of [{}, { title: '   ' }, { title: 5 }, { description: 'only' }]) {
     const { result, calls } = await run('create-product', params, {});
     assert.equal(result.success, false);
+    assert.equal(result.product, null, 'the docs show product: null on a refusal');
     assert.equal(result.code, 'unsupported');
     assert.match(result.error, /title/);
     assert.deepEqual(calls, []);
+  }
+});
+
+test('create-product: a server that answers without the product is not_found, and its content is not sent', async () => {
+  for (const answer of [{}, null, { product: null }]) {
+    const { result, ops } = await run('create-product', { title: 'T', items: ['res1'] }, {
+      'valuguru.commerce.products.create': answer,
+      'valuguru.commerce.products.items.set': {},
+    });
+    assert.equal(result.success, false);
+    assert.equal(result.product, null);
+    assert.equal(result.code, 'not_found');
+    assert.equal(typeof result.error, 'string');
+    assert.deepEqual(ops, ['valuguru.commerce.products.create'], 'nothing to put content in');
   }
 });
 
