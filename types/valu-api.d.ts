@@ -288,7 +288,8 @@ declare module '@arkeytyp/valu-api' {
     /** Declared functions over a ValuSocket. Does not speak the bridge. */
     export class SocketTransport extends Transport {
         constructor(options: {
-            socket: ValuSocket;
+            /** `null` for a transport that serves only the `local` functions. */
+            socket: ValuSocket | null;
             /** For the 3 `app-state` functions. */
             appState?: AppState;
             fetchImpl?: typeof fetch;
@@ -298,7 +299,7 @@ declare module '@arkeytyp/valu-api' {
             applicationId?: string | null;
             registry?: ServiceRegistry;
         });
-        get socket(): ValuSocket;
+        get socket(): ValuSocket | null;
         get appState(): AppState | null;
         get config(): ValuConfig;
         get applicationId(): string | null;
