@@ -47,7 +47,7 @@
 // ===========================================================================
 
 import {
-  asBundlePrice, includesProducts, mapCodeRow, mapSaleRow, mapTierRow, networkAccessForIntent, orderForIntent,
+  asBundlePrice, cartCount, includesProducts, mapCodeRow, mapSaleRow, mapTierRow, networkAccessForIntent, orderForIntent,
   previewAnswer, productContentsForDisplay, productItemsFromIntent, productItemsToIntent, profileNameOf,
   purchaseForIntent, sellerProductForDisplay, sellerProductForIntent, storeForIntent, storeRowForIntent,
 } from './commerceShapes.js';
@@ -221,7 +221,7 @@ export function mintIdempotencyKey() {
 const cartItems = (data) => list(data?.items);
 
 /** What the badge counts and `get-cart` answers: the cart, saved for later excluded. */
-const countOf = (items) => items.filter((item) => !item.savedForLater).length;
+const countOf = (items) => cartCount(items);
 
 /** Every cart write answers the way `get-cart` reads: the WHOLE cart, every app's rows. */
 const cartAnswer = (items) => ({ success: true, items, count: countOf(items) });

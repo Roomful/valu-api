@@ -10,8 +10,8 @@ import assert from 'node:assert/strict';
 
 import * as Permissions from '../../src/host/Permissions.js';
 import {
-  ACK, CALL_REPLIES, INTENT_REPLIES, IDENTITY_REPLIES, answerCall, answerIntent, callRefusal, cartCount, intentRefusal,
-  isPlainObject, label, markUnretryable, notAvailable, permit, readEventNames, validConsentScopes,
+  ACK, CALL_REPLIES, INTENT_REPLIES, answerCall, answerIntent, callRefusal, cartCount, intentRefusal, isIdentityReply,
+  isPlainObject, label, markIdentityReply, markUnretryable, notAvailable, permit, readEventNames, validConsentScopes,
 } from '../../src/host/HostDispatch.js';
 import { MSG } from '../../src/host/protocol.js';
 
@@ -79,6 +79,7 @@ test('the busy, timeout and failed replies, per kind of request', () => {
   assert.equal(CALL_REPLIES.reply, MSG.CALL_COMPLETED);
   assert.deepEqual(CALL_REPLIES.busy, { error: { status: true, code: 429, message: 'busy' } });
   assert.deepEqual(CALL_REPLIES.timeout, { error: { status: true, code: 408, message: 'timeout' } });
+  assert.deepEqual(CALL_REPLIES.timeoutAfterWrite, { error: { status: true, code: 408, message: 'timeout', retryable: false } });
   assert.deepEqual(CALL_REPLIES.failed, { error: { status: true, code: 500, message: 'internal' } });
   assert.equal(INTENT_REPLIES.reply, MSG.RUN_CONSOLE_COMPLETED);
   for (const [kind, code] of [['busy', 'busy'], ['timeout', 'timeout'], ['failed', 'error']]) {
@@ -106,14 +107,19 @@ test('label shortens a string and hides anything else', () => {
 // Checks
 // ---------------------------------------------------------------------------
 
-test('markUnretryable: only a write that was cut off is marked, and the ack is not changed', () => {
+test('markUnretryable: only a write that was cut off or timed out is marked, and the ack is not changed', () => {
   const cut = { error: { status: true, code: 503, message: 'disconnected' } };
   const marked = markUnretryable({ mutates: true }, cut);
   assert.deepEqual(marked, { error: { status: true, code: 503, message: 'disconnected', retryable: false } });
   assert.deepEqual(cut, { error: { status: true, code: 503, message: 'disconnected' } });
   assert.notEqual(marked, cut);
 
+  const late = { error: { status: true, code: 408, message: 'timeout' } };
+  assert.deepEqual(markUnretryable({ mutates: true }, late), { error: { status: true, code: 408, message: 'timeout', retryable: false } });
+  assert.deepEqual(late, { error: { status: true, code: 408, message: 'timeout' } });
+
   assert.equal(markUnretryable({ mutates: false }, cut), cut, 'a read may be repeated');
+  assert.equal(markUnretryable({ mutates: false }, late), late);
   const other = { error: { status: true, code: 500, message: 'no' } };
   assert.equal(markUnretryable({ mutates: true }, other), other);
   const ok = { data: { done: true } };
@@ -135,10 +141,10 @@ test('readEventNames: known names once each, anything else is an error that name
   assert.match(error, /cart-updated, order-updated/, 'it says what the events are');
 });
 
-test('cartCount: this app\'s rows, saved-for-later left out, whatever else the cart holds', () => {
+test('cartCount: this app\'s rows, saved-for-later left out by the one rule get-cart uses, whatever else the cart holds', () => {
   const items = [
-    { appId: 'demo' }, { appId: 'demo', savedForLater: false }, { appId: 'demo', savedForLater: true }, { appId: 'other' },
-    null, undefined, 'x', 5, {}, { appId: 'DEMO' },
+    { appId: 'demo' }, { appId: 'demo', savedForLater: false }, { appId: 'demo', savedForLater: true }, { appId: 'demo', savedForLater: 1 },
+    { appId: 'other' }, null, undefined, 'x', 5, {}, { appId: 'DEMO' },
   ];
   assert.equal(cartCount({ items }, 'demo'), 2);
   for (const data of [null, undefined, {}, { items: 'x' }, { items: {} }, 5, 'x']) assert.equal(cartCount(data, 'demo'), 0);
@@ -199,6 +205,25 @@ test('permit: signed out is sign_in_required; so is a session that ended while t
   }
 });
 
+test('answerCall tells its tracker when a write is handed to the services, and not before', async () => {
+  let seenByServices;
+  const track = { wrote: false };
+  const { host } = fakeHost({
+    grants: () => ({ has: async () => true }),
+    services: () => ({ call: async () => { seenByServices = track.wrote; return { data: 1 }; } }),
+  });
+  await answerCall(host, { service: 'ApplicationStorage', action: 'resource-delete', params: { resourceId: 'r' } }, track);
+  assert.equal(seenByServices, true, 'set before the call is made: the call may be applied even if it never answers');
+  const read = { wrote: false };
+  await answerCall(host, { service: 'Users', action: 'current', params: {} }, read);
+  assert.equal(read.wrote, false);
+
+  const refused = { wrote: false };
+  const out = fakeHost({ signedIn: () => false }).host;
+  await answerCall(out, { service: 'ApplicationStorage', action: 'resource-delete', params: { resourceId: 'r' } }, refused);
+  assert.equal(refused.wrote, false, 'a call that never got to the services wrote nothing');
+});
+
 test('answerCall: the services answer is returned, a non-object is a failure, a malformed call never reaches them', async () => {
   const calls = [];
   const { host } = fakeHost({ services: () => ({ call: async (name, params) => { calls.push([name, params]); return { data: 1 }; } }) });
@@ -234,10 +259,14 @@ test('answerIntent: the identity token marks its reply, and only that reply', as
   const { host } = fakeHost();
   const reply = await answerIntent(host, { applicationId: 'Application', action: 'get-identity-token', params: {} });
   assert.deepEqual(reply, { token: 'jwt' });
-  assert.equal(IDENTITY_REPLIES.has(reply), true);
+  assert.equal(isIdentityReply(reply), true);
   const other = await answerIntent(host, { applicationId: 'Commerce', action: 'list-products', params: {} });
-  assert.equal(IDENTITY_REPLIES.has(other), false);
-  assert.equal(IDENTITY_REPLIES.has({ token: 'jwt' }), false, 'a lookalike is not a member');
+  assert.equal(isIdentityReply(other), false);
+  assert.equal(isIdentityReply({ token: 'jwt' }), false, 'a lookalike is not a member');
+  assert.equal(isIdentityReply({ ...reply }), false, 'a copy is not the marked reply');
+  const mine = {};
+  assert.equal(markIdentityReply(mine), mine, 'marking returns the same object');
+  assert.equal(isIdentityReply(mine), true);
 
   const refused = fakeHost({ emit: async () => ({ error: { status: true, code: 503, message: 'down' } }) }).host;
   assert.deepEqual(await answerIntent(refused, { applicationId: 'Application', action: 'get-identity-token' }), {

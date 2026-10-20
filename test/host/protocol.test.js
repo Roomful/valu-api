@@ -44,7 +44,7 @@ test('the protocol constants are frozen and hold the wire names', () => {
     'unknown_app', 'nested', 'bad_origin', 'protocol_unsupported', 'sign_in_required',
     'consent_required', 'forbidden', 'not_available', 'busy', 'disconnected', 'host_restarted',
     'host_unreachable', 'popup_blocked', 'cancelled', 'timeout', 'master_mismatch', 'not_a_member',
-    'session_expired', 'unknown_function',
+    'session_expired', 'unknown_function', 'unavailable', 'invalid_request', 'validation_failed',
   ].sort());
   for (const [key, code] of Object.entries(HOST_ERRORS)) {
     assert.equal(key, code.toUpperCase(), `${key} is the upper-case spelling of its code`);

@@ -20,6 +20,18 @@
 const list = (value) => (Array.isArray(value) ? value : []);
 
 /**
+ * The cart's badge number: the rows that are not saved for later. `get-cart`
+ * counts the whole cart; the `cart-updated` event passes `appId` and counts one
+ * app's rows. A row that is not an object is not a row. One rule for both, so an
+ * app's number is the badge's rule whichever way it is asked for.
+ * @param {unknown} items the server's `cart.get` rows
+ * @param {string} [appId] only this app's rows
+ */
+export const cartCount = (items, appId) => list(items).filter((item) => (
+  item !== null && typeof item === 'object' && (appId === undefined || item.appId === appId) && !item.savedForLater
+)).length;
+
+/**
  * What a code would do to this app's selection, judged the way My Cart judges
  * it: a code is VALID only when the server's verdict is good AND it takes
  * something off. A valid code under its minimum gives nothing, which is

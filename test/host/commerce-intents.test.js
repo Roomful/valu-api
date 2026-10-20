@@ -321,6 +321,13 @@ test('get-cart answers the whole cart and counts what is not saved for later', a
   assert.deepEqual(result, { items, count: 2 });
 });
 
+test('get-cart counts with the one badge rule: a row that is not an object is no row, and a truthy savedForLater is saved', async () => {
+  const items = [{ id: 'i1', appId: APP }, null, 'x', { id: 'i2', appId: APP, savedForLater: 1 }, { id: 'i3', appId: 'other', savedForLater: false }];
+  const { result } = await run('get-cart', {}, { 'valuguru.commerce.cart.get': { items } });
+  assert.equal(result.count, 2);
+  assert.equal(result.items.length, 5, 'the rows are answered as the server sent them');
+});
+
 test('get-display answers the currency and the rate, or the defaults', async () => {
   const shown = await run('get-display', {}, { 'valuguru.commerce.display.get': { currency: 'VRSC', vrscUsd: '2.5', extra: 1 } });
   assert.deepEqual(shown.result, { currency: 'VRSC', vrscUsd: 2.5 });

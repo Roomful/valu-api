@@ -48,7 +48,7 @@
 //     replaced by `{error:{code:'internal', message:'blocked outbound credential'}}`
 //     and logged by key path, never by value. The one exemption: the top-level
 //     `token` (a string) of the reply to `Application.get-identity-token`, the
-//     app's own short-lived token, which the host builds itself (`IDENTITY_REPLIES`).
+//     app's own short-lived token, which the host builds itself (`markIdentityReply`).
 //
 // The nesting rule: the host serves only a page its parent frames directly
 // (`win.parent === win.top`, `win.parent !== win`) and, where the browser says
@@ -76,8 +76,8 @@ import * as CommerceIntents from './CommerceIntents.js';
 import { GrantsStore } from './GrantsStore.js';
 import { GuruClient } from './GuruClient.js';
 import {
-  CALL_REPLIES, IDENTITY_REPLIES, INTENT_REPLIES, INVALID_REQUEST, NONCE_MAX, UNAVAILABLE, answerCall, answerIntent,
-  cartCount, isPlainObject, notAvailable, validConsentScopes,
+  CALL_REPLIES, INTENT_REPLIES, NONCE_MAX, answerCall, answerIntent, cartCount, isIdentityReply, isPlainObject,
+  notAvailable, permit, validConsentScopes,
 } from './HostDispatch.js';
 import * as Permissions from './Permissions.js';
 import { isLocalOrigin, isOrigin, matchesOrigin } from './origins.js';
@@ -282,6 +282,8 @@ export class HostBridge {
   #subscribed = new Set();
   /** Which cart read is the latest: an older one that finishes late is not pushed. */
   #cartSeq = 0;
+  /** The tail of the line commerce frames wait in, so they are handled in order. */
+  #frames = Promise.resolve();
   /** `api:call` + `api:service-intent` requests running now. */
   #inFlight = 0;
   /** Timers armed for a running request, so a stop can clear them. */
@@ -427,7 +429,7 @@ export class HostBridge {
         answer = this.#grants === grants ? { approved: true } : { approved: false, reason: HOST_ERRORS.SIGN_IN_REQUIRED };
       } catch (error) {
         this.#log('warn', `a consent could not be written (${error?.code ?? error?.name ?? 'error'})`);
-        answer = { approved: false, reason: UNAVAILABLE };
+        answer = { approved: false, reason: HOST_ERRORS.UNAVAILABLE };
       }
     }
     this.#post(MSG.CONSENT_COMPLETED, answer, entry.requestId);
@@ -500,10 +502,10 @@ export class HostBridge {
         this.#onAuth(message, id);
         return;
       case MSG.CALL:
-        void this.#serve(CALL_REPLIES, id, () => answerCall(this.#seams, message));
+        void this.#serve(CALL_REPLIES, id, (track) => answerCall(this.#seams, message, track));
         return;
       case MSG.SERVICE_INTENT:
-        void this.#serve(INTENT_REPLIES, id, () => answerIntent(this.#seams, message));
+        void this.#serve(INTENT_REPLIES, id, (track) => answerIntent(this.#seams, message, track));
         return;
       case MSG.CONSENT:
         this.#requestConsent(message, id);
@@ -532,10 +534,14 @@ export class HostBridge {
    * Take one `api:call` or `api:service-intent`: at most `maxInFlight` run at
    * once (the next answers `busy` at once), each is bounded by `callTimeoutMs`
    * (its late result is dropped), and one that fails answers `failed` and is
-   * logged by code, never by message. `kind` says what each answers.
+   * logged by code, never by message. `kind` says what each answers. `work`
+   * is given a `track` it sets `wrote` on when it hands a write to the services
+   * (a write that ran out of time may still be applied, and says so); once the
+   * request is answered, `track.abandoned` is set, so work that was still
+   * waiting (for the grants, say) does not start afterwards.
    * @param {typeof CALL_REPLIES} kind
    * @param {number|undefined} id
-   * @param {() => Promise<object>} work
+   * @param {(track: import('./HostDispatch.js').Track) => Promise<object>} work
    */
   async #serve(kind, id, work) {
     if (this.#inFlight >= this.#config.maxInFlight) {
@@ -543,15 +549,17 @@ export class HostBridge {
       return;
     }
     this.#inFlight += 1;
+    const track = { wrote: false, abandoned: false };
     let answer;
     try {
-      answer = await orAfter(work(), this.#config.callTimeoutMs, TIMED_OUT, this.#timers);
-      if (answer === TIMED_OUT) answer = kind.timeout;
+      answer = await orAfter(work(track), this.#config.callTimeoutMs, TIMED_OUT, this.#timers);
+      if (answer === TIMED_OUT) answer = track.wrote && kind.timeoutAfterWrite ? kind.timeoutAfterWrite : kind.timeout;
     } catch (error) {
       this.#log('error', `a request failed (${error?.code ?? error?.name ?? 'error'})`);
       answer = kind.failed;
     } finally {
       this.#inFlight -= 1;
+      track.abandoned = true;
     }
     this.#post(kind.reply, answer, id);
   }
@@ -620,11 +628,33 @@ export class HostBridge {
   }
 
   /**
-   * A `commerce_event` frame: pushed to the app when it is one the app
-   * subscribed to and may hear; a cart frame is read for its count instead.
+   * A `commerce_event` frame. Frames are handled one at a time, in arrival
+   * order (the check below may wait on Valu Guru), so the app hears them in the
+   * order they came.
    */
   #onCommerceFrame(guru, frame) {
+    this.#frames = this.#frames.then(() => this.#handleFrame(guru, frame)).catch((error) => {
+      this.#log('error', `a commerce event could not be handled (${error?.name ?? 'error'})`);
+    });
+  }
+
+  /**
+   * One frame, pushed to the app when it is one the app subscribed to and may
+   * hear; a cart frame is read for its count instead. A subscription outlives
+   * the check that made it, so each frame first asks, as `subscribe-events`
+   * did, whether the app still holds `commerce:read` (cached by the grants
+   * store for its TTL): a grant that was revoked, or that cannot be read, drops
+   * the frame and the subscription, and the app subscribes again once it is
+   * allowed to.
+   */
+  async #handleFrame(guru, frame) {
+    if (this.#guru !== guru || !this.#ready || this.#subscribed.size === 0) return;
+    const verdict = await permit(this.#seams, this.#permissions.scopeOfIntent('Commerce', 'subscribe-events'));
     if (this.#guru !== guru || !this.#ready) return;
+    if (!verdict.ok) {
+      this.#subscribed = new Set();
+      return;
+    }
     try {
       const mapped = this.#commerce.mapCommerceEvent(frame, {
         appId: this.#bound.app.slug, networkId: this.#networkId(), subscribed: this.#subscribed,
@@ -658,7 +688,7 @@ export class HostBridge {
     const wanted = validConsentScopes(scopes, (scope) => this.#permissions.tierOf(scope));
     // The nonce names a request, so one that is already waiting is not rewritten.
     if (!wanted || typeof nonce !== 'string' || nonce === '' || nonce.length > NONCE_MAX || this.#consents.has(nonce)) {
-      return refuse(INVALID_REQUEST);
+      return refuse(HOST_ERRORS.INVALID_REQUEST);
     }
     if (this.#consents.size >= this.#config.maxInFlight) return refuse(HOST_ERRORS.BUSY);
     const { name, address } = this.#bound.app;
@@ -858,7 +888,7 @@ export class HostBridge {
    */
   #dropSession() {
     const closing = [this.#connection, this.#guru].filter(Boolean);
-    this.#grants?.invalidate?.();
+    const grants = this.#grants;
     this.#connection = null;
     this.#guru = null;
     this.#grants = null;
@@ -871,6 +901,13 @@ export class HostBridge {
     this.#user = null;
     this.#network = null;
     this.#settleConsents(HOST_ERRORS.SIGN_IN_REQUIRED);
+    // After the state is gone, and guarded: a cache that will not clear must not
+    // keep the session alive or stop the sign-out from being answered.
+    try {
+      grants?.invalidate?.();
+    } catch (error) {
+      this.#log('warn', `the grants cache could not be dropped (${error?.name ?? 'error'})`);
+    }
     return Promise.all(closing.map((closable) => this.#closeQuietly(closable)));
   }
 
@@ -917,7 +954,7 @@ export class HostBridge {
       // The identity token reply is the one message whose own `token` may leave:
       // the guard still reads everything else in it, and a token that is not a
       // plain string is no token.
-      const exempt = IDENTITY_REPLIES.has(message) && typeof message.token === 'string';
+      const exempt = isIdentityReply(message) && typeof message.token === 'string';
       assertNoHostLeak(exempt ? toParent(name, withoutToken(message), requestId) : payload, `outbound ${name}`);
     } catch (error) {
       this.#log('error', `blocked an outbound ${name}: ${error.message}`);

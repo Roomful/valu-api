@@ -76,6 +76,11 @@ export const HOST_ERRORS = Object.freeze({
   NOT_A_MEMBER: 'not_a_member',
   SESSION_EXPIRED: 'session_expired',
   UNKNOWN_FUNCTION: 'unknown_function',
+  // Why a request the host took could not be served: a dependency it needs
+  // (Valu Guru, for grants and Commerce) did not answer; it was malformed.
+  UNAVAILABLE: 'unavailable',
+  INVALID_REQUEST: 'invalid_request',
+  VALIDATION_FAILED: 'validation_failed',
 });
 
 /**

@@ -18,7 +18,15 @@
 import { ERROR_CODES } from '../Errors.js';
 import { findDescriptor } from '../services/descriptors.js';
 import { validationAck } from '../services/validate.js';
+import { cartCount as countCartRows } from './commerceShapes.js';
 import { HOST_ERRORS, MSG } from './protocol.js';
+
+/**
+ * What a request and the bridge's wait for it tell each other (see `answerCall`).
+ * @typedef {object} Track
+ * @property {boolean} wrote a function that writes was handed to the services.
+ * @property {boolean} abandoned the answer was given already; do not start.
+ */
 
 /**
  * What the bridge lends the dispatch. State is read through functions, so a
@@ -39,11 +47,6 @@ import { HOST_ERRORS, MSG } from './protocol.js';
  * @property {(events: Set<string>) => void} setSubscribed
  * @property {(level: 'warn'|'error', message: string) => void} log
  */
-
-/** Why a request could not run, besides the codes of `HOST_ERRORS`. */
-export const UNAVAILABLE = 'unavailable';
-export const INVALID_REQUEST = 'invalid_request';
-export const VALIDATION_FAILED = 'validation_failed';
 
 /** The numeric ack codes the host answers with that `ERROR_CODES` does not name. */
 export const ACK = Object.freeze({ UNAUTHENTICATED: 401, BUSY: 429, INTERNAL: 500, UNAVAILABLE: 503 });
@@ -68,7 +71,7 @@ export function callRefusal({ code, scope }) {
     case HOST_ERRORS.FORBIDDEN: return ackError(ERROR_CODES.FORBIDDEN, HOST_ERRORS.FORBIDDEN);
     case HOST_ERRORS.CONSENT_REQUIRED: return ackError(ERROR_CODES.FORBIDDEN, HOST_ERRORS.CONSENT_REQUIRED, { scope });
     case HOST_ERRORS.NOT_AVAILABLE: return ackError(ERROR_CODES.UNSUPPORTED, HOST_ERRORS.NOT_AVAILABLE);
-    case UNAVAILABLE: return ackError(ACK.UNAVAILABLE, UNAVAILABLE);
+    case HOST_ERRORS.UNAVAILABLE: return ackError(ACK.UNAVAILABLE, HOST_ERRORS.UNAVAILABLE);
     default: return ackError(ERROR_CODES.UNKNOWN_FUNCTION, HOST_ERRORS.UNKNOWN_FUNCTION);
   }
 }
@@ -78,7 +81,7 @@ const INTENT_REFUSALS = Object.freeze({
   [HOST_ERRORS.FORBIDDEN]: 'this app is never allowed to do that',
   [HOST_ERRORS.CONSENT_REQUIRED]: 'the user has not allowed this app to do that yet',
   [HOST_ERRORS.NOT_AVAILABLE]: 'that is not available through the valu-api host',
-  [UNAVAILABLE]: 'the permission check could not be made; try again',
+  [HOST_ERRORS.UNAVAILABLE]: 'the permission check could not be made; try again',
 });
 
 /** What a refused intent answers, from the same verdict. A code that is none of these is `not_available`. */
@@ -92,6 +95,8 @@ export const CALL_REPLIES = Object.freeze({
   reply: MSG.CALL_COMPLETED,
   busy: ackError(ACK.BUSY, HOST_ERRORS.BUSY),
   timeout: ackError(ERROR_CODES.TIMEOUT, HOST_ERRORS.TIMEOUT),
+  // A call that WROTE and ran out of time may still be applied: the app decides.
+  timeoutAfterWrite: ackError(ERROR_CODES.TIMEOUT, HOST_ERRORS.TIMEOUT, { retryable: false }),
   failed: ackError(ACK.INTERNAL, 'internal'),
 });
 export const INTENT_REPLIES = Object.freeze({
@@ -107,13 +112,15 @@ export const label = (value) => (typeof value === 'string' ? value.slice(0, 60) 
 export const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 /**
- * The ack of a function that WRITES, when its call was cut off. A 503 says the
- * master may have applied it, so the app, not the host, decides whether to
- * repeat it (`retryable: false`, spec §4.11); a read is answered as it came.
- * The ack is not changed.
+ * The ack of a function that WRITES, when its call was cut off (503, the socket
+ * dropped under it) or ran out of time (408). Either way the master may have
+ * applied it, so the app, not the host, decides whether to repeat it
+ * (`retryable: false`, spec §4.11); a read is answered as it came. The ack is
+ * not changed.
  */
 export function markUnretryable(descriptor, ack) {
-  if (!descriptor.mutates || ack.error?.code !== ERROR_CODES.DISCONNECTED) return ack;
+  const code = ack.error?.code;
+  if (!descriptor.mutates || (code !== ERROR_CODES.DISCONNECTED && code !== ERROR_CODES.TIMEOUT)) return ack;
   return { ...ack, error: { ...ack.error, retryable: false } };
 }
 
@@ -137,16 +144,13 @@ export function readEventNames(value, known) {
 }
 
 /**
- * The count a `cart-updated` event carries: this app's rows of the cart, the
- * ones saved for later left out (the badge number). Rows are the server's
- * `cart.get` answer; one that is not an object counts for nothing.
+ * The count a `cart-updated` event carries: this app's rows of the server's
+ * `cart.get` answer, the ones saved for later left out. It is the rule
+ * `get-cart` counts with (`commerceShapes.cartCount`), narrowed to one app.
  * @param {{items?: unknown}|null|undefined} data
  * @param {string} appId the host's stamp, the one the app's cart rows carry
  */
-export function cartCount(data, appId) {
-  const items = Array.isArray(data?.items) ? data.items : [];
-  return items.filter((item) => item?.appId === appId && item.savedForLater !== true).length;
-}
+export const cartCount = (data, appId) => countCartRows(data?.items, appId);
 
 /**
  * The scopes of a consent request, or `null` when it is not one the user may
@@ -174,11 +178,17 @@ const UNSUBSCRIBE = 'unsubscribe-events';
 /**
  * The replies built from the identity token ack: the ONLY messages whose
  * top-level `token` the bridge's leak guard lets through. Membership is by
- * object identity and only `identityToken` adds to it, so nothing an app sends
+ * object identity and only `identityToken` marks one, so nothing an app sends
  * can be in it.
  * @type {WeakSet<object>}
  */
-export const IDENTITY_REPLIES = new WeakSet();
+const identityReplies = new WeakSet();
+
+/** Mark a reply the host built from the identity token ack. */
+export const markIdentityReply = (reply) => { identityReplies.add(reply); return reply; };
+
+/** Is this one of the replies {@link markIdentityReply} marked? */
+export const isIdentityReply = (message) => identityReplies.has(message);
 
 /** The answer for something the host does not do. */
 export const notAvailable = (what) => ({
@@ -204,7 +214,7 @@ export async function permit(host, scope) {
       hasGrant = await host.grants().has(scope);
     } catch (error) {
       host.log('warn', `the grants could not be read (${error?.code ?? error?.name ?? 'error'})`);
-      return { ok: false, code: UNAVAILABLE };
+      return { ok: false, code: HOST_ERRORS.UNAVAILABLE };
     }
     if (!host.signedIn()) return { ok: false, code: HOST_ERRORS.SIGN_IN_REQUIRED };
     verdict = host.permissions.decide({ scope, hasGrant });
@@ -218,12 +228,20 @@ export async function permit(host, scope) {
  * function (501: the client runs those itself, and the channel is checked before
  * the scope so a local function with a basic scope is refused too), params that
  * fit (400), the scope's tier (403), and only then the services, whose ack is
- * returned unchanged except that a write cut off by a drop is marked
- * `retryable: false`.
+ * returned unchanged except that a write cut off by a drop or a timeout is
+ * marked `retryable: false`.
+ *
+ * `track` is how the caller and the call talk while it runs. `track.wrote` is
+ * set the moment a function that writes is handed to the services, so a caller
+ * that gives up on the call (the bridge's own timeout) knows it may still be
+ * applied. `track.abandoned` is set by that caller when it has answered
+ * already: a call that has not reached the services by then never will, since
+ * the app was told it timed out and may repeat it.
  * @param {DispatchHost} host
  * @param {{service?: unknown, action?: unknown, params?: unknown}} message
+ * @param {Track} [track]
  */
-export async function answerCall(host, { service, action, params }) {
+export async function answerCall(host, { service, action, params }, track) {
   const descriptor = typeof service === 'string' && typeof action === 'string'
     ? findDescriptor(`${service}.${action}`)
     : undefined;
@@ -237,21 +255,27 @@ export async function answerCall(host, { service, action, params }) {
   const verdict = await permit(host, host.permissions.scopeOfDescriptor(descriptor));
   if (!verdict.ok) return callRefusal(verdict);
 
-  const ack = await host.services().call(descriptor.key, input);
+  if (track?.abandoned) return CALL_REPLIES.timeout;
+  const services = host.services();
+  if (track) track.wrote = descriptor.mutates;
+  const ack = await services.call(descriptor.key, input);
   return isPlainObject(ack) ? markUnretryable(descriptor, ack) : CALL_REPLIES.failed;
 }
 
 /**
  * One `api:service-intent`, to its answer. The host serves the Commerce intents
  * (the 30 data intents and the two subscriptions) and
- * `Application.get-identity-token`; anything else is `not_available`.
+ * `Application.get-identity-token`; anything else is `not_available`. As for
+ * `answerCall`, an intent that has not started by the time `track.abandoned` is
+ * set never does.
  * @param {DispatchHost} host
  * @param {{applicationId?: unknown, action?: unknown, params?: unknown}} message
+ * @param {Track} [track]
  */
-export async function answerIntent(host, { applicationId, action, params }) {
+export async function answerIntent(host, { applicationId, action, params }, track) {
   const input = isPlainObject(params) ? params : {};
-  if (applicationId === 'Commerce' && isCommerceAction(host, action)) return commerceIntent(host, action, input);
-  if (applicationId === 'Application' && action === 'get-identity-token') return identityToken(host);
+  if (applicationId === 'Commerce' && isCommerceAction(host, action)) return commerceIntent(host, action, input, track);
+  if (applicationId === 'Application' && action === 'get-identity-token') return identityToken(host, track);
   return notAvailable(`${label(applicationId)}.${label(action)}`);
 }
 
@@ -259,15 +283,16 @@ const isCommerceAction = (host, action) => typeof action === 'string'
   && (action === SUBSCRIBE || action === UNSUBSCRIBE || Object.hasOwn(host.commerce.COMMERCE_INTENTS, action));
 
 /** A Commerce intent: the scope first, then the subscription or the Guru op, stamped with the binding's slug. */
-async function commerceIntent(host, action, params) {
+async function commerceIntent(host, action, params, track) {
   const verdict = await permit(host, host.permissions.scopeOfIntent('Commerce', action));
   if (!verdict.ok) return intentRefusal(verdict);
+  if (track?.abandoned) return INTENT_REPLIES.timeout;
   let guru;
   try {
     guru = host.guru();
   } catch (error) {
     host.log('warn', `the Valu Guru client could not be made (${error?.name ?? 'error'})`);
-    return intentRefusal({ code: UNAVAILABLE });
+    return intentRefusal({ code: HOST_ERRORS.UNAVAILABLE });
   }
   if (action === SUBSCRIBE || action === UNSUBSCRIBE) return subscribe(host, action, params.events);
   return host.commerce.runCommerceIntent(action, params, {
@@ -288,7 +313,7 @@ function subscribe(host, action, events) {
   }
   const known = host.commerce.COMMERCE_APP_EVENTS;
   const read = readEventNames(events, known);
-  if (read.error) return intentError(VALIDATION_FAILED, read.error);
+  if (read.error) return intentError(HOST_ERRORS.VALIDATION_FAILED, read.error);
   const next = action === SUBSCRIBE
     ? new Set(read.names)
     : new Set([...host.subscribed()].filter((name) => !read.names.includes(name)));
@@ -300,11 +325,12 @@ function subscribe(host, action, events) {
  * `Application.get-identity-token`: the master issues a short-lived token for
  * THIS app (the slug is the binding's, never the app's). The answer is the ack's
  * `data`, and its `token` is the one value the leak guard lets out: the reply is
- * marked in {@link IDENTITY_REPLIES}, which only this function writes.
+ * marked with {@link markIdentityReply}, which only this function calls.
  */
-async function identityToken(host) {
+async function identityToken(host, track) {
   const verdict = await permit(host, host.permissions.scopeOfIntent('Application', 'get-identity-token'));
   if (!verdict.ok) return intentRefusal(verdict);
+  if (track?.abandoned) return INTENT_REPLIES.timeout;
   const ack = await host.emit('appManifest:getIdentityToken', { applicationId: host.app().slug });
   if (ack?.error) {
     const message = typeof ack.error.message === 'string' && ack.error.message !== ''
@@ -313,7 +339,5 @@ async function identityToken(host) {
     return intentError(ack.error.code === ERROR_CODES.DISCONNECTED ? HOST_ERRORS.DISCONNECTED : 'error', message);
   }
   if (!isPlainObject(ack?.data)) return intentError('error', 'the master issued no identity token');
-  const reply = { ...ack.data };
-  IDENTITY_REPLIES.add(reply);
-  return reply;
+  return markIdentityReply({ ...ack.data });
 }

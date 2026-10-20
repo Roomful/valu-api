@@ -144,7 +144,10 @@ const decide = (env, message, { origin = HOST_ORIGIN, source = { popup: true } }
   data: { type: POPUP_MSG.CONSENT, ...message }, origin, source,
 });
 
-const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+/** Let the bridge's asynchronous steps run until `done()`, a bounded number of turns (no clock involved). */
+const until = async (done, turns = 50) => {
+  for (let i = 0; i < turns && !done(); i += 1) await settle();
+};
 const timers = () => process.getActiveResourcesInfo().filter((name) => name === 'Timeout').length;
 
 // ---------------------------------------------------------------------------
@@ -348,6 +351,57 @@ test('a write that was on the wire when the master dropped answers 503 with retr
   assert.deepEqual(disconnected, { error: { status: true, code: 503, message: 'emit appStorage:delete: disconnected (transport close)' } }, 'the ack itself is not mutated');
 });
 
+test('a write that runs out of time says so: the host timeout and the SDK\'s own 408 carry retryable:false, a read\'s do not', async (t) => {
+  const never = deferred();
+  const sdkTimeout = { error: { status: true, code: 408, message: 'timeout' } };
+  const services = fakeServices((name, params) => {
+    if (name === 'Users.current') return never.promise;
+    if (name === 'ApplicationStorage.resource-delete' && params.resourceId === 'hang') return never.promise;
+    return sdkTimeout;
+  });
+  const env = await ready({ services });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+
+  ask(env, 'ApplicationStorage', 'resource-delete', { resourceId: 'hang' }, 1); // handed to the services, never answers
+  ask(env, 'Users', 'current', {}, 2); // a read that never answers
+  ask(env, 'ApplicationStorage', 'resource-delete', { resourceId: 'sdk' }, 3); // the SDK's own 408 for a write
+  ask(env, 'Users', 'find-user', {}, 4); // the SDK's own 408 for a read
+  await settle();
+  t.mock.timers.tick(30_000);
+  await settle();
+
+  assert.deepEqual(replyTo(env, 1).message, { error: { status: true, code: 408, message: 'timeout', retryable: false } });
+  assert.deepEqual(replyTo(env, 2).message, { error: { status: true, code: 408, message: 'timeout' } });
+  assert.deepEqual(replyTo(env, 3).message, { error: { status: true, code: 408, message: 'timeout', retryable: false } });
+  assert.deepEqual(replyTo(env, 4).message, sdkTimeout);
+  assert.deepEqual(sdkTimeout, { error: { status: true, code: 408, message: 'timeout' } }, 'the ack itself is not mutated');
+});
+
+test('a request that timed out before it started never starts: a write waiting on the grants is a plain 408 and is never sent afterwards', async (t) => {
+  const slowRead = deferred();
+  const guru = guruWithGrants([], {
+    [LIST]: () => slowRead.promise,
+    'valuguru.commerce.cart.add': { items: [] },
+  });
+  const env = await ready({ guru });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  ask(env, 'Groups', 'join-group', { groupId: 'g1' }, 1); // consent tier: waits on the grants read
+  intent(env, 'Commerce', 'add-to-cart', { productId: 'p1' }, 2); // the same, as an intent
+  await settle();
+  t.mock.timers.tick(30_000);
+  await settle();
+  assert.deepEqual(replyTo(env, 1).message, { error: { status: true, code: 408, message: 'timeout' } }, 'not yet handed to the services: no retryable');
+  assert.equal(replyTo(env, 2).message.code, 'timeout');
+
+  // The grants arrive late. The app was told both timed out, and may repeat them:
+  // neither may be started now.
+  slowRead.resolve({ grants: [{ scope: 'groups:write', appId: APP.address, revokedAt: null }, { scope: 'commerce:write', appId: APP.address, revokedAt: null }] });
+  await settle();
+  assert.deepEqual(env.services.calls, []);
+  assert.deepEqual(guru.ops('valuguru.commerce.cart.add'), []);
+  assert.equal(env.posts().length, 2, 'and nothing more was said');
+});
+
 test('retryable:false is only for a write that was cut off: other write errors pass as they are', async () => {
   const services = fakeServices(() => ({ error: { status: true, code: 500, message: 'server said no' } }));
   const env = await ready({ services });
@@ -356,15 +410,19 @@ test('retryable:false is only for a write that was cut off: other write errors p
   assert.deepEqual(env.last().data.message, { error: { status: true, code: 500, message: 'server said no' } });
 });
 
-test('a call that takes longer than callTimeoutMs answers 408 timeout once; the late result is dropped and the slot is free', async () => {
+test('a call that takes longer than callTimeoutMs answers 408 timeout once; the late result is dropped and the slot is free', async (t) => {
   const slow = deferred();
   const services = fakeServices((name) => (name === 'Users.current' ? slow.promise : { data: { ok: true } }));
-  const env = await ready({ services, config: { callTimeoutMs: 25, maxInFlight: 1 } });
+  const env = await ready({ services, config: { maxInFlight: 1 } });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   ask(env, 'Users', 'current', {}, 1);
   await settle();
-  assert.deepEqual(env.posts(), [], 'nothing yet');
+  t.mock.timers.tick(29_999);
+  await settle();
+  assert.deepEqual(env.posts(), [], 'nothing yet: the default callTimeoutMs is 30 s');
 
-  await wait(60);
+  t.mock.timers.tick(1);
+  await settle();
   assert.equal(env.posts().length, 1);
   assert.deepEqual(env.last().data.message, { error: { status: true, code: 408, message: 'timeout' } });
   assert.equal(env.last().data.requestId, 1);
@@ -706,12 +764,17 @@ test('no more consent requests are pending than the in-flight cap', async () => 
   assert.equal(env.bridge.pendingConsent('n3'), null);
 });
 
-test('a pending consent expires after consentTimeoutMs: approved:false, reason timeout', async () => {
-  const env = await ready({ config: { consentTimeoutMs: 25 } });
+test('a pending consent expires after ten minutes: approved:false, reason timeout', async (t) => {
+  const env = await ready();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   env.call(MSG.CONSENT, { scopes: ['groups:read'], nonce: 'n', requestId: 1 });
   await settle();
+  t.mock.timers.tick(599_999);
+  await settle();
   assert.notEqual(env.bridge.pendingConsent('n'), null);
-  await wait(60);
+  assert.equal(replyTo(env, 1), undefined);
+  t.mock.timers.tick(1);
+  await settle();
   assert.deepEqual(replyTo(env, 1).message, { approved: false, reason: 'timeout' });
   assert.equal(env.bridge.pendingConsent('n'), null);
 
@@ -1013,6 +1076,168 @@ test('subscribe-events is commerce:read and needs the grant', async () => {
   assert.deepEqual(triggers(env), []);
 });
 
+/** Grants over the real `GrantsStore` with a clock the test moves: they are cached for 60 s. */
+const clockedGrants = (clock) => (guru, app) => new GrantsStore({ guru, appAddress: app.address, now: () => clock.now });
+
+const ORDER_FRAME = { type: 'commerce_event', event: 'commerce.order.updated', orderId: 'o1', status: 'paid', appIds: ['demo'] };
+const CART_FRAME = { type: 'commerce_event', event: 'commerce.cart.updated' };
+
+test('a revoked commerce:read stops every push once the grants cache expires: no push, no cart read, the subscription is gone', async () => {
+  const clock = { now: 1_000_000 };
+  const granted = ['commerce:read'];
+  const guru = guruWithGrants(granted, { 'valuguru.commerce.cart.get': { items: [{ appId: 'demo' }] } });
+  const env = await ready({ guru, makeGrants: clockedGrants(clock) });
+  intent(env, 'Commerce', 'subscribe-events', { events: ['order-updated', 'cart-updated', 'catalogue-updated'] }, 1);
+  await settle();
+  assert.equal(replyTo(env, 1).message.success, true);
+
+  env.guru.frame(ORDER_FRAME);
+  await settle();
+  assert.equal(triggers(env).length, 1, 'granted: pushed');
+  assert.equal(guru.ops(LIST).length, 1, 'and the grant came from the cache');
+
+  granted.length = 0; // the user revokes it, elsewhere
+  clock.now += 59_000;
+  env.guru.frame(ORDER_FRAME);
+  await settle();
+  assert.equal(triggers(env).length, 2, 'within the 60 s the cache is trusted: a revocation lands within a minute');
+
+  clock.now += 2_000; // past the TTL
+  env.guru.frame(ORDER_FRAME);
+  env.guru.frame(CART_FRAME);
+  env.guru.frame({ type: 'commerce_event', event: 'commerce.catalogue.updated', networkId: 'n1', productId: 'p1' });
+  await settle();
+  assert.equal(triggers(env).length, 2, 'revoked: nothing more is pushed');
+  assert.equal(guru.ops(LIST).length, 2, 'the grants were read again');
+  assert.deepEqual(guru.ops('valuguru.commerce.cart.get'), [], 'and the cart was not read for an app that may not hear of it');
+
+  // The subscription is gone, not just paused: a grant that comes back does not revive it.
+  granted.push('commerce:read');
+  clock.now += 61_000;
+  env.guru.frame(ORDER_FRAME);
+  await settle();
+  assert.equal(triggers(env).length, 2, 'the app has to subscribe again');
+  intent(env, 'Commerce', 'subscribe-events', { events: ['order-updated'] }, 2);
+  await settle();
+  env.guru.frame(ORDER_FRAME);
+  await settle();
+  assert.equal(triggers(env).length, 3);
+});
+
+test('commerce frames are dropped, and the subscription with them, when the grants cannot be read', async () => {
+  const clock = { now: 1_000_000 };
+  let readable = true;
+  const guru = guruWithGrants(['commerce:read'], {
+    [LIST]: () => {
+      if (!readable) throw new GuruError('disconnected', 'secret sess-SECRET-1');
+      return { grants: [{ scope: 'commerce:read', appId: APP.address, revokedAt: null }] };
+    },
+  });
+  const env = await ready({ guru, makeGrants: clockedGrants(clock) });
+  intent(env, 'Commerce', 'subscribe-events', { events: ['order-updated'] }, 1);
+  await settle();
+
+  readable = false;
+  clock.now += 61_000;
+  env.guru.frame(ORDER_FRAME);
+  await settle();
+  assert.deepEqual(triggers(env), [], 'unreadable: not pushed');
+  assert.equal(env.logs.length, 1);
+  assert.equal(env.logs[0].level, 'warn');
+  assert.ok(!env.logs[0].message.includes('sess-SECRET-1'));
+
+  readable = true;
+  env.guru.frame(ORDER_FRAME);
+  await settle();
+  assert.deepEqual(triggers(env), [], 'and the subscription went with it');
+});
+
+test('a frame that arrives with nobody subscribed does not read the grants', async () => {
+  const clock = { now: 1_000_000 };
+  const env = await ready({ guru: guruWithGrants(['commerce:read']), makeGrants: clockedGrants(clock) });
+  intent(env, 'Commerce', 'list-products', {}, 1);
+  await settle();
+  const reads = env.guru.ops(LIST).length;
+  clock.now += 61_000;
+  env.guru.frame(ORDER_FRAME);
+  await settle();
+  assert.equal(env.guru.ops(LIST).length, reads);
+  assert.deepEqual(triggers(env), []);
+});
+
+test('frames are pushed in the order they arrived even while the grants are being read', async () => {
+  const clock = { now: 1_000_000 };
+  const reads = [];
+  const guru = guruWithGrants(['commerce:read'], {
+    [LIST]: () => {
+      if (reads.length === 0 && clock.now === 1_000_000) return { grants: [{ scope: 'commerce:read', appId: APP.address, revokedAt: null }] };
+      const d = deferred();
+      reads.push(d);
+      return d.promise;
+    },
+  });
+  const env = await ready({ guru, makeGrants: clockedGrants(clock) });
+  intent(env, 'Commerce', 'subscribe-events', { events: ['order-updated'] }, 1);
+  await settle();
+
+  clock.now += 61_000; // the next check reads the grants, and that read is slow
+  env.guru.frame({ ...ORDER_FRAME, orderId: 'first' });
+  env.guru.frame({ ...ORDER_FRAME, orderId: 'second' });
+  env.guru.frame({ ...ORDER_FRAME, orderId: 'third' });
+  await settle();
+  assert.deepEqual(triggers(env), [], 'waiting for the read');
+  assert.equal(reads.length, 1, 'one read serves the three frames');
+
+  reads[0].resolve({ grants: [{ scope: 'commerce:read', appId: APP.address, revokedAt: null }] });
+  await settle();
+  assert.deepEqual(triggers(env).map((t) => t.message.data.orderId), ['first', 'second', 'third']);
+});
+
+test('frames wait for each other: a grants store that answers out of order cannot reorder the pushes', async () => {
+  const asked = [];
+  const grants = { has: () => { const d = deferred(); asked.push(d); return d.promise; }, grant: async () => {}, invalidate: () => {} };
+  const env = await ready({ makeGrants: () => grants, guru: guruWithGrants() });
+  // The subscription itself needs the grant once.
+  intent(env, 'Commerce', 'subscribe-events', { events: ['order-updated'] }, 1);
+  await settle();
+  asked[0].resolve(true);
+  await settle();
+  asked.length = 0;
+
+  for (const orderId of ['first', 'second', 'third']) env.guru.frame({ ...ORDER_FRAME, orderId });
+  await settle();
+  assert.equal(asked.length, 1, 'only the first frame is being checked: the others wait their turn');
+  for (let turn = 0; turn < 3; turn += 1) {
+    asked[turn].resolve(true);
+    await settle();
+  }
+  assert.deepEqual(triggers(env).map((t) => t.message.data.orderId), ['first', 'second', 'third']);
+});
+
+test('a frame whose grants read ends after the user signed out is not pushed', async () => {
+  const clock = { now: 1_000_000 };
+  let slow = null;
+  const guru = guruWithGrants(['commerce:read'], {
+    [LIST]: () => {
+      if (!slow) return { grants: [{ scope: 'commerce:read', appId: APP.address, revokedAt: null }] };
+      return slow.promise;
+    },
+  }, { keepListenersOnClose: true });
+  const env = await ready({ guru, makeGrants: clockedGrants(clock) });
+  intent(env, 'Commerce', 'subscribe-events', { events: ['order-updated'] }, 1);
+  await settle();
+  slow = deferred();
+  clock.now += 61_000;
+  env.guru.frame(ORDER_FRAME);
+  await settle();
+  env.call(MSG.AUTH, { action: 'sign-out', requestId: 2 });
+  await settle();
+  env.posts().length = 0;
+  slow.resolve({ grants: [{ scope: 'commerce:read', appId: APP.address, revokedAt: null }] });
+  await settle();
+  assert.deepEqual(env.posts(), []);
+});
+
 test('a cart frame for a subscribed app pushes cart-updated with the count of this app\'s rows', async () => {
   const guru = guruWithGrants(['commerce:read'], {
     'valuguru.commerce.cart.get': {
@@ -1147,12 +1372,13 @@ test('an identity token that fails answers an intent refusal; a master that is d
 
   scriptEmit(env, () => ({ error: { status: true, code: 401, message: 'nope' } }));
   intent(env, 'Application', 'get-identity-token', {}, 2);
+  await settle();
+  assert.deepEqual(replyTo(env, 2).message, { success: false, code: 'error', error: 'nope' });
+
   scriptEmit(env, () => ({ data: null }));
   intent(env, 'Application', 'get-identity-token', {}, 3);
   await settle();
-  assert.equal(replyTo(env, 2).message.success, false);
-  assert.equal(replyTo(env, 3).message.success, false);
-  assert.equal(replyTo(env, 3).message.code, 'error');
+  assert.deepEqual(replyTo(env, 3).message, { success: false, code: 'error', error: 'the master issued no identity token' });
 });
 
 test('the token exemption is narrow: it covers only the top-level token of the identity answer', async () => {
@@ -1304,7 +1530,7 @@ test('a real GuruClient over the injected WebSocket reads the grants with the mi
   bridges.push(env.bridge);
   await env.open();
   ask(env, 'Groups', 'list-groups', {}, 1);
-  await wait(30);
+  await until(() => sockets[0]?.sent.length > 0);
 
   assert.equal(sockets.length, 1);
   assert.match(sockets[0].url, /token=ott-real/);
@@ -1376,6 +1602,34 @@ test('sign-out closes the guru, clears subscriptions, pending consents and the g
   assert.equal(replyTo(env, 5).message.code, 'sign_in_required');
 });
 
+test('a grants cache that cannot be dropped does not stop the sign-out', async () => {
+  const guru = guruWithGrants(['groups:read']);
+  const env = await ready({
+    guru,
+    makeGrants: () => ({ has: async () => true, grant: async () => {}, invalidate: () => { throw new Error('secret sess-SECRET-1'); } }),
+  });
+  ask(env, 'Groups', 'list-groups', {}, 1);
+  env.call(MSG.CONSENT, { scopes: ['rooms:read'], nonce: 'n', requestId: 2 });
+  await settle();
+  env.posts().length = 0;
+
+  env.call(MSG.AUTH, { action: 'sign-out', requestId: 3 });
+  await settle();
+
+  assert.deepEqual(env.names(), [MSG.CONSENT_COMPLETED, MSG.TRIGGER, MSG.AUTH_COMPLETED], 'the waiting app is told, the auth push and the reply still go out');
+  assert.deepEqual(replyTo(env, 3).message, { ok: true });
+  assert.equal(env.bridge.state.signedIn, false);
+  assert.equal(guru.closed, 1);
+  assert.equal(env.maker.connections[0].closed, 1);
+  assert.equal(env.logs.length, 1);
+  assert.equal(env.logs[0].level, 'warn');
+  assert.ok(!env.logs[0].message.includes('sess-SECRET-1'));
+
+  ask(env, 'Users', 'current', {}, 4);
+  await settle();
+  assert.equal(replyTo(env, 4).message.error.code, 401);
+});
+
 test('stop closes the guru and leaves no timer behind, even with a call and a consent pending', async () => {
   const before = timers();
   const never = deferred();
@@ -1397,7 +1651,7 @@ test('stop closes the guru and leaves no timer behind, even with a call and a co
   assert.deepEqual(env.posts(), [], 'a stopped bridge answers nobody');
 });
 
-test('a result that arrives after sign-out is the closed connection\'s answer, not a fresh one', async () => {
+test('a request in flight when the user signs out is answered once with what the closed connection gave, and the next call is 401', async () => {
   const held = deferred();
   const services = fakeServices(() => held.promise);
   const env = await ready({ services });
@@ -1405,9 +1659,18 @@ test('a result that arrives after sign-out is the closed connection\'s answer, n
   await settle();
   env.call(MSG.AUTH, { action: 'sign-out', requestId: 2 });
   await settle();
-  held.resolve({ error: { status: true, code: 503, message: 'emit users:current: disconnected (closed)' } });
+  assert.equal(replyTo(env, 1), undefined, 'the bridge does not invent an answer: the closed connection settles it');
+
+  const cut = { error: { status: true, code: 503, message: 'emit users:current: disconnected (closed)' } };
+  held.resolve(cut);
   await settle();
-  assert.equal(replyTo(env, 1).message.error.code, 503);
+  assert.equal(env.posts().filter((p) => p.data.requestId === 1).length, 1);
+  assert.deepEqual(replyTo(env, 1).message, cut);
+
+  ask(env, 'Users', 'current', {}, 3);
+  await settle();
+  assert.deepEqual(replyTo(env, 3).message, { error: { status: true, code: 401, message: 'sign_in_required' } });
+  assert.equal(services.calls.length, 1, 'the call after sign-out never reached the services');
 });
 
 test('messages from another origin or window are still ignored for the new names', async () => {
