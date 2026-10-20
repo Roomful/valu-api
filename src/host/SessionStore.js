@@ -23,8 +23,9 @@
 //
 // Nothing here touches `localStorage` or `window` itself: the page passes the
 // storage in, and the cross-tab `storage` event as `subscribe`
-// (`(h) => globalThis.addEventListener('storage', (e) => e.key === key && h())`),
-// so the module imports anywhere. No error or log line contains a session id.
+// (`(h) => globalThis.addEventListener('storage', (e) => (e.key === key || e.key === null) && h())`:
+// an event whose `key` is `null` is another tab's `localStorage.clear()`, which
+// removes the record too), so the module imports anywhere. No error or log line contains a session id.
 // ===========================================================================
 
 /** Where the record lives. */

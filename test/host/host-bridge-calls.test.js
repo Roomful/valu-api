@@ -1616,7 +1616,11 @@ test('a grants cache that cannot be dropped does not stop the sign-out', async (
   env.call(MSG.AUTH, { action: 'sign-out', requestId: 3 });
   await settle();
 
-  assert.deepEqual(env.names(), [MSG.CONSENT_COMPLETED, MSG.TRIGGER, MSG.AUTH_COMPLETED], 'the waiting app is told, the auth push and the reply still go out');
+  assert.deepEqual(
+    env.names(),
+    [MSG.CONSENT_COMPLETED, MSG.TRIGGER, MSG.TRIGGER, MSG.AUTH_COMPLETED],
+    'the waiting app is told, the auth and connection pushes and the reply still go out',
+  );
   assert.deepEqual(replyTo(env, 3).message, { ok: true });
   assert.equal(env.bridge.state.signedIn, false);
   assert.equal(guru.closed, 1);

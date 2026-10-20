@@ -90,9 +90,14 @@ export function intentRefusal({ code, scope }) {
   return intentError(known, INTENT_REFUSALS[known], known === HOST_ERRORS.CONSENT_REQUIRED ? { scope } : undefined);
 }
 
-/** Per kind of request: the reply name, and what it answers when it is not taken (busy), not finished (timeout) or fails. */
+/**
+ * Per kind of request: the reply name, and what it answers when it is not taken
+ * (busy), not finished (timeout), fails, or is still waiting when the session
+ * ends because the master refused it (`signInRequired`).
+ */
 export const CALL_REPLIES = Object.freeze({
   reply: MSG.CALL_COMPLETED,
+  signInRequired: callRefusal({ code: HOST_ERRORS.SIGN_IN_REQUIRED }),
   busy: ackError(ACK.BUSY, HOST_ERRORS.BUSY),
   timeout: ackError(ERROR_CODES.TIMEOUT, HOST_ERRORS.TIMEOUT),
   // A call that WROTE and ran out of time may still be applied: the app decides.
@@ -101,6 +106,7 @@ export const CALL_REPLIES = Object.freeze({
 });
 export const INTENT_REPLIES = Object.freeze({
   reply: MSG.RUN_CONSOLE_COMPLETED,
+  signInRequired: intentRefusal({ code: HOST_ERRORS.SIGN_IN_REQUIRED }),
   busy: intentError(HOST_ERRORS.BUSY, 'too many requests are running; try again'),
   timeout: intentError(HOST_ERRORS.TIMEOUT, 'the host did not answer in time'),
   failed: intentError('error', 'the host could not serve that request'),

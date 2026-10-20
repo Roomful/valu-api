@@ -7,6 +7,23 @@
 //
 //   app  -> host  { name, message }                          requestId inside `message`
 //   host -> app   { target: 'valuApi', name, message, requestId }   requestId at the top
+//
+// What the host pushes (`api:trigger`, a host -> app message that answers
+// nothing; `message` is `{action, data}`):
+//
+//   auth         `{signedIn, user, network, reason?}` on every change of who the
+//                user is, with the `reason` when the change has one (see
+//                HOST_ERRORS: `cancelled`, `master_mismatch`, `not_a_member`,
+//                `invalid_token`, `unavailable`, `session_expired`,
+//                `signed_out_elsewhere`). `signedIn` is the state NOW: a reason
+//                that does not change the state (a cancelled popup for a user who
+//                is signed in) arrives with the state as it stands.
+//   connection   `{state}` with `state` one of {@link CONNECTION_STATE}, when the
+//                host's link to the platform changes; after a drop that came
+//                back, `{state:'ready', reconnected:true}`, which a client reads
+//                as "forget what you cached". The host itself starts a page as
+//                `connecting`, before `api:ready`, and says nothing then.
+//   commerce     `{event, ...}` for the Commerce events the app subscribed to.
 // ===========================================================================
 
 import { FORBIDDEN_CREDENTIAL_KEYS } from '../auth/TokenStore.js';
@@ -49,6 +66,21 @@ export const MSG = Object.freeze({
 export const POPUP_MSG = Object.freeze({
   /** `{type, nonce, approved, scopes}` from the consent page. */
   CONSENT: 'valu-host:consent',
+  /**
+   * `{type, token, master}` from the sign-in page, or `{type, cancelled:true}`
+   * when the user turned it down. Accepted only from a Valu sign-in origin, and
+   * never from the window that frames the host.
+   */
+  TOKEN: 'valu-host:token',
+});
+
+/** What `api:trigger {action:'connection', data:{state}}` says; the `state` of `valu.connection`. */
+export const CONNECTION_STATE = Object.freeze({
+  CONNECTING: 'connecting',
+  READY: 'ready',
+  RECONNECTING: 'reconnecting',
+  OFFLINE: 'offline',
+  SIGNED_OUT: 'signed_out',
 });
 
 /**
@@ -76,6 +108,10 @@ export const HOST_ERRORS = Object.freeze({
   NOT_A_MEMBER: 'not_a_member',
   SESSION_EXPIRED: 'session_expired',
   UNKNOWN_FUNCTION: 'unknown_function',
+  // Why a sign-in token was not taken, or a session ended: the `reason` of an
+  // `auth` push.
+  INVALID_TOKEN: 'invalid_token',
+  SIGNED_OUT_ELSEWHERE: 'signed_out_elsewhere',
   // Why a request the host took could not be served: a dependency it needs
   // (Valu Guru, for grants and Commerce) did not answer; it was malformed.
   UNAVAILABLE: 'unavailable',

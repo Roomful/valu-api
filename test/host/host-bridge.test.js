@@ -51,7 +51,9 @@ test('hello from the parent binds the origin and answers api:ready with the app 
     params: {},
     host: { protocol: 1, mode: 'dedicated', signedIn: false, user: null, network: null },
   });
-  assert.deepEqual(bridge.state, { bound: { origin: APP_ORIGIN, app: APP }, signedIn: false, user: null, network: null });
+  assert.deepEqual(bridge.state, {
+    bound: { origin: APP_ORIGIN, app: APP }, signedIn: false, user: null, network: null, connection: 'signed_out', lastError: null,
+  });
 });
 
 test('round trip: the app page writes to the iframe and its own listener hears the host answer', async () => {
@@ -477,6 +479,8 @@ test('a restored session connects the master and api:ready says signedIn with th
     signedIn: true,
     user: { id: 'u1', name: 'Ada Lovelace' },
     network: { id: 'n1', name: 'Roomful' },
+    connection: 'ready',
+    lastError: null,
   });
   assert.ok(!JSON.stringify(posts()).includes('sess-SECRET-1'), 'the session never crosses the boundary');
 });
@@ -680,7 +684,7 @@ test('a hostile event does not throw out of the listener', async () => {
 // Sign-out and pushes
 // ---------------------------------------------------------------------------
 
-test('sign-out pushes auth signedIn:false, then answers host:auth-completed', async () => {
+test('sign-out pushes auth signedIn:false and connection signed_out, then answers host:auth-completed', async () => {
   const auth = fakeAuth({ session: SESSION });
   const maker = fakeMaker();
   const { call, posts, open, bridge } = setup({ auth, maker });
@@ -692,14 +696,17 @@ test('sign-out pushes auth signedIn:false, then answers host:auth-completed', as
 
   assert.equal(auth.signOutCalls, 1);
   assert.equal(maker.connections[0].closed, 1, 'the master connection is closed');
-  assert.equal(posts().length, 2);
+  assert.equal(posts().length, 3);
   assert.equal(posts()[0].data.name, MSG.TRIGGER);
   assert.equal(posts()[0].data.requestId, undefined, 'a push answers nothing');
   assert.deepEqual(posts()[0].data.message, { action: 'auth', data: { signedIn: false, user: null, network: null } });
-  assert.equal(posts()[1].data.name, MSG.AUTH_COMPLETED);
-  assert.equal(posts()[1].data.requestId, 21);
-  assert.deepEqual(posts()[1].data.message, { ok: true });
-  assert.deepEqual(bridge.state, { bound: { origin: APP_ORIGIN, app: APP }, signedIn: false, user: null, network: null });
+  assert.deepEqual(posts()[1].data.message, { action: 'connection', data: { state: 'signed_out' } });
+  assert.equal(posts()[2].data.name, MSG.AUTH_COMPLETED);
+  assert.equal(posts()[2].data.requestId, 21);
+  assert.deepEqual(posts()[2].data.message, { ok: true });
+  assert.deepEqual(bridge.state, {
+    bound: { origin: APP_ORIGIN, app: APP }, signedIn: false, user: null, network: null, connection: 'signed_out', lastError: null,
+  });
 });
 
 test('sign-out while signed out still answers ok', async () => {

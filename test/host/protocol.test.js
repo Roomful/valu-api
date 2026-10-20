@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  PROTOCOL_VERSION, MSG, HOST_ERRORS, toParent, parseAppMessage, assertNoHostLeak,
+  PROTOCOL_VERSION, MSG, HOST_ERRORS, POPUP_MSG, CONNECTION_STATE, toParent, parseAppMessage, assertNoHostLeak,
 } from '../../src/host/protocol.js';
 import {
   FakeStorage, FakeGuruSocket, fakeGuruWebSocket, FakeWindowPair, fakeResolveFetch, fakeAuthFetch,
@@ -44,11 +44,21 @@ test('the protocol constants are frozen and hold the wire names', () => {
     'unknown_app', 'nested', 'bad_origin', 'protocol_unsupported', 'sign_in_required',
     'consent_required', 'forbidden', 'not_available', 'busy', 'disconnected', 'host_restarted',
     'host_unreachable', 'popup_blocked', 'cancelled', 'timeout', 'master_mismatch', 'not_a_member',
-    'session_expired', 'unknown_function', 'unavailable', 'invalid_request', 'validation_failed',
+    'session_expired', 'unknown_function', 'invalid_token', 'signed_out_elsewhere', 'unavailable',
+    'invalid_request', 'validation_failed',
   ].sort());
   for (const [key, code] of Object.entries(HOST_ERRORS)) {
     assert.equal(key, code.toUpperCase(), `${key} is the upper-case spelling of its code`);
   }
+});
+
+test('the popup message types and the connection states hold the wire names', () => {
+  assert.ok(Object.isFrozen(POPUP_MSG));
+  assert.deepEqual(POPUP_MSG, { CONSENT: 'valu-host:consent', TOKEN: 'valu-host:token' });
+  assert.ok(Object.isFrozen(CONNECTION_STATE));
+  assert.deepEqual(CONNECTION_STATE, {
+    CONNECTING: 'connecting', READY: 'ready', RECONNECTING: 'reconnecting', OFFLINE: 'offline', SIGNED_OUT: 'signed_out',
+  });
 });
 
 test('parseAppMessage rejects non-objects and missing name', () => {

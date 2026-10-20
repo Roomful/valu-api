@@ -31,6 +31,8 @@ export const INFO = {
   network: { id: 'n1', fullName: 'Roomful' },
 };
 export const SESSION = { userId: 'u1', sessionId: 'sess-SECRET-1' };
+/** What a redeemed token becomes: the session the sign-in popup's user ends up with. */
+export const REDEEMED = { userId: 'u1', sessionId: 'sess-SECRET-2', networkId: 'net-1' };
 
 /** Let every promise the bridge is awaiting run to its next real wait. */
 export const settle = () => new Promise((resolve) => { setImmediate(resolve); });
@@ -55,32 +57,83 @@ export function fakeResolver(table = { [APP_ORIGIN]: APP }) {
   return resolver;
 }
 
-/** An `auth` whose `restore` answers `session` (or runs `restore`), recording what it was asked. */
-export function fakeAuth({ session = null, restore } = {}) {
+/**
+ * An `auth` whose `restore` answers `session` (or runs `restore`) and whose `redeem`
+ * runs `redeem(token, options)` (a result `{userId, sessionId, networkId}`, or a throw),
+ * recording what each was asked. Without a `redeem`, a token is redeemed into `REDEEMED`.
+ */
+export function fakeAuth({ session = null, restore, redeem } = {}) {
   const auth = {
     restoreCalls: [],
+    redeemCalls: [],
     signOutCalls: 0,
     restore: async (options) => {
       auth.restoreCalls.push(options);
       return restore ? restore(options) : session;
+    },
+    redeem: async (token, options) => {
+      auth.redeemCalls.push({ token, options });
+      return redeem ? redeem(token, options) : REDEEMED;
     },
     signOut() { auth.signOutCalls += 1; },
   };
   return auth;
 }
 
-/** `makeConnection` over a scripted master: `connect` answers `info`, or rejects with `error`. */
+/**
+ * `makeConnection` over a scripted master: `connect` answers `info`, or rejects with
+ * `error` (a function of the connection when `connect` is given). Each connection
+ * is a `MasterConnection` as far as the host reads it: `onStateChange` and
+ * `onReconnected` (cleared by `close()`, as the real one does), `state`,
+ * `lastError`. A test moves it with `setState(next, lastError?)` and `reconnected(info)`.
+ */
 export function fakeMaker({ info = INFO, error = null, connect } = {}) {
   const maker = {
     sessions: [],
     connections: [],
+    /** Set to keep a closed connection's subscribers, so a test can fire events at a master that was let go of. */
+    keepHandlers: false,
     make(sessionId) {
       maker.sessions.push(sessionId);
+      const stateHandlers = new Set();
+      const reconnectedHandlers = new Set();
       const connection = {
         closed: 0,
+        state: 'idle',
+        lastError: null,
         socket: { emit: async () => ({ data: {} }) },
-        connect: connect ? () => connect(connection) : async () => { if (error) throw error; return info; },
-        close: async () => { connection.closed += 1; },
+        connect: connect ? () => connect(connection) : async () => {
+          if (error) throw error;
+          connection.state = 'ready';
+          return info;
+        },
+        close: async () => {
+          connection.closed += 1;
+          connection.state = 'closed';
+          if (maker.keepHandlers) return; // a connection that goes on calling after it was closed
+          stateHandlers.clear();
+          reconnectedHandlers.clear();
+        },
+        onStateChange(handler) {
+          stateHandlers.add(handler);
+          return () => stateHandlers.delete(handler);
+        },
+        onReconnected(handler) {
+          reconnectedHandlers.add(handler);
+          return () => reconnectedHandlers.delete(handler);
+        },
+        /** Move the master to `next` (with the error that explains a `failed`), and tell every subscriber. */
+        setState(next, lastError) {
+          const previous = connection.state;
+          connection.state = next;
+          if (lastError !== undefined) connection.lastError = lastError;
+          for (const handler of [...stateHandlers]) handler(next, previous);
+        },
+        /** The master came back and re-read `user_info`. */
+        reconnected(fresh) {
+          for (const handler of [...reconnectedHandlers]) handler(fresh);
+        },
+        subscribers: () => stateHandlers.size + reconnectedHandlers.size,
       };
       maker.connections.push(connection);
       return connection;
