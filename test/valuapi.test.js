@@ -17,11 +17,6 @@ import { FakeWindow } from './helpers/fakes.js';
 
 const setup = (transportOptions = {}) => {
   const target = new FakeWindow();
-  // The embedding application is ONE window: everything it sends has the same
-  // `source`. The fake hands out a fresh object per call, which the transport
-  // (rightly) reads as a different window after the handshake.
-  const application = target.appSource();
-  target.appSource = () => application;
   const api = new ValuApi({ transport: new PostMessageTransport({ target, ...transportOptions }) });
   return { api, target };
 };

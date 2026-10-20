@@ -220,9 +220,16 @@ export class FakeWindow {
   addEventListener(type, listener) { if (type === 'message') this.listeners.add(listener); }
   removeEventListener(type, listener) { if (type === 'message') this.listeners.delete(listener); }
 
-  /** The application's side: a source whose postMessage records what it got. */
+  #appSource = null;
+
+  /**
+   * The application's side: a source whose postMessage records what it got.
+   * One object per window — the embedding application is one window, and a
+   * transport that binds to a source reads a fresh object as a different one.
+   */
   appSource() {
-    return { postMessage: (data, origin) => this.posted.push({ ...data, origin }) };
+    this.#appSource ??= { postMessage: (data, origin) => this.posted.push({ ...data, origin }) };
+    return this.#appSource;
   }
 
   /** Deliver a message as if it came from the Valu Social application. */
