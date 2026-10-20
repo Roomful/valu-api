@@ -15,9 +15,14 @@ import { PostMessageTransport } from '../src/transport/PostMessageTransport.js';
 import { ServiceClient } from '../src/services/ServiceClient.js';
 import { FakeWindow } from './helpers/fakes.js';
 
-const setup = () => {
+const setup = (transportOptions = {}) => {
   const target = new FakeWindow();
-  const api = new ValuApi({ transport: new PostMessageTransport({ target }) });
+  // The embedding application is ONE window: everything it sends has the same
+  // `source`. The fake hands out a fresh object per call, which the transport
+  // (rightly) reads as a different window after the handshake.
+  const application = target.appSource();
+  target.appSource = () => application;
+  const api = new ValuApi({ transport: new PostMessageTransport({ target, ...transportOptions }) });
   return { api, target };
 };
 
@@ -326,4 +331,123 @@ test('close() releases the window listener and fails what was in flight', async 
 
   await assert.rejects(() => pending, /transport closed/);
   assert.equal(target.listeners.size, 0);
+});
+
+// ---------------------------------------------------------------------------
+// Who may speak. The peer is bound once, on the first acceptable api:ready.
+// ---------------------------------------------------------------------------
+
+/** A window that records what was posted to it, under its own name. */
+const peerWindow = (label, log) => ({
+  postMessage: (data, origin) => log.push({ label, name: data.name, origin }),
+});
+
+/**
+ * `window.parent` exists in a browser and not in Node. The transport reads it
+ * as each message arrives, so a test sets it for the length of one body.
+ */
+const withParent = (parent, body) => {
+  const had = Object.hasOwn(globalThis, 'parent');
+  const previous = globalThis.parent;
+  globalThis.parent = parent;
+  try { return body(); } finally {
+    if (had) globalThis.parent = previous; else delete globalThis.parent;
+  }
+};
+
+test('api:ready from a window other than parent is ignored', () => {
+  const { api, target } = setup();
+  const log = [];
+  const parent = peerWindow('parent', log);
+  const stranger = peerWindow('stranger', log);
+  const ready = [];
+  api.addEventListener(ValuApi.API_READY, () => ready.push('ready'));
+
+  withParent(parent, () => {
+    target.deliver({ name: 'api:ready', message: { applicationId: 'evil' }, source: stranger });
+    assert.equal(api.connected, false);
+    assert.deepEqual(ready, []);
+    assert.throws(() => api.transport.notify('api:ping', {}), /has not sent api:ready/);
+
+    target.deliver({ name: 'api:ready', message: { applicationId: 'app-1' }, source: parent });
+    assert.equal(api.connected, true);
+    assert.equal(api.transport.applicationId, 'app-1');
+    assert.deepEqual(ready, ['ready']);
+
+    api.transport.notify('api:ping', {});
+    assert.deepEqual(log, [{ label: 'parent', name: 'api:ping', origin: 'https://valu.test' }]);
+  });
+});
+
+test('a second api:ready from another origin does not re-point replies', async () => {
+  const { api, target } = setup();
+  const log = [];
+  const first = peerWindow('first', log);
+  const second = peerWindow('second', log);
+  const ready = [];
+  api.addEventListener(ValuApi.API_READY, () => ready.push('ready'));
+
+  target.deliver({ name: 'api:ready', message: { applicationId: 'app-1' }, source: first, origin: 'https://valu.test' });
+  // Another window, and the same window navigated somewhere else.
+  target.deliver({ name: 'api:ready', message: { applicationId: 'app-2' }, source: second, origin: 'https://evil.test' });
+  target.deliver({ name: 'api:ready', message: { applicationId: 'app-3' }, source: first, origin: 'https://evil.test' });
+
+  assert.equal(api.transport.applicationId, 'app-1');
+  assert.deepEqual(ready, ['ready'], 'the later api:ready events were not announced either');
+
+  const pending = api.transport.request('api:run', { id: 'x' }, 7);
+  assert.deepEqual(log, [{ label: 'first', name: 'api:run', origin: 'https://valu.test' }]);
+
+  let settled = false;
+  pending.then(() => { settled = true; });
+  target.deliver({ name: 'api:run-completed', message: { spoofed: true }, requestId: 7, source: second, origin: 'https://evil.test' });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(settled, false, 'a reply from another window does not settle the request');
+
+  target.deliver({ name: 'api:run-completed', message: { ok: true }, requestId: 7, source: first, origin: 'https://valu.test' });
+  assert.deepEqual(await pending, { ok: true });
+});
+
+test('hostOrigins rejects an origin not listed', () => {
+  const { api, target } = setup({ hostOrigins: ['https://valu.test'] });
+
+  target.deliver({ name: 'api:ready', message: { applicationId: 'evil' }, origin: 'https://evil.test' });
+  assert.equal(api.connected, false);
+
+  target.deliver({ name: 'api:ready', message: { applicationId: 'app-1' }, origin: 'https://valu.test' });
+  assert.equal(api.connected, true);
+  assert.equal(api.transport.applicationId, 'app-1');
+});
+
+test('hostOrigins must be an array, not a string that would match by substring', () => {
+  assert.throws(
+    () => new PostMessageTransport({ target: new FakeWindow(), hostOrigins: 'https://valu.test' }),
+    /hostOrigins must be an array/,
+  );
+});
+
+test('triggers and replies from a window that is not the peer are ignored', () => {
+  const { api, target } = setup();
+  const seen = [];
+  api.addEventListener(ValuApi.ON_ROUTE, (data) => seen.push(data));
+  const stranger = peerWindow('stranger', []);
+
+  // Before the handshake nobody is the peer.
+  target.deliver({ name: 'api:trigger', message: { action: 'on_route', data: 'early' }, source: stranger });
+  target.ready();
+  target.deliver({ name: 'api:trigger', message: { action: 'on_route', data: 'spoofed' }, source: stranger });
+  target.deliver({ name: 'api:trigger', message: { action: 'on_route', data: 'real' } });
+
+  assert.deepEqual(seen, ['real']);
+});
+
+test('the bound peer may repeat api:ready', () => {
+  const { api, target } = setup();
+  const ready = [];
+  api.addEventListener(ValuApi.API_READY, () => ready.push('ready'));
+
+  target.ready({ applicationId: 'app-1' });
+  target.ready({ applicationId: 'app-1' });
+
+  assert.deepEqual(ready, ['ready', 'ready']);
 });

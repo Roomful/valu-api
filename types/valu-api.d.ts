@@ -281,7 +281,13 @@ declare module '@arkeytyp/valu-api' {
     /** The postMessage bridge to the Valu Social application — today's traffic,
      * unchanged. */
     export class PostMessageTransport extends Transport {
-        constructor(options?: { target?: EventTarget });
+        constructor(options?: {
+            target?: EventTarget;
+            /** Origins the first `api:ready` may come from. No default. The peer
+             * is bound once, to `window.parent` when embedded, and later
+             * messages are taken only from it. */
+            hostOrigins?: string[];
+        });
         get applicationId(): string | undefined;
     }
 
