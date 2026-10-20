@@ -21,10 +21,16 @@
 //     the call's own timeout), and only then answers 503 `disconnected`. The
 //     time spent waiting comes off the ack timeout, so the call as a whole
 //     never outlasts the budget it was given.
+//   - SETTLE. A call that was already on the wire when the transport dropped
+//     has lost its ack for good (socket.io 2.x), and the instance would answer
+//     it only when its own timer ran out, as a 408. It is answered 503
+//     `disconnected` at the drop, at the loss, and at `close()` instead, so the
+//     SDK's read policy retries it through the hold and a write learns at once.
 //   - REPLACE. A lost connection is closed when it is declared lost, and the
 //     next call that needs a socket builds a fresh one with the same session.
 //     A connection that fails to come up is closed and dropped the same way,
-//     so a rejected `connect()` is never sticky.
+//     so a rejected `connect()` is never sticky. A replacement that follows an
+//     established connection fires `onReconnected`, as a recovery would.
 //   - CLASSIFY. When a connection cannot be had, `GET /api/v1/auth/check` says
 //     why: a JSON body with `error.code === 401` means the master refused the
 //     session (`code: 'session_expired'`); anything else is `'unavailable'`.
@@ -37,14 +43,24 @@
 // contains the session id: errors carry the instance's already-redacted
 // message and no `cause`, and `lastError` is one of them.
 //
-// `socket` is the live `ValuSocketConnection`. Its `transport` is the raw
-// socket.io socket, whose URL contains the session: never serialize or post it.
+// ## `socket` and `connection`
+//
+// `socket` is what services are built over: ONE `ValuSocket` for the life of
+// this object, whose `emit` is `MasterConnection.emit` (so it holds, settles
+// in-flight calls and replaces), whose `onResourceUpdated` follows the
+// connection across a replacement, and whose identity never changes — a holder
+// is never left with a closed instance. `connection` is the raw current
+// `ValuSocketConnection` (or `null`), for tests and debugging only: its own
+// `emit` answers 503 at once while the socket is down, and its `transport` is
+// the raw socket.io socket, whose URL contains the session. Never serialize or
+// post either.
 // ===========================================================================
 import { ERROR_CODES, errorAck } from '../Errors.js';
 import { DEFAULT_TIMEOUT_MS } from '../CallPolicy.js';
 import {
   DEFAULT_API_HOST, RECOVERY_TIMEOUT_MS, ValuSocketConnection,
 } from '../socket/ValuSocketConnection.js';
+import { VALU_SOCKET } from '../socket/ValuSocket.js';
 import { HOST_ERRORS } from './protocol.js';
 
 /** How long a call waits for a reconnect before it answers 503 (spec §4.11). */
@@ -87,6 +103,44 @@ const disconnected = (ns, why) => errorAck(ERROR_CODES.DISCONNECTED, `emit ${ns}
 
 const HOLD_TIMED_OUT = Symbol('hold timed out');
 
+/**
+ * The `ValuSocket` a host builds services over. Stable: the same object from
+ * construction to `close()`, whichever instance is underneath. Members are
+ * closures from the owner, so nothing here can reach the session.
+ *
+ * @implements {import('../socket/ValuSocket.js').ValuSocket}
+ */
+class MasterSocket {
+  /** @see VALU_SOCKET */
+  [VALU_SOCKET] = true;
+
+  #emit;
+  #identity;
+  #subscribe;
+
+  /**
+   * @param {object} owner
+   * @param {Function} owner.emit
+   * @param {() => {userId: string|null, selfUserId: string|null, networkId: string|null}} owner.identity
+   * @param {(handler: Function) => (() => void)} owner.subscribe
+   */
+  constructor({ emit, identity, subscribe }) {
+    this.#emit = emit;
+    this.#identity = identity;
+    this.#subscribe = subscribe;
+  }
+
+  /** From the last `user_info`; `null` until the first one. */
+  get userId() { return this.#identity().userId; }
+  get selfUserId() { return this.#identity().selfUserId; }
+  get networkId() { return this.#identity().networkId; }
+
+  emit(ns, data = {}, timeoutMs) { return this.#emit(ns, data, timeoutMs); }
+
+  /** `resource:updated` pushes. Survives the instance being replaced: subscribe once. */
+  onResourceUpdated(handler) { return this.#subscribe(handler); }
+}
+
 export class MasterConnection {
   #sessionId;
   #io;
@@ -106,6 +160,23 @@ export class MasterConnection {
   #lastError = null;
   /** The master refused the session; only an explicit `connect()` tries it again. */
   #refused = false;
+  /** An instance has been ready at least once, so a later success is a recovery, not a first connect. */
+  #everReady = false;
+  /** Who `user_info` last said we are; what the `socket` facade reports. */
+  #identity = { userId: null, selfUserId: null, networkId: null };
+  #socketFacade = new MasterSocket({
+    emit: (ns, data, timeoutMs) => this.emit(ns, data, timeoutMs),
+    identity: () => this.#identity,
+    subscribe: (handler) => this.on('resource:updated', handler),
+  });
+  /**
+   * Calls that have been handed to an instance and not answered. Each can be
+   * settled early, because socket.io 2.x loses the ack of a call that was on
+   * the wire when the transport dropped, and the instance would answer it only
+   * when its own timer ran out.
+   * @type {Set<{connection: ValuSocketConnection, cut: (why: string) => void}>}
+   */
+  #inflight = new Set();
   /** @type {Promise<MasterInfo>|null} The handshake in progress, shared by every caller. */
   #attempt = null;
   /** Fails the handshake in progress: `close()` and a loss mid-handshake both need it to stop waiting. */
@@ -176,13 +247,22 @@ export class MasterConnection {
   get state() { return this.#state; }
 
   /**
-   * The live instance — a `ValuSocket` — or `null` when there is none (before
-   * the first connect, between a loss and the next call, after `close()`). It
-   * changes when the instance is replaced: services built over it must be
-   * rebuilt then (spec §4.7).
+   * The `ValuSocket` to build services over (spec §4.7). One object for the
+   * life of this master: its `emit` goes through {@link MasterConnection#emit}
+   * (hold, settle in-flight calls, replace), and it keeps working when the
+   * instance underneath is replaced, so nothing has to be rebuilt.
+   * @returns {import('../socket/ValuSocket.js').ValuSocket}
+   */
+  get socket() { return this.#socketFacade; }
+
+  /**
+   * The raw current instance, or `null` when there is none (before the first
+   * connect, between a loss and the next call, after `close()`). It is not
+   * ready during `connecting`, it is replaced on failure, and its `emit` does
+   * not hold: for tests and debugging, not for services.
    * @returns {ValuSocketConnection|null}
    */
-  get socket() { return this.#connection; }
+  get connection() { return this.#connection; }
 
   /**
    * Why the last attempt failed, or the connection was lost: an `Error` whose
@@ -265,9 +345,45 @@ export class MasterConnection {
       const startedAt = Date.now();
       const { connection, reason } = await this.#acquire(Math.min(this.#graceMs, timeoutMs));
       if (!connection) return disconnected(ns, reason);
-      return await connection.emit(ns, data, Math.max(1, timeoutMs - (Date.now() - startedAt)));
+      return await this.#send(connection, ns, data, Math.max(1, timeoutMs - (Date.now() - startedAt)));
     } catch (error) {
       return disconnected(ns, error?.message ?? String(error));
+    }
+  }
+
+  /**
+   * One call, handed to an instance. It is answered by the instance, or settled
+   * 503 `disconnected` by {@link #cutInflight} if the connection goes away
+   * under it (a drop, a loss, `close()`); whichever comes second is ignored.
+   * Never rejects.
+   */
+  #send(connection, ns, data, timeoutMs) {
+    return new Promise((resolve) => {
+      const flight = { connection, cut: (why) => resolve(disconnected(ns, why)) };
+      this.#inflight.add(flight);
+      const answer = (ack) => {
+        this.#inflight.delete(flight);
+        resolve(ack);
+      };
+      const failed = (error) => answer(disconnected(ns, error?.message ?? String(error)));
+      try {
+        Promise.resolve(connection.emit(ns, data, timeoutMs)).then(answer, failed);
+      } catch (error) {
+        failed(error);
+      }
+    });
+  }
+
+  /**
+   * Settle the calls that were on `connection` (all of them when it is `null`)
+   * with 503. The instance's own timer for each is left to run out: it can do
+   * no harm, and nothing here can reach it.
+   */
+  #cutInflight(connection, why) {
+    for (const flight of [...this.#inflight]) {
+      if (connection && flight.connection !== connection) continue;
+      this.#inflight.delete(flight);
+      flight.cut(why);
     }
   }
 
@@ -278,10 +394,11 @@ export class MasterConnection {
    * nothing reconnects. (`checkOneTimeAuthToken` hands back the minting
    * session itself, which is why a switch must request a new one.)
    *
-   * Rejects with `code: 'not_a_member'` when the master answers without one —
-   * Valu Social treats an answer with no `data` as a refusal too — and with
-   * `code: 'unavailable'` when the call could not be made or timed out, which
-   * says nothing about membership.
+   * Rejects with `code: 'not_a_member'` for the two answers that are a refusal:
+   * a success with no session id (Valu Social treats an answer with no `data`
+   * as a refusal too) and a 403. Anything else — the call could not be made, it
+   * timed out, the master erred — rejects with `code: 'unavailable'`, which says
+   * nothing about membership.
    * @param {string} networkId
    * @returns {Promise<{sessionId: string}>}
    */
@@ -293,11 +410,10 @@ export class MasterConnection {
     const sessionId = ack?.data?.sessionId;
     if (typeof sessionId === 'string' && sessionId) return { sessionId };
 
-    const code = ack?.error?.code;
-    const transport = code === ERROR_CODES.DISCONNECTED || code === ERROR_CODES.TIMEOUT;
+    const refused = !ack?.error || ack.error.code === ERROR_CODES.FORBIDDEN;
     const detail = ack?.error?.message || ack?.error?.description || 'the master answered without a session';
     throw codedError(
-      transport ? MASTER_UNAVAILABLE : HOST_ERRORS.NOT_A_MEMBER,
+      refused ? HOST_ERRORS.NOT_A_MEMBER : MASTER_UNAVAILABLE,
       `network:switch to ${networkId} failed: ${detail}`,
     );
   }
@@ -310,6 +426,7 @@ export class MasterConnection {
     this.#clearRecovery();
     this.#abortAttempt?.(closedError());
     this.#release();
+    this.#cutInflight(null, 'connection closed');
     this.#setState('closed');
     this.#stateHandlers.clear();
     this.#reconnectedHandlers.clear();
@@ -320,14 +437,18 @@ export class MasterConnection {
   // --- the handshake -------------------------------------------------------
 
   #attemptOpen() {
-    this.#attempt ??= this.#open();
+    if (!this.#attempt) {
+      this.#arm();
+      this.#attempt = this.#open();
+      // After the assignment, not before: a state handler that calls `connect()`
+      // from this notification must be handed this attempt, not start another.
+      this.#setState('connecting');
+    }
     return this.#attempt;
   }
 
   /** Build an instance, connect it, and make it the one this wrapper owns. */
   async #open() {
-    this.#arm();
-    this.#setState('connecting');
     let connection = null;
     let abort = null;
     try {
@@ -351,8 +472,16 @@ export class MasterConnection {
     this.#attempt = null;
     this.#refused = false;
     this.#lastError = null;
+    const recovered = this.#everReady;
+    this.#everReady = true;
+    this.#remember(connection);
     this.#release();
     this.#setState('ready');
+    // A replacement after an established connection IS a reconnect, and the
+    // likeliest one to have changed something (it follows an outage long
+    // enough for the instance to be declared lost): say so, with what
+    // `user_info` now says, so the host re-syncs.
+    if (recovered) this.#notifyReconnected(this.#info(connection));
     return this.#info(connection);
   }
 
@@ -389,9 +518,12 @@ export class MasterConnection {
    */
   async #fail(connection, cause) {
     if (this.#state === 'closed') return closedError();
+    // `init.client` may have redirected the instance to another deployment's
+    // host; that is where the session is checked. Read before the instance is closed.
+    const host = connection?.host || this.#host;
     if (this.#connection === connection) this.#connection = null;
     const discarded = this.#discard(connection);
-    const error = await this.#classify(cause);
+    const error = await this.#classify(cause, host);
     await discarded;
     if (this.#state === 'closed') return closedError();
 
@@ -404,9 +536,9 @@ export class MasterConnection {
   }
 
   /** A connection failed; was it the session? */
-  async #classify(cause) {
+  async #classify(cause, host) {
     const reason = cause?.message ?? String(cause);
-    return await this.#sessionRefused()
+    return await this.#sessionRefused(host)
       ? codedError(HOST_ERRORS.SESSION_EXPIRED, `the master refused the session (auth/check answered 401): ${reason}`)
       : codedError(MASTER_UNAVAILABLE, `master unavailable: ${reason}`);
   }
@@ -417,12 +549,12 @@ export class MasterConnection {
    * body is the only thing read. A check that cannot be made, does not answer
    * in time, or does not answer JSON is not a refusal.
    */
-  async #sessionRefused() {
+  async #sessionRefused(host) {
     if (!this.#fetchForCheck) return false;
     let timer;
     try {
       const check = (async () => {
-        const response = await this.#fetchForCheck(`https://${this.#host}/api/v1/auth/check`, {
+        const response = await this.#fetchForCheck(`https://${host}/api/v1/auth/check`, {
           method: 'GET',
           headers: { 'X-Session-Id': this.#sessionId },
         });
@@ -442,7 +574,11 @@ export class MasterConnection {
   // --- what the instance tells us ------------------------------------------
 
   #onDisconnect(connection, reason) {
-    if (connection !== this.#connection || this.#state !== 'ready') return;
+    if (connection !== this.#connection) return;
+    // Whatever was on the wire has lost its ack for good; do not make it wait
+    // out its timeout to be told.
+    this.#cutInflight(connection, 'connection dropped while the call was in flight');
+    if (this.#state !== 'ready') return;
     this.#dropReason = String(reason ?? 'disconnect');
     this.#arm();
     this.#setState('reconnecting');
@@ -452,9 +588,13 @@ export class MasterConnection {
   #onReconnected(connection) {
     if (connection !== this.#connection || this.#state !== 'reconnecting') return;
     this.#clearRecovery();
+    this.#remember(connection);
     this.#release();
     this.#setState('ready');
-    const info = this.#info(connection);
+    this.#notifyReconnected(this.#info(connection));
+  }
+
+  #notifyReconnected(info) {
     for (const handler of [...this.#reconnectedHandlers]) {
       try { handler(info); } catch (error) { console.error('reconnected handler threw:', error); }
     }
@@ -471,6 +611,7 @@ export class MasterConnection {
     this.#clearRecovery();
     this.#connection = null;
     this.#lastError = codedError(MASTER_UNAVAILABLE, reason);
+    this.#cutInflight(connection, 'connection lost');
     this.#discard(connection);
     this.#release();
     this.#setState('failed');
@@ -517,7 +658,13 @@ export class MasterConnection {
           // The failure is `lastError`; this call only needs to know when the attempt is over.
           this.#attemptOpen().catch(() => {});
           break;
-        default: break;   // connecting | reconnecting: wait below
+        case 'connecting':
+          // An attempt is already underway, and this call is waiting for ITS
+          // outcome: if it fails the call is answered, not licensed to start a
+          // second handshake and a second auth/check for the same failure.
+          replaced = true;
+          break;
+        default: break;   // reconnecting: wait below
       }
 
       let timer;
@@ -554,6 +701,15 @@ export class MasterConnection {
     for (const handler of [...this.#stateHandlers]) {
       try { handler(next, previous); } catch (error) { console.error('state handler threw:', error); }
     }
+  }
+
+  /** What the `socket` facade reports: updated whenever `user_info` is. */
+  #remember(connection) {
+    this.#identity = {
+      userId: connection.userId ?? connection.selfUserId ?? null,
+      selfUserId: connection.selfUserId ?? null,
+      networkId: connection.networkId ?? null,
+    };
   }
 
   /** @returns {MasterInfo} */

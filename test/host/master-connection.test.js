@@ -20,11 +20,13 @@ import {
 } from '../../src/host/MasterConnection.js';
 import { ValuSocketConnection } from '../../src/socket/ValuSocketConnection.js';
 import { isValuSocket } from '../../src/socket/ValuSocket.js';
+import { createValuServices } from '../../src/services/api.js';
 import { HOST_ERRORS } from '../../src/host/protocol.js';
 import { Responder, readyIo, fakeIo } from '../helpers/fakes.js';
 import { fakeAuthFetch } from '../helpers/hostFakes.js';
 
 const SESSION = 'sess-9d2e-NOT-A-REAL-TOKEN';
+const USERS_RPC = 'social:getUsersSimpleInfo';
 const USER = { userId: 'u1', networkId: 'n1' };
 
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
@@ -161,8 +163,7 @@ test('connect resolves user and network from user_info', async () => {
   assert.equal(info.user.id, 'u1');
   assert.equal(info.network.id, 'n1');
   assert.equal(master.state, 'ready');
-  assert.ok(master.socket instanceof ValuSocketConnection, 'the default instance is valu-api\'s own door');
-  assert.ok(isValuSocket(master.socket));
+  assert.ok(master.connection instanceof ValuSocketConnection, 'the default instance is valu-api\'s own door');
   assert.match(io.last.url, /^wss:\/\/api\.roomful\.net\?sessionId=/, 'the host defaults to the production master');
   await master.close();
 });
@@ -315,6 +316,190 @@ test('emit before connect and after close answers 503 at once', async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Calls on the wire when the connection goes away
+// ---------------------------------------------------------------------------
+
+/** `x` is never answered: the call stays on the wire until something settles it. */
+const silentResponder = () => new Responder({ x: 'no-ack' });
+
+test('a call on the wire when the socket drops is answered 503 at once, not 408 after its timeout', async () => {
+  const { master, io, responder } = realMaster({ responder: silentResponder() });
+  await master.connect();
+
+  const startedAt = Date.now();
+  const call = master.emit('x', {}, 400);
+  await sleep(10);
+  assert.equal(responder.callsTo('x').length, 1, 'it is on the wire');
+  io.last.drop();
+
+  const ack = await peek(call, 150);
+  assert.notEqual(ack, PENDING, 'settled by the drop, not by the 400 ms timer');
+  assert.equal(ack.error.code, 503);
+  assert.match(ack.error.message, /disconnected/);
+  assert.ok(Date.now() - startedAt < 300);
+  await master.close();
+});
+
+test('a call on the wire when the master closes is answered 503 at once', async () => {
+  const { master } = realMaster({ responder: silentResponder() });
+  await master.connect();
+
+  const call = master.emit('x', {}, 400);
+  await sleep(10);
+  await master.close();
+
+  const ack = await peek(call, 150);
+  assert.notEqual(ack, PENDING);
+  assert.equal(ack.error.code, 503);
+  assert.match(ack.error.message, /disconnected/);
+});
+
+test('a call on the wire when the connection is declared lost is answered 503', async () => {
+  const { master, instances } = scriptedMaster({ script: { emit: () => new Promise(() => {}) } });
+  await master.connect();
+
+  const call = master.emit('x', {}, 5_000);
+  await sleep(0);
+  instances[0].lose();
+
+  const ack = await peek(call, 100);
+  assert.notEqual(ack, PENDING);
+  assert.equal(ack.error.code, 503);
+  await master.close();
+});
+
+test('the late real answer to a settled call is ignored, and another instance\'s drop does not touch a live call', async () => {
+  const pending = [];
+  const { master, instances } = scriptedMaster({
+    script: { emit: (instance) => new Promise((resolve) => pending.push({ instance, resolve })) },
+  });
+  await master.connect();
+
+  const first = master.emit('x', {}, 5_000);
+  await sleep(0);
+  instances[0].drop();
+  const cut = await first;
+  assert.equal(cut.error.code, 503);
+  pending[0].resolve({ data: { late: true } });         // the answer that was thought lost arrives anyway
+  await sleep(0);
+  assert.equal(cut.error.code, 503, 'the caller already has its answer');
+
+  instances[0].lose();
+  const second = master.emit('y', {}, 5_000);            // replaces, and goes out on instance 1
+  await sleep(10);
+  instances[0].drop();                                   // a stale event from the replaced instance
+  assert.equal(await peek(second, 30), PENDING, 'a call on the live instance is not its business');
+  pending[1].resolve({ data: { from: 1 } });
+  assert.deepEqual(await second, { data: { from: 1 } });
+  await master.close();
+});
+
+// ---------------------------------------------------------------------------
+// The socket services are built over
+// ---------------------------------------------------------------------------
+
+test('socket is one ValuSocket for the life of the master, whichever instance is underneath', async () => {
+  const { master, instances } = scriptedMaster({
+    script: { connect: (instance) => { if (instance.index === 1) instance.networkId = 'n2'; } },
+  });
+  const socket = master.socket;
+
+  assert.ok(isValuSocket(socket), 'branded, so openValuSocket/adoptValuSocket use it as it is');
+  assert.equal(socket.userId, null, 'nobody is known before user_info');
+  assert.equal((await socket.emit('x')).error.code, 503, 'and it does not pretend to be connected');
+
+  await master.connect();
+  assert.equal(socket.userId, 'u1');
+  assert.equal(socket.selfUserId, 'u1');
+  assert.equal(socket.networkId, 'n1');
+
+  instances[0].lose();
+  assert.equal(master.socket, socket, 'the same object when nothing is connected');
+  assert.deepEqual(await socket.emit('x'), { data: { from: 1 } }, 'the call it makes replaces the instance and is answered');
+  assert.equal(master.socket, socket, 'and the same object after the replacement');
+  assert.equal(master.connection, instances[1]);
+  assert.equal(socket.networkId, 'n2', 'identity follows the latest user_info');
+
+  await master.close();
+  assert.equal(master.socket, socket, 'and after close');
+  assert.equal((await socket.emit('x')).error.code, 503, 'where it answers 503 and does not hold a closed instance');
+});
+
+test('socket.emit holds across a reconnect, where the raw instance answers 503 at once', async () => {
+  const { master, io } = realMaster();
+  await master.connect();
+
+  io.last.drop();
+  assert.equal((await master.connection.emit('x')).error.code, 503, 'what a holder of the raw instance gets');
+
+  const held = master.socket.emit('x');
+  assert.equal(await peek(held, 40), PENDING);
+  io.last.reopen();
+  io.last.ready(USER);
+  assert.deepEqual(await held, { data: { ok: true } });
+  await master.close();
+});
+
+test('socket.onResourceUpdated delivers each push once, and follows the connection across a replacement', async () => {
+  const live = realMaster();
+  await live.master.connect();
+  const heard = [];
+  live.master.socket.onResourceUpdated((payload) => heard.push(payload));
+  live.io.last.push('resource:updated', { id: 'r1' });
+  assert.deepEqual(heard, [{ id: 'r1' }], 'once, on the real socket');
+  await live.master.close();
+
+  const { master, instances } = scriptedMaster();
+  const seen = [];
+  const off = master.socket.onResourceUpdated((payload) => seen.push(payload));
+  await master.connect();
+  instances[0].push('resource:updated', { n: 1 });
+  instances[0].lose();
+  await master.emit('x');
+  instances[1].push('resource:updated', { n: 2 });
+  assert.deepEqual(seen, [{ n: 1 }, { n: 2 }], 'subscribed once, still heard after the replacement');
+
+  off();
+  instances[1].push('resource:updated', { n: 3 });
+  assert.equal(seen.length, 2);
+  await master.close();
+});
+
+test('services built over socket ride out a drop: the read that was cut is retried into the hold', async () => {
+  let attempts = 0;
+  const responder = new Responder({
+    [USERS_RPC]: () => (++attempts === 1
+      ? 'no-ack'                                           // on the wire when the socket drops
+      : { data: { users: [{ id: 'u1', firstName: 'Ada' }] } }),
+  });
+  const { master, io } = realMaster({ responder });
+  await master.connect();
+  // Keep the first call's ack callback: on a real drop it is lost, and it is
+  // delivered at the very end only so the instance's own 30 s timer for that
+  // call does not outlive the test.
+  const lost = [];
+  const realEmit = io.last.emit.bind(io.last);
+  io.last.emit = (ns, payload, ack) => realEmit(ns, payload, ns === USERS_RPC && !lost.length ? (lost.push(ack), undefined) : ack);
+  const valu = createValuServices({
+    socket: master.socket, cache: null, hooks: { sleep: () => sleep(0) },
+  });
+
+  const read = valu.data.Users.current();
+  await sleep(20);
+  assert.equal(attempts, 1, 'the first attempt is on the wire');
+  io.last.drop();                                          // 503 now; the SDK retries straight into the hold
+  await sleep(40);
+  assert.equal(attempts, 1, 'the retry is waiting for the reconnect, not at the master');
+  io.last.reopen();
+  io.last.ready(USER);
+
+  assert.equal((await read).user.id, 'u1');
+  assert.equal(attempts, 2);
+  lost[0]({ data: { users: [] } });
+  await master.close();
+});
+
+// ---------------------------------------------------------------------------
 // Replace on failure
 // ---------------------------------------------------------------------------
 
@@ -326,7 +511,7 @@ test('failed state replaces the instance on next emit', async () => {
   instances[0].lose();
   assert.equal(master.state, 'failed');
   assert.equal(instances[0].closeCalls, 1, 'the dead instance is closed when it is declared lost, not left retrying');
-  assert.equal(master.socket, null, 'there is no live instance until the next call needs one');
+  assert.equal(master.connection, null, 'there is no live instance until the next call needs one');
   assert.equal(master.lastError.code, MASTER_UNAVAILABLE);
   assert.match(master.lastError.message, /connection lost/);
 
@@ -337,7 +522,7 @@ test('failed state replaces the instance on next emit', async () => {
   assert.equal(instances[0].emits.length, 0);
   assert.equal(instances[1].options.sessionId, SESSION, 'with the same session');
   assert.equal(master.state, 'ready');
-  assert.equal(master.socket, instances[1]);
+  assert.equal(master.connection, instances[1]);
   await master.close();
 });
 
@@ -408,6 +593,80 @@ test('a rejected connect is not sticky: the next connect builds a fresh instance
   assert.equal(info.userId, 'u1');
   assert.equal(instances.length, 2);
   assert.equal(master.state, 'ready');
+  await master.close();
+});
+
+test('a state handler that calls connect() from the connecting notification joins the attempt: one socket, not two', async () => {
+  const { master, io } = realMaster();
+  const joined = [];
+  master.onStateChange((state) => {
+    if (state !== 'ready' && state !== 'closed') joined.push(master.connect());
+  });
+
+  const info = await master.connect();
+  assert.deepEqual(await Promise.all(joined), joined.map(() => info), 'every caller got the same handshake');
+  assert.equal(joined.length, 1);
+  assert.equal(io.sockets.length, 1, 'a second connect() in the notification must not open a second socket');
+
+  await master.close();
+  assert.ok(io.sockets.every((socket) => socket.closed), 'and none is left open');
+});
+
+test('a replacement after an established connection fires onReconnected with the new user_info', async () => {
+  const { master, instances } = scriptedMaster({
+    script: { connect: (instance) => { if (instance.index === 1) instance.networkId = 'n2'; } },
+  });
+  const recoveries = [];
+  master.onReconnected((info) => recoveries.push({ ...info, state: master.state }));
+
+  await master.connect();
+  assert.equal(recoveries.length, 0, 'a first connect is not a recovery');
+
+  instances[0].lose();
+  await master.emit('x');
+
+  assert.equal(recoveries.length, 1, 'a replacement is the likeliest reconnect to have changed something');
+  assert.equal(recoveries[0].userId, 'u1');
+  assert.equal(recoveries[0].networkId, 'n2');
+  assert.equal(recoveries[0].state, 'ready', 'announced once it is usable');
+  await master.close();
+});
+
+test('a connect that succeeds after a failed FIRST connect is not a recovery', async () => {
+  const { master } = scriptedMaster({
+    script: { connect: (instance) => { if (instance.index === 0) throw new Error('refused'); } },
+  });
+  const recoveries = [];
+  master.onReconnected((info) => recoveries.push(info));
+
+  await rejection(master.connect());
+  await master.connect();
+
+  assert.equal(recoveries.length, 0, 'nothing was ever established, so nothing was re-established');
+  await master.close();
+});
+
+test('a call held during a failed connect is answered by that failure, not licensed to start a second handshake', async () => {
+  let fail;
+  const fetchImpl = fakeAuthFetch({ check: 200 });
+  const { master, instances } = scriptedMaster({
+    fetchImpl,
+    script: { connect: (instance) => (instance.index === 0 ? new Promise((_, reject) => { fail = reject; }) : undefined) },
+  });
+
+  const attempt = master.connect();
+  const held = master.emit('x');
+  await sleep(10);
+  assert.equal(master.state, 'connecting');
+  fail(new Error('refused'));
+
+  assert.equal((await rejection(attempt)).code, MASTER_UNAVAILABLE);
+  const ack = await held;
+  assert.equal(ack.error.code, 503);
+  assert.equal(instances.length, 1, 'one instance: the call waited for the attempt\'s outcome');
+  assert.equal(checks(fetchImpl).length, 1, 'and the failure was classified once');
+
+  assert.deepEqual(await master.emit('x'), { data: { from: 1 } }, 'a LATER call replaces it, as before');
   await master.close();
 });
 
@@ -571,6 +830,20 @@ test('a connect that succeeds never asks auth/check', async () => {
   await master.connect();
   assert.equal(checks(fetchImpl).length, 0);
   await master.close();
+});
+
+test('auth/check goes to the host the instance was redirected to', async () => {
+  const fetchImpl = fakeAuthFetch({ check: 401 });
+  const { master } = scriptedMaster({
+    fetchImpl,
+    script: { connect: (instance) => { instance.host = 'redirected.roomful.net'; throw new Error('refused'); } },
+  });
+
+  const error = await rejection(master.connect());
+
+  assert.equal(error.code, 'session_expired');
+  assert.equal(checks(fetchImpl)[0].url, 'https://redirected.roomful.net/api/v1/auth/check',
+    'init.client moved the instance; the session is checked where it was being used');
 });
 
 test('a dead session is reported, not retried: later calls do not re-handshake it', async () => {
@@ -742,7 +1015,7 @@ test('close closes the socket, answers held calls at once, and stops listening',
   assert.equal(ack.error.code, 503);
   assert.equal(io.last.closed, true);
   assert.equal(master.state, 'closed');
-  assert.equal(master.socket, null);
+  assert.equal(master.connection, null);
   assert.equal(master.lastError, null, 'closing is not an error');
 });
 
@@ -789,7 +1062,7 @@ test('switchNetwork sends the RPC Valu Social sends', async () => {
   await master.close();
 });
 
-test('switchNetwork rejects not_a_member when the master answers without a session', async () => {
+test('switchNetwork rejects not_a_member for the two answers that are a refusal', async () => {
   const responder = new Responder({
     [NETWORK_SWITCH]: () => ({ error: { status: true, code: 403, message: 'not a member of this network' } }),
   });
@@ -797,13 +1070,27 @@ test('switchNetwork rejects not_a_member when the master answers without a sessi
   await master.connect();
 
   const error = await rejection(master.switchNetwork('n2'));
-  assert.equal(error.code, HOST_ERRORS.NOT_A_MEMBER);
+  assert.equal(error.code, HOST_ERRORS.NOT_A_MEMBER, 'a 403');
   assert.match(error.message, /n2/);
   assert.match(error.message, /not a member of this network/);
 
   responder.on(NETWORK_SWITCH, { data: {} });
   assert.equal((await rejection(master.switchNetwork('n2'))).code, HOST_ERRORS.NOT_A_MEMBER,
-    'Valu Social treats an answer with no data as a refusal; so does this');
+    'a success with no session: Valu Social treats an answer with no data as a refusal; so does this');
+  await master.close();
+});
+
+test('switchNetwork rejects unavailable for any other failure, which says nothing about membership', async () => {
+  const responder = new Responder();
+  const { master } = realMaster({ responder });
+  await master.connect();
+
+  for (const code of [500, 404, 401, 408, 503, undefined]) {
+    responder.on(NETWORK_SWITCH, { error: { status: true, ...(code ? { code } : {}), message: `master said ${code}` } });
+    const error = await rejection(master.switchNetwork('n2'));
+    assert.equal(error.code, MASTER_UNAVAILABLE, `an error ack with code ${code}`);
+    assert.match(error.message, /n2/);
+  }
   await master.close();
 });
 
