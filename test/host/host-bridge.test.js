@@ -8,11 +8,11 @@
 // (the resolver, `auth.restore`, `connect`); `settle()` lets those finish.
 //
 // Reading the wire: the host answers through `win.parent.postMessage(msg,
-// origin)`. `FakeWindowPair.postMessage` is the SENDER's side (a call on `app`
-// is "app sends to host"), so a reply to the app is a call recorded in
-// `app.posted`, never delivered to an app listener — these tests read
-// `app.posted`, and send into the host with `host.dispatch`, which does not
-// depend on that polarity.
+// origin)`, which on the pair is a call ON `app`: it is recorded in
+// `app.posted` and delivered to the app's own listeners. Most tests read
+// `app.posted` (every reply, in order, with its target origin) and send into the
+// host with `host.dispatch`, which lets a test choose the origin and source; one
+// test runs the whole round trip through `host.postMessage` and an app listener.
 // ===========================================================================
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -173,6 +173,27 @@ test('hello from the parent binds the origin and answers api:ready with the app 
   assert.deepEqual(bridge.state, { bound: { origin: APP_ORIGIN, app: APP }, signedIn: false, user: null, network: null });
 });
 
+test('round trip: the app page writes to the iframe and its own listener hears the host answer', async () => {
+  const { app, host, bridge } = setup({ auth: fakeAuth({ session: SESSION }) });
+  const heard = [];
+  app.addEventListener('message', (event) => heard.push(event));
+
+  host.postMessage({ name: MSG.HELLO, message: { protocol: PROTOCOL_VERSION, client: 'test' } }, HOST_ORIGIN);
+  await settle();
+  assert.equal(heard.length, 1);
+  assert.equal(heard[0].origin, HOST_ORIGIN, 'the host answers from its own origin');
+  assert.equal(heard[0].source, host);
+  assert.equal(heard[0].data.name, MSG.READY);
+  assert.equal(heard[0].data.message.host.signedIn, true);
+
+  host.postMessage({ name: MSG.PING, message: { requestId: 5 } }, HOST_ORIGIN);
+  assert.equal(heard.length, 2);
+  assert.equal(heard[1].data.name, MSG.PONG);
+  assert.equal(heard[1].data.requestId, 5);
+  assert.deepEqual(app.dropped, [], 'every reply reached the app: none was aimed at another origin');
+  assert.equal(bridge.state.bound.origin, APP_ORIGIN);
+});
+
 test('hello binds through the real resolver, and a miss answers unknown_app', async () => {
   const fetchImpl = fakeResolveFetch({ [APP_ORIGIN]: APP });
   const resolver = new AppResolver({ fetchImpl, baseUrl: HOST_ORIGIN });
@@ -257,7 +278,7 @@ test('a second hello from the bound origin with a newer protocol still answers p
 });
 
 test('hello from a second origin after binding is dropped and never answered', async () => {
-  const { hello, send, posts, open, resolver, bridge, host } = setup();
+  const { hello, send, posts, open, resolver, bridge } = setup();
   await open();
   const sentBefore = posts().length;
 
@@ -269,7 +290,6 @@ test('hello from a second origin after binding is dropped and never answered', a
 
   assert.equal(posts().length, sentBefore, 'the bound origin receives nothing new');
   assert.ok(posts().every((p) => p.targetOrigin !== OTHER_ORIGIN), 'nothing is posted to the stranger');
-  assert.deepEqual(host.posted, [], 'and nothing goes out any other way');
   assert.deepEqual(resolver.calls, [APP_ORIGIN], 'the stranger is not even resolved');
   assert.equal(bridge.state.bound.origin, APP_ORIGIN, 'the binding is for the life of the page');
 });
@@ -863,11 +883,10 @@ test('pushCommerce sends the event name and its data, and the event name wins', 
 });
 
 test('a push before the host is bound and ready goes nowhere', async () => {
-  const { posts, bridge, host } = setup();
+  const { posts, bridge } = setup();
   bridge.pushAuth();
   bridge.pushCommerce('order-updated', {});
   assert.deepEqual(posts(), []);
-  assert.deepEqual(host.posted, []);
 });
 
 test('an outbound payload that carries a credential is replaced and logged', async () => {

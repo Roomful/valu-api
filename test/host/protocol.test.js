@@ -133,38 +133,64 @@ test('FakeWindowPair delivers only to matching targetOrigin', () => {
   const got = [];
   host.addEventListener('message', (event) => got.push(event));
 
-  app.postMessage({ name: 'host:hello', message: {} }, host.origin);
+  // The app page writes to the iframe: a message TO host, from app.
+  host.postMessage({ name: 'host:hello', message: {} }, host.origin);
   assert.equal(got.length, 1);
   assert.deepEqual(got[0].data, { name: 'host:hello', message: {} });
   assert.equal(got[0].origin, app.origin);
   assert.equal(got[0].source, app);
 
-  app.postMessage({ name: 'x', message: {} }, 'https://other');
+  host.postMessage({ name: 'x', message: {} }, 'https://other');
   assert.equal(got.length, 1, 'a mismatched targetOrigin is dropped');
-  assert.deepEqual(app.dropped.map((d) => d.targetOrigin), ['https://other']);
+  assert.deepEqual(host.dropped.map((d) => d.targetOrigin), ['https://other']);
 
-  app.postMessage({ name: 'y', message: {} }, '*');
+  host.postMessage({ name: 'y', message: {} }, '*');
   assert.equal(got.length, 2, "'*' reaches whoever is there");
-  app.postMessage({ name: 'z', message: {} });
+  host.postMessage({ name: 'z', message: {} });
   assert.equal(got.length, 2, 'no targetOrigin is not a wildcard');
+  host.postMessage({ name: 'w', message: {} }, app.origin);
+  assert.equal(got.length, 2, "the caller's own origin is not the called window's");
 });
 
-test('FakeWindowPair: the host posts back the same way, and both sides record what they posted', () => {
+test('FakeWindowPair: the host answers its parent by calling app.postMessage, and each window records the calls made on it', () => {
   const { app, host } = new FakeWindowPair({ appOrigin: 'https://a.example', hostOrigin: 'https://h.example' });
   assert.equal(app.origin, 'https://a.example');
   assert.equal(host.origin, 'https://h.example');
   const got = [];
   app.addEventListener('message', (event) => got.push(event));
 
-  host.postMessage({ target: 'valuApi', name: 'api:ready', message: {}, requestId: 1 }, 'https://a.example');
-  host.postMessage({ name: 'leak' }, '*');
-  host.postMessage({ name: 'wrong' }, 'https://h.example');
+  // `host.parent.postMessage(msg, boundOrigin)` in the host's code.
+  app.postMessage({ target: 'valuApi', name: 'api:ready', message: {}, requestId: 1 }, 'https://a.example');
+  app.postMessage({ name: 'leak' }, '*');
+  app.postMessage({ name: 'wrong' }, 'https://h.example');
   assert.equal(got.length, 2);
   assert.equal(got[0].origin, 'https://h.example');
   assert.equal(got[0].source, host);
-  assert.deepEqual(host.posted.map((p) => p.targetOrigin), ['https://a.example', '*', 'https://h.example']);
-  assert.deepEqual(host.dropped.map((d) => d.data.name), ['wrong']);
-  assert.deepEqual(app.posted, []);
+  assert.deepEqual(got[0].data, { target: 'valuApi', name: 'api:ready', message: {}, requestId: 1 });
+  assert.deepEqual(app.posted.map((p) => p.targetOrigin), ['https://a.example', '*', 'https://h.example']);
+  assert.deepEqual(app.dropped.map((d) => d.data.name), ['wrong']);
+  assert.deepEqual(host.posted, [], 'nothing was posted to the host');
+});
+
+test('FakeWindowPair: both directions round-trip, each with the other side as source', () => {
+  const { app, host } = new FakeWindowPair();
+  const toHost = [];
+  const toApp = [];
+  host.addEventListener('message', (event) => {
+    toHost.push(event);
+    // The host answers whoever wrote to it, at that sender's origin.
+    event.source.postMessage({ name: 'answer', message: {} }, event.origin);
+  });
+  app.addEventListener('message', (event) => toApp.push(event));
+
+  host.postMessage({ name: 'ask', message: {} }, host.origin);
+  assert.equal(toHost.length, 1);
+  assert.equal(toApp.length, 1);
+  assert.equal(toApp[0].data.name, 'answer');
+  assert.equal(toApp[0].origin, host.origin);
+  assert.equal(toApp[0].source, host);
+  assert.equal(host.posted.length, 1, 'the ask was a call on host');
+  assert.equal(app.posted.length, 1, 'the answer was a call on app');
 });
 
 test('FakeWindowPair: delivery is synchronous, structured-cloned, and removable', () => {
@@ -175,15 +201,16 @@ test('FakeWindowPair: delivery is synchronous, structured-cloned, and removable'
   host.addEventListener('click', () => {});
   assert.equal(host.listeners.size, 1, 'only message listeners are kept');
   const sent = { name: 'api:call', message: { params: { a: 1 } } };
-  app.postMessage(sent, '*');
+  host.postMessage(sent, '*');
   assert.deepEqual(seen, sent);
   assert.notEqual(seen, sent, 'the receiver gets a copy, as a real postMessage gives');
   assert.notEqual(seen.message, sent.message);
+  assert.throws(() => host.postMessage({ fn() {} }, '*'), { name: 'DataCloneError' });
   assert.throws(() => app.postMessage({ fn() {} }, '*'), { name: 'DataCloneError' });
 
   seen = undefined;
   host.removeEventListener('message', listener);
-  app.postMessage(sent, '*');
+  host.postMessage(sent, '*');
   assert.equal(seen, undefined);
 });
 
@@ -213,7 +240,7 @@ test('FakeWindowPair works called with or without new, and each call is its own 
   assert.notEqual(viaNew.app, defaults.app);
   const got = [];
   defaults.host.addEventListener('message', (event) => got.push(event));
-  viaNew.app.postMessage({ name: 'x', message: {} }, '*');
+  viaNew.host.postMessage({ name: 'x', message: {} }, '*');
   assert.deepEqual(got, [], 'one pair never delivers into another');
 });
 

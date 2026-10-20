@@ -163,12 +163,21 @@ export function fakeGuruWebSocket({ autoOpen = false, onSocket } = {}) {
 // Windows
 // ---------------------------------------------------------------------------
 
-/** One side of a {@link FakeWindowPair}. */
+/**
+ * One side of a {@link FakeWindowPair}.
+ *
+ * `postMessage` has the browser's meaning: `X.postMessage(data, targetOrigin)`
+ * is a message TO `X`, sent by whichever window is calling. In a pair that is
+ * always the other side, so it arrives at `X`'s own listeners with the caller as
+ * `source` and the caller's origin as `origin`. The host answers its parent with
+ * `app.postMessage(...)` (`win.parent.postMessage`), the app page reaches the
+ * host with `host.postMessage(...)` (`iframe.contentWindow.postMessage`).
+ */
 class FakePairWindow {
   listeners = new Set();
-  /** Every `postMessage` call, delivered or not: `{data, targetOrigin}`. */
+  /** Every `postMessage` call made ON this window (a message to it), delivered or not: `{data, targetOrigin}`. */
   posted = [];
-  /** The ones that were not delivered, because `targetOrigin` named neither `'*'` nor the receiver. */
+  /** The ones that were not delivered, because `targetOrigin` named neither `'*'` nor this window's origin. */
   dropped = [];
   parent = this;
   top = this;
@@ -176,26 +185,27 @@ class FakePairWindow {
 
   constructor(origin) { this.origin = origin; }
 
-  /** @internal The other side; set by the pair. */
+  /** @internal The other side, the caller of this window's `postMessage`; set by the pair. */
   peer = null;
 
   addEventListener(type, listener) { if (type === 'message') this.listeners.add(listener); }
   removeEventListener(type, listener) { if (type === 'message') this.listeners.delete(listener); }
 
   /**
-   * Post to the other side. Delivered, synchronously, only when `targetOrigin`
-   * is `'*'` or the receiver's origin — a missing one is not a wildcard. The
-   * receiver gets a structured clone, as a real `postMessage` gives, with the
-   * sender's origin and window.
+   * A message to this window. Delivered, synchronously, to this window's
+   * listeners only when `targetOrigin` is `'*'` or this window's origin — a
+   * missing one is not a wildcard. The listeners get a structured clone, as a
+   * real `postMessage` gives, with the caller's (the other side's) origin and
+   * window.
    */
   postMessage(data, targetOrigin) {
     this.posted.push({ data, targetOrigin });
-    const delivers = targetOrigin === '*' || targetOrigin === this.peer.origin;
+    const delivers = targetOrigin === '*' || targetOrigin === this.origin;
     if (!delivers) {
       this.dropped.push({ data, targetOrigin });
       return;
     }
-    this.peer.dispatch({ data: structuredClone(data), origin: this.origin, source: this });
+    this.dispatch({ data: structuredClone(data), origin: this.peer.origin, source: this.peer });
   }
 
   /** Deliver an arbitrary event to this side's listeners — a third window, a forged origin. */
@@ -209,6 +219,13 @@ class FakePairWindow {
  *
  * `host.parent === host.top === app`, `app.frames = [host]` — what the nesting
  * rule reads; set `host.top` to something else to be nested.
+ *
+ * `postMessage` delivers to the window it is called ON, from the other side:
+ * `host.postMessage(msg, hostOrigin)` is the app page writing to the iframe and
+ * reaches `host`'s listeners as `{origin: app.origin, source: app}`;
+ * `app.postMessage(msg, appOrigin)` is the host answering its parent and reaches
+ * `app`'s listeners as `{origin: host.origin, source: host}`. Either needs
+ * `targetOrigin` to be `'*'` or the origin of the window it is called on.
  *
  * A factory, so it reads the same with or without `new`:
  *
