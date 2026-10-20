@@ -210,18 +210,22 @@ class FakePairWindow {
  * `host.parent === host.top === app`, `app.frames = [host]` — what the nesting
  * rule reads; set `host.top` to something else to be nested.
  *
- *   const { app, host } = new FakeWindowPair({ appOrigin, hostOrigin });
+ * A factory, so it reads the same with or without `new`:
+ *
+ *   const { app, host } = FakeWindowPair({ appOrigin, hostOrigin });
  */
-export class FakeWindowPair {
-  constructor({ appOrigin = 'https://demo-ws-1.valuguru.app', hostOrigin = 'https://valuguru.texpo.io' } = {}) {
-    this.app = new FakePairWindow(appOrigin);
-    this.host = new FakePairWindow(hostOrigin);
-    this.app.peer = this.host;
-    this.host.peer = this.app;
-    this.host.parent = this.app;
-    this.host.top = this.app;
-    this.app.frames = [this.host];
-  }
+export function FakeWindowPair({
+  appOrigin = 'https://demo-ws-1.valuguru.app',
+  hostOrigin = 'https://valuguru.texpo.io',
+} = {}) {
+  const app = new FakePairWindow(appOrigin);
+  const host = new FakePairWindow(hostOrigin);
+  app.peer = host;
+  host.peer = app;
+  host.parent = app;
+  host.top = app;
+  app.frames = [host];
+  return { app, host };
 }
 
 // ---------------------------------------------------------------------------

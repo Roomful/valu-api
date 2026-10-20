@@ -200,6 +200,23 @@ test('FakeWindowPair: the frame relationships a nesting check reads', () => {
   assert.equal(host.parent, app);
 });
 
+test('FakeWindowPair works called with or without new, and each call is its own pair', () => {
+  const plain = FakeWindowPair({ appOrigin: 'https://a.example', hostOrigin: 'https://h.example' });
+  assert.equal(plain.app.origin, 'https://a.example');
+  assert.equal(plain.host.origin, 'https://h.example');
+  assert.equal(plain.host.parent, plain.app);
+  assert.deepEqual(plain.app.frames, [plain.host]);
+  const defaults = FakeWindowPair();
+  assert.equal(defaults.app.origin, 'https://demo-ws-1.valuguru.app');
+  assert.equal(defaults.host.origin, 'https://valuguru.texpo.io');
+  const viaNew = new FakeWindowPair();
+  assert.notEqual(viaNew.app, defaults.app);
+  const got = [];
+  defaults.host.addEventListener('message', (event) => got.push(event));
+  viaNew.app.postMessage({ name: 'x', message: {} }, '*');
+  assert.deepEqual(got, [], 'one pair never delivers into another');
+});
+
 test('FakeWindowPair.dispatch delivers any event, for a third window', () => {
   const { host } = new FakeWindowPair();
   const got = [];
@@ -316,7 +333,9 @@ test('fakeGuruWebSocket is a constructor that records every socket it made', asy
 // ---------------------------------------------------------------------------
 
 test('fakeResolveFetch answers the resolve lookup from a table', async () => {
-  const app = { applicationId: 'ws-1/demo', workspaceId: 'ws-1', slug: 'demo', homeNetworkId: 'n1' };
+  const app = {
+    address: 'ws-1/demo', workspaceId: 'ws-1', slug: 'demo', devAppId: null, name: 'Demo', homeNetworkId: 'n1',
+  };
   const fetchImpl = fakeResolveFetch({ 'https://demo-ws-1.valuguru.app': app, 'https://gone.valuguru.app': null });
   const url = (origin) => `https://valuguru.texpo.io/api/host/v1/resolve?origin=${encodeURIComponent(origin)}`;
 
