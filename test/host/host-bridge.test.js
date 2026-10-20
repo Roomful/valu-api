@@ -964,22 +964,72 @@ test('a missing or mistyped config value takes its default: undefined does not b
   }
 });
 
-test('a missing or mistyped origin list takes its default and cannot throw inside the queue', async () => {
+test('a missing origin list takes its default and cannot throw inside the queue', async () => {
   const ancestors = ['https://demo-ws-1.valuguru.app'];
-  for (const allowedAncestors of [undefined, null, 'https://evil.example', 7, {}]) {
-    const { hello, last, logs } = setup({ ancestors, config: { allowedAncestors, devAncestors: undefined, signInOrigins: undefined } });
+  const { hello, last, logs } = setup({
+    ancestors, config: { allowedAncestors: undefined, devAncestors: undefined, signInOrigins: undefined, brandOrigins: undefined },
+  });
+  hello();
+  await settle();
+  assert.equal(last().data.name, MSG.READY);
+  assert.deepEqual(logs, []);
+});
+
+test('a mistyped origin list is empty, so it refuses: it never widens to the default', async () => {
+  // The default would let this ancestor in; a list that is not a list must not.
+  const ancestors = ['https://demo-ws-1.valuguru.app'];
+  for (const allowedAncestors of [null, 'https://demo-ws-1.valuguru.app', 7, true, {}, { length: 1, 0: 'https://demo-ws-1.valuguru.app' }]) {
+    const { hello, last, logs } = setup({ ancestors, config: { allowedAncestors } });
     hello();
     await settle();
-    assert.equal(last().data.name, MSG.READY, `allowedAncestors: ${String(allowedAncestors)}`);
-    assert.deepEqual(logs, []);
+    assert.equal(last().data.message.code, HOST_ERRORS.NESTED, `allowedAncestors: ${JSON.stringify(allowedAncestors)}`);
+    assert.deepEqual(logs, [], 'refused without throwing inside the queue');
   }
 
-  // A list with nothing usable in it allows nobody: refused, not open.
+  // The dev list the same way: dev is on, the ancestor is a localhost one, the list is mistyped.
+  for (const devAncestors of [null, 'http://localhost:*', 5, {}]) {
+    const { hello, last } = setup({
+      appOrigin: LOCAL_ORIGIN, ancestors: [LOCAL_ORIGIN], resolver: fakeResolver({ [LOCAL_ORIGIN]: APP }), config: { dev: true, devAncestors },
+    });
+    hello();
+    await settle();
+    assert.equal(last().data.message.code, HOST_ERRORS.NESTED, `devAncestors: ${JSON.stringify(devAncestors)}`);
+  }
+
+  // A list with nothing usable in it allows nobody, the same.
   for (const allowedAncestors of [[], [123, null, {}]]) {
     const { hello, last } = setup({ ancestors, config: { allowedAncestors } });
     hello();
     await settle();
     assert.equal(last().data.message.code, HOST_ERRORS.NESTED, JSON.stringify(allowedAncestors));
+  }
+});
+
+test('a timeout above what a timer holds is capped, not passed on', async () => {
+  // setTimeout fires a delay above 2^31-1 at once (with a warning), so a restore
+  // timeout of 1e12 would have called the user signed out immediately.
+  const slowSession = () => new Promise((resolve) => { setTimeout(() => resolve(SESSION), 30); });
+  const timers = [];
+  const realSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = (fn, ms, ...rest) => {
+    timers.push(ms);
+    return realSetTimeout(fn, ms, ...rest);
+  };
+  try {
+    for (const restoreTimeoutMs of [1e12, 2 ** 31, Number.MAX_SAFE_INTEGER, 1.7976931348623157e308]) {
+      timers.length = 0;
+      const { hello, last, maker } = setup({
+        auth: fakeAuth({ restore: slowSession }), config: { restoreTimeoutMs, resolveTimeoutMs: restoreTimeoutMs },
+      });
+      hello();
+      await new Promise((resolve) => { realSetTimeout(resolve, 80); });
+      assert.equal(last().data.message.host.signedIn, true, `restoreTimeoutMs: ${restoreTimeoutMs}`);
+      assert.equal(maker.sessions.length, 1);
+      assert.ok(timers.every((ms) => ms <= 2_147_483_647), `a timer was armed above the cap: ${timers.join(', ')}`);
+      assert.ok(timers.includes(2_147_483_647), 'the capped value is the largest a timer holds');
+    }
+  } finally {
+    globalThis.setTimeout = realSetTimeout;
   }
 });
 

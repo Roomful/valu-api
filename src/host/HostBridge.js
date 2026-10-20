@@ -90,20 +90,34 @@ const DEFAULT_CONFIG = Object.freeze({
   resolveTimeoutMs: 10_000,
 });
 
+/** The longest a timer can be: `setTimeout` fires a longer one at once. */
+const MAX_TIMER_MS = 2_147_483_647;
+
 const text = (value) => (typeof value === 'string' && value !== '' ? value : null);
-const positive = (value, fallback) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback);
-const positiveInteger = (value, fallback) => (Number.isInteger(value) && value > 0 ? value : fallback);
-const originList = (value, fallback) => (Array.isArray(value)
-  ? Object.freeze(value.filter((item) => typeof item === 'string'))
+/** A finite positive number, capped at what a timer can hold (a larger one would fire at once); else the default. */
+const positive = (value, fallback) => (typeof value === 'number' && Number.isFinite(value) && value > 0
+  ? Math.min(value, MAX_TIMER_MS)
   : fallback);
+const positiveInteger = (value, fallback) => (Number.isInteger(value) && value > 0 ? Math.min(value, MAX_TIMER_MS) : fallback);
+/**
+ * An allow-list of origins. Left out (`undefined`) it takes its default; given as
+ * anything but an array it is EMPTY, which allows nobody: a mistyped list must
+ * refuse, never widen to the default.
+ */
+const originList = (value, fallback) => {
+  if (value === undefined) return fallback;
+  return Object.freeze(Array.isArray(value) ? value.filter((item) => typeof item === 'string') : []);
+};
 
 /**
  * The config the bridge runs on, built from the keys it knows and nothing else.
- * A key that is missing or the wrong kind takes its default, so an `undefined`
- * override cannot turn a timeout into 0 or a list into a crash, and `dev` is on
- * only for the boolean `true`: it is the one switch that bypasses the resolver,
- * and `'false'` or `1` must not turn it on. A key a later task needs is added
- * here, with its default.
+ * A number that is missing or the wrong kind takes its default, so an `undefined`
+ * override cannot turn a timeout into 0, and one above what a timer can hold is
+ * capped there. An origin list that is missing takes its default, but one that
+ * is the wrong kind is empty: refused, never widened. `dev` is on only for the
+ * boolean `true`: it is the one switch that bypasses the resolver, and `'false'`
+ * or `1` must not turn it on. A key a later task needs is added here, with its
+ * default.
  * @param {Partial<HostConfig>} [config]
  */
 function normalizeConfig(config) {
