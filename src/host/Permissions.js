@@ -10,7 +10,8 @@
 //   consent    allowed only with an unrevoked grant for (user, app, scope);
 //              without one the call answers `consent_required`;
 //   forbidden  never allowed, never asked about;
-//   local      runs in the app page, not through the host (`Http.*`).
+//   local      runs in the app page, not through the host (`Http.*`), so it
+//              never passes this gate (`not_available`).
 //
 // `decide` is the whole rule, a pure function of the scope and of whether the
 // grant is held. WHERE the grant is read from (Valu Guru, cached 60 s) and the
@@ -26,9 +27,12 @@ import { HOST_ERRORS } from './protocol.js';
  *
  * `http:read` / `http:write` are `'local'`: the SDK's own implementation runs
  * them with the app page's `fetch` (the client's HostTransport executes them in
- * place), so they never reach the host. A function that does arrive here on the
- * `local` channel is answered 501 by the bridge, not by a tier; `decide` has
- * nothing to say about one and lets it through.
+ * place), so they never reach the host. `decide` refuses one as
+ * `not_available`, so a local function cannot pass the gate even if the bridge
+ * forgets to check its channel; the bridge answers 501 for a `local`-channel
+ * function before it gets here. (`Resources.*` URL builders and `Time.*` are
+ * `local`-channel too, but their scopes are basic: the channel check is the
+ * bridge's, not this table's.)
  *
  * `application:identity` and `commerce:*` are not derived from a service: they
  * belong to the intents in {@link scopeOfIntent}.
@@ -74,8 +78,9 @@ export const TIER_OF = Object.freeze({
 /**
  * The Commerce intents Valu Guru serves (`valu-guru` in
  * `APPLICATION_INTENT_REASON`), by the scope they need, plus the two event
- * subscriptions, which are reads. Anything of Commerce that is not here — the
- * pickers and the `open-*` windows, which have no RPC — is not served.
+ * subscriptions, which are reads. Anything else of Commerce is not served: the
+ * `no-rpc` intents (the seller's publish and pricing functions, `checkout`,
+ * the `open-*` windows) only Valu Social itself can run.
  */
 const COMMERCE_ACTIONS = {
   'commerce:read': [
@@ -145,18 +150,21 @@ export function scopeOfIntent(service, action) {
  *   host serves; a scope with no tier is treated the same, so a scope added
  *   to the catalogue and not here is refused, not allowed.
  * @param {boolean} [call.hasGrant] Whether the user holds an unrevoked grant
- *   for (user, app, scope). Read only for a `consent` scope.
- * @returns {{ok: true}|{ok: false, code: 'forbidden'|'consent_required'|'unknown_function'}}
+ *   for (user, app, scope). Read only for a `consent` scope, and only the
+ *   boolean `true` is a grant: a truthy value that is not `true` (a forgotten
+ *   `await` leaves a Promise) is not.
+ * @returns {{ok: true}|{ok: false, code: 'forbidden'|'consent_required'|'not_available'|'unknown_function'}}
  */
-export function decide({ scope, hasGrant = false }) {
+export function decide({ scope, hasGrant = false } = {}) {
   switch (tierOf(scope)) {
     case 'basic':
-    case 'local': // the caller's concern: the host answers 501 for a local function
       return { ok: true };
     case 'consent':
-      return hasGrant ? { ok: true } : { ok: false, code: HOST_ERRORS.CONSENT_REQUIRED };
+      return hasGrant === true ? { ok: true } : { ok: false, code: HOST_ERRORS.CONSENT_REQUIRED };
     case 'forbidden':
       return { ok: false, code: HOST_ERRORS.FORBIDDEN };
+    case 'local': // runs in the app page; it has no business at the host's gate
+      return { ok: false, code: HOST_ERRORS.NOT_AVAILABLE };
     default:
       return { ok: false, code: HOST_ERRORS.UNKNOWN_FUNCTION };
   }

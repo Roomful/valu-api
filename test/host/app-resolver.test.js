@@ -143,12 +143,29 @@ test('throws resolve_unavailable on 500', async () => {
   });
 });
 
-test('fakeResolveFetch answers 500 for a path that is not the resolve endpoint, and that is resolve_unavailable', async () => {
-  // Through the real fake: a base URL whose path puts the request somewhere
-  // the fake does not serve.
-  const fetchImpl = fakeResolveFetch({ [ORIGIN]: APP });
-  const resolver = new AppResolver({ fetchImpl: (url, options) => fetchImpl(String(url).replace('/resolve', '/elsewhere'), options), baseUrl: BASE });
-  await assert.rejects(resolver.resolve(ORIGIN), { code: 'resolve_unavailable', status: 500 });
+test('a 404 is a miss only when it says unknown_app', async () => {
+  const unknownApp = async () => ({ ok: false, status: 404, json: async () => ({ ok: false, error: { code: 'unknown_app' } }) });
+  assert.equal(await new AppResolver({ fetchImpl: unknownApp, baseUrl: BASE }).resolve(ORIGIN), null);
+});
+
+test('any other 404 is resolve_unavailable with status 404, and is not cached', async () => {
+  const bodies = {
+    'an empty object': async () => ({}),
+    'a non-JSON body': async () => { throw new SyntaxError('Unexpected token < in JSON at position 0'); },
+    'a different error code': async () => ({ ok: false, error: { code: 'not_found' } }),
+    'ok:true on a 404': async () => ({ ok: true, error: { code: 'unknown_app' } }),
+    'an error without a code': async () => ({ ok: false, error: {} }),
+    'null': async () => null,
+  };
+  for (const [name, json] of Object.entries(bodies)) {
+    const calls = [];
+    const fetchImpl = async (url) => { calls.push(url); return { ok: false, status: 404, json }; };
+    const resolver = new AppResolver({ fetchImpl, baseUrl: BASE });
+
+    await assert.rejects(resolver.resolve(ORIGIN), { code: 'resolve_unavailable', status: 404 }, name);
+    await assert.rejects(resolver.resolve(ORIGIN), { code: 'resolve_unavailable', status: 404 }, name);
+    assert.equal(calls.length, 2, `${name}: the second call asked again`);
+  }
 });
 
 test('other non-2xx answers, a network failure and a malformed body are resolve_unavailable too', async () => {
@@ -164,6 +181,36 @@ test('other non-2xx answers, a network failure and a malformed body are resolve_
     const resolver = new AppResolver({ fetchImpl, baseUrl: BASE });
     await assert.rejects(resolver.resolve(ORIGIN), { code: 'resolve_unavailable' }, name);
   }
+});
+
+test('a 200 whose app is not the ResolvedApp shape is resolve_unavailable, and is not cached', async () => {
+  const bad = {
+    'no address': { ...APP, address: undefined },
+    'an empty address': { ...APP, address: '' },
+    'a numeric workspaceId': { ...APP, workspaceId: 12 },
+    'no slug': { ...APP, slug: undefined },
+    'a null name': { ...APP, name: null },
+    'a numeric devAppId': { ...APP, devAppId: 5 },
+    'no devAppId': { ...APP, devAppId: undefined },
+    'a numeric homeNetworkId': { ...APP, homeNetworkId: 7 },
+    'no homeNetworkId': { ...APP, homeNetworkId: undefined },
+    'an array': [APP],
+    'a string': 'ab12/notes',
+  };
+  for (const [name, app] of Object.entries(bad)) {
+    const calls = [];
+    const fetchImpl = async (url) => { calls.push(url); return { ok: true, status: 200, json: async () => ({ ok: true, app }) }; };
+    const resolver = new AppResolver({ fetchImpl, baseUrl: BASE });
+    await assert.rejects(resolver.resolve(ORIGIN), { code: 'resolve_unavailable', status: 200 }, name);
+    await assert.rejects(resolver.resolve(ORIGIN), { code: 'resolve_unavailable' }, name);
+    assert.equal(calls.length, 2, `${name}: not cached`);
+  }
+});
+
+test('devAppId and homeNetworkId may be null', async () => {
+  const app = { ...APP, devAppId: null, homeNetworkId: null };
+  const fetchImpl = async () => ({ ok: true, status: 200, json: async () => ({ ok: true, app }) });
+  assert.deepEqual(await new AppResolver({ fetchImpl, baseUrl: BASE }).resolve(ORIGIN), app);
 });
 
 test('a failure is not cached: the next call asks again', async () => {

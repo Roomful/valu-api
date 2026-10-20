@@ -5,7 +5,9 @@
 // bound at the handshake). Nothing on the client can be trusted to say which
 // app that is, so the host asks the server: `GET /api/host/v1/resolve?origin=…`
 // (spec §4.9 item 1) answers `{ok:true, app}` for an origin it publishes, or
-// 404 `{ok:false, error:{code:'unknown_app'}}`.
+// 404 `{ok:false, error:{code:'unknown_app'}}`. Only that exact 404 is a miss:
+// a 404 from anywhere else (a server that has not deployed the endpoint yet, a
+// proxy) says nothing about the origin.
 //
 // This class is that one request and a cache in front of it:
 //
@@ -14,8 +16,8 @@
 //     `null`: a stranger's origin asked about repeatedly costs one request;
 //   - a lookup that is already under way is shared, so two callers asking at
 //     once make one request;
-//   - anything that is not a hit or a miss — another status, a network
-//     failure, a body that is not the shape — throws
+//   - anything that is not a hit or a miss — another status, a 404 that is not
+//     `unknown_app`, a network failure, a body that is not the shape — throws
 //     `Error{code: 'resolve_unavailable'}` and is NOT cached, so the next call
 //     asks again. A cached answer outlives a server that has gone down, until
 //     its ttl is up.
@@ -38,6 +40,24 @@ export const DEFAULT_TTL_MS = 300_000;
  * @property {string} name
  * @property {string} homeNetworkId The network the app's workspace lives in.
  */
+
+/** The `ResolvedApp` shape: `devAppId` and `homeNetworkId` may be `null`, the rest are strings. */
+const isResolvedApp = (app) => Boolean(app) && typeof app === 'object'
+  && typeof app.address === 'string' && app.address !== ''
+  && typeof app.workspaceId === 'string'
+  && typeof app.slug === 'string'
+  && typeof app.name === 'string'
+  && (app.devAppId === null || typeof app.devAppId === 'string')
+  && (app.homeNetworkId === null || typeof app.homeNetworkId === 'string');
+
+/** The JSON body, or `undefined` when there is none to read. */
+async function readBody(response) {
+  try {
+    return await response.json();
+  } catch {
+    return undefined;
+  }
+}
 
 const unavailable = (message, extra) => Object.assign(new Error(message), { code: RESOLVE_UNAVAILABLE, ...extra });
 
@@ -102,7 +122,10 @@ export class AppResolver {
     return app;
   }
 
-  /** One request. `null` for 404, the app for a good 2xx, `resolve_unavailable` otherwise. */
+  /**
+   * One request. `null` for a 404 that says `unknown_app`, the app for a good
+   * 2xx, `resolve_unavailable` for everything else.
+   */
   async #ask(origin) {
     const url = `${this.#endpoint}?origin=${encodeURIComponent(origin)}`;
     let response;
@@ -111,22 +134,19 @@ export class AppResolver {
     } catch (cause) {
       throw unavailable(`resolve failed: ${cause?.message ?? cause}`);
     }
+    const { status } = response;
 
-    if (response.status === 404) return null;
-    if (!response.ok) {
-      throw unavailable(`resolve answered ${response.status}`, { status: response.status });
+    if (status === 404) {
+      const body = await readBody(response);
+      if (body?.ok === false && body.error?.code === 'unknown_app') return null;
+      throw unavailable('resolve answered 404 without unknown_app', { status });
     }
+    if (!response.ok) throw unavailable(`resolve answered ${status}`, { status });
 
-    let body;
-    try {
-      body = await response.json();
-    } catch {
-      throw unavailable('resolve answered a body that is not JSON', { status: response.status });
+    const body = await readBody(response);
+    if (body?.ok !== true || !isResolvedApp(body.app)) {
+      throw unavailable('resolve answered a body that is not {ok:true, app}', { status });
     }
-    const app = body?.ok === true ? body.app : null;
-    if (!app || typeof app !== 'object' || typeof app.address !== 'string' || !app.address) {
-      throw unavailable('resolve answered a body that is not {ok:true, app}', { status: response.status });
-    }
-    return Object.freeze({ ...app });
+    return Object.freeze({ ...body.app });
   }
 }

@@ -17,6 +17,7 @@ import {
   SERVICE_DESCRIPTORS, APPLICATION_ONLY_INTENTS, APPLICATION_INTENT_REASON,
 } from '../../src/services/catalog.generated.js';
 import { findDescriptor } from '../../src/services/descriptors.js';
+import { HOST_ERRORS } from '../../src/host/protocol.js';
 
 /** The scopes of spec §4.6, by tier. Written out here because the spec is the source of truth. */
 const SPEC = {
@@ -212,6 +213,17 @@ test('hasGrant defaults to false', () => {
   assert.deepEqual(decide({ scope: 'rooms:read' }), { ok: false, code: 'consent_required' });
 });
 
+test('only hasGrant === true is a grant: a truthy value that is not true is not', () => {
+  // `Promise.resolve(false)` is what a caller gets by forgetting an `await`.
+  for (const hasGrant of [Promise.resolve(false), 'false', 'true', 1, {}, [], null, 0, '']) {
+    assert.deepEqual(
+      decide({ scope: 'rooms:read', hasGrant }),
+      { ok: false, code: 'consent_required' },
+      String(hasGrant),
+    );
+  }
+});
+
 test('a basic scope is ok with or without a grant', () => {
   for (const scope of SPEC.basic) {
     assert.deepEqual(decide({ scope, hasGrant: false }), { ok: true }, scope);
@@ -227,14 +239,15 @@ test('forbidden never asks: no grant opens it, and it is never consent_required'
   }
 });
 
-test('a local scope is the caller\'s concern: decide lets it through', () => {
-  // The host answers 501 for a local function elsewhere; the tier says nothing against it.
+test('a local scope never passes the gate: it runs in the app page, not through the host', () => {
   for (const scope of SPEC.local) {
-    assert.deepEqual(decide({ scope, hasGrant: false }), { ok: true }, scope);
+    for (const hasGrant of [false, true, undefined]) {
+      assert.deepEqual(decide({ scope, hasGrant }), { ok: false, code: 'not_available' }, `${scope} ${hasGrant}`);
+    }
   }
 });
 
-test('no scope is unknown_function; an unknown scope is too, and fails closed', () => {
+test('no scope, and a scope with no tier, are unknown_function: the gate fails closed', () => {
   for (const scope of [null, undefined, '', 'nope:read', 'constructor']) {
     for (const hasGrant of [false, true]) {
       assert.deepEqual(decide({ scope, hasGrant }), { ok: false, code: 'unknown_function' }, `${scope} ${hasGrant}`);
@@ -243,20 +256,22 @@ test('no scope is unknown_function; an unknown scope is too, and fails closed', 
   assert.deepEqual(decide({ scope: null }), { ok: false, code: 'unknown_function' });
 });
 
-test('the codes are the host protocol\'s own', async () => {
-  const { HOST_ERRORS } = await import('../../src/host/protocol.js');
+test('a bare decide() fails closed instead of throwing', () => {
+  assert.deepEqual(decide(), { ok: false, code: 'unknown_function' });
+  assert.deepEqual(decide({}), { ok: false, code: 'unknown_function' });
+});
+
+test('the codes are the host protocol\'s own', () => {
   assert.equal(decide({ scope: 'veruswallet:write' }).code, HOST_ERRORS.FORBIDDEN);
   assert.equal(decide({ scope: 'rooms:read' }).code, HOST_ERRORS.CONSENT_REQUIRED);
   assert.equal(decide({ scope: null }).code, HOST_ERRORS.UNKNOWN_FUNCTION);
+  assert.equal(decide({ scope: 'http:read' }).code, HOST_ERRORS.NOT_AVAILABLE);
 });
 
-test('a decision for every catalogue function is one of the four answers', () => {
+test('every catalogue function gets an answer that is not unknown_function', () => {
+  const answers = new Set(['forbidden', 'consent_required', 'not_available']);
   for (const descriptor of SERVICE_DESCRIPTORS) {
     const decision = decide({ scope: scopeOfDescriptor(descriptor), hasGrant: false });
-    assert.ok(
-      decision.ok === true || ['forbidden', 'consent_required'].includes(decision.code),
-      `${descriptor.key}: ${JSON.stringify(decision)}`,
-    );
-    assert.notEqual(decision.code, 'unknown_function', descriptor.key);
+    assert.ok(decision.ok === true || answers.has(decision.code), `${descriptor.key}: ${JSON.stringify(decision)}`);
   }
 });
