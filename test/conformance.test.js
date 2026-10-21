@@ -1,15 +1,23 @@
-// The one suite, run against all three adapters. Same script, same assertions.
+// The one suite, run against all three socket adapters and the host. Same
+// script, same assertions.
 //
 // The third entry is the whole cost of shipping a new adapter
 // (docs/socket-adapters.md "Writing a third adapter"), and it is what says the
 // socket this package opens itself answers the same 65 functions, the same way,
-// as the two connections it is handed.
+// as the two connections it is handed. The host entries (the end of this file)
+// say the same of an app that holds no connection at all: its calls travel to
+// a real HostBridge, which serves them over a real MasterConnection.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
 import { BrowserSocketAdapter } from '../src/socket/BrowserSocketAdapter.js';
 import { NodeSocketAdapter } from '../src/socket/NodeSocketAdapter.js';
 import { SocketIoSocketAdapter } from '../src/socket/SocketIoSocketAdapter.js';
-import { FakeWebSocketService, FakeRoomfulConnection, FakeIoSocket } from './helpers/fakes.js';
+import { ServiceRegistry } from '../src/services/registry.js';
+import { registerAll } from '../src/services/impl/index.js';
+import { FakeWebSocketService, FakeRoomfulConnection, FakeIoSocket, Responder } from './helpers/fakes.js';
 import { runConformanceSuite, runPushSuite } from './conformance/suite.js';
-import { runFunctionSuite } from './conformance/functions.js';
+import { CASES, runFunctionSuite } from './conformance/functions.js';
+import { hostRefuses, makeDroppingHostServices, makeHostServices } from './conformance/host-adapter.js';
 
 runConformanceSuite({
   name: 'browser adapter',
@@ -118,3 +126,64 @@ const socketIoSocket = (responder) => ({
 runFunctionSuite({ name: 'browser adapter', makeSocket: browserSocket });
 runFunctionSuite({ name: 'node adapter', makeSocket: nodeSocket });
 runFunctionSuite({ name: 'socket.io adapter', makeSocket: socketIoSocket });
+
+// --- The host: the same suites through a HostBridge --------------------------
+//
+// No `runPushSuite` entry: the host does not push `resource:updated` in the
+// core, so there is no push for it to assert (see host-adapter.js).
+
+runConformanceSuite({ name: 'host adapter', makeServices: makeHostServices });
+
+runFunctionSuite({
+  name: 'host adapter',
+  makeServices: makeHostServices,
+  // What the host answers for a function it will not run: see host-adapter.js.
+  expectRefused: hostRefuses,
+});
+
+// The same table with the master's socket down when each case starts, so the
+// first call of every case is held by the connection and answered when it is
+// back. (Not the clause suite: its reconnect clauses count the `reconnected`
+// events a subscriber sees, and an outage is one more.)
+runFunctionSuite({
+  name: 'host adapter, dropping',
+  makeServices: makeDroppingHostServices,
+  expectRefused: hostRefuses,
+});
+
+// Two things the entries above cannot say about themselves.
+
+const hostOptions = () => ({ cache: null, registry: registerAll(new ServiceRegistry()) });
+
+test('host adapter, dropping: the first call waits out the outage on the master and is answered when it is back', async (t) => {
+  const responder = new Responder({ 'social:getUsersSimpleInfo': { data: { users: [{ id: 'u-9' }] } } });
+  const host = await makeDroppingHostServices(responder, hostOptions());
+  t.after(() => host.close());
+
+  const ack = await host.services.call('Users.get', { userId: 'u-9' }, { retries: 0 });
+
+  assert.equal(ack.data.user.id, 'u-9');
+  // At the moment the socket came back, the app's call was waiting and the
+  // wire had seen nothing: the call was HELD, not retried and not sent early.
+  assert.deepEqual(host.outage.atRecovery, { master: 'reconnecting', calls: 1, wire: 0 });
+  assert.equal(responder.calls.length, 1);
+});
+
+test('host adapter: local, forbidden and application-state functions are refused by the host, for its own reasons', async (t) => {
+  const responder = new Responder();
+  const host = await makeHostServices(responder, hostOptions());
+  t.after(() => host.close());
+  const answer = (key) => host.services.call(key, CASES.find((c) => c.key === key).params, { retries: 0 });
+
+  // The client runs `local` functions in the page; they are not the host's to serve.
+  assert.deepEqual((await answer('Http.get')).error, { status: true, code: 501, message: 'not_available' });
+  // Never allowed, never asked about; a forbidden function that also needs application state is 403, not 501.
+  for (const key of ['Cbac.create-policy', 'VerusWallet.transfer', 'Developer.list-applications']) {
+    assert.deepEqual((await answer(key)).error, { status: true, code: 403, message: 'forbidden' }, key);
+  }
+  // Allowed, and then the function itself says the host holds no application state.
+  const balance = await answer('VerusWallet.get-balance');
+  assert.equal(balance.error.code, 501);
+  assert.match(balance.error.message, /needs application state/);
+  assert.equal(responder.calls.length, 0, 'none of them reached the master');
+});
