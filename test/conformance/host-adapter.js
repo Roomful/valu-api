@@ -25,6 +25,13 @@
 //   - `app-state` functions (Developer.*, VerusWallet.get-balance) need state a
 //     runtime holds and the host holds none: 501 (Developer.* answer 403 first).
 //
+// WHAT THE HOST'S OWN SERVICES ARE: not production's. `hostServicesFor` builds the
+// host-side services in place of `defaultMakeServices` (slug stamping,
+// `cache: null`, the real `webBase`/`apiGate`), because the suites inject
+// `fetchImpl`, `config`, `now` and `registry` and read them back in their
+// expectations. What `defaultMakeServices` builds is covered by
+// `test/host/host-bridge-calls.test.js`, not here.
+//
 // WHAT IS NOT HERE: `resource:updated`. The host does not push it in the core,
 // so there is nothing for `runPushSuite` to assert and it is not run for this
 // adapter. When the host forwards it, the transport below translates it the
@@ -218,6 +225,9 @@ const fakeGrants = () => ({
  * tried three times per client attempt (verified: leave the `retries: 0` out
  * and "a read retries twice, with backoff" fails, after the host's own
  * sleeps).
+ *
+ * The bridge itself now passes `retries: 0` (a fix landing on feat/host-core in
+ * parallel), so this wrapper can be removed once that is merged here.
  */
 function hostServicesFor(options) {
   return (connection, app) => {

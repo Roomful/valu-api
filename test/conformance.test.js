@@ -145,6 +145,13 @@ runFunctionSuite({
 // first call of every case is held by the connection and answered when it is
 // back. (Not the clause suite: its reconnect clauses count the `reconnected`
 // events a subscriber sees, and an outage is one more.)
+//
+// The outage tests nothing for the cases that never ask the master anything,
+// and they pass without it: the 16 the host refuses by design (`hostRefuses`:
+// answered before the function runs) and the 3 the function itself refuses
+// before any wire call. That leaves 67 of the 86 cases held across the outage,
+// which the adapter checks (it fails a case whose outage ended with no call
+// waiting on it).
 runFunctionSuite({
   name: 'host adapter, dropping',
   makeServices: makeDroppingHostServices,
