@@ -61,14 +61,18 @@ function routedFetch({ table }) {
  * a storage (holding a session when `stored`), and the fakes `createHost` takes.
  */
 function page({
-  appOrigin = APP_ORIGIN, table, config, stored = false, createOptions = {}, location,
+  appOrigin = APP_ORIGIN, table, config, stored = false, createOptions = {}, location, navigator,
 } = {}) {
   const { app, host } = FakeWindowPair({ appOrigin, hostOrigin: HOST_ORIGIN });
   if (location) host.location = location;
+  if (navigator) host.navigator = navigator;
   const storageListeners = new Set();
+  /** Every `online` listener registered on the window: `{self, listener, options}`, `self` being the receiver of the call. */
+  const onlineListeners = [];
   const listen = host.addEventListener.bind(host);
-  host.addEventListener = (type, listener, ...rest) => {
+  host.addEventListener = function addEventListener(type, listener, ...rest) {
     if (type === 'storage') storageListeners.add(listener);
+    else if (type === 'online') onlineListeners.push({ self: this, listener, options: rest[0] });
     else listen(type, listener, ...rest);
   };
   const fireStorage = (event) => { for (const listener of [...storageListeners]) listener({ type: 'storage', ...event }); };
@@ -101,8 +105,19 @@ function page({
     .filter((post) => post.data.name === MSG.TRIGGER && post.data.message.action === 'auth')
     .map((post) => post.data.message.data);
   return {
-    app, host, bridge, storage, store, fetchImpl, io, WebSocketImpl, logs, fireStorage, send, hello, names, last, authPushes,
+    app, host, bridge, storage, store, fetchImpl, io, WebSocketImpl, logs, fireStorage, onlineListeners, send, hello, names, last,
+    authPushes,
   };
+}
+
+/** Hello, then a consent-tier call: the bridge reads the grants, which opens the Guru client. */
+async function askGuru(env, requestId = 7) {
+  env.hello();
+  await settle();
+  await settle();
+  env.send({ name: MSG.CALL, message: { service: 'Groups', action: 'list-groups', params: {}, requestId } });
+  await settle();
+  await settle();
 }
 
 // ---------------------------------------------------------------------------
@@ -256,6 +271,47 @@ test('createHost passes the other bridge settings through, so a page can tune th
   await settle();
   assert.equal(env.last().name, MSG.ERROR, 'the framing page is not on the page\'s own list');
   assert.equal(env.last().message.code, HOST_ERRORS.NESTED);
+});
+
+test('the Guru client is given the window\'s addEventListener, bound to it', async () => {
+  const env = page({ stored: true });
+  await askGuru(env);
+
+  assert.equal(env.onlineListeners.length, 1, 'the client listens for `online` through the window the page gave');
+  const [{ self, options }] = env.onlineListeners;
+  assert.equal(self, env.host, 'called on the window: a bare call would throw "Illegal invocation" in a browser');
+  assert.ok(options.signal instanceof AbortSignal, 'with the signal that removes the listener');
+});
+
+test('the Guru client is given the window\'s navigator: a page that is offline waits for the online event', async () => {
+  const navigator = { onLine: false };
+  const env = page({ stored: true, navigator });
+  await askGuru(env);
+
+  assert.equal(env.WebSocketImpl.sockets.length, 0, 'offline: no socket is opened');
+  assert.ok(!env.fetchImpl.urls().some((url) => url.endsWith('/auth/getOneTimeAuthToken')), 'and no token is minted');
+  assert.equal(env.onlineListeners.length, 1, 'it waits for the window\'s online event');
+
+  navigator.onLine = true;
+  env.onlineListeners[0].listener({ type: 'online' });
+  for (let i = 0; i < 20 && !env.WebSocketImpl.last?.sent.length; i += 1) await settle();
+
+  assert.equal(env.WebSocketImpl.sockets.length, 1, 'back online: the socket opens');
+  const [request] = env.WebSocketImpl.last.sent;
+  assert.equal(request.op, 'valuguru.apps.grants.list');
+  env.WebSocketImpl.last.reply(request.requestId, { data: { grants: [] } });
+  await settle();
+  await settle();
+  const answer = env.app.posted.map((post) => post.data).find((data) => data.requestId === 7);
+  assert.equal(answer.message.error.message, 'consent_required');
+});
+
+test('a page that is online connects at once', async () => {
+  const env = page({ stored: true, navigator: { onLine: true } });
+  await askGuru(env);
+
+  for (let i = 0; i < 20 && !env.WebSocketImpl.last?.sent.length; i += 1) await settle();
+  assert.equal(env.WebSocketImpl.sockets.length, 1);
 });
 
 // ---------------------------------------------------------------------------
@@ -465,7 +521,15 @@ test('createHost refuses to build without what the host cannot run without', () 
     config: { hostOrigin: HOST_ORIGIN },
   };
   const refuses = (override, why) => assert.throws(() => createHost({ ...good, ...override }), TypeError, why);
+  const refusesWindow = (win, why) => assert.throws(
+    () => createHost({ ...good, win }),
+    { name: 'TypeError', message: /needs a window/ },
+    why,
+  );
 
+  refusesWindow(null, 'no window');
+  refusesWindow({}, 'a window that cannot listen');
+  refusesWindow({ addEventListener: 'x' }, 'addEventListener that is not a function');
   refuses({ io: undefined }, 'no io');
   refuses({ io: {} }, 'io that is not a factory');
   refuses({ fetchImpl: null }, 'no fetch');

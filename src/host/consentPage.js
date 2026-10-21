@@ -33,6 +33,9 @@ import { POPUP_MSG } from './protocol.js';
  * What the dialog says for each scope that needs the user's consent: one plain
  * sentence, completing "This app is asking to be allowed to:". There is one for
  * every consent-tier scope in `Permissions.TIER_OF` (a test holds them to it).
+ * Each says the strongest thing its scope allows, as the catalogue's functions
+ * for it do (the agent's own messages, access levels the app chooses, invitations
+ * to other people), and promises nothing beyond that.
  *
  * The Commerce sentences use the words Valu Social's own Commerce dialogs use
  * for the same things (`intents/consent.js` and `sellerConsent.js` there say
@@ -43,21 +46,21 @@ import { POPUP_MSG } from './protocol.js';
 export const SCOPE_WORDING = Object.freeze({
   'users:write': 'Send, accept, decline and cancel connection requests for you.',
   'rooms:read': 'See your rooms and what is in them, and search for other rooms.',
-  'rooms:write': 'Create rooms from templates, invite people to your props, and add to or rename things in your rooms.',
+  'rooms:write': 'Create rooms from templates, invite people to your props with whatever access level it chooses, remove them again, and add or change content in your props.',
   'textchat:read': 'Read the message history of your chat channels.',
-  'textchat:write': 'Send chat messages in your name.',
+  'textchat:write': 'Send chat messages to any user as you, and have this app\'s agent message you directly.',
   'groups:read': 'See your groups and who is in them, and find groups you could join.',
   'groups:write': 'Join groups for you.',
   'events:read': 'See your events and meetings.',
-  'events:write': 'Create and edit meetings for you.',
+  'events:write': 'Create and change meetings in your calendar, and invite other people to them.',
   'community:read': 'Read communities, their channels and their posts.',
   'cbac:read': 'See badges and the access rules built on them, and find people who hold a badge.',
   'cms:read': 'Search the files in your content library.',
   'cms:write': 'Add files to your content library and delete files from it.',
-  'veruswallet:read': 'See your Verus wallet balance.',
+  'veruswallet:read': 'Read the balance of a wallet attached to an agent.',
   'commerce:read': 'See products, your cart, your orders and your purchases, and be told when they change.',
-  'commerce:write': 'Add things to your cart and change or empty it; it cannot pay for you.',
-  'commerce:sell': 'Sell in your name: set up your store, create and change your products, end sales and discount codes, and see how they sell.',
+  'commerce:write': 'Add things to your cart, and change, remove or clear the items in your cart.',
+  'commerce:sell': 'Sell in your name: set up your store, create and change your products, prices, sales, discount codes and volume discounts, read your sales and analytics, and ask to sell in a network.',
 });
 
 /** What the page says when there is nothing it can ask the user about. One message: it does not say why. */
