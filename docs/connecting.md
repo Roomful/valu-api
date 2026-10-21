@@ -221,8 +221,16 @@ returns carries the bridge (`callService`, `sendIntent`, `onCommerceEvent`,
 tree (`valu.Users.current()` answers an ack, `valu.data.Users.current()` the
 payload), next to `mode`, `ready`, `auth`, `network` and `connection`.
 `removeEventListener(name, handler)` removes every registration of that handler
-for `name`; without a handler it clears every listener of `name` (the bridge's
-emitter, as in `ValuApi`).
+for `name`. Pass the handler: the bridge's emitter reads a call without one as
+"clear every listener of `name`" (and without a name, all of them), which also
+drops the ones other code registered, `onCommerceEvent`'s among them.
+
+`valu.bridge` is the `ValuApi` underneath, and in dedicated mode it is for the
+lifecycle only: `setApplication(app)` gets `onCreate` with the launch intent of
+`api:ready`. Its pointer, console and run-intent methods (`getApi`,
+`runConsoleCommand`, `sendIntent`) belong to Valu Social, and the host answers them
+`not_available`; `pushRoute` and `replaceRoute` are not answered at all (the app
+owns its URL).
 
 For a caller that holds a string (an LLM tool call, say) the same object has the
 by-name surface of the services tree: `valu.call(name, params, options)` resolves
@@ -253,7 +261,7 @@ refuses to run nested).
 | option | default | |
 |---|---|---|
 | `hostOrigin` | `https://valuguru.texpo.io` | Where the host is served: a bare origin. The iframe's origin, and the only origin it is heard from. |
-| `signInOrigin` | `https://live.valuverse.io` | The Valu brand users sign in through. A Chabad-network app passes `https://chabaduniverse.com`. The host accepts a sign-in only from its four known brand origins. |
+| `signInOrigin` | `https://live.valuverse.io` | The Valu brand users sign in through. A Chabad-network app passes `https://chabaduniverse.com`. The host accepts a sign-in only from its four known brand origins. It belongs with `hostOrigin`: see [The two origins](#the-two-origins-belong-together). |
 | `app` | none | The app's address `<workspace>/<slug>`, sent in `host:hello` (dedicated only). A dev host serves a localhost page under it; a production host ignores it. |
 | `hostOrigins` | none | Embedded only: the origins the embedding application's `api:ready` may come from, an array such as `['https://live.valuverse.io']`. The sender must be `window.parent` regardless; the origin of the first `api:ready` is then the only one replies go to and messages are taken from. Omitted, any origin is accepted (there is no default list: the package cannot know every Valu brand and dev host). Dedicated mode ignores it. |
 | `mode` | from the page | `'dedicated'` or `'embedded'`. |
@@ -311,15 +319,21 @@ and the host then takes a few seconds to redeem it.
 
 | | |
 |---|---|
-| `state` | `{signedIn, user, network, reason?}`, a copy. `reason` is that of the last push (`session_expired`, `signed_out_elsewhere`, a failed sign-in's) until the next. |
+| `state` | `{signedIn, user, network, reason?}`: a new object on every read, but its `user` and `network` are the transport's own objects, the same ones on every read and every `change`, not copies. Read them; do not mutate them. `reason` is that of the last push (`session_expired`, `signed_out_elsewhere`, a failed sign-in's) until the next. |
 | `signIn()` | above |
-| `signOut()` | Resolves when the host has finished. The user's Valu Social sign-in is untouched. |
-| `requestConsent(scopes)` | Resolves whether the user approved. Below. |
+| `signOut()` | Resolves when the host has finished. The user's Valu Social sign-in is untouched. Rejects as the table below says. |
+| `requestConsent(scopes)` | Resolves whether the user approved. [Consent](#consent). |
 | `on('change', handler)` | Every auth push, with the new state. Returns the way to stop. |
 
+| `signOut()` rejects | when |
+|---|---|
+| `not_available` | the page is embedded |
+| `closed` | `valu.close()` ran before the call or while it waited |
+| `host_restarted`, `host_unreachable` | the host went away meanwhile |
+
 `valu.network` is `{id, name}` for the network the host runs in (the app's home
-network), or `null`. The session is the browser's, shared by every Workspaces app
-in it; grants are per app.
+network), or `null`; like `auth.state.user` it is a shared object. The session is
+the browser's, shared by every Workspaces app in it; grants are per app.
 
 ### Consent
 
@@ -337,9 +351,114 @@ is the scope's: `rooms:read`, `commerce:write` …). The host answers such a cal
   `button.onclick = () => valu.auth.requestConsent(['rooms:read'])`, then calls again.
 
 `requestConsent` opens `<hostOrigin>/host/consent.html?nonce=…` (the page names
-the app and the scopes from the host itself, never from the app page), and
-rejects `popup_blocked` when the browser refuses it. A window closed without a
-decision resolves `false` after ten seconds.
+the app and the scopes from the host itself, never from the app page). A window
+closed without a decision resolves `false` after ten seconds; a user who declines,
+or a request the host refuses, resolves `false` too. Like `signIn()` it must be
+called from a click.
+
+| `requestConsent(scopes)` rejects | when |
+|---|---|
+| `popup_blocked` | the browser refused the window |
+| `not_available` | the page is embedded |
+| `closed` | `valu.close()` ran before the call or while it waited |
+| `host_restarted`, `host_unreachable` | the host went away meanwhile |
+
+`scopes` that are not a non-empty array of scope names reject with a `TypeError`
+before anything opens. Only the consent tier is asked about: a basic scope needs
+no asking, and a `forbidden` one is never asked about (below).
+
+An intent refusal is not retried: `callService` for a Commerce intent resolves
+`{success: false, code: 'consent_required', scope}` as it is, and the app calls
+`valu.auth.requestConsent([scope])` itself, from a click, and repeats the intent
+if that resolves `true`. (`examples/dedicated/` does exactly that.) Service
+functions are the ones that get the dialog automatically.
+
+### What the host serves
+
+The host is not Valu Social. For a signed-in user it serves the service functions
+(65 in the catalogue; the `local` ones run in the page and never reach it), the 30
+Commerce data intents and the two Commerce event subscriptions, and
+`Application.get-identity-token`. Everything else answers `not_available`: the
+intents Valu Social serves itself (open a dock, a picker, `Commerce.checkout`, the
+`open-*` windows, the seller's publish functions …), and, on the bridge,
+`valu.sendIntent`, `valu.bridge.getApi` and `valu.bridge.runConsoleCommand`.
+
+**Where it runs.** The production host (`https://valuguru.texpo.io/host/`) serves
+a page only when the server can say which app its origin is, and it knows the
+published `*.valuguru.app` origins of Workspaces apps and no others. A custom
+domain gets `unknown_app`. A `localhost` page cannot use it: the production host
+may be framed only from `https://*.valuguru.app`, and its lookup takes https
+origins only, so the page sees `host_unreachable`, `resolve_unavailable` or
+`unknown_app`, and no host. To develop on `localhost`, run a **dev host**
+(`hostOrigin: 'http://localhost:3001'`; see `examples/dedicated/README.md`): a dev
+build accepts a `localhost` or `127.0.0.1` page that names its app with the `app`
+option (`<workspace>/<slug>`) and serves it as that app. A production host
+ignores `app`.
+
+**What a refusal looks like.** Every request is checked in this order: it is
+served at all; the user is signed in; the params fit; the scope's tier. The
+answers:
+
+| the host answers | a function (`valu.X.y()`, an ack `{error: {status: true, code, message}}`) | an intent (`callService`) |
+|---|---|---|
+| not signed in | `401` `sign_in_required` | `{success: false, code: 'sign_in_required', error}` |
+| scope is `forbidden` | `403` `forbidden` | n/a: no intent has one |
+| scope needs consent, not given | `403` `consent_required`, with `scope` | `{success: false, code: 'consent_required', error, scope}` |
+| not served | `404` `unknown_function` (no such function), `501` `not_available` (a `local` function asked of the host) | `{error: {code: 'not_available', message}}` |
+| an app-state function | `Developer.*` are `forbidden`; `VerusWallet.get-balance`, once the user has consented, answers `501`: it is answered from state only the Valu Social application holds | n/a |
+| params do not fit | `400` | n/a |
+| 16 requests are running | `429` `busy`, at once; calls and intents count together | `{success: false, code: 'busy', error}` |
+| a request runs past 30 s | `408` `timeout`; the late result is dropped | `{success: false, code: 'timeout', error}` |
+| the grants could not be read | `503` `unavailable` | `{success: false, code: 'unavailable', error}` |
+
+A write that was handed to the services and then ran out of time (`408`) or was
+cut off (`503`) may have been applied: its ack carries `retryable: false`, and the
+app decides whether to repeat it. A read is retried by the client's own policy.
+
+**Scopes.** Every function has one scope, `<service>:<read|write>`; the intents
+the host serves map to one. Each scope is in one tier:
+
+| tier | what it means | scopes |
+|---|---|---|
+| `basic` | any signed-in user, no asking | `users:read`, `networks:read`, `profile:read`, `resources:read`, `time:read`, `applicationstorage:read`, `applicationstorage:write`, `application:identity` (`Application.get-identity-token`) |
+| `consent` | the user's yes, once per app, kept until revoked; until then `consent_required` | `users:write`, `rooms:read`, `rooms:write`, `textchat:read`, `textchat:write`, `groups:read`, `groups:write`, `events:read`, `events:write`, `community:read`, `cbac:read`, `cms:read`, `cms:write`, `veruswallet:read`, `commerce:read`, `commerce:write`, `commerce:sell` |
+| `forbidden` | never, whatever the user says, and never asked about | `cbac:write`, `veruswallet:write`, `developer:read`, `developer:write` |
+| `local` | runs in the page with its own `fetch`; never reaches the host | `http:read`, `http:write` (`Http.*`; the `Time.*` and resource-URL functions also run in the page, under basic scopes) |
+
+A scope the table does not have is refused, not allowed. The Commerce intents and
+their scopes:
+
+| scope | tier | `Commerce` intents |
+|---|---|---|
+| `commerce:read` | consent | `check-entitlements`, `get-cart`, `get-display`, `get-order`, `get-product`, `get-purchase-contents`, `list-categories`, `list-orders`, `list-products`, `list-purchases`, `preview-promo`, and the two subscriptions `subscribe-events`, `unsubscribe-events` |
+| `commerce:write` | consent | `add-to-cart`, `clear-cart`, `remove-from-cart`, `update-cart-item` |
+| `commerce:sell` | consent | `create-product`, `create-store`, `delete-discount-code`, `end-sale`, `get-analytics`, `get-my-product`, `get-my-store`, `list-my-products`, `list-network-access`, `list-promotions`, `list-seller-products`, `quote-bundle`, `remove-volume-tier`, `request-network-access`, `update-product` |
+
+**Commerce events need the `subscribe-events` intent.** `valu.onCommerceEvent(handler)`
+only listens; nothing arrives until the app subscribes:
+`await valu.callService(new Intent('Commerce', 'subscribe-events', { events: ['order-updated'] }))`
+(`commerce:read`, so the consent above). Each call replaces the set. The host holds
+the subscription for the signed-in session, so it ends with a sign-out, a reload
+and a revoked `commerce:read`: subscribe after every start and every sign-in. The
+events and their data are in the README, "Commerce Events".
+
+**Your CSP.** The client puts `<iframe src="<hostOrigin>/host/">` in the page, so an
+app that sends its own `Content-Security-Policy` must allow the host origin in
+`frame-src` (or in `default-src`, when there is no `frame-src`):
+`frame-src https://valuguru.texpo.io`. The sign-in and consent windows are popups,
+not frames.
+
+### The two origins belong together
+
+The sign-in page hands the one-time token to the host iframe of its **own build**
+(its `host.origin`) and to no other origin, and the host takes a token only from
+the sign-in origins it was built with. So `hostOrigin` and `signInOrigin` are a
+pair: the default host with one of the published brands (`https://live.valuverse.io`,
+`https://texpo.io`, `https://valu-social.com`, `https://chabaduniverse.com`), or a
+local host (`http://localhost:3001`) with the local sign-in page
+(`http://localhost:3006`) that host build lists in `HOST_SIGN_IN_ORIGINS`. A
+mismatch fails quietly: the token goes nowhere, the popup closes, and `signIn()`
+rejects `cancelled` once the ten-second grace has passed.
 
 ### Connection
 

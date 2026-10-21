@@ -1,6 +1,8 @@
 // The dedicated-mode sample (spec §4.8): one page, no bundler, no dependencies.
 //
-// Query parameters, all optional:
+// Query parameters, all optional, and honoured ONLY when the page is served from
+// localhost or 127.0.0.1 (a page anywhere else always uses the defaults, so a link
+// cannot point a deployed copy at another host or sign-in page):
 //   ?host=    where the host is served          (default https://valuguru.texpo.io)
 //   ?signin=  the Valu brand users sign in on   (default https://live.valuverse.io)
 //   ?app=     the app's address, <workspace>/<slug>; a dev host serves a localhost
@@ -9,9 +11,11 @@ import { createValuApp, Intent } from '../../src/ValuApi.js';
 
 const query = new URLSearchParams(location.search);
 const options = {};
-if (query.get('host')) options.hostOrigin = query.get('host');
-if (query.get('signin')) options.signInOrigin = query.get('signin');
-if (query.get('app')) options.app = query.get('app');
+if (['localhost', '127.0.0.1'].includes(location.hostname)) {
+  if (query.get('host')) options.hostOrigin = query.get('host');
+  if (query.get('signin')) options.signInOrigin = query.get('signin');
+  if (query.get('app')) options.app = query.get('app');
+}
 
 const $ = (id) => document.getElementById(id);
 const authEl = $('auth');
@@ -44,7 +48,7 @@ settings.forEach(([label, value], index) => {
   configEl.append(`${index ? ' · ' : ''}${label} `, code);
 });
 
-const who = (user) => user?.name ?? user?.displayName ?? user?.id ?? 'unknown user';
+const who = (user) => user?.name ?? user?.id ?? 'unknown user';
 
 /** Re-read `valu.auth.state` and `valu.connection.state` into the two status tiles. */
 function render() {

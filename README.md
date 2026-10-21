@@ -280,8 +280,9 @@ await valuApi.callService(new Intent('Commerce', 'subscribe-events', {
 | `seller-promotions-updated` | `{change}` | A promotion changed: `sale`, `tier` or `code`. |
 
 - **An event says what changed, never the new state.** Re-read with the matching intent (`get-cart`, `list-products`, …). A missed event costs a stale screen, never a wrong charge.
-- **`subscribe-events` replaces your set** — send the full list each time; `events: []` stops them all, as does `unsubscribe-events` with no `events`. It answers `{success: true, events}`, your whole set now. An unknown name is refused `validation_failed` and nothing changes; a caller that is not an embedded app, with no frame to post to, is refused `unsupported`.
+- **`subscribe-events` replaces your set** — send the full list each time; `events: []` stops them all, as does `unsubscribe-events` with no `events`. It answers `{success: true, events}`, your whole set now. An unknown name is refused `validation_failed` and nothing changes; a caller that is neither an embedded app nor a dedicated one (`createValuApp`), with no frame to post to, is refused `unsupported`.
 - **Subscribe every time your app starts.** A subscription lasts until `unsubscribe-events`, or until your frame closes or reloads — and moving the app to another dock reloads it.
+- **A dedicated app subscribes the same way**, and nothing arrives without it: `valu.onCommerceEvent(handler)` only listens, `valu.callService(new Intent('Commerce', 'subscribe-events', { events }))` subscribes (`commerce:read`, which needs the user's consent). The host holds the subscription for the signed-in session, so a sign-out, a reload or a revoked consent ends it: subscribe after every start and every sign-in ([docs/connecting.md](docs/connecting.md#what-the-host-serves)).
 - If your app extends `ValuApplication`, `onCommerceEvent(event)` receives the same events, after the listeners.
 
 ### Without the Package
@@ -560,8 +561,10 @@ await api.callService(new Intent('Commerce', 'open-cart'));
 
 - [docs/socket-functions.md](docs/socket-functions.md) — every function, the
   feature it provides and what it needs. **Start here.** (generated)
-- [docs/connecting.md](docs/connecting.md) — **getting a socket**: open one from
-  a session id, or share the one your runtime already has
+- [docs/connecting.md](docs/connecting.md) — **connecting**: `createValuApp`, the
+  one entry point for an app (a dedicated page on its own origin through the
+  host, or a page inside Valu Social), and getting a socket: open one from a
+  session id, or share the one your runtime already has
 - [docs/socket-adapters.md](docs/socket-adapters.md) — what a socket is here,
   what the three adapters do, and how to supply one
 - [docs/service-api.md](docs/service-api.md) — the same functions, as the call

@@ -33,7 +33,9 @@ No bundler, no dependencies: `index.html` loads `app.js`, which imports
 
 ## Query parameters
 
-All optional.
+All optional, and honoured only when the page is served from `localhost` or
+`127.0.0.1`: anywhere else the sample ignores them and uses the defaults, so a link
+cannot point a deployed copy at another host or sign-in page.
 
 | parameter | is | default |
 |---|---|---|
@@ -47,8 +49,22 @@ the page's origin.
 
 ## Run it against the local dev host
 
-The host is the Part B dev bundle on `http://localhost:3001`, and the sign-in page
-is `http://localhost:3006`. From the repository root:
+You need three things running: the host on `http://localhost:3001`, the sign-in
+page on `http://localhost:3006`, and this page.
+
+1. **The host.** In the valu-guru-server checkout (branch `feat/host-core`), follow
+   `host/README.md`, "Local development": build a dev bundle with
+   `HOST_DEV=1 HOST_ORIGIN=http://localhost:3001 HOST_RESOLVE_BASE_URL=http://localhost:3001`,
+   add `HOST_SIGN_IN_ORIGINS=http://localhost:3006` to that build so the host accepts
+   a token from the sign-in page, and run the server with `HOST_FRAME_ANCESTORS` and
+   `HOST_STATIC_DIR` as it says. A `HOST_DEV=1` build is what lets a `localhost`
+   page name its app.
+2. **The sign-in page.** In the valusocial-web checkout on branch `feat/host-signin`
+   (it has the `/auth/host` page), run `npx vite --port 3006`. Its dev server hands
+   the token to a host on `http://localhost:3001`, which is why the host above is on
+   that port: the two origins belong together
+   (`docs/connecting.md`, "The two origins belong together").
+3. **This page.** From this repository's root:
 
 ```sh
 npx serve . -p 5173 --no-clipboard
@@ -78,11 +94,12 @@ with no query string:
 https://<the app's published origin>/examples/dedicated/
 ```
 
-A `localhost` page is not a published origin: production answers it `unknown_app`.
-Pass `?host=` or `?signin=` only to point at another host or another Valu brand
-(`?signin=https://chabaduniverse.com` for a Chabad-network app). `?host=`, `?signin=` and
-`?app=` are conveniences of this sample for development: remove them from a real app, which
-passes its options in code or takes the defaults.
+A `localhost` page is not a published origin, so it cannot use the production host
+(`docs/connecting.md`, "What the host serves"). `?host=`, `?signin=` and `?app=` are
+conveniences of this sample for development, and they only work on `localhost` and
+`127.0.0.1`; on a published origin the page always uses the defaults. A real app
+passes its options in code (`signInOrigin: 'https://chabaduniverse.com'` for a
+Chabad-network app) or takes the defaults.
 
 ## Verified
 

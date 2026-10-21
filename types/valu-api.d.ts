@@ -873,8 +873,10 @@ declare module '@arkeytyp/valu-api' {
     }
 
     export interface ValuAuth {
-        /** Who the user is, now. A copy. In embedded mode: always signed out; the
-         * embedding application owns the session. */
+        /** Who the user is, now. A new object on every read, but its `user` and
+         * `network` are shared objects (the same on every read), not copies: do
+         * not mutate them. In embedded mode: always signed out; the embedding
+         * application owns the session. */
         readonly state: ValuAuthState;
         /**
          * Sign in through a popup on the Valu sign-in origin. Call it from a click:
@@ -945,12 +947,16 @@ declare module '@arkeytyp/valu-api' {
         /** Dedicated: already resolved. Embedded: resolves on the parent's `api:ready`. */
         readonly ready: Promise<void>;
         readonly auth: ValuAuth;
-        /** The network the host runs in, or `null` (signed out, or embedded). */
+        /** The network the host runs in, or `null` (signed out, or embedded). A shared object: do not mutate it. */
         readonly network: ValuNetwork | null;
         readonly connection: ValuConnection;
         /** The same functions, returning the payload and throwing `ValuServiceError`. */
         readonly data: ValuServicesData;
-        /** The `ValuApi` underneath, for `setApplication`, `getApi`, `runConsoleCommand` and the routes. */
+        /**
+         * The `ValuApi` underneath. Dedicated: for the lifecycle (`setApplication`) only; `getApi`,
+         * `runConsoleCommand` and `sendIntent` are Valu Social's and the host answers them
+         * `not_available`, and the routes are not answered. Embedded: all of it.
+         */
         readonly bridge: ValuApi;
 
         /**
@@ -971,12 +977,22 @@ declare module '@arkeytyp/valu-api' {
             service?: string; channel?: ServiceChannel; availability?: string | null; mutates?: boolean;
         }): LlmToolDefinition[];
 
-        /** Ask the host to run one of ITS intents (`Commerce.add-to-cart` …). */
+        /**
+         * Ask the host to run one of ITS intents: the Commerce data intents and
+         * `Application.get-identity-token` (dedicated). A refusal is an answer, not a rejection,
+         * and is not retried: `{success: false, code: 'consent_required', scope}` is yours to
+         * pass to `auth.requestConsent([scope])`.
+         */
         callService(intent: Intent): Promise<any>;
+        /** Embedded: Valu Social runs the intent. Dedicated: `not_available`. */
         sendIntent(intent: Intent): Promise<any>;
-        /** Listen for Commerce events (`ValuApi.ON_COMMERCE`). Returns the way to stop. */
+        /**
+         * Listen for Commerce events (`ValuApi.ON_COMMERCE`). Returns the way to stop. Nothing
+         * arrives until the app subscribes: `callService(new Intent('Commerce', 'subscribe-events', {events}))`.
+         */
         onCommerceEvent(handler: (event: CommerceEvent) => void): () => void;
         addEventListener(event: string, callback: (data: any) => void): void;
+        /** Pass the handler: a call without one clears every listener of the event, `onCommerceEvent`'s too. */
         removeEventListener(event: string, callback: (data: any) => void): void;
         /** Fail what is waiting, drop the caches, remove the host iframe or the window listener. */
         close(): Promise<void>;
