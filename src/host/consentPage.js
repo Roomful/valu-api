@@ -25,6 +25,14 @@
 // The DOM is behind a renderer, `render({app, scopes, onAllow, onDeny, error})`,
 // so the logic needs no document; `createDomRenderer` is the default one and
 // builds plain elements with `textContent` only. No DOM access at import.
+//
+// Input protection. The app decides when the popup opens, so it can open it
+// under the user's pointer: on the first click of a double-click, the second
+// lands wherever the popup put its buttons. The default renderer therefore keeps
+// Allow and Don't allow disabled until the window has been visible AND focused
+// for {@link CONSENT_INPUT_DELAY_MS}, and disables them again, for the same
+// delay, whenever the window is hidden or loses focus and comes back. A click
+// that arrives while they are disabled decides nothing.
 // ===========================================================================
 import { isOrigin } from './origins.js';
 import { POPUP_MSG } from './protocol.js';
@@ -62,6 +70,13 @@ export const SCOPE_WORDING = Object.freeze({
   'commerce:write': 'Add things to your cart, and change, remove or clear the items in your cart.',
   'commerce:sell': 'Sell in your name: set up your store, create and change your products and their prices, read your sales and analytics, end sales, delete unused discount codes and remove volume discounts, and ask to sell in a network.',
 });
+
+/**
+ * How long the decision buttons stay disabled after the window becomes visible
+ * and focused (and after every return to that), so a click aimed at the app page
+ * cannot land on them as the popup opens.
+ */
+export const CONSENT_INPUT_DELAY_MS = 600;
 
 /** What the page says when there is nothing it can ask the user about. One message: it does not say why. */
 const UNAVAILABLE = 'This request is no longer available. Close this window and try again from the app.';
@@ -133,7 +148,7 @@ function findHostFrame(win, hostOrigin, nonce) {
  * @param {string} options.hostOrigin The host origin: the only place a decision is sent.
  * @param {(view: {app: {name: string, address: string}|null, scopes: {scope: string, text: string}[],
  *   onAllow?: () => void, onDeny?: () => void, error?: string}) => void} [options.render]
- *   Draws a view; by default {@link createDomRenderer} over `document`.
+ *   Draws a view; by default {@link createDomRenderer} over `document`, guarding its buttons with `win`.
  */
 export function runConsentPage({
   win = globalThis,
@@ -141,7 +156,7 @@ export function runConsentPage({
   hostOrigin,
   render,
 } = {}) {
-  const draw = render ?? createDomRenderer(document);
+  const draw = render ?? createDomRenderer(document, { win });
   const fail = () => draw({ app: null, scopes: [], error: UNAVAILABLE });
 
   // A target that is not an origin (`'*'` among them) is never posted to, and nothing is read.
@@ -175,13 +190,81 @@ export function runConsentPage({
 }
 
 /**
+ * Keep `setEnabled(true)` for when the window has been visible and focused for
+ * `delayMs` without a break: called with `false` at once, and again whenever the
+ * window is hidden or loses focus; `true` once the delay has run since it last
+ * became visible and focused. A `focus` or `visibilitychange` restarts the
+ * delay. A document without `visibilityState` / `hasFocus` counts as visible /
+ * focused. Returns `{ready, stop}`: whether input counts now, and the way to
+ * stop listening (and clear the timer).
+ */
+function guardInput({ document, win, delayMs, setTimer, clearTimer, setEnabled }) {
+  let timer = null;
+  let ready = false;
+  const usable = () => {
+    try {
+      const visible = document.visibilityState === undefined || document.visibilityState === 'visible';
+      const focused = typeof document.hasFocus !== 'function' || document.hasFocus() === true;
+      return visible && focused;
+    } catch {
+      return false;
+    }
+  };
+  const disarm = () => {
+    if (timer !== null) clearTimer(timer);
+    timer = null;
+    ready = false;
+    setEnabled(false);
+  };
+  const arm = () => {
+    disarm();
+    if (!usable()) return;
+    timer = setTimer(() => {
+      timer = null;
+      if (!usable()) return;
+      ready = true;
+      setEnabled(true);
+    }, delayMs);
+  };
+  const subscriptions = [
+    [win, 'focus', arm],
+    [win, 'blur', disarm],
+    [document, 'visibilitychange', arm],
+  ].filter(([target]) => typeof target?.addEventListener === 'function');
+  for (const [target, type, listener] of subscriptions) target.addEventListener(type, listener);
+  arm();
+  return {
+    ready: () => ready,
+    stop() {
+      if (timer !== null) clearTimer(timer);
+      timer = null;
+      for (const [target, type, listener] of subscriptions) target.removeEventListener?.(type, listener);
+    },
+  };
+}
+
+/**
  * The default renderer: plain elements under `document.body`, text only (the
  * app's name is a string from a publisher and is never read as markup). The
  * page that serves it (`consent.html`) brings the styles; the elements carry
  * `valu-consent` class names to hang them on.
+ *
+ * The two buttons are disabled until the window has been visible and focused
+ * for `inputDelayMs` (see the header), and a click while they are disabled is
+ * ignored even by a browser that would deliver it.
  * @param {Document} document
+ * @param {object} [options]
+ * @param {Window} [options.win] Where `focus` / `blur` arrive (default: `document.defaultView`).
+ * @param {number} [options.inputDelayMs] Default {@link CONSENT_INPUT_DELAY_MS}.
+ * @param {Function} [options.setTimeout] Timers, for a test that turns the clock itself.
+ * @param {Function} [options.clearTimeout]
  */
-export function createDomRenderer(document) {
+export function createDomRenderer(document, {
+  win = document?.defaultView,
+  inputDelayMs = CONSENT_INPUT_DELAY_MS,
+  setTimeout: setTimer = (fn, ms) => globalThis.setTimeout(fn, ms),
+  clearTimeout: clearTimer = (id) => globalThis.clearTimeout(id),
+} = {}) {
   if (!document || typeof document.createElement !== 'function') throw new TypeError('the consent page needs a document or a renderer.');
 
   const element = (tag, className, text) => {
@@ -190,8 +273,12 @@ export function createDomRenderer(document) {
     if (text !== undefined) node.textContent = text;
     return node;
   };
+  /** The input guard of the view on screen, stopped when it is replaced. */
+  let guard = null;
 
   return ({ app, scopes, onAllow, onDeny, error }) => {
+    guard?.stop();
+    guard = null;
     const main = element('main', 'valu-consent');
     if (error) {
       document.title = 'Permission request';
@@ -203,9 +290,20 @@ export function createDomRenderer(document) {
 
       const deny = element('button', 'valu-consent__deny', 'Don\'t allow');
       const allow = element('button', 'valu-consent__allow', 'Allow');
+      let chosen = false;
+      const setEnabled = (enabled) => {
+        deny.disabled = chosen || !enabled;
+        allow.disabled = chosen || !enabled;
+      };
+      const own = guardInput({
+        document, win, delayMs: inputDelayMs, setTimer, clearTimer, setEnabled,
+      });
+      guard = own;
       const choose = (handler) => () => {
-        deny.disabled = true;
-        allow.disabled = true;
+        if (chosen || !own.ready()) return;
+        chosen = true;
+        own.stop();
+        setEnabled(false);
         handler();
       };
       for (const button of [deny, allow]) button.setAttribute('type', 'button');

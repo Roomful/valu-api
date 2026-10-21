@@ -14,7 +14,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { SCOPE_WORDING, createDomRenderer, runConsentPage } from '../../src/host/consentPage.js';
+import {
+  CONSENT_INPUT_DELAY_MS, SCOPE_WORDING, createDomRenderer, runConsentPage,
+} from '../../src/host/consentPage.js';
+import { fakeClock } from '../helpers/hostFakes.js';
 import { TIER_OF } from '../../src/host/Permissions.js';
 import { POPUP_MSG } from '../../src/host/protocol.js';
 
@@ -358,8 +361,13 @@ test('the sentences are distinct, so two scopes never read the same', () => {
 // The default renderer, on a tiny fake document
 // ---------------------------------------------------------------------------
 
-/** Just enough DOM: elements that hold text and children, listeners, attributes; `innerHTML` is not allowed. */
-function fakeDocument() {
+/**
+ * Just enough DOM: elements that hold text and children, listeners, attributes; `innerHTML` is not allowed.
+ * The document is visible and focused unless told otherwise (`visibilityState`, `focused`), and has a window
+ * (`doc.defaultView`) for `focus` / `blur`. `doc.show()`, `doc.hide()`, `doc.focus()`, `doc.blur()` change them
+ * and fire the event a browser fires.
+ */
+function fakeDocument({ visibilityState = 'visible', focused = true } = {}) {
   const make = (tagName) => {
     const element = {
       tagName,
@@ -383,8 +391,43 @@ function fakeDocument() {
   };
   const body = make('body');
   body.replaceChildren = (...nodes) => { body.children = [...nodes]; };
-  const doc = { title: '', body, createElement: make };
+  const eventTarget = () => {
+    const listeners = {};
+    return {
+      listeners,
+      addEventListener(type, listener) { (listeners[type] ??= new Set()).add(listener); },
+      removeEventListener(type, listener) { listeners[type]?.delete(listener); },
+      fire(type) { for (const listener of [...(listeners[type] ?? [])]) listener({ type }); },
+      count: () => Object.values(listeners).reduce((sum, set) => sum + set.size, 0),
+    };
+  };
+  const win = eventTarget();
+  const doc = {
+    title: '', body, createElement: make, visibilityState, focused, defaultView: win, ...eventTarget(),
+    hasFocus() { return doc.focused; },
+    show() { doc.visibilityState = 'visible'; doc.fire('visibilitychange'); },
+    hide() { doc.visibilityState = 'hidden'; doc.fire('visibilitychange'); },
+    focus() { doc.focused = true; win.fire('focus'); },
+    blur() { doc.focused = false; win.fire('blur'); },
+  };
   return doc;
+}
+
+/** The default renderer on a fake document and a fake clock, drawing one request. */
+function drawn(options = {}) {
+  const doc = fakeDocument(options);
+  const clock = fakeClock();
+  const chosen = [];
+  const render = createDomRenderer(doc, { setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
+  render({
+    app: APP,
+    scopes: SCOPES.map((scope) => ({ scope, text: SCOPE_WORDING[scope] })),
+    onAllow: () => chosen.push('allow'),
+    onDeny: () => chosen.push('deny'),
+  });
+  const [deny, allow] = where(doc, 'button');
+  const disabled = () => [deny.disabled, allow.disabled];
+  return { doc, clock, chosen, render, deny, allow, disabled };
 }
 
 const walk = (node, out = []) => {
@@ -396,7 +439,8 @@ const where = (doc, tagName) => walk(doc.body).filter((node) => node.tagName ===
 
 test('the default renderer shows the app, one list item per scope, and two buttons wired to the decision', () => {
   const doc = fakeDocument();
-  const render = createDomRenderer(doc);
+  const clock = fakeClock();
+  const render = createDomRenderer(doc, { setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
   const chosen = [];
 
   render({
@@ -414,6 +458,7 @@ test('the default renderer shows the app, one list item per scope, and two butto
   assert.deepEqual(buttons.map((button) => button.textContent), ["Don't allow", 'Allow']);
   assert.ok(buttons.every((button) => button.attributes.type === 'button'));
 
+  clock.tick(CONSENT_INPUT_DELAY_MS);
   buttons[1].click();
   assert.deepEqual(chosen, ['allow']);
   assert.ok(buttons.every((button) => button.disabled), 'both are disabled once the user has chosen');
@@ -434,7 +479,8 @@ test('the default renderer shows an error and no buttons, and replaces what was 
   assert.ok(walk(doc.body).some((node) => node.textContent === 'Gone.'));
 });
 
-test('runConsentPage without a renderer draws with the document it is given', () => {
+test('runConsentPage without a renderer draws with the document it is given', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const doc = fakeDocument();
   const host = readableFrame({ pending: pendingFor() });
   const win = popup({ frames: [host] });
@@ -442,10 +488,158 @@ test('runConsentPage without a renderer draws with the document it is given', ()
 
   assert.equal(where(doc, 'button').length, 2);
   where(doc, 'button')[1].click();
+  assert.equal(host.posted.length, 0, 'not before the input delay');
+  t.mock.timers.tick(CONSENT_INPUT_DELAY_MS);
+  where(doc, 'button')[1].click();
   assert.equal(host.posted.length, 1);
   assert.equal(win.closed, true);
 
   assert.throws(() => runConsentPage({ win: popup(), hostOrigin: HOST_ORIGIN }), TypeError, 'no renderer and no document');
+});
+
+// ---------------------------------------------------------------------------
+// Input protection: the buttons wait for a visible, focused window
+// ---------------------------------------------------------------------------
+
+test('the buttons start disabled and come on only after the input delay', () => {
+  const { clock, chosen, allow, deny, disabled } = drawn();
+  assert.deepEqual(disabled(), [true, true], 'disabled as drawn');
+
+  allow.click(); // the second click of a double-click that opened the popup
+  deny.click();
+  clock.tick(CONSENT_INPUT_DELAY_MS - 1);
+  assert.deepEqual(disabled(), [true, true], 'still disabled one millisecond short');
+  allow.click();
+  assert.deepEqual(chosen, [], 'nothing was decided while they were disabled');
+
+  clock.tick(1);
+  assert.deepEqual(disabled(), [false, false]);
+  allow.click();
+  assert.deepEqual(chosen, ['allow']);
+  assert.equal(clock.pending, 0);
+});
+
+test('a click that arrives while the buttons are disabled is ignored, even if the browser delivers it', () => {
+  const { clock, chosen, allow, deny } = drawn();
+  // A browser that fires listeners on a disabled button: the guard is not only the attribute.
+  for (const button of [allow, deny]) {
+    button.disabled = false;
+    for (const listener of button.listeners.click) listener({ type: 'click' });
+  }
+  assert.deepEqual(chosen, []);
+  clock.tick(CONSENT_INPUT_DELAY_MS);
+  deny.click();
+  assert.deepEqual(chosen, ['deny']);
+});
+
+test('a hidden window keeps the buttons disabled until it has been visible for the delay', () => {
+  const { doc, clock, chosen, allow, disabled } = drawn({ visibilityState: 'hidden' });
+  clock.tick(60_000);
+  assert.deepEqual(disabled(), [true, true], 'however long it stays hidden');
+  assert.equal(clock.pending, 0, 'and no timer runs for it');
+
+  doc.show();
+  allow.click();
+  clock.tick(CONSENT_INPUT_DELAY_MS - 1);
+  assert.deepEqual(disabled(), [true, true]);
+  clock.tick(1);
+  assert.deepEqual(disabled(), [false, false]);
+  allow.click();
+  assert.deepEqual(chosen, ['allow']);
+});
+
+test('an unfocused window keeps the buttons disabled until it has been focused for the delay', () => {
+  const { doc, clock, chosen, allow, disabled } = drawn({ focused: false });
+  clock.tick(60_000);
+  assert.deepEqual(disabled(), [true, true]);
+
+  doc.focus();
+  clock.tick(CONSENT_INPUT_DELAY_MS - 1);
+  allow.click();
+  assert.deepEqual(chosen, []);
+  clock.tick(1);
+  allow.click();
+  assert.deepEqual(chosen, ['allow']);
+});
+
+test('losing focus disables the buttons at once, and coming back waits the delay again', () => {
+  const { doc, clock, chosen, allow, deny, disabled } = drawn();
+  clock.tick(CONSENT_INPUT_DELAY_MS);
+  assert.deepEqual(disabled(), [false, false]);
+
+  doc.blur();
+  assert.deepEqual(disabled(), [true, true], 'disabled the moment the window loses focus');
+  doc.focus(); // the click that focuses the window must not also decide
+  allow.click();
+  deny.click();
+  assert.deepEqual(chosen, []);
+  assert.deepEqual(disabled(), [true, true]);
+  clock.tick(CONSENT_INPUT_DELAY_MS);
+  assert.deepEqual(disabled(), [false, false]);
+  deny.click();
+  assert.deepEqual(chosen, ['deny']);
+});
+
+test('hiding the window disables the buttons, and every return to visible restarts the delay', () => {
+  const { doc, clock, chosen, allow, disabled } = drawn();
+  clock.tick(CONSENT_INPUT_DELAY_MS);
+
+  doc.hide();
+  assert.deepEqual(disabled(), [true, true]);
+  doc.show();
+  clock.tick(CONSENT_INPUT_DELAY_MS - 100);
+  doc.fire('visibilitychange'); // another return: the delay starts over
+  clock.tick(CONSENT_INPUT_DELAY_MS - 1);
+  allow.click();
+  assert.deepEqual(chosen, []);
+  clock.tick(1);
+  allow.click();
+  assert.deepEqual(chosen, ['allow']);
+});
+
+test('a focus event while already enabled starts the delay over', () => {
+  const { doc, clock, chosen, allow, disabled } = drawn();
+  clock.tick(CONSENT_INPUT_DELAY_MS);
+  doc.focus();
+  assert.deepEqual(disabled(), [true, true]);
+  allow.click();
+  assert.deepEqual(chosen, []);
+  clock.tick(CONSENT_INPUT_DELAY_MS);
+  allow.click();
+  assert.deepEqual(chosen, ['allow']);
+});
+
+test('the guard stops listening once the user has decided, and when the view is replaced', () => {
+  const decided = drawn();
+  const listening = decided.doc.count() + decided.doc.defaultView.count();
+  assert.equal(listening, 3, 'focus, blur, visibilitychange');
+  decided.clock.tick(CONSENT_INPUT_DELAY_MS);
+  decided.allow.click();
+  assert.equal(decided.doc.count() + decided.doc.defaultView.count(), 0);
+  decided.doc.blur();
+  decided.doc.focus();
+  decided.clock.tick(CONSENT_INPUT_DELAY_MS);
+  assert.deepEqual(decided.disabled(), [true, true], 'a decided view stays disabled');
+  assert.deepEqual(decided.chosen, ['allow']);
+
+  const replaced = drawn();
+  replaced.render({ app: null, scopes: [], error: 'Gone.' });
+  assert.equal(replaced.doc.count() + replaced.doc.defaultView.count(), 0);
+  assert.equal(replaced.clock.pending, 0, 'and its timer is cleared');
+});
+
+test('a document that cannot say whether it is visible or focused counts as both', () => {
+  const doc = fakeDocument();
+  delete doc.visibilityState;
+  delete doc.hasFocus;
+  const clock = fakeClock();
+  const chosen = [];
+  createDomRenderer(doc, { win: null, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout })({
+    app: APP, scopes: [], onAllow: () => chosen.push('allow'), onDeny() {},
+  });
+  clock.tick(CONSENT_INPUT_DELAY_MS);
+  where(doc, 'button')[1].click();
+  assert.deepEqual(chosen, ['allow']);
 });
 
 test('importing the page logic touches no DOM', () => {
