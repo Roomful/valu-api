@@ -40,9 +40,10 @@ export class ServiceClient {
       // where it can still be fixed.
       throw new TypeError(
         `${transport.name ?? transport} does not serve service functions — `
-        + 'pass a SocketTransport, or use createValuServices({ socket }). '
-        + 'The postMessage bridge runs application intents by name '
-        + '(ValuApi.callService), not service functions.',
+        + 'pass a SocketTransport (createValuServices({ socket })) or a HostTransport, '
+        + 'or use createValuApp() for a page on its own origin. '
+        + 'The plain intents bridge (ValuApi.callService) runs application intents '
+        + 'by name, not service functions.',
       );
     }
     this.#transport = transport;

@@ -37,6 +37,13 @@
   else is dropped. There is no default origin list; `hostOrigins` (above) pins one.
   A page that is not framed has no parent to name, so its first `api:ready` binds,
   subject to `hostOrigins`, as before.
+- `package.json` has an `exports` map now. These subpaths resolve: the package
+  itself, `src/*` (the host page imports `src/host/*`), `manifests/*` (the
+  service manifest snapshot), `types/*.d.ts` and `types/*` (the declarations, by
+  package path, for `/// <reference types>` and for TypeScript under
+  node16/nodenext) and `package.json`. Anything else, `scripts/*` say, is no
+  longer importable by package path. `test/package-exports.test.js` runs the map
+  against a symlinked install.
 - The rule on service functions: they run over a connection (`SocketTransport`)
   or over the host bridge (`HostTransport`), which checks the app's grants before
   every call. `PostMessageTransport` still serves none; `HostTransport` is the one

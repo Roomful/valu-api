@@ -22,7 +22,12 @@
     "./types/valu-services": {
       "types": "./types/valu-services.d.ts"
     },
+    "./types/*.d.ts": "./types/*.d.ts",
+    "./types/*": {
+      "types": "./types/*.d.ts"
+    },
     "./src/*": "./src/*",
+    "./manifests/*": "./manifests/*",
     "./package.json": "./package.json"
   },
   "keywords": ["valu", "api", "iframe", "valu social", "multiverse"],

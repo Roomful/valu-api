@@ -129,15 +129,17 @@ test('createValuServices builds a socket transport, and refuses the bridge', () 
   const { valu } = headless();
   assert.ok(valu.transport instanceof SocketTransport);
 
-  // The postMessage bridge is not a service transport. It could carry these
+  // The plain postMessage bridge is not a service transport. It could carry these
   // calls — the application answers `api:service-intent` — and that is exactly
-  // the ambiguity this package dropped: a service function runs over a
-  // connection, the same way everywhere, or it is not a service function.
+  // the ambiguity this package dropped: a service function runs over a socket or
+  // over the valu-api host (`createValuApp`), the same way everywhere, or it is
+  // not a service function. The refusals say where they do run.
   const bridge = new PostMessageTransport({ target: new FakeWindow() });
-  assert.throws(() => createValuServices({ transport: bridge }), /does not serve service functions/);
-  assert.throws(() => new ServiceClient({ transport: bridge }), /does not serve service functions/);
+  assert.throws(() => createValuServices({ transport: bridge }), /does not serve service functions.*createValuApp/s);
+  assert.throws(() => new ServiceClient({ transport: bridge }), /does not serve service functions.*createValuApp/s);
+  assert.throws(() => new ServiceClient({ transport: bridge }), /plain intents bridge \(ValuApi\.callService\)/);
 
-  assert.throws(() => createValuServices({}), /needs a socket/);
+  assert.throws(() => createValuServices({}), /needs a socket.*valu-api host.*createValuApp/s);
 });
 
 test('the tool definitions are the service functions, and nothing else', () => {

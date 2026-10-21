@@ -193,12 +193,15 @@ export function createValuServices(options = {}) {
   if (!transport && !transportOptions.socket) {
     // The two ways to get here are a typo and a misunderstanding, and the
     // second one is worth a sentence: there is no default transport, and an
-    // iframe application is not a special case. Everything passes a socket.
+    // iframe application is not a special case. Everything passes a socket (or
+    // a transport that serves: a page on its own origin gets one from
+    // `createValuApp()`, which sets up the valu-api host).
     throw new TypeError(
       'createValuServices needs a socket — pass `{ socket }`, a ValuSocket over '
       + 'your Roomful connection (NodeSocketAdapter in Node, BrowserSocketAdapter '
-      + 'in a browser). Service functions run over a connection, never over the '
-      + 'postMessage bridge.',
+      + 'in a browser). Service functions run over a socket, or over the valu-api '
+      + 'host (`createValuApp()`, for a page on its own origin); not over the '
+      + 'plain intents bridge (ValuApi.callService).',
     );
   }
   const client = new ServiceClient({
