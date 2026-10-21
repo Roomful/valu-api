@@ -86,4 +86,4 @@ passes its options in code or takes the defaults.
 
 ## Verified
 
-Verified: pending (controller runs the signed-in check)
+Verified: 2026-10-21 in Chromium (Playwright) against the local dev host on :3001 (dev bundle, Guru on the same local server) and the sign-in page on :3006. Sign-in through `/auth/host`; the session kept across a reload; `Users.current()` (basic tier); `Rooms.searchMyRooms()` through the consent window (a `rooms:read` grant stored); the Commerce intent through the page's explicit `requestConsent` (a `commerce:read` grant stored). Not yet verified: the production host, Safari, iOS.
