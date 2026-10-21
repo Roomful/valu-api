@@ -34,3 +34,40 @@
   `parent` property now skips the parent pin (the first `api:ready` binds, subject
   to `hostOrigins`); it used to fall back to `globalThis.parent`. The default
   target (`globalThis`) is unchanged.
+
+### Host
+
+- A stored session no longer holds `api:ready` back: the host waits at most
+  `readyWaitMs` (5 s) for the session check and the master together, and the
+  user is signed in from storage meanwhile. `api:ready` now says the state of
+  the link (`host.connection`): `ready`, or `connecting` while the master still
+  opens, followed by `auth` and `connection ready` when it does. `HostTransport`
+  takes that state.
+- A stored session whose check or master cannot be reached is no longer
+  signed out: the app hears `auth {signedIn: true, reason: 'unavailable'}` and
+  `connection reconnecting` (or `offline`), and the host retries (1 s doubling
+  to 30 s, +-20 %, at once on `online`) until the master opens it or refuses it
+  (`session_expired`, a sign-out as before).
+- Signing in again in one tab replaces the shared stored session instead of
+  clearing it first, so the other tabs move to the new session rather than to
+  `signed_out_elsewhere`; a signed-out tab adopts a session another tab signs
+  in with; a storage change that arrives while the host starts is no longer
+  lost; a `valu-host:token` message without a token is ignored.
+- After a sign-in that ends `not_a_member`, calls answer 401 `not_a_member`
+  (intents and consent `not_a_member` too) instead of `sign_in_required`, until
+  the next sign-in attempt starts.
+- `app-state` functions (`Developer.*`, `VerusWallet.get-balance`) answer 501
+  `not_available` before their scope is weighed, so no consent is ever asked
+  for them (`Developer.*` answered 403 before). A service function sent as a
+  raw `api:service-intent` names the SDK method to call (`use
+  valu.Users.current()`).
+- A redeem that takes longer than 15 s answers `timeout` (pushed as the `auth`
+  reason) and stores nothing.
+- The consent popup's Allow and Don't allow stay disabled until the window has
+  been visible and focused for 600 ms, and again after every return to it.
+- `HostTransport` keeps recovering a host that died: a failed recovery
+  handshake is tried again (1 s doubling to 30 s, +-20 %, at once on `online`)
+  with calls held and the state `reconnecting`; only `unknown_app`, `nested` and
+  `protocol_unsupported` end it with `connection offline`. An iframe the page
+  removed starts a recovery instead of failing the call with 503.
+- Removed: the unused `brandOrigins` host config and `HOST_ERRORS.BAD_ORIGIN`.

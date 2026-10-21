@@ -1252,10 +1252,12 @@ export class HostBridge {
 
   /**
    * What a token message says. `cancelled` and a token for another master are
-   * pushed as their reason; a token is redeemed for a session (a user who is
-   * signed in is signed out first), the master is opened with it, and the app is
-   * told. A refusal is pushed as its reason. Nothing here holds the token longer
-   * than the redeem, and nothing logs or posts it.
+   * pushed as their reason, and a message without a token is ignored; a token
+   * is redeemed for a session (a user who is signed in here is let go of first,
+   * in memory only: the redeem replaces the stored record, which other tabs
+   * read), the master is opened with it, and the app is told. A refusal is
+   * pushed as its reason. Nothing here holds the token longer than the redeem,
+   * and nothing logs or posts it.
    */
   async #signInWith(data) {
     if (this.#stopped) return;
