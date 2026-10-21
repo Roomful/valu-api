@@ -264,6 +264,67 @@ export function FakeWindowPair({
   return { app, host };
 }
 
+/**
+ * The `document` an app page injects its host iframe into, over a
+ * {@link FakeWindowPair}: `createElement('iframe')` makes an element whose
+ * `contentWindow` is `pair.host` while it is in the page and `null` while it is
+ * not (before `body.appendChild`, after `body.removeChild`), as in a browser.
+ * `appendChild` fires the element's `load` on the next microtask, once the
+ * page has wired its listeners.
+ *
+ * A second `createElement` makes a second element on the same `pair.host`: the
+ * page that removes a dead frame and builds a new one. `frames` is every
+ * element made, in order; `fire(type)` on one is a browser event the test
+ * raises by hand (`error`, a second `load`). `autoLoad: false` leaves `load`
+ * to the test.
+ * @param {{host: object}} pair
+ * @param {{autoLoad?: boolean}} [options]
+ */
+export function fakeDocumentFor(pair, { autoLoad = true } = {}) {
+  const frames = [];
+  const children = [];
+
+  const body = {
+    children,
+    appendChild(element) {
+      children.push(element);
+      element.parentNode = body;
+      if (autoLoad) queueMicrotask(() => { if (element.parentNode === body) element.fire('load'); });
+      return element;
+    },
+    removeChild(element) {
+      const index = children.indexOf(element);
+      if (index < 0) throw domError('NotFoundError', 'The node to be removed is not a child of this node.');
+      children.splice(index, 1);
+      element.parentNode = null;
+      return element;
+    },
+  };
+
+  const createElement = (tagName) => {
+    const listeners = { load: new Set(), error: new Set() };
+    const attributes = new Map();
+    const element = {
+      tagName: String(tagName).toUpperCase(),
+      src: '',
+      hidden: false,
+      parentNode: null,
+      get contentWindow() { return element.parentNode ? pair.host : null; },
+      get attributes() { return Object.fromEntries(attributes); },
+      setAttribute(name, value) { attributes.set(String(name), String(value)); },
+      getAttribute(name) { return attributes.has(name) ? attributes.get(name) : null; },
+      addEventListener(type, listener) { listeners[type]?.add(listener); },
+      removeEventListener(type, listener) { listeners[type]?.delete(listener); },
+      /** Raise a browser event on this element. */
+      fire(type) { for (const listener of [...(listeners[type] ?? [])]) listener({ type, target: element }); },
+    };
+    frames.push(element);
+    return element;
+  };
+
+  return { body, frames, createElement };
+}
+
 // ---------------------------------------------------------------------------
 // HTTP
 // ---------------------------------------------------------------------------
