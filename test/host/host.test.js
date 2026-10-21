@@ -67,7 +67,11 @@ function page({
   if (location) host.location = location;
   if (navigator) host.navigator = navigator;
   const storageListeners = new Set();
-  /** Every `online` listener registered on the window: `{self, listener, options}`, `self` being the receiver of the call. */
+  /**
+   * Every `online` listener registered on the window: `{self, listener, options}`, `self` being the receiver of the call.
+   * The bridge registers its own (no options, as a method of the window); the Guru client registers one per
+   * attempt with an `AbortSignal`, through the `addEventListener` it was given.
+   */
   const onlineListeners = [];
   const listen = host.addEventListener.bind(host);
   host.addEventListener = function addEventListener(type, listener, ...rest) {
@@ -109,6 +113,9 @@ function page({
     authPushes,
   };
 }
+
+/** The `online` listeners the Guru client registered: the ones that carry the signal that removes them. */
+const guruOnlineListeners = (env) => env.onlineListeners.filter((entry) => entry.options?.signal instanceof AbortSignal);
 
 /** Hello, then a consent-tier call: the bridge reads the grants, which opens the Guru client. */
 async function askGuru(env, requestId = 7) {
@@ -277,10 +284,10 @@ test('the Guru client is given the window\'s addEventListener, bound to it', asy
   const env = page({ stored: true });
   await askGuru(env);
 
-  assert.equal(env.onlineListeners.length, 1, 'the client listens for `online` through the window the page gave');
-  const [{ self, options }] = env.onlineListeners;
-  assert.equal(self, env.host, 'called on the window: a bare call would throw "Illegal invocation" in a browser');
-  assert.ok(options.signal instanceof AbortSignal, 'with the signal that removes the listener');
+  const listeners = guruOnlineListeners(env);
+  assert.equal(listeners.length, 1, 'the client listens for `online` through the window the page gave');
+  assert.equal(listeners[0].self, env.host, 'called on the window: a bare call would throw "Illegal invocation" in a browser');
+  assert.ok(env.onlineListeners.length > listeners.length, 'the bridge\'s own online listener is a different registration');
 });
 
 test('the Guru client is given the window\'s navigator: a page that is offline waits for the online event', async () => {
@@ -290,10 +297,11 @@ test('the Guru client is given the window\'s navigator: a page that is offline w
 
   assert.equal(env.WebSocketImpl.sockets.length, 0, 'offline: no socket is opened');
   assert.ok(!env.fetchImpl.urls().some((url) => url.endsWith('/auth/getOneTimeAuthToken')), 'and no token is minted');
-  assert.equal(env.onlineListeners.length, 1, 'it waits for the window\'s online event');
+  const listeners = guruOnlineListeners(env);
+  assert.equal(listeners.length, 1, 'the client waits for the window\'s online event');
 
   navigator.onLine = true;
-  env.onlineListeners[0].listener({ type: 'online' });
+  listeners[0].listener({ type: 'online' });
   for (let i = 0; i < 20 && !env.WebSocketImpl.last?.sent.length; i += 1) await settle();
 
   assert.equal(env.WebSocketImpl.sockets.length, 1, 'back online: the socket opens');
