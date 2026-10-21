@@ -323,7 +323,7 @@ test('every consent-tier scope has wording', () => {
 test('the sentences say the strongest thing their scope allows, and promise nothing the scope does not', () => {
   const said = (scope) => SCOPE_WORDING[scope];
   // rooms:write also removes people and changes content; the app picks the access level
-  assert.match(said('rooms:write'), /invite people to your props with whatever access level it chooses/);
+  assert.match(said('rooms:write'), /invite people to your props with whatever access level the app chooses/);
   assert.match(said('rooms:write'), /remove them again/);
   assert.match(said('rooms:write'), /add or change content in your props/);
   // textchat:write reaches any user, and the agent writes to the user unasked
@@ -335,12 +335,16 @@ test('the sentences say the strongest thing their scope allows, and promise noth
   // veruswallet:read: an agent's wallet, with no claim about whose it is
   assert.match(said('veruswallet:read'), /balance of a wallet attached to an agent/);
   assert.doesNotMatch(said('veruswallet:read'), /\b(your|my|the user's)\b/i);
-  // commerce:sell: everything the seller intents do
-  for (const part of ['your products', 'prices', 'sales', 'discount codes', 'volume discounts', 'your sales and analytics', 'ask to sell in a network']) {
+  // commerce:sell: what the host serves of the seller intents, and no more (it does not create sales, codes or tiers)
+  for (const part of [
+    'set up your store', 'create and change your products and their prices', 'read your sales and analytics', 'end sales',
+    'delete unused discount codes', 'remove volume discounts', 'ask to sell in a network',
+  ]) {
     assert.ok(said('commerce:sell').includes(part), `commerce:sell says "${part}"`);
   }
   // commerce:write: what it does to the cart, and no guarantee the host does not need to make
   assert.match(said('commerce:write'), /Add things to your cart/);
+  assert.match(said('commerce:write'), /change, remove or clear the items in your cart/);
   assert.doesNotMatch(said('commerce:write'), /\b(cannot|can't|never|only|without|pay)\b/i, 'no promise about what it cannot do');
   assert.doesNotMatch(said('commerce:write'), /\bit\b/i, 'no pronoun that could be the app or the cart');
 });

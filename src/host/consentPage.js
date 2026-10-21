@@ -46,7 +46,7 @@ import { POPUP_MSG } from './protocol.js';
 export const SCOPE_WORDING = Object.freeze({
   'users:write': 'Send, accept, decline and cancel connection requests for you.',
   'rooms:read': 'See your rooms and what is in them, and search for other rooms.',
-  'rooms:write': 'Create rooms from templates, invite people to your props with whatever access level it chooses, remove them again, and add or change content in your props.',
+  'rooms:write': 'Create rooms from templates, invite people to your props with whatever access level the app chooses, remove them again, and add or change content in your props.',
   'textchat:read': 'Read the message history of your chat channels.',
   'textchat:write': 'Send chat messages to any user as you, and have this app\'s agent message you directly.',
   'groups:read': 'See your groups and who is in them, and find groups you could join.',
@@ -60,7 +60,7 @@ export const SCOPE_WORDING = Object.freeze({
   'veruswallet:read': 'Read the balance of a wallet attached to an agent.',
   'commerce:read': 'See products, your cart, your orders and your purchases, and be told when they change.',
   'commerce:write': 'Add things to your cart, and change, remove or clear the items in your cart.',
-  'commerce:sell': 'Sell in your name: set up your store, create and change your products, prices, sales, discount codes and volume discounts, read your sales and analytics, and ask to sell in a network.',
+  'commerce:sell': 'Sell in your name: set up your store, create and change your products and their prices, read your sales and analytics, end sales, delete unused discount codes and remove volume discounts, and ask to sell in a network.',
 });
 
 /** What the page says when there is nothing it can ask the user about. One message: it does not say why. */
