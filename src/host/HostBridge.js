@@ -54,9 +54,10 @@
 //     `cancelled`. A token for another master (`config.master`) is refused with
 //     `master_mismatch` and never sent anywhere; otherwise `auth.redeem` trades
 //     it for a session, the master is opened with it, and the app is pushed
-//     `auth`. A token is taken only after `api:ready`, one at a time, and a user
-//     who is signed in is signed out first. The token is never logged, held,
-//     posted or put in an error.
+//     `auth`. A token is taken only after `api:ready`, one at a time; a user who
+//     is signed in here is let go of first, in memory only (the stored record is
+//     every tab's, and the redeem replaces it). A message without a token is
+//     ignored. The token is never logged, held, posted or put in an error.
 //
 // What the host pushes when the user's state changes (`api:trigger`, see
 // protocol.js): `auth` (who the user is, with a `reason` when there is one) and
@@ -79,7 +80,9 @@
 // (the page wires the browser's `storage` event to it, and must treat an event
 // whose `key` is `null`, a `localStorage.clear()`, as a change too): the host
 // drops the session, restores the one in storage if there is one, and pushes
-// `auth` (`reason:'signed_out_elsewhere'` when there is none).
+// `auth` (`reason:'signed_out_elsewhere'` when there is none); a tab that is
+// signed out takes a session another tab stored for its app. A change heard
+// before `api:ready` is judged once the host is ready.
 //
 // Where it answers:
 //
@@ -301,6 +304,8 @@ export class HostBridge {
   #signInOrigins;
   /** Stops listening to the session store. */
   #unsubscribeStore = null;
+  /** The session store changed before `api:ready`: the change is judged once the host is ready. */
+  #storeChangedEarly = false;
 
   #listening = false;
   #stopped = false;
@@ -941,6 +946,11 @@ export class HostBridge {
     this.#sendReady();
     // A stored session the master refused at connect: say why, not only "signed out".
     if (failure === HOST_ERRORS.SESSION_EXPIRED) this.pushAuth(HOST_ERRORS.SESSION_EXPIRED);
+    // Another tab changed the stored session while this one was starting: judge it now.
+    if (this.#storeChangedEarly) {
+      this.#storeChangedEarly = false;
+      this.#onStoreChange();
+    }
   }
 
   /**
@@ -1137,6 +1147,8 @@ export class HostBridge {
       this.pushAuth(HOST_ERRORS.CANCELLED);
       return;
     }
+    // Not a token: nothing to redeem, and no reason to touch the session the user has.
+    if (!text(data.token)) return;
     if (data.master !== this.#config.master) {
       this.pushAuth(HOST_ERRORS.MASTER_MISMATCH);
       return;
@@ -1145,10 +1157,10 @@ export class HostBridge {
     const { app } = this.#bound;
     // A sign-in attempt starts: whatever the last one ended in no longer speaks for the user.
     this.#notAMember = false;
-    if (this.#session.signedIn) {
-      this.#forgetSession();
-      void this.#dropSession();
-    }
+    // The session this tab had is let go of here, in memory only. The stored record is the other
+    // tabs' too: the redeem replaces it when it succeeds, and clearing it now would sign them out
+    // for good (they would hear a sign-out, and nothing they could come back to).
+    if (this.#session.signedIn) void this.#dropSession();
     const epoch = this.#epoch;
 
     let redeemed;
@@ -1201,27 +1213,53 @@ export class HostBridge {
    * `sessionStore.onChange`, for the browser's `storage` event). A user who is
    * signed in here stays so while their session is still in storage. When it
    * is gone (the other tab signed out) or has been replaced, this tab lets it
-   * go and takes what storage holds now, if the master still accepts it. The
-   * stored record is not touched: it is whatever the other tab left, and
-   * clearing it would sign them out.
+   * go and takes what storage holds now, if the master still accepts it. A tab
+   * that is signed out takes a session that appears for its app (another tab
+   * signed in). The stored record is not touched: it is whatever the other tab
+   * left, and clearing it would sign them out. A change heard before
+   * `api:ready` is judged once the host is ready.
    */
   #onStoreChange() {
+    if (!this.#ready) {
+      if (!this.#stopped) this.#storeChangedEarly = true;
+      return;
+    }
     this.#inSessionLine(() => this.#syncWithStore());
   }
 
   async #syncWithStore() {
-    if (this.#stopped || !this.#ready || !this.#session.signedIn) return;
-    // Still stored (or the store cannot say): nothing changed for this tab.
-    if (this.#holds(this.#session.sessionId) !== false) return;
+    if (this.#stopped || !this.#ready) return;
+    const wasSignedIn = this.#session.signedIn;
+    if (wasSignedIn) {
+      // Still stored (or the store cannot say): nothing changed for this tab.
+      if (this.#holds(this.#session.sessionId) !== false) return;
+      void this.#dropSession();
+    } else if (typeof this.#sessionStore?.load !== 'function') {
+      return;
+    }
 
-    void this.#dropSession();
     const epoch = this.#epoch;
     const replacement = await this.#storedSession(this.#bound.app);
-    if (this.#stopped || epoch !== this.#epoch) return;
-    const failure = text(replacement?.sessionId) ? await this.#openMaster(replacement.sessionId) : HOST_ERRORS.SIGNED_OUT_ELSEWHERE;
+    if (this.#stopped || epoch !== this.#epoch || this.#session.signedIn) return;
+    if (!text(replacement?.sessionId)) {
+      // Nothing to take. A tab that was signed out stays so, and has nothing to be told.
+      if (wasSignedIn) this.#signedOutElsewhere();
+      return;
+    }
+    const failure = await this.#openMaster(replacement.sessionId);
     if (failure === SUPERSEDED || this.#stopped) return;
-    if (failure === null) this.#notAMember = false;
-    this.pushAuth(failure === null ? undefined : HOST_ERRORS.SIGNED_OUT_ELSEWHERE);
+    if (failure !== null) {
+      if (wasSignedIn) this.#signedOutElsewhere();
+      return;
+    }
+    this.#notAMember = false;
+    this.pushAuth();
+    this.#pushConnection();
+  }
+
+  /** This tab's session went with another tab's change, and nothing took its place. */
+  #signedOutElsewhere() {
+    this.pushAuth(HOST_ERRORS.SIGNED_OUT_ELSEWHERE);
     this.#pushConnection();
   }
 

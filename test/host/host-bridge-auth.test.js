@@ -568,7 +568,7 @@ test('a bridge whose auth cannot redeem answers unavailable', async () => {
 // The token channel: a user who is signed in already
 // ---------------------------------------------------------------------------
 
-test('a token while signed in replaces the session: sign out first, then redeem', async () => {
+test('a token while signed in replaces the session: dropped here, in memory only, then redeemed', async () => {
   const auth = fakeAuth({ session: SESSION });
   const env = await ready({ auth });
   assert.equal(env.bridge.state.signedIn, true);
@@ -577,7 +577,7 @@ test('a token while signed in replaces the session: sign out first, then redeem'
   token(env);
   await settle();
 
-  assert.equal(auth.signOutCalls, 1, 'the old session is forgotten before the new one is stored');
+  assert.equal(auth.signOutCalls, 0, 'the stored record is not cleared: the redeem replaces it, and other tabs keep theirs meanwhile');
   assert.equal(stale.closed, 1, 'the old connection is closed');
   assert.deepEqual(env.maker.sessions, [SESSION.sessionId, REDEEMED.sessionId]);
   assert.equal(auth.redeemCalls.length, 1);
@@ -593,10 +593,24 @@ test('a replacement token that is refused leaves the user signed out, and says s
   refuse = true;
   token(env);
   await settle();
+  assert.equal(auth.signOutCalls, 0, 'the stored session stays for the other tabs');
   assert.equal(env.bridge.state.signedIn, false);
   assert.equal(env.maker.connections[0].closed, 1);
   assert.deepEqual(authPushes(env), [{ ...SIGNED_OUT, reason: 'not_a_member' }]);
   assert.deepEqual(connectionPushes(env), [{ state: 'signed_out' }]);
+});
+
+test('a token message without a token is ignored: nothing is redeemed, signed out or pushed', async () => {
+  const auth = fakeAuth({ session: SESSION });
+  const env = await ready({ auth });
+  for (const value of [undefined, '', 42, null, { toString: () => TOKEN }]) token(env, { token: value });
+  await settle();
+
+  assert.deepEqual(auth.redeemCalls, []);
+  assert.equal(auth.signOutCalls, 0);
+  assert.equal(env.maker.connections[0].closed, 0);
+  assert.equal(env.bridge.state.signedIn, true);
+  assert.deepEqual(env.posts(), []);
 });
 
 test('two tokens in a row are redeemed one at a time, in arrival order, and the second wins', async () => {
@@ -614,7 +628,7 @@ test('two tokens in a row are redeemed one at a time, in arrival order, and the 
   first.resolve({ userId: 'u1', sessionId: 'sess-A', networkId: 'net-1' });
   await settle();
   assert.deepEqual(auth.redeemCalls.map((call) => call.token), ['ott-1', 'ott-2']);
-  assert.equal(auth.signOutCalls, 1, 'the first session was signed out for the second');
+  assert.equal(auth.signOutCalls, 0, 'the first session was let go of for the second, and storage left to the redeem');
   second.resolve({ userId: 'u1', sessionId: 'sess-B', networkId: 'net-1' });
   await settle();
 
@@ -865,15 +879,110 @@ test('a storage change that leaves this session in place changes nothing', async
   assert.equal(env.real.fetchImpl.calls.length, checks);
 });
 
-test('a signed-out tab ignores storage changes', async () => {
+test('a signed-out tab adopts a session another tab stored', async () => {
   const real = realAuth();
   const env = await ready({ auth: real.auth, sessionStore: real.store });
   real.otherTab.set({ userId: 'u1', networkId: 'net-1', sessionId: 'sess-THEIRS' });
   real.change();
   await settle();
+
+  assert.equal(env.bridge.state.signedIn, true);
+  assert.deepEqual(env.maker.sessions, ['sess-THEIRS']);
+  assert.deepEqual(authPushes(env), [SIGNED_IN]);
+  assert.deepEqual(connectionPushes(env), [{ state: 'ready' }]);
+  assert.equal(real.fetchImpl.calls.length, 1, 'the session was checked once');
+  assert.equal(real.fetchImpl.calls[0].headers['X-Session-Id'], 'sess-THEIRS');
+});
+
+test('a signed-out tab that hears a change with nothing for it stays signed out and asks nothing', async () => {
+  const real = realAuth();
+  const env = await ready({ auth: real.auth, sessionStore: real.store });
+  real.otherTab.set({ userId: 'u1', networkId: 'other-net', sessionId: 'sess-ELSEWHERE' }); // another app's network
+  real.change();
+  real.storage.removeItem(SESSION_KEY);
+  real.change();
+  await settle();
   assert.equal(env.bridge.state.signedIn, false);
   assert.deepEqual(env.posts(), []);
   assert.deepEqual(real.fetchImpl.calls, [], 'not even a check');
+});
+
+test('a signed-out tab does not adopt a stored session the master refuses, and says nothing', async () => {
+  const real = realAuth();
+  const env = await ready({ auth: real.auth, sessionStore: real.store });
+  real.otherTab.set({ userId: 'u1', networkId: 'net-1', sessionId: 'sess-STALE' });
+  real.fetchImpl.check = 401;
+  real.change();
+  await settle();
+  assert.equal(env.bridge.state.signedIn, false);
+  assert.deepEqual(env.posts(), [], 'it was signed out, and still is');
+  assert.equal(env.maker.sessions.length, 0);
+});
+
+/** Two tabs of the same app over one browser's storage: each its own bridge, store and auth. */
+async function twoTabs() {
+  const storage = new FakeStorage();
+  const tab = async () => {
+    const wired = { handler: null };
+    const store = new SessionStore({ storage, subscribe: (handler) => { wired.handler = handler; } });
+    const fetchImpl = fakeAuthFetch({
+      redeem: { data: { user_id: 'u1', session_token: 'sess-NEW' }, error: { status: false, code: 200, message: '' } },
+    });
+    const tempMaker = fakeMaker({ info: { ...INFO, networkId: 'net-1' } });
+    const auth = new HostAuth({ sessionStore: store, fetchImpl, makeConnection: (id) => tempMaker.make(id) });
+    const env = await ready({ auth, sessionStore: store });
+    env.posts().length = 0;
+    return { ...env, store, change: () => wired.handler?.() };
+  };
+  storage.setItem(SESSION_KEY, JSON.stringify({
+    v: 1, userId: 'u1', sessions: { 'net-1': { sessionId: SESSION.sessionId, createdAt: 1 } },
+  }));
+  const a = await tab();
+  const b = await tab();
+  return { storage, a, b };
+}
+
+test('signing in again in one tab moves the other tabs to the new session, never through signed out', async () => {
+  const { storage, a, b } = await twoTabs();
+  assert.equal(a.bridge.state.signedIn, true);
+  assert.equal(b.bridge.state.signedIn, true);
+  const removed = [];
+  const removeItem = storage.removeItem.bind(storage);
+  storage.removeItem = (key) => { removed.push(key); removeItem(key); };
+
+  token(a);
+  await settle();
+  assert.equal(a.bridge.state.signedIn, true);
+  assert.deepEqual(removed, [], 'the record was replaced, never cleared');
+  assert.equal(a.store.get('net-1').sessionId, 'sess-NEW');
+
+  b.change(); // the browser's storage event, in the other tab
+  await settle();
+  assert.equal(b.bridge.state.signedIn, true, 'the other tab follows the new session');
+  assert.deepEqual(b.maker.sessions, [SESSION.sessionId, 'sess-NEW']);
+  assert.equal(authPushes(b).some((data) => data.reason === 'signed_out_elsewhere'), false);
+  assert.equal(authPushes(b).at(-1).signedIn, true);
+});
+
+test('a storage change heard before api:ready is acted on once the host is ready', async () => {
+  const real = realAuth();
+  real.store.set({ userId: 'u1', networkId: 'net-1', sessionId: SESSION.sessionId });
+  real.hold.check = deferred(); // the stored session is being checked when the other tab signs out
+  const env = setup({ auth: real.auth, sessionStore: real.store, config: { signInOrigins: SIGN_IN_ORIGINS } });
+  bridges.push(env.bridge);
+  env.hello();
+  await settle();
+
+  real.storage.removeItem(SESSION_KEY);
+  real.change();
+  await settle();
+  real.hold.check.resolve();
+  await settle();
+
+  assert.equal(env.posts()[0].data.name, MSG.READY);
+  assert.equal(env.bridge.state.signedIn, false, 'the sign-out elsewhere was not lost');
+  assert.deepEqual(authPushes(env), [{ ...SIGNED_OUT, reason: 'signed_out_elsewhere' }]);
+  assert.equal(env.maker.connections.every((connection) => connection.closed === 1), true);
 });
 
 test('storage changes in a burst are judged by what storage says when they run', async () => {
