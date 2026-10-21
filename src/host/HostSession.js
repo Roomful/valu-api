@@ -122,9 +122,7 @@ export class HostSession {
   #retryTimer = null;
   /** A retry's `connect()` is running. */
   #retrying = false;
-  /** The next retry waits for the network to come back. */
-  #paused = false;
-  /** Retries since the link was last up: the backoff exponent. */
+  /** Retries since the link was last up (or this session began): the backoff exponent. */
   #attempts = 0;
 
   /**
@@ -250,7 +248,6 @@ export class HostSession {
     this.#announce(connectionStateOf(this.#masterState, true) ?? CONNECTION_STATE.READY);
     if (this.#failed) {
       this.#clearRetryTimer();
-      this.#paused = false;
       void this.#retry(connection);
     }
   }
@@ -287,7 +284,6 @@ export class HostSession {
     else if (next === CONNECTION_STATE.READY) {
       this.#lastError = null;
       this.#stopRetry();
-      this.#attempts = 0;
     }
     this.#announce(next);
     if (failed) {
@@ -304,17 +300,14 @@ export class HostSession {
     this.#state = CONNECTION_STATE.READY;
     this.#masterState = 'ready';
     this.#stopRetry();
-    this.#attempts = 0;
     this.#onReconnected?.({ changed: before !== JSON.stringify(this.identity()) });
   }
 
   /** Ask for a retry after the backoff, unless one is due, running, or waiting for the network. */
   #scheduleRetry(connection) {
     if (this.#retryTimer !== null || this.#retrying) return;
-    if (!this.#online()) {
-      this.#paused = true;
-      return;
-    }
+    // No network: no timer. `networkChanged()` retries when it comes back.
+    if (!this.#online()) return;
     const delay = Math.min(backoffDelayMs(this.#attempts, DEFAULT_BACKOFF, this.#random), MAX_TIMER_MS);
     this.#attempts += 1;
     this.#retryTimer = setTimeout(() => {
@@ -330,10 +323,7 @@ export class HostSession {
    */
   async #retry(connection) {
     if (this.#retrying || connection !== this.#connection || !this.#signedIn || !this.#failed) return;
-    if (!this.#online()) {
-      this.#paused = true;
-      return;
-    }
+    if (!this.#online()) return;   // `networkChanged()` retries when the network is back
     this.#retrying = true;
     try {
       await connection.connect();
@@ -350,11 +340,15 @@ export class HostSession {
     this.#retryTimer = null;
   }
 
-  /** The link is up again, the session is over, or the host stopped: no retry is due. */
+  /**
+   * The link is up again, the session is over, or the host stopped: no retry is
+   * due, and the next loss starts the backoff over at the first step (a new
+   * session must not inherit the last one's 30 s).
+   */
   #stopRetry() {
     this.#clearRetryTimer();
     this.#failed = false;
-    this.#paused = false;
+    this.#attempts = 0;
   }
 
   async #closeQuietly(connection) {

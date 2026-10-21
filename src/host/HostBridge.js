@@ -407,6 +407,7 @@ export class HostBridge {
       permissions,
       commerce,
       signedIn: () => this.#session.signedIn,
+      callTimeoutMs: this.#config.callTimeoutMs,
       app: () => this.#bound.app,
       services: () => this.#servicesFor(),
       grants: () => this.#grantsFor(),

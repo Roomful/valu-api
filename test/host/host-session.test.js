@@ -404,6 +404,29 @@ test('a reconnect with no state change before it still starts the backoff over',
   await session.drop();
 });
 
+test('a new session starts the backoff over: its first retry is a second, not the last session\'s 30 s', async (t) => {
+  const { session, maker } = retrying({ script: Array(12).fill('fail') }, t);
+  await session.open('s');
+  const first = maker.connections[0];
+  lose(first);
+  for (const delay of [1000, 2000, 4000, 8000, 16_000, 30_000]) await tick(t, delay); // now at the cap
+  assert.equal(first.connects, 7);
+  await session.drop(); // the user signs out
+
+  await session.open('s2');
+  const second = maker.connections[1];
+  lose(second);
+  await tick(t, 999);
+  assert.equal(second.connects, 1);
+  await tick(t, 1);
+  assert.equal(second.connects, 2, 'the first retry of the new session is at 1 s');
+  await tick(t, 1999);
+  assert.equal(second.connects, 2);
+  await tick(t, 1);
+  assert.equal(second.connects, 3, 'and the next at 2 s: the exponent is its own');
+  await session.drop();
+});
+
 test('retries are never given up: forty failures in a row are all retried', async (t) => {
   const { session, maker } = retrying({ script: Array(60).fill('fail') }, t);
   await session.open('s');

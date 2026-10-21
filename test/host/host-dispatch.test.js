@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 
 import * as Permissions from '../../src/host/Permissions.js';
 import {
-  ACK, CALL_REPLIES, INTENT_REPLIES, answerCall, answerIntent, callRefusal, cartCount, intentRefusal, isIdentityReply,
+  ACK, CALL_REPLIES, INTENT_REPLIES, answerCall, answerIntent, attemptTimeoutMs, callRefusal, cartCount, intentRefusal, isIdentityReply,
   isPlainObject, label, markIdentityReply, markUnretryable, notAvailable, permit, readEventNames, validConsentScopes,
 } from '../../src/host/HostDispatch.js';
 import { MSG } from '../../src/host/protocol.js';
@@ -27,6 +27,7 @@ function fakeHost(overrides = {}) {
       runCommerceIntent: async (action, params, context) => ({ ran: { action, params, context } }),
     },
     signedIn: () => true,
+    callTimeoutMs: 30_000,
     app: () => ({ slug: 'demo' }),
     services: () => ({ call: async (name, params) => ({ data: { name, params } }) }),
     grants: () => ({ has: async () => false }),
@@ -222,6 +223,38 @@ test('answerCall tells its tracker when a write is handed to the services, and n
   const out = fakeHost({ signedIn: () => false }).host;
   await answerCall(out, { service: 'ApplicationStorage', action: 'resource-delete', params: { resourceId: 'r' } }, refused);
   assert.equal(refused.wrote, false, 'a call that never got to the services wrote nothing');
+});
+
+test('attemptTimeoutMs is what the client asked for, capped at the host\'s ceiling, and the ceiling for anything unusable', () => {
+  assert.equal(attemptTimeoutMs(5000, 30_000), 5000);
+  assert.equal(attemptTimeoutMs(30_000, 30_000), 30_000);
+  assert.equal(attemptTimeoutMs(120_000, 30_000), 30_000, 'never more than the host allows');
+  assert.equal(attemptTimeoutMs(1e12, 30_000), 30_000);
+  assert.equal(attemptTimeoutMs(0.5, 30_000), 0.5);
+  for (const unusable of [undefined, null, 0, -1, NaN, Infinity, -Infinity, '5000', {}, [], true, () => 5]) {
+    assert.equal(attemptTimeoutMs(unusable, 30_000), 30_000, String(unusable));
+  }
+});
+
+test('answerCall asks the services once, with no retries and the client\'s timeout (capped at the host\'s)', async () => {
+  const seen = [];
+  const { host } = fakeHost({ services: () => ({ call: async (name, params, options) => { seen.push(options); return { data: 1 }; } }) });
+  await answerCall(host, { service: 'Users', action: 'current', params: {} });
+  await answerCall(host, { service: 'Users', action: 'current', params: {}, timeoutMs: 5000 });
+  await answerCall(host, { service: 'Users', action: 'current', params: {}, timeoutMs: 120_000 });
+  await answerCall(host, { service: 'Users', action: 'current', params: {}, timeoutMs: 'soon' });
+  assert.deepEqual(seen, [
+    { retries: 0, timeoutMs: 30_000 },
+    { retries: 0, timeoutMs: 5000 },
+    { retries: 0, timeoutMs: 30_000 },
+    { retries: 0, timeoutMs: 30_000 },
+  ]);
+
+  const short = fakeHost({ callTimeoutMs: 8000, services: () => ({ call: async (name, params, options) => { seen.push(options); return { data: 1 }; } }) }).host;
+  seen.length = 0;
+  await answerCall(short, { service: 'Users', action: 'current', params: {}, timeoutMs: 20_000 });
+  await answerCall(short, { service: 'Users', action: 'current', params: {}, timeoutMs: 3000 });
+  assert.deepEqual(seen, [{ retries: 0, timeoutMs: 8000 }, { retries: 0, timeoutMs: 3000 }]);
 });
 
 test('answerCall: the services answer is returned, a non-object is a failure, a malformed call never reaches them', async () => {

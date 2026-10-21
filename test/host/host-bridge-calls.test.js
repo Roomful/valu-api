@@ -22,6 +22,7 @@ import assert from 'node:assert/strict';
 import * as Permissions from '../../src/host/Permissions.js';
 import { GrantsStore } from '../../src/host/GrantsStore.js';
 import { GuruClient, GuruError } from '../../src/host/GuruClient.js';
+import { createValuServices } from '../../src/services/api.js';
 import { defaultMakeGrants, defaultMakeGuru } from '../../src/host/HostBridge.js';
 import { MSG, POPUP_MSG } from '../../src/host/protocol.js';
 import {
@@ -42,9 +43,12 @@ afterEach(async () => {
 function fakeServices(answer = () => ({ data: {} })) {
   const services = {
     calls: [],
+    /** The per-call options each call was given, in the same order as `calls`. */
+    options: [],
     answer,
-    call: async (name, params) => {
+    call: async (name, params, options) => {
       services.calls.push({ name, params });
+      services.options.push(options);
       return services.answer(name, params);
     },
   };
@@ -171,6 +175,61 @@ test('api:call Users.current runs through the services and returns the ack', asy
   assert.equal(env.made.services[0].connection, env.maker.connections[0], 'the services run over the session master connection');
   assert.deepEqual(env.made.services[0].app, APP);
   assert.equal(env.made.guru.length, 0, 'a basic call never touches Valu Guru');
+});
+
+test('the host asks the services once: no retries of its own, the client\'s timeoutMs capped at the host\'s', async () => {
+  const env = await ready({ config: { callTimeoutMs: 20_000 } });
+  const send = (extra, requestId) => env.call(MSG.CALL, {
+    service: 'Users', action: 'current', params: {}, requestId, ...extra,
+  });
+  send({ timeoutMs: 5000 }, 1);
+  send({}, 2);
+  send({ timeoutMs: 1e12 }, 3);
+  send({ timeoutMs: -5 }, 4);
+  send({ timeoutMs: 0 }, 5);
+  send({ timeoutMs: '5000' }, 6);
+  send({ timeoutMs: null }, 7);
+  send({ timeoutMs: Number.POSITIVE_INFINITY }, 8);
+  send({ timeoutMs: 20_000 }, 9);
+  await settle();
+  assert.deepEqual(env.services.options, [
+    { retries: 0, timeoutMs: 5000 },
+    { retries: 0, timeoutMs: 20_000 },
+    { retries: 0, timeoutMs: 20_000 },
+    { retries: 0, timeoutMs: 20_000 },
+    { retries: 0, timeoutMs: 20_000 },
+    { retries: 0, timeoutMs: 20_000 },
+    { retries: 0, timeoutMs: 20_000 },
+    { retries: 0, timeoutMs: 20_000 },
+    { retries: 0, timeoutMs: 20_000 },
+  ]);
+});
+
+test('a read the master answers 503 is passed through after one attempt on the wire: the retries are the client\'s', async () => {
+  const emits = [];
+  const env = setup({
+    auth: fakeAuth({ session: SESSION }),
+    makeServices: (connection, app) => createValuServices({ socket: connection.socket, applicationId: app.slug, cache: null }),
+  });
+  bridges.push(env.bridge);
+  await env.open();
+  // What the services read of an authenticated socket, and an RPC that answers 503 as a drop does.
+  Object.assign(env.maker.connections[0].socket, {
+    userId: 'u1',
+    selfUserId: 'u1',
+    networkId: 'n1',
+    emit: async (ns) => {
+      emits.push(ns);
+      return { error: { status: true, code: 503, message: 'disconnected (a drop)' } };
+    },
+  });
+
+  const started = Date.now();
+  ask(env, 'Users', 'list-connection-requests', {}, 1); // a read: the default policy would try it three times
+  await settle();
+  assert.equal(emits.length, 1, 'one wire attempt, not the default policy\'s three');
+  assert.equal(replyTo(env, 1).message.error.code, 503, 'the ack is passed through for the client to retry');
+  assert.ok(Date.now() - started < 200, 'and the host slept no backoff of its own');
 });
 
 test('api:call answers an ack error unchanged, and passes a missing params as {}', async () => {

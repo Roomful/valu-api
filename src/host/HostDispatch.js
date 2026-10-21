@@ -41,6 +41,7 @@ import { HOST_ERRORS, MSG } from './protocol.js';
  * @property {() => {has: (scope: string) => Promise<boolean>}} grants may throw when the Guru client cannot be made.
  * @property {() => object} guru the Guru client; may throw the same way.
  * @property {() => object|null} user the master's `user_info.user`.
+ * @property {number} callTimeoutMs the longest one attempt of a call may take (`config.callTimeoutMs`).
  * @property {() => string|null} networkId
  * @property {(ns: string, data: object) => Promise<{data?: any, error?: any}>} emit an RPC over the master.
  * @property {() => Set<string>} subscribed the Commerce events the app listens for.
@@ -54,6 +55,20 @@ export const ACK = Object.freeze({ UNAUTHENTICATED: 401, BUSY: 429, INTERNAL: 50
 /** The longest nonce a consent request may carry, and the most scopes it may name. */
 export const NONCE_MAX = 128;
 export const SCOPES_MAX = 64;
+
+const isPositiveNumber = (value) => typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+/**
+ * How long the host lets its one attempt of a call run: what the client asked
+ * for (`message.timeoutMs`), never more than `ceiling` (`config.callTimeoutMs`),
+ * and the ceiling when the client asked for nothing usable (missing, not a
+ * finite positive number).
+ * @param {unknown} requested
+ * @param {number} ceiling
+ */
+export function attemptTimeoutMs(requested, ceiling) {
+  return isPositiveNumber(requested) ? Math.min(requested, ceiling) : ceiling;
+}
 
 /** A ValuAck error; `extra` rides on the error object (`scope`, `retryable`). */
 export const ackError = (code, message, extra) => ({ error: { status: true, code, message, ...extra } });
@@ -235,7 +250,10 @@ export async function permit(host, scope) {
  * the scope so a local function with a basic scope is refused too), params that
  * fit (400), the scope's tier (403), and only then the services, whose ack is
  * returned unchanged except that a write cut off by a drop or a timeout is
- * marked `retryable: false`.
+ * marked `retryable: false`. The services are asked once (`retries: 0`) with the
+ * client's `timeoutMs` (capped at `callTimeoutMs`, which is also the default):
+ * retrying a read is the client's policy, and the host's own would only multiply
+ * the wire attempts and sleep past the client's timer.
  *
  * `track` is how the caller and the call talk while it runs. `track.wrote` is
  * set the moment a function that writes is handed to the services, so a caller
@@ -247,7 +265,7 @@ export async function permit(host, scope) {
  * @param {{service?: unknown, action?: unknown, params?: unknown}} message
  * @param {Track} [track]
  */
-export async function answerCall(host, { service, action, params }, track) {
+export async function answerCall(host, { service, action, params, timeoutMs }, track) {
   const descriptor = typeof service === 'string' && typeof action === 'string'
     ? findDescriptor(`${service}.${action}`)
     : undefined;
@@ -264,7 +282,11 @@ export async function answerCall(host, { service, action, params }, track) {
   if (track?.abandoned) return CALL_REPLIES.timeout;
   const services = host.services();
   if (track) track.wrote = descriptor.mutates;
-  const ack = await services.call(descriptor.key, input);
+  // One attempt: the retries belong to the client (its own policy retries a read, and the host
+  // retrying under it would multiply the wire attempts and sleep past the client's timer).
+  const ack = await services.call(descriptor.key, input, {
+    retries: 0, timeoutMs: attemptTimeoutMs(timeoutMs, host.callTimeoutMs),
+  });
   return isPlainObject(ack) ? markUnretryable(descriptor, ack) : CALL_REPLIES.failed;
 }
 

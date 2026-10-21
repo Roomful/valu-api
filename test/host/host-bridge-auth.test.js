@@ -1406,10 +1406,10 @@ test('a lost master is connected again by itself, and the reconnect path runs', 
   master.setState('failed', unavailable());
   assert.deepEqual(connectionPushes(env), [{ state: 'reconnecting' }]);
   assert.deepEqual(env.bridge.state.lastError, { code: 'unavailable', message: 'the connection to Valu is unavailable' });
-  t.mock.timers.tick(999);
+  t.mock.timers.tick(799); // the shortest the first delay can be is 0.8 s (1 s - 20 %)
   await settle();
-  assert.equal(master.connects, 1, 'not before a second');
-  t.mock.timers.tick(201); // the longest the first delay can be
+  assert.equal(master.connects, 1, 'not before 0.8 s');
+  t.mock.timers.tick(401); // the longest it can be is 1.2 s
   await settle();
 
   assert.equal(master.connects, 2, 'the host asked the master to connect again');
