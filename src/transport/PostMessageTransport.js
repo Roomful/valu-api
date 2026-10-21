@@ -20,8 +20,8 @@
 // bound ONCE, on the first `api:ready` that is acceptable, and everything after
 // it (replies, triggers, a further `api:ready`) is taken only from that same
 // source and origin. Acceptable means:
-//   - embedded (`globalThis.parent` exists and is not this window): the sender
-//     is `globalThis.parent`. The embedding Valu Social application is the
+//   - embedded (the `target` window has a `parent` that is not itself): the
+//     sender is that parent. The embedding Valu Social application is the
 //     parent; nothing else is the peer.
 //   - not embedded (Node, a worker, a top-level page — there is no parent to
 //     name): the first `api:ready` from any source, as before. Without a
@@ -134,8 +134,8 @@ export class PostMessageTransport extends Transport {
   /** Whether this `api:ready` may bind the peer, or repeat the bound one's. */
   #acceptsReady(event) {
     if (this.connected) return this.#fromPeer(event);
-    const parent = globalThis.parent;
-    if (parent && parent !== globalThis && event.source !== parent) return false;
+    const parent = this.#target.parent;
+    if (parent && parent !== this.#target && event.source !== parent) return false;
     return !this.#hostOrigins || this.#hostOrigins.includes(event.origin);
   }
 

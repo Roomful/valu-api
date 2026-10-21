@@ -400,3 +400,35 @@ export function fakeAuthFetch({ check = 200, redeem } = {}) {
   };
   return impl;
 }
+
+// ---------------------------------------------------------------------------
+// Time
+// ---------------------------------------------------------------------------
+
+/**
+ * A clock the test turns: hand `setTimeout` / `clearTimeout` to the code under
+ * test, then `tick(ms)` runs what is due, in order, including what that
+ * schedules. `pending` is how many timers are still waiting, so a test can
+ * prove none was left behind.
+ */
+export function fakeClock() {
+  let now = 0;
+  let sequence = 0;
+  const timers = new Map();
+  return {
+    setTimeout(fn, ms) { sequence += 1; timers.set(sequence, { at: now + ms, fn }); return sequence; },
+    clearTimeout(id) { timers.delete(id); },
+    get pending() { return timers.size; },
+    tick(ms) {
+      const end = now + ms;
+      for (;;) {
+        const due = [...timers].filter(([, t]) => t.at <= end).sort((a, b) => a[1].at - b[1].at || a[0] - b[0])[0];
+        if (!due) break;
+        timers.delete(due[0]);
+        now = due[1].at;
+        due[1].fn();
+      }
+      now = end;
+    },
+  };
+}

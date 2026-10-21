@@ -338,40 +338,60 @@ const peerWindow = (label, log) => ({
 });
 
 /**
- * `window.parent` exists in a browser and not in Node. The transport reads it
- * as each message arrives, so a test sets it for the length of one body.
+ * A window the transport listens on, framed by `parent`. The transport asks
+ * ITS target who the parent is (a page may be handed a window that is not
+ * `globalThis`), so the test sets `parent` on the target.
  */
-const withParent = (parent, body) => {
-  const had = Object.hasOwn(globalThis, 'parent');
-  const previous = globalThis.parent;
-  globalThis.parent = parent;
-  try { return body(); } finally {
-    if (had) globalThis.parent = previous; else delete globalThis.parent;
-  }
+const framedSetup = (parent, transportOptions = {}) => {
+  const target = new FakeWindow();
+  target.parent = parent;
+  const api = new ValuApi({ transport: new PostMessageTransport({ target, ...transportOptions }) });
+  return { api, target };
 };
 
 test('api:ready from a window other than parent is ignored', () => {
-  const { api, target } = setup();
   const log = [];
   const parent = peerWindow('parent', log);
   const stranger = peerWindow('stranger', log);
+  const { api, target } = framedSetup(parent);
   const ready = [];
   api.addEventListener(ValuApi.API_READY, () => ready.push('ready'));
 
-  withParent(parent, () => {
-    target.deliver({ name: 'api:ready', message: { applicationId: 'evil' }, source: stranger });
-    assert.equal(api.connected, false);
-    assert.deepEqual(ready, []);
-    assert.throws(() => api.transport.notify('api:ping', {}), /has not sent api:ready/);
+  target.deliver({ name: 'api:ready', message: { applicationId: 'evil' }, source: stranger });
+  assert.equal(api.connected, false);
+  assert.deepEqual(ready, []);
+  assert.throws(() => api.transport.notify('api:ping', {}), /has not sent api:ready/);
 
-    target.deliver({ name: 'api:ready', message: { applicationId: 'app-1' }, source: parent });
+  target.deliver({ name: 'api:ready', message: { applicationId: 'app-1' }, source: parent });
+  assert.equal(api.connected, true);
+  assert.equal(api.transport.applicationId, 'app-1');
+  assert.deepEqual(ready, ['ready']);
+
+  api.transport.notify('api:ping', {});
+  assert.deepEqual(log, [{ label: 'parent', name: 'api:ping', origin: 'https://valu.test' }]);
+});
+
+test('the parent is the target window\'s, not the global one', () => {
+  const log = [];
+  const stranger = peerWindow('stranger', log);
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'parent');
+  globalThis.parent = peerWindow('global-parent', log);
+  try {
+    // The target has no parent: it is not framed, so the first api:ready binds,
+    // whatever `globalThis.parent` happens to be.
+    const { api, target } = setup();
+    target.deliver({ name: 'api:ready', message: { applicationId: 'app-1' }, source: stranger });
     assert.equal(api.connected, true);
-    assert.equal(api.transport.applicationId, 'app-1');
-    assert.deepEqual(ready, ['ready']);
 
-    api.transport.notify('api:ping', {});
-    assert.deepEqual(log, [{ label: 'parent', name: 'api:ping', origin: 'https://valu.test' }]);
-  });
+    // A target that is its own parent is top-level too.
+    const top = new FakeWindow();
+    top.parent = top;
+    const topApi = new ValuApi({ transport: new PostMessageTransport({ target: top }) });
+    top.deliver({ name: 'api:ready', message: { applicationId: 'app-2' }, source: stranger });
+    assert.equal(topApi.connected, true);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, 'parent', previous); else delete globalThis.parent;
+  }
 });
 
 test('a second api:ready from another origin does not re-point replies', async () => {

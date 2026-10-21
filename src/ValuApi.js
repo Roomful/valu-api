@@ -13,6 +13,10 @@ export { APIPointer } from "./APIPointer.js";
 // so `import { ... } from '@arkeytyp/valu-api'` reaches all of it.
 export { Transport } from "./transport/Transport.js";
 export { PostMessageTransport } from "./transport/PostMessageTransport.js";
+// Dedicated mode: the host iframe, and the one factory an app calls
+// (docs/connecting.md, "Dedicated mode").
+export { HostTransport } from "./transport/HostTransport.js";
+export { createValuApp } from "./createValuApp.js";
 export { SocketTransport } from "./transport/SocketTransport.js";
 export { BrowserSocketAdapter } from "./socket/BrowserSocketAdapter.js";
 export { NodeSocketAdapter } from "./socket/NodeSocketAdapter.js";
