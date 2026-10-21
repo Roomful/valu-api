@@ -62,6 +62,17 @@ export async function run(): Promise<void> {
   const me = await valu.data.Users.current();
   void me;
 
+  // By name, for a caller that holds a string.
+  const byName: ValuAck<{ rooms: unknown[] }> = await valu.call('Rooms.searchMyRooms', { filter: 'all' }, { timeoutMs: 5_000 });
+  void byName.data?.rooms;
+  const payload: { rooms: unknown[] } = await valu.invoke('Rooms.searchMyRooms', { filter: 'all' });
+  void payload;
+  const tools = valu.toolDefinitions({ service: 'Rooms' });
+  void tools[0]?.function.name;
+
   void state;
   void retryable;
 }
+
+// The embedded app pins where the parent speaks from.
+export const embedded = createValuApp({ mode: 'embedded', hostOrigins: ['https://live.valuverse.io'] });

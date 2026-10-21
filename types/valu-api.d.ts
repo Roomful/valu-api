@@ -25,7 +25,8 @@ declare module '@arkeytyp/valu-api' {
          *
          *  Service functions are NOT on this object: they run over a socket,
          *  from anywhere, and `createValuServices({ socket })` is how you get
-         *  them (docs/socket-functions.md).
+         *  them (docs/socket-functions.md), or over the host of a dedicated
+         *  app, which `createValuApp()` sets up (docs/connecting.md).
          */
         constructor(options?: { transport?: Transport });
 
@@ -269,8 +270,9 @@ declare module '@arkeytyp/valu-api' {
     export function dataAck<T>(data: T): ValuAck<T>;
     export function errorAck(code?: number, message?: string, description?: string): ValuAck;
 
-    /** What carries a call: the postMessage bridge, or a socket. Only a socket
-     * transport serves service functions. */
+    /** What carries a call: the postMessage bridge, a socket, or the host. A
+     * socket transport and the host transport serve service functions; the
+     * bare postMessage bridge does not. */
     export abstract class Transport {
         static READY: string;
         static TRIGGER: string;
@@ -279,8 +281,9 @@ declare module '@arkeytyp/valu-api' {
         static RESOURCE_UPDATED: string;
 
         get connected(): boolean;
-        /** Whether this transport can run service functions. Only
-         * `SocketTransport` can; `ServiceClient` refuses anything else. */
+        /** Whether this transport can run service functions. `SocketTransport`
+         * and `HostTransport` can; `PostMessageTransport` cannot, and
+         * `ServiceClient` refuses a transport that does not. */
         get servesServiceFunctions(): boolean;
         get name(): string;
         open(): Promise<void>;
@@ -909,6 +912,12 @@ declare module '@arkeytyp/valu-api' {
         signInOrigin?: string;
         /** The app's address, `<workspace>/<slug>`, sent in `host:hello`: dev hosts only. */
         app?: string;
+        /**
+         * Embedded only: the origins the embedding application's `api:ready` may
+         * come from (the sender must be `window.parent` regardless). Omitted: any
+         * origin. Dedicated mode ignores it; its host is the one at `hostOrigin`.
+         */
+        hostOrigins?: string[];
         /** Default: `dedicated` for a top-level page or one loaded with `?valu-mode=dedicated`,
          * `embedded` for a framed one. */
         mode?: ValuMode;
@@ -927,7 +936,8 @@ declare module '@arkeytyp/valu-api' {
 
     /**
      * What `createValuApp` returns: the service functions (`valu.Users.current()`,
-     * every method answers an ack) next to `auth`, `network`, `connection` and the
+     * every method answers an ack; `call`, `invoke` and `toolDefinitions` for a
+     * caller that holds a name) next to `auth`, `network`, `connection` and the
      * bridge methods.
      */
     export type ValuApp = ValuServices & {
@@ -942,6 +952,24 @@ declare module '@arkeytyp/valu-api' {
         readonly data: ValuServicesData;
         /** The `ValuApi` underneath, for `setApplication`, `getApi`, `runConsoleCommand` and the routes. */
         readonly bridge: ValuApi;
+
+        /**
+         * Call a service function by name (`'Rooms.searchMyRooms'`, `'Rooms.search-my-rooms'`),
+         * for a caller that holds a string. The same call as `valu.Rooms.searchMyRooms(...)`:
+         * resolves the ack and never rejects, and a `consent_required` refusal gets the
+         * same retry. Embedded: `501`.
+         */
+        call<T = any>(name: string, params?: object, options?: {
+            timeoutMs?: number; retries?: number; bypassCache?: boolean;
+        }): Promise<ValuAck<T>>;
+        /** `call`, unwrapped: resolves the payload, throws `ValuServiceError`. */
+        invoke<T = any>(name: string, params?: object, options?: {
+            timeoutMs?: number; retries?: number; bypassCache?: boolean;
+        }): Promise<T>;
+        /** LLM tool definitions of the service functions; by default the ones an AI caller may reach. */
+        toolDefinitions(filter?: {
+            service?: string; channel?: ServiceChannel; availability?: string | null; mutates?: boolean;
+        }): LlmToolDefinition[];
 
         /** Ask the host to run one of ITS intents (`Commerce.add-to-cart` …). */
         callService(intent: Intent): Promise<any>;

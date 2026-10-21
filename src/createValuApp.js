@@ -36,7 +36,8 @@
 // consent dialog and repeated ONCE; otherwise the refusal is the answer and the
 // app asks from its own click with `auth.requestConsent([scope])`. The retry
 // lives under the service client (a transport wrapper), so `valu.X.y()`,
-// `valu.data.X.y()` and calls by name all get it.
+// `valu.data.X.y()` and the by-name calls (`valu.call(name, params)`,
+// `valu.invoke(...)`) all get it.
 // ===========================================================================
 import { ValuApi } from './ValuApi.js';
 import { Transport } from './transport/Transport.js';
@@ -279,6 +280,20 @@ class ValuApp {
 
   /** The `ValuApi` underneath, for what is not copied onto this object: `setApplication`, `getApi`, `runConsoleCommand`, `pushRoute`. */
   get bridge() { return this.#bridge; }
+
+  // --- the service functions, by name ----------------------------------------
+  // For a caller that holds a string (an LLM tool call, say): the same client
+  // and transport as `valu.X.y()`, so the consent retry is under them too, and
+  // embedded mode answers 501.
+
+  /** Call a service function by name (`'Rooms.searchMyRooms'`, `'Rooms.search-my-rooms'`). Resolves the ack; never rejects. */
+  call(name, params, options) { return this.#services.call(name, params, options); }
+
+  /** `call`, unwrapped: resolves the payload, throws `ValuServiceError`. */
+  invoke(name, params, options) { return this.#services.invoke(name, params, options); }
+
+  /** LLM tool definitions of the service functions: what an AI caller may reach, unless `filter.availability` says otherwise. */
+  toolDefinitions(filter) { return this.#services.toolDefinitions(filter); }
 
   // --- the bridge ----------------------------------------------------------
 
@@ -552,6 +567,9 @@ class ValuApp {
  *   through. Default `https://live.valuverse.io`.
  * @param {string} [options.app] The app's address (`<workspace>/<slug>`), told to the host in
  *   `host:hello` (dedicated). A dev host serves a localhost page under it; a production host ignores it.
+ * @param {string[]} [options.hostOrigins] Embedded: the origins the embedding application's `api:ready`
+ *   may come from (spec §4.8's optional pin; the sender is `window.parent` regardless). Omitted: any.
+ *   Dedicated mode ignores it: the host is the one at `hostOrigin`.
  * @param {'dedicated'|'embedded'} [options.mode] Default: dedicated for a top-level page or `?valu-mode=dedicated`,
  *   embedded for a framed one.
  * @param {Window} [options.window] The page's window.
@@ -570,6 +588,7 @@ export async function createValuApp({
   hostOrigin = DEFAULT_HOST_ORIGIN,
   signInOrigin = DEFAULT_SIGN_IN_ORIGIN,
   app: appAddress,
+  hostOrigins,
   mode,
   window: win = globalThis,
   document: doc = globalThis.document,
@@ -597,7 +616,7 @@ export async function createValuApp({
       setTimeout: setTimer,
       clearTimeout: clearTimer,
     })
-    : new PostMessageTransport({ target: win });
+    : new PostMessageTransport({ target: win, ...(hostOrigins !== undefined ? { hostOrigins } : {}) });
 
   const app = new ValuApp({
     mode: resolved, transport, hostOrigin, signInOrigin, win, popup, setTimer, clearTimer,

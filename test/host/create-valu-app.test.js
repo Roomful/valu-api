@@ -871,7 +871,7 @@ test('fetchImpl and localTransport reach the local functions', async (t) => {
 test('no service name collides with a member of the app', async (t) => {
   const h = await setup(t);
   const members = ['mode', 'ready', 'auth', 'network', 'connection', 'data', 'bridge', 'close', 'callService',
-    'sendIntent', 'onCommerceEvent', 'addEventListener', 'removeEventListener'];
+    'sendIntent', 'onCommerceEvent', 'addEventListener', 'removeEventListener', 'call', 'invoke', 'toolDefinitions'];
   for (const service of ValuServiceApi.services()) {
     assert.equal(members.includes(service), false, service);
     assert.equal(typeof h.valu[service], 'object', `valu.${service} is the namespace`);
@@ -1038,13 +1038,71 @@ test('consent retry covers the unwrapped tree and calls by name', async (t) => {
   const h = await setup(t, { activation: true });
   refusing(h);
 
-  const call = track(h.valu.data.Rooms.getRoom({ roomId: 'r1' }));
+  const unwrapped = track(h.valu.data.Rooms.getRoom({ roomId: 'r1' }));
   await settle();
   assert.equal(h.popups.calls.length, 1);
   grant(h);
   await settle();
+  assert.deepEqual(unwrapped.value, { id: 'r1' });
 
-  assert.deepEqual(call.value, { id: 'r1' });
+  // By name: `valu.call` answers the ack, `valu.invoke` the payload; the same retry sits under both.
+  refusing(h, { answer: { data: { rooms: [] } } });
+  const byName = track(h.valu.call('Rooms.searchMyRooms', { filter: 'all' }));
+  await settle();
+  assert.equal(h.popups.calls.length, 2, 'the refusal opened the consent dialog');
+  assert.deepEqual(h.sent(MSG.CONSENT).at(-1).data.message.scopes, ['rooms:read']);
+  assert.equal(byName.settled, false, 'the call waits for the user');
+  grant(h);
+  await settle();
+  assert.deepEqual(byName.value, { data: { rooms: [] } });
+  const posted = h.sent(MSG.CALL).slice(-2).map((post) => post.data.message);
+  assert.deepEqual(
+    posted.map((message) => [message.service, message.action, message.params]),
+    [['Rooms', 'search-my-rooms', { filter: 'all' }], ['Rooms', 'search-my-rooms', { filter: 'all' }]],
+    'the same call, once more',
+  );
+
+  refusing(h, { answer: { data: { rooms: ['a'] } } });
+  // (Another filter: the answer above is cached for the same params.)
+  const invoked = track(h.valu.invoke('Rooms.search-my-rooms', { filter: 'favourite' }));
+  await settle();
+  grant(h);
+  await settle();
+  assert.deepEqual(invoked.value, { rooms: ['a'] });
+  assert.equal(h.popups.calls.length, 3);
+});
+
+test('call and invoke by name are the tree\'s calls: unknown, invalid, local and refused', async (t) => {
+  const h = await setup(t);
+  assert.equal((await h.valu.call('Nope.nothing')).error.code, 404);
+  assert.equal((await h.valu.call('Rooms.searchMyRooms', {})).error.code, 400, 'a required param missing');
+  assert.equal(h.sent(MSG.CALL).length, 0, 'neither reached the host');
+
+  const failure = await h.valu.invoke('Nope.nothing').catch((error) => error);
+  assert.equal(failure.name, 'ValuServiceError');
+  assert.equal(failure.code, 404);
+
+  const local = await h.valu.call('Time.getLocalTime');
+  assert.ok(local.data.iso, 'a local function runs in the page');
+  assert.equal(h.sent(MSG.CALL).length, 0);
+
+  h.host.call = () => ({ data: { user: USER } });
+  assert.deepEqual(await h.valu.call('Users.current'), await h.valu.Users.current(), 'the same as the method');
+  assert.deepEqual(await h.valu.invoke('Users.current'), { user: USER }, 'the payload');
+
+  h.host.call = () => CONSENT_REQUIRED;
+  assert.deepEqual(await h.valu.call('Rooms.getRoom', { roomId: 'r1' }), CONSENT_REQUIRED, 'without user activation, as it is');
+  await assert.rejects(h.valu.invoke('Rooms.getRoom', { roomId: 'r1' }), { name: 'ValuServiceError', code: 403 });
+});
+
+test('toolDefinitions on the app are the package\'s', async (t) => {
+  const h = await setup(t);
+  assert.deepEqual(h.valu.toolDefinitions(), ValuServiceApi.toolDefinitions());
+  const rooms = h.valu.toolDefinitions({ service: 'Rooms' });
+  assert.ok(rooms.length > 0);
+  assert.deepEqual(rooms, ValuServiceApi.toolDefinitions({ service: 'Rooms' }));
+  assert.ok(rooms.every((tool) => tool.type === 'function' && typeof tool.function.name === 'string'));
+  assert.deepEqual(h.valu.toolDefinitions({ availability: null }), ValuServiceApi.toolDefinitions({ availability: null }));
 });
 
 // ---------------------------------------------------------------------------
@@ -1280,6 +1338,36 @@ test('embedded: the service tree answers 501 and posts nothing', async (t) => {
   assert.match(ack.error.message, /not available in embedded mode/);
   assert.equal((await h.valu.data.Users.current().catch((error) => error)).code, 501);
   assert.equal(h.win.posted.length, 0);
+});
+
+test('embedded: call and invoke by name answer 501 and post nothing; toolDefinitions still work', async (t) => {
+  const h = await setupEmbedded(t);
+  h.win.ready();
+
+  const ack = await h.valu.call('Users.current');
+  assert.equal(ack.error.code, 501);
+  assert.match(ack.error.message, /not available in embedded mode/);
+  assert.equal((await h.valu.invoke('Users.current').catch((error) => error)).code, 501);
+  assert.equal((await h.valu.call('Nope.nothing')).error.code, 404, 'a name that is no function is still a 404');
+  assert.equal(h.win.posted.length, 0);
+  assert.deepEqual(h.valu.toolDefinitions({ service: 'Users' }), ValuServiceApi.toolDefinitions({ service: 'Users' }));
+});
+
+test('embedded: hostOrigins pins the origin the parent\'s api:ready may come from', async (t) => {
+  const pinned = await setupEmbedded(t, { hostOrigins: ['https://valu.test'] });
+  pinned.win.ready();
+  assert.equal(pinned.valu.connection.state, 'ready');
+
+  const other = await setupEmbedded(t, { hostOrigins: ['https://elsewhere.test'] });
+  other.win.ready();
+  await settle();
+  assert.equal(other.valu.connection.state, 'connecting', 'the parent speaks from an origin that is not listed');
+
+  const none = await setupEmbedded(t);
+  none.win.ready();
+  assert.equal(none.valu.connection.state, 'ready', 'no list, no pin');
+
+  await assert.rejects(embeddedHarness(t, { hostOrigins: 'https://valu.test' }).create(), TypeError);
 });
 
 test('embedded: the bridge methods are the ones ValuApi has', async (t) => {

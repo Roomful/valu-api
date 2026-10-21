@@ -121,7 +121,8 @@ export class ValuApi {
    *
    *   This object is that bridge: pointers, intents, console and routes.
    *   Service functions are not on it — they run over a socket, from anywhere,
-   *   and `createValuServices({ socket })` is how you get them.
+   *   and `createValuServices({ socket })` is how you get them, or over the
+   *   host of a dedicated app, which `createValuApp()` sets up.
    */
   constructor(options = {}) {
     this.#eventEmitter = new EventEmitter();
@@ -249,7 +250,8 @@ export class ValuApi {
    * (docs/api-pointers.md).
    *
    * Service functions are the other thing, and they are not on this bridge:
-   * `createValuServices({ socket })` (docs/socket-functions.md).
+   * `createValuServices({ socket })` (docs/socket-functions.md), or, in a
+   * dedicated app, `createValuApp()` (docs/connecting.md).
    */
   async callService(intent) {
     return this.#transport.request('api:service-intent', {

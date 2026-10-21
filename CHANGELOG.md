@@ -14,6 +14,13 @@
   consent dialog opened on `consent_required` when the call came from a click. A
   framed page stays **embedded**, as it always was. See
   [docs/connecting.md](docs/connecting.md#dedicated-mode--createvaluapp).
+- `valu.call(name, params, options)`, `valu.invoke(name, params, options)` and
+  `valu.toolDefinitions(filter)` on the object `createValuApp` returns: the
+  by-name surface of the services tree, over the same client and transport as
+  `valu.Users.current()` (so the consent retry applies), in both modes (embedded
+  answers `501`).
+- `createValuApp({ hostOrigins })`: embedded mode's optional pin on the origins
+  the embedding application's `api:ready` may come from.
 - `HostTransport`, exported from the package entry: the page's side of the host
   bridge, used by `createValuApp`.
 - Types for both, and for the auth and connection state and the error codes
@@ -21,6 +28,19 @@
 
 ### Changed
 
+- **Embedded bridge hardening** (`PostMessageTransport`). It used to take
+  `api:ready` from any window and re-point every later message at its sender, so
+  any frame or opener that could post to the page could take the bridge over.
+  Now: `api:ready` is accepted only from `window.parent` when the page is framed;
+  the origin of the first one is bound, and replies, triggers and further
+  `api:ready` messages are taken only from that window and origin; everything
+  else is dropped. There is no default origin list; `hostOrigins` (above) pins one.
+  A page that is not framed has no parent to name, so its first `api:ready` binds,
+  subject to `hostOrigins`, as before.
+- The rule on service functions: they run over a connection (`SocketTransport`)
+  or over the host bridge (`HostTransport`), which checks the app's grants before
+  every call. `PostMessageTransport` still serves none; `HostTransport` is the one
+  other transport that does ([docs/authorization.md](docs/authorization.md)).
 - `SocketTransport.socket` is now `ValuSocket | null`. `socket: null` builds a
   transport with no socket: it serves the `local` functions (`Http.*`, `Time.*`,
   the resource-URL builders) and answers every other one `503`. Code that read

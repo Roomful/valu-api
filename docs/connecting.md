@@ -224,6 +224,16 @@ payload), next to `mode`, `ready`, `auth`, `network` and `connection`.
 for `name`; without a handler it clears every listener of `name` (the bridge's
 emitter, as in `ValuApi`).
 
+For a caller that holds a string (an LLM tool call, say) the same object has the
+by-name surface of the services tree: `valu.call(name, params, options)` resolves
+the ack and never rejects, `valu.invoke(name, params, options)` resolves the
+payload and throws `ValuServiceError`, and `valu.toolDefinitions(filter)` lists the
+functions as LLM tool definitions (by default the ones an AI caller may reach). A
+name resolves in any spelling the tree's methods accept (`Rooms.searchMyRooms`,
+`Rooms.search-my-rooms`). They run through the same client and transport as
+`valu.Rooms.searchMyRooms()`, so the consent retry below is under them too, and in
+embedded mode they answer `501` like the tree.
+
 ### Which mode
 
 | the page is | mode |
@@ -245,6 +255,7 @@ refuses to run nested).
 | `hostOrigin` | `https://valuguru.texpo.io` | Where the host is served: a bare origin. The iframe's origin, and the only origin it is heard from. |
 | `signInOrigin` | `https://live.valuverse.io` | The Valu brand users sign in through. A Chabad-network app passes `https://chabaduniverse.com`. The host accepts a sign-in only from its four known brand origins. |
 | `app` | none | The app's address `<workspace>/<slug>`, sent in `host:hello` (dedicated only). A dev host serves a localhost page under it; a production host ignores it. |
+| `hostOrigins` | none | Embedded only: the origins the embedding application's `api:ready` may come from, an array such as `['https://live.valuverse.io']`. The sender must be `window.parent` regardless; the origin of the first `api:ready` is then the only one replies go to and messages are taken from. Omitted, any origin is accepted (there is no default list: the package cannot know every Valu brand and dev host). Dedicated mode ignores it. |
 | `mode` | from the page | `'dedicated'` or `'embedded'`. |
 | `window`, `document` | the globals | Where messages arrive, and where the iframe goes. |
 | `popup` | `window.open` | `(url, name, features)`, returning the window or `null`: for a page that opens windows its own way. |
@@ -319,8 +330,9 @@ is the scope's: `rooms:read`, `commerce:write` …). The host answers such a cal
 - **From a click.** If the call was made inside a user gesture
   (`navigator.userActivation.isActive`), the client opens the consent dialog at
   once and, when the user allows it, repeats the call **once**. The app only sees
-  the final answer. Calls that wait on the same scope share one dialog; the
-  dialog never opens beside another.
+  the final answer, whichever way it called: `valu.X.y()`, `valu.data.X.y()`,
+  `valu.call(name)` or `valu.invoke(name)`. Calls that wait on the same scope share
+  one dialog; the dialog never opens beside another.
 - **Otherwise** the ack is the answer, and the app asks from its own click:
   `button.onclick = () => valu.auth.requestConsent(['rooms:read'])`, then calls again.
 
@@ -355,7 +367,13 @@ the app should reload.
 Inside Valu Social nothing changes: the bridge is `ValuApi` as it was, `valu.ready`
 follows `api:ready`, `auth.signIn()`, `signOut()` and `requestConsent()` reject
 `not_available`, `auth.state` is always signed out (the embedding application owns
-the session), and every service function answers `501`. Use `valu.mode` to tell.
+the session), and every service function answers `501`, by name too. Use
+`valu.mode` to tell.
+
+The bridge there is also as it was, with the hardening of the transport: the
+peer is the embedding window (`window.parent`) only, bound once by its first
+`api:ready`, and every later message is taken only from that window and origin.
+`hostOrigins` narrows it further.
 
 See also: [socket-adapters.md](socket-adapters.md) for what a socket *is* here
 and how to write a third adapter, [socket-functions.md](socket-functions.md) for
