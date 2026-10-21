@@ -12,9 +12,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import pkg from '../../package.json' with { type: 'json' };
 import { HostTransport } from '../../src/transport/HostTransport.js';
 import { Transport } from '../../src/transport/Transport.js';
+import { VERSION } from '../../src/version.js';
 import { MSG, toParent } from '../../src/host/protocol.js';
 import { errorAck } from '../../src/Errors.js';
 import { findDescriptor, listDescriptors } from '../../src/services/descriptors.js';
@@ -139,7 +139,7 @@ test('open posts host:hello with protocol 1 and resolves on api:ready', async (t
   const hellos = h.sent(MSG.HELLO);
   assert.equal(hellos.length, 1);
   assert.equal(hellos[0].targetOrigin, h.hostOrigin, 'never a wildcard');
-  assert.deepEqual(hellos[0].data, { name: 'host:hello', message: { protocol: 1, client: pkg.version } });
+  assert.deepEqual(hellos[0].data, { name: 'host:hello', message: { protocol: 1, client: VERSION } });
 
   assert.deepEqual(ready, [READY], 'READY carries the api:ready message');
   assert.deepEqual(h.transport.hostState, READY.host);
@@ -255,7 +255,7 @@ test('callService posts api:call and resolves the ack', async (t) => {
   assert.equal(typeof requestId, 'number');
   assert.deepEqual(post.data, {
     name: 'api:call',
-    message: { service: 'Users', action: 'current', params: { a: 1 }, requestId },
+    message: { service: 'Users', action: 'current', params: { a: 1 }, requestId, timeoutMs: 5000 },
   });
   assert.equal(h.clock.pending, 2, 'the ping and this call\'s timeout');
 
@@ -333,10 +333,11 @@ test('a write that was posted and timed out says it is not safe to repeat', asyn
   assert.deepEqual(await call, { error: { status: true, code: 408, message: 'timeout', retryable: false } });
 });
 
-test('callService defaults to a 30 s timeout', async (t) => {
+test('callService defaults to a 30 s timeout, and tells the host the one it uses', async (t) => {
   const h = setup(t);
   await h.transport.open();
   const call = h.transport.callService(READ, {});
+  assert.equal(h.sent(MSG.CALL)[0].data.message.timeoutMs, 30_000);
   h.clock.tick(29_999);
   assert.equal(await settled(call), false);
   h.clock.tick(1);
@@ -690,7 +691,7 @@ test('a second failure is host_unreachable, pushed as connection offline', async
   await assert.rejects(h.transport.request(MSG.AUTH, {}), { code: 'host_unreachable' });
 });
 
-test('a host that answers the second hello with host:error offers that code as the reason', async (t) => {
+test('the reason of connection offline is the host\'s own error code, host_unreachable only when it gave none', async (t) => {
   const h = setup(t);
   await h.transport.open();
   const triggers = h.heard(Transport.TRIGGER);
@@ -849,6 +850,67 @@ test('close during a recovery ends it', async (t) => {
   assert.deepEqual(await held, errorAck(503, 'transport closed'));
   assert.equal(h.doc.body.children.length, 0);
   assert.equal(h.clock.pending, 0);
+});
+
+test('close from a listener of the reconnecting push starts nothing', async (t) => {
+  const h = setup(t);
+  await h.transport.open();
+  const { call } = await callOut(h);
+  h.transport.addEventListener(Transport.TRIGGER, (message) => {
+    if (message.data?.state === 'reconnecting') h.transport.close();
+  });
+
+  h.doc.frames[0].fire('error');
+  await settle();
+
+  assert.equal(h.doc.frames.length, 1, 'no new iframe was made');
+  assert.equal(h.doc.body.children.length, 0);
+  assert.equal(h.sent(MSG.HELLO).length, 1, 'and no new hello was posted');
+  assert.equal(h.clock.pending, 0, 'no ready timer, no ping');
+  assert.equal(h.pair.app.listeners.size, 0);
+  assert.deepEqual(await call, errorAck(503, 'host_restarted'), 'what was in flight was answered before the push');
+  assert.deepEqual(await h.transport.callService(READ, {}), errorAck(503, 'transport closed'));
+});
+
+test('close from a listener of the auth push after a recovery says no reconnect', async (t) => {
+  const h = setup(t);
+  await h.transport.open();
+  const triggers = h.heard(Transport.TRIGGER);
+  const reconnected = h.heard(Transport.RECONNECTED);
+  h.answers.ready = { ...READY, host: { ...READY.host, signedIn: false, user: null, network: null } };
+  h.transport.addEventListener(Transport.TRIGGER, (message) => {
+    if (message.action === 'auth') h.transport.close();
+  });
+
+  h.doc.frames[0].fire('error');
+  await settle();
+
+  assert.deepEqual(triggers.map((m) => m.action), ['connection', 'auth'], 'reconnecting, then the auth change, then nothing');
+  assert.deepEqual(reconnected, []);
+  assert.equal(h.doc.body.children.length, 0);
+  assert.equal(h.clock.pending, 0, 'the ping the recovery started is stopped');
+  assert.equal(h.transport.connected, false);
+});
+
+test('a listener that loses the new host again keeps its own recovery, and the old one announces nothing', async (t) => {
+  const h = setup(t);
+  await h.transport.open();
+  const reconnected = h.heard(Transport.RECONNECTED);
+  h.answers.ready = { ...READY, host: { ...READY.host, signedIn: false, user: null, network: null } };
+  let once = true;
+  h.transport.addEventListener(Transport.TRIGGER, (message) => {
+    if (message.action === 'auth' && once) {
+      once = false;
+      h.doc.frames[1].fire('error');
+    }
+  });
+
+  h.doc.frames[0].fire('error');
+  await settle();
+
+  assert.equal(h.doc.frames.length, 3, 'the second death is recovered once');
+  assert.equal(reconnected.length, 1, 'one reconnect, from the host that stayed');
+  assert.equal(h.clock.pending, 1, 'one ping chain');
 });
 
 test('close does not close a localTransport it was given', async (t) => {

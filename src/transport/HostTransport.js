@@ -27,7 +27,8 @@
 // replaced, and the handshake runs ONCE more. The stored session makes that
 // silent for the user. Calls made while it happens are held for it, within their
 // own timeout; if the second handshake fails too, the transport says
-// `connection offline` (reason `host_unreachable`) and stays down.
+// `connection offline` (the `reason` is the host's own error code, say
+// `unknown_app`, or `host_unreachable` when it gave none) and stays down.
 // ===========================================================================
 import { Transport } from './Transport.js';
 import { SocketTransport } from './SocketTransport.js';
@@ -38,7 +39,7 @@ import { CONNECTION_STATE, HOST_ERRORS, MSG, PROTOCOL_VERSION } from '../host/pr
 import { isOrigin } from '../host/origins.js';
 // Registers the service functions: the `local` ones run on this page.
 import '../services/impl/index.js';
-import pkg from '../../package.json' with { type: 'json' };
+import { VERSION } from '../version.js';
 
 /** Replies that settle a pending request, by `requestId`. */
 const REPLY_NAMES = new Set([
@@ -85,6 +86,21 @@ const identityChanged = (before, after) => before?.signedIn !== after.signedIn
   || before?.user?.id !== after.user?.id
   || before?.network?.id !== after.network?.id;
 
+/**
+ * The page's side of the host bridge: a hidden iframe on the host origin, and
+ * the one transport that serves service functions for a dedicated-mode app.
+ *
+ * Events (see {@link Transport}): READY once, with the `api:ready` message;
+ * TRIGGER for every host push, `{action, data}`; RECONNECTED when the host says
+ * it reconnected, or after the iframe was replaced (the SDK cache is dropped).
+ *
+ * When the host dies, the iframe is replaced once and the handshake re-run
+ * (`connection reconnecting`, then `connection {state, reconnected: true}`).
+ * When that handshake fails too, the transport is down for good and pushes
+ * `connection {state: 'offline', reason}`. The `reason` is the code the host
+ * gave (`unknown_app`, `nested`, …), or `host_unreachable` when there was none
+ * (it did not answer in time, or the frame failed).
+ */
 export class HostTransport extends Transport {
   #hostOrigin;
   #win;
@@ -241,8 +257,9 @@ export class HostTransport extends Transport {
       };
       this.#pending.set(requestId, entry);
       timer = this.#setTimer(() => done(failed(errorAck(ERROR_CODES.TIMEOUT, 'timeout'))), timeoutMs);
+      // `timeoutMs` is this attempt's, so the host can bound its one attempt to it.
       this.#send(requestId, entry, MSG.CALL, {
-        service: descriptor.service, action: descriptor.action, params, requestId,
+        service: descriptor.service, action: descriptor.action, params, requestId, timeoutMs,
       });
     });
   }
@@ -325,7 +342,7 @@ export class HostTransport extends Transport {
     if (this.#opening !== pending || pending.frame !== frame) return;
     try {
       frame.contentWindow.postMessage(
-        { name: MSG.HELLO, message: { protocol: PROTOCOL_VERSION, client: pkg.version } },
+        { name: MSG.HELLO, message: { protocol: PROTOCOL_VERSION, client: VERSION } },
         this.#hostOrigin,
       );
     } catch (error) {
@@ -371,6 +388,8 @@ export class HostTransport extends Transport {
     this.#failInFlight(hostError(HOST_ERRORS.HOST_RESTARTED));
     this.#dropFrame();
     this.#apply({ action: 'connection', data: { state: CONNECTION_STATE.RECONNECTING } });
+    // A listener of that push may have closed the transport: nothing is started then.
+    if (this.#phase !== 'recovering') return;
 
     let ready;
     try {
@@ -395,6 +414,9 @@ export class HostTransport extends Transport {
     if (identityChanged(before, ready.host)) {
       const { signedIn, user, network } = ready.host;
       this.#apply({ action: 'auth', data: { signedIn, user, network } });
+      // A listener may have closed the transport, or lost this host again: the
+      // reconnect is then not the news.
+      if (this.#phase !== 'ready') return;
     }
     this.#apply({ action: 'connection', data: { state: this.#connectionState, reconnected: true } });
   }
