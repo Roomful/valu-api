@@ -188,8 +188,27 @@ class FakePairWindow {
   /** @internal The other side, the caller of this window's `postMessage`; set by the pair. */
   peer = null;
 
-  addEventListener(type, listener) { if (type === 'message') this.listeners.add(listener); }
-  removeEventListener(type, listener) { if (type === 'message') this.listeners.delete(listener); }
+  /** Listeners of every other event type (`online`, `offline`, …): type -> Set. `listeners` is `message` only. */
+  windowListeners = new Map();
+
+  addEventListener(type, listener) {
+    if (type === 'message') {
+      this.listeners.add(listener);
+      return;
+    }
+    if (!this.windowListeners.has(type)) this.windowListeners.set(type, new Set());
+    this.windowListeners.get(type).add(listener);
+  }
+
+  removeEventListener(type, listener) {
+    if (type === 'message') this.listeners.delete(listener);
+    else this.windowListeners.get(type)?.delete(listener);
+  }
+
+  /** Fire a window event that is not a message (`fire('offline')`) at this window's listeners. */
+  fire(type, event = { type }) {
+    for (const listener of [...(this.windowListeners.get(type) ?? [])]) listener(event);
+  }
 
   /**
    * A message to this window. Delivered, synchronously, to this window's

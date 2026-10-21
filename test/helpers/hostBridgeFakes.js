@@ -93,19 +93,42 @@ export function fakeMaker({ info = INFO, error = null, connect } = {}) {
     connections: [],
     /** Set to keep a closed connection's subscribers, so a test can fire events at a master that was let go of. */
     keepHandlers: false,
+    /** How the retries of a `failed` connection end, in order (see `connect` below); empty: they succeed. */
+    script: [],
     make(sessionId) {
       maker.sessions.push(sessionId);
       const stateHandlers = new Set();
       const reconnectedHandlers = new Set();
       const connection = {
         closed: 0,
+        /** How many times `connect()` was called on it: the first connect and every retry. */
+        connects: 0,
         state: 'idle',
         lastError: null,
         socket: { emit: async () => ({ data: {} }) },
+        // The first connect says nothing (nobody is subscribed yet). A connect from `failed` is a retry, as
+        // `MasterConnection.connect()` has it: the state moves, and `maker.script` says how it ends (the next entry,
+        // default `'ok'`): `'ok'` or a `MasterInfo` (a reconnect, with that `user_info`), `'fail'` (unavailable),
+        // `'expire'` (the master refuses the session).
         connect: connect ? () => connect(connection) : async () => {
-          if (error) throw error;
-          connection.state = 'ready';
-          return info;
+          connection.connects += 1;
+          if (connection.state !== 'failed') {
+            if (error) throw error;
+            connection.state = 'ready';
+            return info;
+          }
+          const outcome = maker.script.length > 0 ? maker.script.shift() : 'ok';
+          connection.setState('connecting');
+          if (outcome === 'ok' || typeof outcome === 'object') {
+            const fresh = typeof outcome === 'object' ? outcome : info;
+            connection.lastError = null;
+            connection.setState('ready');
+            connection.reconnected(fresh);
+            return fresh;
+          }
+          const failure = codedError(outcome === 'expire' ? 'session_expired' : 'unavailable');
+          connection.setState('failed', failure);
+          throw failure;
         },
         close: async () => {
           connection.closed += 1;

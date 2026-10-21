@@ -60,10 +60,19 @@
 // protocol.js): `auth` (who the user is, with a `reason` when there is one) and
 // `connection` (`connecting|ready|reconnecting|offline|signed_out`). A master
 // that drops and returns invalidates the grants cache and pushes
-// `{state:'ready', reconnected:true}`. One the master refuses (`session_expired`,
-// from the master or from Valu Guru) is signed out: the stored session is
-// forgotten, every request still waiting is answered `sign_in_required`, and the
-// app is pushed `signedIn:false, reason:'session_expired'`. Another tab that signs
+// `{state:'ready', reconnected:true}`; a master that is lost is connected again
+// by the session itself (backoff 1 s to 30 s, never giving up while the user is
+// signed in), and the browser's `online` / `offline` events push `offline` or
+// the current state and end a wait at once. One the master refuses
+// (`session_expired`, from the master or from Valu Guru) is signed out: the
+// stored session is forgotten (only if storage still holds it: another tab may
+// have signed in since), every request still waiting is answered
+// `sign_in_required`, and the app is pushed `signedIn:false,
+// reason:'session_expired'`. Whatever ends a session does so for the session
+// that asked: an answer that arrives after the user signed out and in again (a
+// Guru mint, a restore, a connect) is about a session that is gone and does
+// nothing to the new one (`#epoch`, and the connection a `HostSession` listens
+// to). Another tab that signs
 // the user out, or replaces the session, is heard through `sessionStore.onChange`
 // (the page wires the browser's `storage` event to it, and must treat an event
 // whose `key` is `null`, a `localStorage.clear()`, as a change too): the host
@@ -338,7 +347,8 @@ export class HostBridge {
    * @param {object} options
    * @param {Window} options.win The host page's window.
    * @param {{resolve: (origin: string) => Promise<object|null>}} options.resolver
-   * @param {{restore: Function, signOut: Function}} options.auth A `HostAuth`.
+   * @param {{restore: Function, redeem: Function, signOut: Function}} options.auth A `HostAuth`. `redeem` is
+   *   what the sign-in token channel needs; the bridge answers `unavailable` to a token when it is missing.
    * @param {{onChange: (handler: () => void) => (() => void), load?: () => object|null}} [options.sessionStore]
    *   A `SessionStore`: `onChange` is how another tab's sign-out or sign-in arrives, `load` says what is
    *   stored. The page wiring (Task 12) feeds `onChange` from the browser's `storage` event and must treat an
@@ -431,6 +441,8 @@ export class HostBridge {
     if (this.#stopped) throw new Error('a stopped HostBridge cannot be started again');
     if (this.#listening) return this;
     this.#win.addEventListener('message', this.#onMessage);
+    this.#win.addEventListener('online', this.#onNetwork);
+    this.#win.addEventListener('offline', this.#onNetwork);
     this.#listening = true;
     const unsubscribe = this.#sessionStore?.onChange?.(() => this.#onStoreChange());
     this.#unsubscribeStore = typeof unsubscribe === 'function' ? unsubscribe : null;
@@ -443,6 +455,8 @@ export class HostBridge {
     this.#stopped = true;
     if (this.#listening) {
       this.#win.removeEventListener('message', this.#onMessage);
+      this.#win.removeEventListener('online', this.#onNetwork);
+      this.#win.removeEventListener('offline', this.#onNetwork);
       this.#listening = false;
     }
     this.#ready = false;
@@ -566,6 +580,19 @@ export class HostBridge {
       this.#dispatch(parsed);
     } catch (error) {
       this.#log('error', `a message handler failed: ${error?.message ?? error}`);
+    }
+  };
+
+  /**
+   * The browser's `online` / `offline`: the session tells the app (`offline`, or
+   * what the master's state makes of it) and, when the network is back, retries a
+   * master that was waiting.
+   */
+  #onNetwork = () => {
+    try {
+      if (!this.#stopped) this.#session.networkChanged();
+    } catch (error) {
+      this.#log('error', `a network change could not be handled (${error?.name ?? 'error'})`);
     }
   };
 
@@ -705,6 +732,7 @@ export class HostBridge {
    */
   async #mintGuruToken() {
     const sessionId = this.#session.sessionId;
+    const epoch = this.#epoch;
     if (!sessionId) throw Object.assign(new Error('no session to mint a token with'), { code: HOST_ERRORS.SIGN_IN_REQUIRED });
     if (typeof this.#fetch !== 'function') throw new Error('no fetch to mint a token with');
     const networkId = this.#networkId();
@@ -718,7 +746,9 @@ export class HostBridge {
     // sees that its state stays `reconnecting` when this is not its first failure, so the
     // session ends here, where it is known.
     if (body?.error?.code === 401) {
-      this.#sessionExpired();
+      // Only the session that asked: a mint that was in flight when the user signed out and
+      // in again is about a session that is gone, and says nothing about the new one.
+      if (epoch === this.#epoch) this.#sessionExpired();
       throw Object.assign(new Error('the master refused the session'), { code: HOST_ERRORS.SESSION_EXPIRED });
     }
     const token = body?.data?.token;
@@ -897,10 +927,12 @@ export class HostBridge {
     }
 
     this.#bound = { origin, app };
-    await this.#restoreSession(app);
+    const failure = await this.#restoreSession(app);
     if (this.#stopped) return;
     this.#ready = true;
     this.#sendReady();
+    // A stored session the master refused at connect: say why, not only "signed out".
+    if (failure === HOST_ERRORS.SESSION_EXPIRED) this.pushAuth(HOST_ERRORS.SESSION_EXPIRED);
   }
 
   /**
@@ -936,8 +968,8 @@ export class HostBridge {
   /** Restore the stored session, and when there is one, open the master. A timeout is "no session". */
   async #restoreSession(app) {
     const stored = await this.#storedSession(app);
-    if (this.#stopped || !text(stored?.sessionId)) return;
-    await this.#openMaster(stored.sessionId);
+    if (this.#stopped || !text(stored?.sessionId)) return null;
+    return this.#openMaster(stored.sessionId);
   }
 
   /** What `auth.restore` finds for this app, within `restoreTimeoutMs`; null when nothing, or it failed. */
@@ -957,13 +989,30 @@ export class HostBridge {
    */
   async #openMaster(sessionId) {
     const failure = await this.#session.open(sessionId);
-    if (failure === HOST_ERRORS.SESSION_EXPIRED && !this.#stopped) this.#forgetSession();
+    if (failure === HOST_ERRORS.SESSION_EXPIRED && !this.#stopped) this.#forgetSession(sessionId);
     return failure;
   }
 
-  /** Clear the stored session. */
-  #forgetSession() {
+  /**
+   * Is `sessionId` in storage? `null` when the store cannot say (it has no `load`).
+   * @returns {boolean|null}
+   */
+  #holds(sessionId) {
+    if (typeof this.#sessionStore?.load !== 'function') return null;
+    const record = this.#sessionStore.load();
+    return Object.values(record?.sessions ?? {}).some((entry) => entry?.sessionId === sessionId);
+  }
+
+  /**
+   * Clear the stored session. Given the `sessionId` that ended, only when storage
+   * still holds that session (as `HostAuth.restore` does): another tab may have
+   * signed in since, and its record is not ours to clear. A store that cannot say,
+   * and an explicit sign-out (no id), clear.
+   * @param {string|null} [sessionId]
+   */
+  #forgetSession(sessionId = null) {
     try {
+      if (sessionId !== null && this.#holds(sessionId) === false) return;
       this.#auth.signOut();
     } catch (error) {
       this.#log('warn', `the stored session could not be cleared (${error?.name ?? 'error'})`);
@@ -1013,7 +1062,7 @@ export class HostBridge {
    */
   #sessionExpired() {
     if (this.#stopped || !this.#session.signedIn) return;
-    this.#forgetSession();
+    this.#forgetSession(this.#session.sessionId);
     void this.#dropSession(HOST_ERRORS.SESSION_EXPIRED);
     for (const held of [...this.#running]) held.expire();
     this.pushAuth(HOST_ERRORS.SESSION_EXPIRED);
@@ -1091,14 +1140,13 @@ export class HostBridge {
       redeemed = await this.#auth.redeem(data.token, { homeNetworkId: app.homeNetworkId ?? undefined });
       if (!text(redeemed?.sessionId)) throw new TypeError('no session');
     } catch (error) {
-      this.#log('warn', `a sign-in token could not be redeemed (${error?.code ?? error?.name ?? 'error'})`);
-      this.#signInFailed(error?.code);
+      this.#signInFailed(error?.code, 'a sign-in token could not be redeemed');
       return;
     }
     if (this.#stopped) return;
     if (epoch !== this.#epoch) {
       // The user signed out while the master was asked: the session just stored is not wanted.
-      this.#forgetSession();
+      this.#forgetSession(redeemed.sessionId);
       return;
     }
 
@@ -1112,12 +1160,20 @@ export class HostBridge {
     this.#pushConnection();
   }
 
-  /** A sign-in did not come up: the app is told why (a code it does not know is "unavailable"). */
-  #signInFailed(code) {
+  /**
+   * A sign-in did not come up: the app is told why. A code the host does not
+   * know is "unavailable", and what is logged is that reason, never the raw
+   * code or the error's message.
+   * @param {unknown} code
+   * @param {string} [what] Logged with the reason, when the failure is worth a line.
+   */
+  #signInFailed(code, what) {
     const reasons = [
       HOST_ERRORS.NOT_A_MEMBER, HOST_ERRORS.INVALID_TOKEN, HOST_ERRORS.SESSION_EXPIRED, HOST_ERRORS.UNAVAILABLE,
     ];
-    this.pushAuth(reasons.includes(code) ? code : HOST_ERRORS.UNAVAILABLE);
+    const reason = reasons.includes(code) ? code : HOST_ERRORS.UNAVAILABLE;
+    if (what) this.#log('warn', `${what} (${reason})`);
+    this.pushAuth(reason);
     this.#pushConnection();
   }
 
@@ -1136,10 +1192,8 @@ export class HostBridge {
 
   async #syncWithStore() {
     if (this.#stopped || !this.#ready || !this.#session.signedIn) return;
-    if (typeof this.#sessionStore?.load !== 'function') return;
-    const record = this.#sessionStore.load();
-    const stored = Object.values(record?.sessions ?? {}).some((entry) => entry?.sessionId === this.#session.sessionId);
-    if (stored) return;
+    // Still stored (or the store cannot say): nothing changed for this tab.
+    if (this.#holds(this.#session.sessionId) !== false) return;
 
     void this.#dropSession();
     const epoch = this.#epoch;

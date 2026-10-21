@@ -102,6 +102,7 @@ test('open answers session_expired for a refused session and unavailable for any
     assert.equal(session.lastError.code, expected);
     assert.equal(told.logs.length, 1);
     assert.equal(told.logs[0].level, 'warn');
+    assert.equal(told.logs[0].message, `the master did not accept the session (${expected})`, 'the reason, never the raw code');
   }
 });
 
@@ -224,6 +225,7 @@ test('a failed connection with no usable error is just a lost link', async () =>
   assert.equal(told.expired, 0);
   assert.deepEqual(told.states, ['reconnecting', 'ready', 'reconnecting']);
   assert.equal(session.lastError.code, 'unavailable');
+  await session.drop(); // a lost link is retried: stop the retries
 });
 
 test('a reconnect refreshes who the user is and says whether it changed', async () => {
@@ -286,4 +288,264 @@ test('a connection without subscriptions still opens', async () => {
   });
   assert.equal(await session.open('s'), null);
   assert.equal(session.signedIn, true);
+});
+
+// ---------------------------------------------------------------------------
+// A lost master is connected again by itself
+// ---------------------------------------------------------------------------
+
+/** A session whose clock is the mock one and whose jitter is `random` (0.5: none). */
+function retrying({ script = [], online = () => true, random = () => 0.5 } = {}, t) {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const maker = fakeMaker();
+  maker.script = script;
+  const told = { states: [], reconnected: [], expired: 0 };
+  const session = new HostSession({
+    makeConnection: (sessionId) => maker.make(sessionId),
+    log: () => {},
+    online: () => online(),
+    random,
+    onState: (state) => told.states.push(state),
+    onReconnected: (change) => told.reconnected.push(change),
+    onExpired: () => { told.expired += 1; },
+  });
+  return { session, maker, told };
+}
+
+/** Advance the mock clock and let the retry it fires run. */
+const tick = async (t, ms) => {
+  t.mock.timers.tick(ms);
+  await settle();
+};
+
+const lose = (master) => master.setState('failed', codedError('unavailable'));
+
+test('a lost master is connected again by itself, backing off 1 s, 2 s, 4 s ... capped at 30 s', async (t) => {
+  const { session, maker } = retrying({ script: Array(8).fill('fail') }, t);
+  await session.open('s');
+  const master = maker.connections[0];
+  assert.equal(master.connects, 1);
+
+  lose(master);
+  let connects = 1;
+  for (const delay of [1000, 2000, 4000, 8000, 16_000, 30_000, 30_000, 30_000]) {
+    await tick(t, delay - 1);
+    assert.equal(master.connects, connects, `${delay} ms is not reached yet`);
+    await tick(t, 1);
+    connects += 1;
+    assert.equal(master.connects, connects, `retried after ${delay} ms`);
+  }
+  await session.drop();
+});
+
+for (const [name, random, delay] of [['low', () => 0, 800], ['high', () => 0.9999, 1200]]) {
+  test(`the retry delay carries +-20 % jitter (${name} end: ${delay} ms)`, async (t) => {
+    const { session, maker } = retrying({ random }, t);
+    await session.open('s');
+    const master = maker.connections[0];
+    lose(master);
+    await tick(t, delay - 2);
+    assert.equal(master.connects, 1, 'not yet');
+    await tick(t, 2);
+    assert.equal(master.connects, 2, `retried at ${delay} ms`);
+    await session.drop();
+  });
+}
+
+test('a retry that succeeds is a reconnect: the owner hears ready and what user_info now says', async (t) => {
+  const fresh = { userId: 'u1', networkId: 'n2', user: INFO.user, network: { id: 'n2', fullName: 'Other' } };
+  const { session, maker, told } = retrying({ script: [fresh] }, t);
+  await session.open('s');
+  lose(maker.connections[0]);
+  await tick(t, 1000);
+
+  assert.deepEqual(told.states, ['reconnecting', 'ready']);
+  assert.deepEqual(told.reconnected, [{ changed: true }]);
+  assert.equal(session.identity().network.id, 'n2');
+  assert.equal(session.state, 'ready');
+  assert.equal(session.lastError, null);
+  await tick(t, 100_000);
+  assert.equal(maker.connections[0].connects, 2, 'and nothing is retried once it is back');
+});
+
+test('after a reconnect the backoff starts over', async (t) => {
+  const { session, maker } = retrying({ script: ['fail', 'fail', 'ok'] }, t);
+  await session.open('s');
+  const master = maker.connections[0];
+  lose(master);
+  await tick(t, 1000);
+  await tick(t, 2000);
+  await tick(t, 4000);
+  assert.equal(master.connects, 4);
+  assert.equal(master.state, 'ready');
+
+  lose(master);
+  await tick(t, 999);
+  assert.equal(master.connects, 4);
+  await tick(t, 1);
+  assert.equal(master.connects, 5, 'a second again');
+  await session.drop();
+});
+
+test('a reconnect with no state change before it still starts the backoff over', async (t) => {
+  const { session, maker } = retrying({ script: ['fail', 'fail'] }, t);
+  await session.open('s');
+  const master = maker.connections[0];
+  lose(master);
+  await tick(t, 1000);
+  await tick(t, 2000);
+  assert.equal(master.connects, 3);
+  master.reconnected(INFO); // the master says it is back, without a state event first
+  lose(master);
+  await tick(t, 999);
+  assert.equal(master.connects, 3);
+  await tick(t, 1);
+  assert.equal(master.connects, 4, 'a second again, not 4 s');
+  await session.drop();
+});
+
+test('retries are never given up: forty failures in a row are all retried', async (t) => {
+  const { session, maker } = retrying({ script: Array(60).fill('fail') }, t);
+  await session.open('s');
+  const master = maker.connections[0];
+  lose(master);
+  for (let i = 0; i < 40; i += 1) await tick(t, 30_000);
+  assert.ok(master.connects >= 41, `${master.connects} connects`);
+  assert.equal(session.signedIn, true);
+  assert.equal(session.state, 'reconnecting');
+  await session.drop();
+});
+
+test('a retry that finds the session refused expires it, and stops', async (t) => {
+  const { session, maker, told } = retrying({ script: ['expire'] }, t);
+  await session.open('s');
+  const master = maker.connections[0];
+  lose(master);
+  await tick(t, 1000);
+  assert.equal(told.expired, 1);
+  assert.deepEqual(session.lastError, { code: 'session_expired', message: 'the session is no longer valid' });
+  await tick(t, 100_000);
+  assert.equal(master.connects, 2, 'no retry after that, even before the owner has dropped the session');
+  await session.drop('session_expired'); // what the owner does
+});
+
+test('a master that is lost again while it is being retried does not stack timers', async (t) => {
+  const { session, maker } = retrying({ script: ['fail'] }, t);
+  await session.open('s');
+  const master = maker.connections[0];
+  lose(master);
+  lose(master);
+  lose(master);
+  await tick(t, 1000); // one retry, which fails
+  assert.equal(master.connects, 2);
+  await tick(t, 1999);
+  assert.equal(master.connects, 2, 'the next is booked once, 2 s after the first failed');
+  await tick(t, 1);
+  assert.equal(master.connects, 3, 'one at a time, on the backoff');
+  await session.drop();
+});
+
+test('a master that comes back by itself (a call replaced it) cancels the retry', async (t) => {
+  const { session, maker } = retrying({}, t);
+  await session.open('s');
+  const master = maker.connections[0];
+  lose(master);
+  master.setState('connecting');
+  master.setState('ready');
+  await tick(t, 100_000);
+  assert.equal(master.connects, 1, 'nothing was retried');
+  await session.drop();
+});
+
+test('drop stops the retries, and so does a session that was replaced', async (t) => {
+  const { session, maker } = retrying({}, t);
+  await session.open('s');
+  const first = maker.connections[0];
+  lose(first);
+  await session.drop();
+  await tick(t, 100_000);
+  assert.equal(first.connects, 1);
+
+  await session.open('s2');
+  const second = maker.connections[1];
+  lose(second);
+  await session.drop();
+  await session.open('s3');
+  await tick(t, 100_000);
+  assert.equal(second.connects, 1, 'the retry of a session that is gone does not touch the new one');
+  assert.equal(maker.connections[2].connects, 1);
+  await session.drop();
+});
+
+test('nothing is retried while the browser is offline, and the network coming back retries at once', async (t) => {
+  let online = false;
+  const { session, maker, told } = retrying({}, t);
+  const offlineSession = new HostSession({
+    makeConnection: (id) => maker.make(id),
+    log: () => {},
+    online: () => online,
+    random: () => 0.5,
+    onState: (state) => told.states.push(state),
+    onReconnected: (change) => told.reconnected.push(change),
+  });
+  assert.ok(session);
+  await offlineSession.open('s');
+  const master = maker.connections[0];
+  lose(master);
+  assert.deepEqual(told.states, ['offline']);
+  await tick(t, 100_000);
+  assert.equal(master.connects, 1, 'paused');
+
+  online = true;
+  offlineSession.networkChanged();
+  await settle();
+  assert.equal(master.connects, 2, 'retried at once, not after a backoff');
+  assert.deepEqual(told.states, ['offline', 'reconnecting', 'ready']);
+  assert.deepEqual(told.reconnected, [{ changed: false }]);
+  await offlineSession.drop();
+});
+
+test('a retry that is due when the network is gone waits for it', async (t) => {
+  let online = true;
+  const { maker, told } = retrying({}, t);
+  const session = new HostSession({
+    makeConnection: (id) => maker.make(id), log: () => {}, online: () => online, random: () => 0.5, onState: (state) => told.states.push(state),
+  });
+  await session.open('s');
+  const master = maker.connections[0];
+  lose(master);
+  online = false;
+  await tick(t, 1000); // the timer fires with no network: nothing is tried
+  assert.equal(master.connects, 1);
+  await tick(t, 100_000);
+  assert.equal(master.connects, 1);
+  online = true;
+  session.networkChanged();
+  await settle();
+  assert.equal(master.connects, 2);
+  assert.equal(session.state, 'ready');
+  await session.drop();
+});
+
+test('networkChanged says offline when the network goes and the master state when it returns', async (t) => {
+  let online = true;
+  const { maker, told } = retrying({}, t);
+  const session = new HostSession({
+    makeConnection: (id) => maker.make(id), log: () => {}, online: () => online, random: () => 0.5, onState: (state) => told.states.push(state),
+  });
+  session.networkChanged();
+  assert.deepEqual(told.states, [], 'signed out: nothing to say');
+
+  await session.open('s');
+  session.networkChanged();
+  assert.deepEqual(told.states, [], 'online and ready: nothing changed');
+  online = false;
+  session.networkChanged();
+  session.networkChanged();
+  assert.deepEqual(told.states, ['offline'], 'offline, whatever the socket still believes, once');
+  assert.equal(session.state, 'offline');
+  online = true;
+  session.networkChanged();
+  assert.deepEqual(told.states, ['offline', 'ready']);
+  await session.drop();
 });

@@ -15,9 +15,12 @@
 //                user is, with the `reason` when the change has one (see
 //                HOST_ERRORS: `cancelled`, `master_mismatch`, `not_a_member`,
 //                `invalid_token`, `unavailable`, `session_expired`,
-//                `signed_out_elsewhere`). `signedIn` is the state NOW: a reason
-//                that does not change the state (a cancelled popup for a user who
-//                is signed in) arrives with the state as it stands.
+//                `signed_out_elsewhere`). `signedIn` is the state NOW, so a push
+//                is not always a sign-in result: `cancelled` and `master_mismatch`
+//                report what the popup did and change nothing, and arrive with
+//                the current `signedIn` (true for a user who was signed in).
+//                A client waiting for `signIn()` must read `reason` BEFORE it
+//                looks at `signedIn`.
 //   connection   `{state}` with `state` one of {@link CONNECTION_STATE}, when the
 //                host's link to the platform changes; after a drop that came
 //                back, `{state:'ready', reconnected:true}`, which a client reads

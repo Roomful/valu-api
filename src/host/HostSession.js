@@ -21,6 +21,16 @@
 //     refused the session. Nothing is said while the first connection is being
 //     made: the caller has that answer in hand, and the page starts out
 //     `connecting` on the app's side.
+//   - RETRY. `MasterConnection` replaces a lost connection only on the next call
+//     that needs one, so an idle app would stay disconnected for good. When the
+//     master reaches `failed` for any reason but a refused session, this calls
+//     `connect()` again by itself: 1 s, 2 s, 4 s ... capped at 30 s, each +-20 %
+//     (the Valu Guru client's `backoffDelayMs`), for as long as the user is
+//     signed in. Nothing is tried while the browser has no network
+//     (`online() === false`); `networkChanged()` ends the wait at once when it
+//     comes back. A retry that succeeds is the master's own `onReconnected`, so
+//     the caller's reconnect path runs; one that finds the session refused is
+//     `onExpired`; `drop()` stops it all.
 //
 // How a refused session surfaces after the first connect: `MasterConnection`
 // replaces a lost connection on the next call that needs one, and if the master
@@ -36,7 +46,11 @@
 // caller's.
 // ===========================================================================
 import { displayNameOf } from '../socket/user-info.js';
+import { DEFAULT_BACKOFF, backoffDelayMs } from './GuruClient.js';
 import { CONNECTION_STATE, HOST_ERRORS } from './protocol.js';
+
+/** The longest a timer can be: `setTimeout` fires a longer one at once. */
+const MAX_TIMER_MS = 2_147_483_647;
 
 /** What `open()` answers when the session was dropped (or replaced) while it was connecting. */
 export const SUPERSEDED = Symbol('superseded');
@@ -84,6 +98,7 @@ export class HostSession {
   #makeConnection;
   #log;
   #online;
+  #random;
   #onState;
   #onReconnected;
   #onExpired;
@@ -100,23 +115,36 @@ export class HostSession {
   /** @type {string} */
   #state = CONNECTION_STATE.SIGNED_OUT;
   #lastError = null;
+  /** The master connection's own state as last heard (`ready` once it is open). */
+  #masterState = 'idle';
+  /** The master is `failed` for a reason other than a refused session: a retry is due. */
+  #failed = false;
+  #retryTimer = null;
+  /** A retry's `connect()` is running. */
+  #retrying = false;
+  /** The next retry waits for the network to come back. */
+  #paused = false;
+  /** Retries since the link was last up: the backoff exponent. */
+  #attempts = 0;
 
   /**
    * @param {object} options
    * @param {(sessionId: string) => object} options.makeConnection A `MasterConnection` for a session id.
    * @param {(level: 'warn'|'error', message: string) => void} options.log
    * @param {() => boolean} [options.online] Whether the browser has a network (`navigator.onLine`).
+   * @param {() => number} [options.random] In [0, 1): the jitter of the retry delay.
    * @param {(state: string) => void} [options.onState] The mapped state changed, while signed in.
    * @param {(change: {changed: boolean}) => void} [options.onReconnected] The master came back; `changed`
    *   says `user_info` now names another user or network.
    * @param {() => void} [options.onExpired] The master refused the session.
    */
   constructor({
-    makeConnection, log, online = () => true, onState, onReconnected, onExpired,
+    makeConnection, log, online = () => true, random = Math.random, onState, onReconnected, onExpired,
   }) {
     this.#makeConnection = makeConnection;
     this.#log = log;
     this.#online = online;
+    this.#random = random;
     this.#onState = onState;
     this.#onReconnected = onReconnected;
     this.#onExpired = onExpired;
@@ -169,6 +197,7 @@ export class HostSession {
       this.#adopt(info);
       this.#lastError = null;
       this.#state = CONNECTION_STATE.READY;
+      this.#masterState = 'ready';
       connection.onStateChange?.((state) => this.#onMasterState(connection, state));
       connection.onReconnected?.((fresh) => this.#onMasterReconnected(connection, fresh));
       return null;
@@ -177,8 +206,8 @@ export class HostSession {
       if (current) this.#connection = null;
       if (connection) this.#closeQuietly(connection);
       if (!current) return SUPERSEDED;
-      this.#log('warn', `the master did not accept the session (${error?.code ?? error?.name ?? 'error'})`);
       const failure = failureOf(error?.code);
+      this.#log('warn', `the master did not accept the session (${failure.code})`);
       this.#lastError = failure;
       return failure.code;
     }
@@ -192,6 +221,8 @@ export class HostSession {
    */
   drop(why = null) {
     const connection = this.#connection;
+    this.#stopRetry();
+    this.#masterState = 'idle';
     this.#connection = null;
     this.#signedIn = false;
     this.#sessionId = null;
@@ -201,6 +232,34 @@ export class HostSession {
     this.#state = CONNECTION_STATE.SIGNED_OUT;
     this.#lastError = why === HOST_ERRORS.SESSION_EXPIRED ? failureOf(why) : null;
     return connection ? this.#closeQuietly(connection) : Promise.resolve();
+  }
+
+  /**
+   * The browser says the network went away or came back (`online` and
+   * `offline`). Gone: the app is told `offline`, whatever the socket still
+   * believes. Back: the app is told what the master's state makes of it, and a
+   * master that is waiting to be retried is retried now.
+   */
+  networkChanged() {
+    const connection = this.#connection;
+    if (!this.#signedIn || !connection) return;
+    if (!this.#online()) {
+      this.#announce(CONNECTION_STATE.OFFLINE);
+      return;
+    }
+    this.#announce(connectionStateOf(this.#masterState, true) ?? CONNECTION_STATE.READY);
+    if (this.#failed) {
+      this.#clearRetryTimer();
+      this.#paused = false;
+      void this.#retry(connection);
+    }
+  }
+
+  /** Tell the owner the state, when it is not what they were told last. */
+  #announce(next) {
+    if (next === this.#state) return;
+    this.#state = next;
+    this.#onState?.(next);
   }
 
   /** Take who `user_info` says the user is. */
@@ -214,8 +273,10 @@ export class HostSession {
 
   #onMasterState(connection, masterState) {
     if (connection !== this.#connection) return;
+    this.#masterState = masterState;
     const failed = masterState === 'failed';
     if (failed && connection.lastError?.code === HOST_ERRORS.SESSION_EXPIRED) {
+      this.#stopRetry();
       this.#lastError = failureOf(HOST_ERRORS.SESSION_EXPIRED);
       this.#onExpired?.();
       return;
@@ -223,10 +284,16 @@ export class HostSession {
     const next = connectionStateOf(masterState, this.#online());
     if (!next) return;
     if (failed) this.#lastError = failureOf(connection.lastError?.code);
-    else if (next === CONNECTION_STATE.READY) this.#lastError = null;
-    if (next === this.#state) return;
-    this.#state = next;
-    this.#onState?.(next);
+    else if (next === CONNECTION_STATE.READY) {
+      this.#lastError = null;
+      this.#stopRetry();
+      this.#attempts = 0;
+    }
+    this.#announce(next);
+    if (failed) {
+      this.#failed = true;
+      this.#scheduleRetry(connection);
+    }
   }
 
   #onMasterReconnected(connection, fresh) {
@@ -235,7 +302,59 @@ export class HostSession {
     if (isPlainObject(fresh)) this.#adopt(fresh);
     this.#lastError = null;
     this.#state = CONNECTION_STATE.READY;
+    this.#masterState = 'ready';
+    this.#stopRetry();
+    this.#attempts = 0;
     this.#onReconnected?.({ changed: before !== JSON.stringify(this.identity()) });
+  }
+
+  /** Ask for a retry after the backoff, unless one is due, running, or waiting for the network. */
+  #scheduleRetry(connection) {
+    if (this.#retryTimer !== null || this.#retrying) return;
+    if (!this.#online()) {
+      this.#paused = true;
+      return;
+    }
+    const delay = Math.min(backoffDelayMs(this.#attempts, DEFAULT_BACKOFF, this.#random), MAX_TIMER_MS);
+    this.#attempts += 1;
+    this.#retryTimer = setTimeout(() => {
+      this.#retryTimer = null;
+      void this.#retry(connection);
+    }, delay);
+  }
+
+  /**
+   * Connect the master again. Success is the master's own `ready` and
+   * `onReconnected`; a refused session is its `failed` with `session_expired`.
+   * Any other failure leaves the master `failed`, and the next retry is booked.
+   */
+  async #retry(connection) {
+    if (this.#retrying || connection !== this.#connection || !this.#signedIn || !this.#failed) return;
+    if (!this.#online()) {
+      this.#paused = true;
+      return;
+    }
+    this.#retrying = true;
+    try {
+      await connection.connect();
+    } catch {
+      // The connection reports why through its state; the booking below is the fallback.
+    } finally {
+      this.#retrying = false;
+    }
+    if (connection === this.#connection && this.#failed) this.#scheduleRetry(connection);
+  }
+
+  #clearRetryTimer() {
+    if (this.#retryTimer !== null) clearTimeout(this.#retryTimer);
+    this.#retryTimer = null;
+  }
+
+  /** The link is up again, the session is over, or the host stopped: no retry is due. */
+  #stopRetry() {
+    this.#clearRetryTimer();
+    this.#failed = false;
+    this.#paused = false;
   }
 
   async #closeQuietly(connection) {

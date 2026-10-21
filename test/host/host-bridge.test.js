@@ -497,6 +497,10 @@ test('a session the master refuses (session_expired) is cleared and the app is t
   assert.equal(posts()[0].data.name, MSG.READY);
   assert.equal(posts()[0].data.message.host.signedIn, false);
   assert.equal(bridge.state.signedIn, false);
+  assert.deepEqual(posts()[1].data.message, {
+    action: 'auth', data: { signedIn: false, user: null, network: null, reason: 'session_expired' },
+  }, 'and told why, right after api:ready');
+  assert.equal(posts().length, 2);
 });
 
 test('a master that cannot be reached keeps the session and answers signedIn:false', async () => {

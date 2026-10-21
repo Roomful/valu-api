@@ -411,10 +411,9 @@ test('every refusal of a token is pushed as its reason, and no session is opened
     assert.deepEqual(authPushes(env), [{ ...SIGNED_OUT, reason }]);
     assert.equal(auth.signOutCalls, 0, 'a refused token is not a sign-out');
     assert.deepEqual(connectionPushes(env), [], 'a user who was never signed in has no connection to lose');
-    assert.equal(env.logs.length, 1, 'and the refusal is logged, by its code');
+    assert.equal(env.logs.length, 1, 'and the refusal is logged, by the reason the app is told');
     assert.equal(env.logs[0].level, 'warn');
-    assert.ok(env.logs[0].message.includes(error.code ?? error.name), env.logs[0].message);
-    assert.ok(!env.logs[0].message.includes(TOKEN));
+    assert.equal(env.logs[0].message, `a sign-in token could not be redeemed (${reason})`, 'never the raw code or message');
   }
 });
 
@@ -1246,6 +1245,302 @@ test('a session that expires while the user signs in with a token is reported on
   env.maker.connections[0].setState('failed', codedError('session_expired'));
   await settle();
   assert.deepEqual(authPushes(env).map((data) => [data.signedIn, data.reason]), [[true, undefined], [false, 'session_expired']]);
+});
+
+// ---------------------------------------------------------------------------
+// A session ends for the session that asked
+// ---------------------------------------------------------------------------
+
+test('a Guru mint the master refuses after the session was replaced does not end the new session', async () => {
+  const gate = deferred();
+  const fetchImpl = async () => {
+    await gate.promise;
+    return { ok: true, status: 200, json: async () => ({ error: { status: true, code: 401, message: 'Unauthorized' } }) };
+  };
+  const env = await withStoredSession({ guru: guruWithGrants(['groups:read']), fetchImpl });
+  ask(env, 'Groups', 'list-groups', {}, 1); // makes the Guru client
+  await settle();
+  const { session } = env.made.guru[0];
+  const minting = session.mintToken().then(() => null, (error) => error); // in flight, for the old session
+  await settle();
+
+  token(env); // the user signs in again: a new session replaces it
+  await settle();
+  assert.equal(env.bridge.state.signedIn, true);
+  assert.equal(env.real.store.get('net-1').sessionId, 'sess-FROM-POPUP');
+  env.posts().length = 0;
+
+  gate.resolve(); // the master answers the old mint: refused
+  const error = await minting;
+  await settle();
+  assert.equal(error.code, 'session_expired', 'the mint itself still fails');
+  assert.equal(env.bridge.state.signedIn, true, 'the new session is not the one that was refused');
+  assert.equal(env.real.store.get('net-1').sessionId, 'sess-FROM-POPUP', 'and its stored session stays');
+  assert.deepEqual(env.posts(), []);
+  assert.equal(env.maker.connections[1].closed, 0);
+});
+
+test('a Guru mint the master refuses for the current session still ends it', async () => {
+  const fetchImpl = async () => ({ ok: true, status: 200, json: async () => ({ error: { status: true, code: 401, message: 'Unauthorized' } }) });
+  const env = await withStoredSession({ guru: guruWithGrants(['groups:read']), fetchImpl });
+  ask(env, 'Groups', 'list-groups', {}, 1);
+  await settle();
+  await assert.rejects(env.made.guru[0].session.mintToken(), { code: 'session_expired' });
+  await settle();
+  assert.equal(env.bridge.state.signedIn, false);
+  assert.equal(env.real.storage.getItem(SESSION_KEY), null, 'its stored session is cleared');
+});
+
+test('an expired session clears the stored one only while storage still holds it', async () => {
+  const own = await withStoredSession();
+  own.maker.connections[0].setState('failed', codedError('session_expired'));
+  await settle();
+  assert.equal(own.bridge.state.signedIn, false);
+  assert.equal(own.real.storage.getItem(SESSION_KEY), null, 'ours: cleared');
+
+  // Another tab signed in since, and this tab has not heard (no storage event yet).
+  const other = await withStoredSession();
+  other.real.otherTab.set({ userId: 'u1', networkId: 'net-1', sessionId: 'sess-REPLACED' });
+  other.maker.connections[0].setState('failed', codedError('session_expired'));
+  await settle();
+  assert.equal(other.bridge.state.signedIn, false);
+  assert.deepEqual(authPushes(other), [{ ...SIGNED_OUT, reason: 'session_expired' }]);
+  assert.equal(other.real.store.get('net-1').sessionId, 'sess-REPLACED', 'theirs: left alone');
+});
+
+test('a redeemed session the master refuses is cleared from storage, which holds it', async () => {
+  const real = realAuth();
+  const env = await ready({
+    auth: real.auth, sessionStore: real.store, maker: fakeMaker({ error: codedError('session_expired') }),
+  });
+  token(env);
+  await settle();
+  assert.deepEqual(authPushes(env), [{ ...SIGNED_OUT, reason: 'session_expired' }]);
+  assert.equal(real.storage.getItem(SESSION_KEY), null);
+});
+
+test('a sign-out that wins over a redeem does not clear what another tab stored meanwhile', async () => {
+  const real = realAuth();
+  const gate = deferred();
+  const auth = {
+    restore: (options) => real.auth.restore(options),
+    signOut: () => real.auth.signOut(),
+    redeem: async (...args) => {
+      const redeemed = await real.auth.redeem(...args);
+      await gate.promise;
+      return redeemed;
+    },
+  };
+  const env = await ready({ auth, sessionStore: real.store });
+  token(env);
+  await settle();
+  assert.equal(real.store.get('net-1').sessionId, 'sess-FROM-POPUP', 'the redeem has stored the session');
+  env.call(MSG.AUTH, { action: 'sign-out', requestId: 1 }); // clears storage
+  await settle();
+  // Another tab signs in while the redeem is still being answered: what is in storage is theirs.
+  real.otherTab.set({ userId: 'u1', networkId: 'net-1', sessionId: 'sess-THEIRS' });
+  gate.resolve(); // the redeem ends: the sign-out won, and the session it stored is not wanted
+  await settle();
+  assert.equal(env.bridge.state.signedIn, false);
+  assert.equal(env.maker.sessions.length, 0, 'no master was opened');
+  assert.equal(real.store.get('net-1').sessionId, 'sess-THEIRS', 'the stale redeem cleared nothing of theirs');
+});
+
+test('a refused session does not clear a record another tab wrote while it was connecting', async () => {
+  const real = realAuth();
+  const maker = fakeMaker({
+    connect: async () => {
+      real.otherTab.set({ userId: 'u1', networkId: 'net-1', sessionId: 'sess-THEIRS' });
+      throw codedError('session_expired');
+    },
+  });
+  const env = await ready({ auth: real.auth, sessionStore: real.store, maker });
+  token(env);
+  await settle();
+  assert.deepEqual(authPushes(env), [{ ...SIGNED_OUT, reason: 'session_expired' }]);
+  assert.equal(real.store.get('net-1').sessionId, 'sess-THEIRS', 'theirs: left alone');
+});
+
+test('a stored session the master refuses at the hello is reported after api:ready', async () => {
+  const auth = fakeAuth({ session: SESSION });
+  const env = setup({ auth, maker: fakeMaker({ error: codedError('session_expired') }), config: { signInOrigins: SIGN_IN_ORIGINS } });
+  bridges.push(env.bridge);
+  env.hello();
+  await settle();
+  assert.deepEqual(env.names(), ['api:ready', MSG.TRIGGER], 'ready first, then why the user is signed out');
+  assert.equal(env.posts()[0].data.message.host.signedIn, false);
+  assert.deepEqual(env.posts()[1].data.message, { action: 'auth', data: { ...SIGNED_OUT, reason: 'session_expired' } });
+  assert.equal(auth.signOutCalls, 1);
+  assert.deepEqual(env.bridge.state.lastError, { code: 'session_expired', message: 'the session is no longer valid' });
+
+  const unreachable = setup({ auth: fakeAuth({ session: SESSION }), maker: fakeMaker({ error: codedError('unavailable') }) });
+  bridges.push(unreachable.bridge);
+  unreachable.hello();
+  await settle();
+  assert.deepEqual(unreachable.names(), ['api:ready'], 'a master that cannot be reached is not a verdict on the session');
+});
+
+// ---------------------------------------------------------------------------
+// A lost master is connected again; the browser's network
+// ---------------------------------------------------------------------------
+
+const unavailable = () => codedError('unavailable');
+
+test('a lost master is connected again by itself, and the reconnect path runs', async (t) => {
+  const granted = ['groups:read'];
+  const maker = fakeMaker();
+  maker.script = [{
+    userId: 'u1', networkId: 'n2', user: { id: 'u1', name: 'Ada King' }, network: { id: 'n2', fullName: 'Other' },
+  }];
+  const guru = guruWithGrants(granted);
+  const env = await ready({ guru, maker });
+  ask(env, 'Groups', 'list-groups', {}, 1);
+  ask(env, 'Groups', 'list-groups', {}, 2);
+  await settle();
+  assert.equal(guru.ops(LIST).length, 1);
+  const master = maker.connections[0];
+  env.posts().length = 0;
+  granted.length = 0; // revoked while the link was down
+
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  master.setState('failed', unavailable());
+  assert.deepEqual(connectionPushes(env), [{ state: 'reconnecting' }]);
+  assert.deepEqual(env.bridge.state.lastError, { code: 'unavailable', message: 'the connection to Valu is unavailable' });
+  t.mock.timers.tick(999);
+  await settle();
+  assert.equal(master.connects, 1, 'not before a second');
+  t.mock.timers.tick(201); // the longest the first delay can be
+  await settle();
+
+  assert.equal(master.connects, 2, 'the host asked the master to connect again');
+  assert.equal(maker.connections.length, 1, 'the same connection: it replaces its own instance');
+  assert.deepEqual(connectionPushes(env), [{ state: 'reconnecting' }, { state: 'ready' }, { state: 'ready', reconnected: true }]);
+  assert.deepEqual(authPushes(env), [{
+    signedIn: true, user: { id: 'u1', name: 'Ada King' }, network: { id: 'n2', name: 'Other' },
+  }], 'who the user is was refreshed, and the app was told');
+  assert.equal(env.bridge.state.lastError, null);
+  assert.equal(env.bridge.state.connection, 'ready');
+  ask(env, 'Groups', 'list-groups', {}, 3);
+  await settle();
+  assert.equal(guru.ops(LIST).length, 2, 'the grants cache was dropped');
+  assert.equal(replyTo(env, 3).message.error.message, 'consent_required');
+  assert.equal(env.made.services.length, 1, 'the services stand');
+
+  t.mock.timers.tick(200_000);
+  await settle();
+  assert.equal(master.connects, 2, 'and nothing more is tried');
+});
+
+test('retries back off and never stop while the user is signed in', async (t) => {
+  const maker = fakeMaker();
+  maker.script = Array(50).fill('fail');
+  const env = await ready({ maker });
+  const master = maker.connections[0];
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  master.setState('failed', unavailable());
+  for (let i = 0; i < 30; i += 1) {
+    t.mock.timers.tick(36_000); // the longest a delay can be: 30 s + 20 %
+    await settle();
+  }
+  assert.ok(master.connects >= 25, `${master.connects} connects: a retry each time the longest delay passed`);
+  assert.equal(env.bridge.state.signedIn, true);
+  assert.deepEqual(connectionPushes(env), [{ state: 'reconnecting' }], 'one push for all of it');
+  assert.equal(env.auth.signOutCalls, 0);
+});
+
+test('a retry that finds the session refused signs the user out', async (t) => {
+  const maker = fakeMaker();
+  maker.script = ['fail', 'expire'];
+  const env = await ready({ maker });
+  const master = maker.connections[0];
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  master.setState('failed', unavailable());
+  t.mock.timers.tick(1200);
+  await settle();
+  t.mock.timers.tick(2400);
+  await settle();
+  assert.equal(master.connects, 3);
+  assert.equal(env.bridge.state.signedIn, false);
+  assert.equal(env.auth.signOutCalls, 1);
+  assert.deepEqual(authPushes(env), [{ ...SIGNED_OUT, reason: 'session_expired' }]);
+  t.mock.timers.tick(200_000);
+  await settle();
+  assert.equal(master.connects, 3, 'and that is the end of the retries');
+});
+
+test('a sign-out, an expiry and a stop each end the retries', async (t) => {
+  for (const end of [
+    (env) => env.call(MSG.AUTH, { action: 'sign-out', requestId: 1 }),
+    (env) => env.bridge.stop(),
+  ]) {
+    const env = await ready();
+    const master = env.maker.connections[0];
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    master.setState('failed', unavailable());
+    await end(env);
+    await settle();
+    t.mock.timers.tick(200_000);
+    await settle();
+    assert.equal(master.connects, 1, 'nothing was retried');
+    t.mock.timers.reset();
+  }
+});
+
+test('retries wait while the browser is offline, and the online event ends the wait', async (t) => {
+  const env = await ready();
+  const master = env.maker.connections[0];
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  env.host.navigator = { onLine: false };
+  master.setState('failed', unavailable());
+  assert.deepEqual(connectionPushes(env), [{ state: 'offline' }]);
+  t.mock.timers.tick(200_000);
+  await settle();
+  assert.equal(master.connects, 1, 'no network: nothing is tried');
+
+  env.host.navigator = { onLine: true };
+  env.host.fire('online');
+  await settle();
+  assert.equal(master.connects, 2, 'tried at once, not after a backoff');
+  assert.deepEqual(connectionPushes(env), [
+    { state: 'offline' }, { state: 'reconnecting' }, { state: 'ready' }, { state: 'ready', reconnected: true },
+  ]);
+  assert.equal(env.bridge.state.connection, 'ready');
+});
+
+test('the browser going offline is pushed, and coming back pushes the current state', async () => {
+  const env = await ready();
+  env.host.navigator = { onLine: false };
+  env.host.fire('offline');
+  env.host.fire('offline');
+  assert.deepEqual(connectionPushes(env), [{ state: 'offline' }], 'once, whatever the socket still believes');
+  assert.equal(env.bridge.state.connection, 'offline');
+  env.host.navigator = { onLine: true };
+  env.host.fire('online');
+  assert.deepEqual(connectionPushes(env), [{ state: 'offline' }, { state: 'ready' }]);
+  env.host.fire('online');
+  assert.equal(connectionPushes(env).length, 2, 'nothing changed');
+});
+
+test('a signed-out host says nothing about the network', async () => {
+  const env = await ready({ auth: fakeAuth() });
+  env.host.navigator = { onLine: false };
+  env.host.fire('offline');
+  env.host.fire('online');
+  assert.deepEqual(env.posts(), []);
+  assert.equal(env.bridge.state.connection, 'signed_out');
+});
+
+test('the host listens for online and offline while it runs, and not after it stops', async () => {
+  const env = setup({ start: false });
+  assert.equal(env.host.windowListeners.get('online')?.size ?? 0, 0);
+  env.bridge.start();
+  env.bridge.start();
+  assert.equal(env.host.windowListeners.get('online').size, 1);
+  assert.equal(env.host.windowListeners.get('offline').size, 1);
+  await env.bridge.stop();
+  assert.equal(env.host.windowListeners.get('online').size, 0);
+  assert.equal(env.host.windowListeners.get('offline').size, 0);
+  assert.doesNotThrow(() => env.host.fire('offline'));
 });
 
 // ---------------------------------------------------------------------------
