@@ -132,12 +132,16 @@ export class HostTransport extends Transport {
   #pingTimer = null;
   #pongTimer = null;
   #pingId = null;
+  /** The address the page claims, sent in `host:hello` when given (a dev host reads it from a localhost page). */
+  #app;
 
   /**
    * @param {object} options
    * @param {string} options.hostOrigin Where the host is served, a bare origin
    *   (`https://valuguru.texpo.io`): the iframe's origin, the `targetOrigin` of
    *   everything posted to it, and the only origin it is heard from.
+   * @param {string} [options.app] The app's address (`<workspace>/<slug>`), sent in `host:hello`
+   *   as `app`. A dev host serves it to a page on localhost; a production host ignores it.
    * @param {Window} [options.window] Where the host's messages arrive.
    * @param {Document} [options.document] Where the iframe goes (`document.body`).
    * @param {number} [options.readyTimeoutMs] How long a handshake waits for `api:ready`.
@@ -153,6 +157,7 @@ export class HostTransport extends Transport {
    */
   constructor({
     hostOrigin,
+    app,
     window: win = globalThis,
     document: doc = globalThis.document,
     readyTimeoutMs = 10_000,
@@ -168,7 +173,11 @@ export class HostTransport extends Transport {
     if (!isOrigin(hostOrigin)) {
       throw new TypeError('HostTransport hostOrigin must be an origin such as "https://host.example": no path, no trailing slash');
     }
+    if (app !== undefined && typeof app !== 'string') {
+      throw new TypeError('HostTransport app must be a string such as "ws_1/my-app"');
+    }
     this.#hostOrigin = hostOrigin;
+    this.#app = app;
     this.#win = win;
     this.#doc = doc;
     this.#setTimer = setTimer;
@@ -342,7 +351,10 @@ export class HostTransport extends Transport {
     if (this.#opening !== pending || pending.frame !== frame) return;
     try {
       frame.contentWindow.postMessage(
-        { name: MSG.HELLO, message: { protocol: PROTOCOL_VERSION, client: VERSION } },
+        {
+          name: MSG.HELLO,
+          message: { protocol: PROTOCOL_VERSION, client: VERSION, ...(this.#app === undefined ? {} : { app: this.#app }) },
+        },
         this.#hostOrigin,
       );
     } catch (error) {

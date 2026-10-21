@@ -550,6 +550,8 @@ class ValuApp {
  * @param {string} [options.hostOrigin] Where the host is served. Default `https://valuguru.texpo.io`.
  * @param {string} [options.signInOrigin] Where the sign-in page is, the Valu brand the app signs users in
  *   through. Default `https://live.valuverse.io`.
+ * @param {string} [options.app] The app's address (`<workspace>/<slug>`), told to the host in
+ *   `host:hello` (dedicated). A dev host serves a localhost page under it; a production host ignores it.
  * @param {'dedicated'|'embedded'} [options.mode] Default: dedicated for a top-level page or `?valu-mode=dedicated`,
  *   embedded for a framed one.
  * @param {Window} [options.window] The page's window.
@@ -567,6 +569,7 @@ class ValuApp {
 export async function createValuApp({
   hostOrigin = DEFAULT_HOST_ORIGIN,
   signInOrigin = DEFAULT_SIGN_IN_ORIGIN,
+  app: appAddress,
   mode,
   window: win = globalThis,
   document: doc = globalThis.document,
@@ -585,7 +588,14 @@ export async function createValuApp({
   const dedicated = resolved === 'dedicated';
   const transport = dedicated
     ? new HostTransport({
-      hostOrigin, window: win, document: doc, fetchImpl, localTransport, setTimeout: setTimer, clearTimeout: clearTimer,
+      hostOrigin,
+      app: appAddress,
+      window: win,
+      document: doc,
+      fetchImpl,
+      localTransport,
+      setTimeout: setTimer,
+      clearTimeout: clearTimer,
     })
     : new PostMessageTransport({ target: win });
 

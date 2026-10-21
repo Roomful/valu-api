@@ -150,6 +150,34 @@ test('open posts host:hello with protocol 1 and resolves on api:ready', async (t
   assert.equal(h.clock.pending, 1, 'the ping is the only timer left');
 });
 
+test('host:hello carries app when the transport is given one', async (t) => {
+  const h = setup(t, { app: 'ws_1/demo' });
+  await h.transport.open();
+  const [hello] = h.sent(MSG.HELLO);
+  assert.deepEqual(hello.data, { name: 'host:hello', message: { protocol: 1, client: VERSION, app: 'ws_1/demo' } });
+});
+
+test('host:hello has no app key when none is given', async (t) => {
+  for (const options of [{}, { app: undefined }]) {
+    const h = setup(t, options);
+    await h.transport.open();
+    const [hello] = h.sent(MSG.HELLO);
+    assert.equal(Object.hasOwn(hello.data.message, 'app'), false, JSON.stringify(options));
+    assert.deepEqual(hello.data.message, { protocol: 1, client: VERSION });
+  }
+});
+
+test('app must be a string', () => {
+  const pair = FakeWindowPair();
+  for (const app of [null, 7, true, {}, ['ws_1/demo']]) {
+    assert.throws(
+      () => new HostTransport({ hostOrigin: pair.host.origin, app, window: pair.app, document: fakeDocumentFor(pair) }),
+      TypeError,
+      String(app),
+    );
+  }
+});
+
 test('open starts a signed-out page as signed_out', async (t) => {
   const h = setup(t, { answers: { ready: { ...READY, host: { ...READY.host, signedIn: false, user: null, network: null } } } });
   await h.transport.open();

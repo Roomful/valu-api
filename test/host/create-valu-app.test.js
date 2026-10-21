@@ -207,6 +207,19 @@ test('configuration mistakes reject before anything is made', async (t) => {
 // Opening the host
 // ---------------------------------------------------------------------------
 
+test('the app option reaches the host in host:hello, and is absent without it', async (t) => {
+  const named = await setup(t, { app: 'ws_057a1a6e/valu-api-sample' });
+  const [hello] = named.sent(MSG.HELLO);
+  assert.equal(hello.data.message.app, 'ws_057a1a6e/valu-api-sample');
+
+  const plain = await setup(t);
+  assert.equal(Object.hasOwn(plain.sent(MSG.HELLO)[0].data.message, 'app'), false);
+
+  // Embedded mode has no host and ignores it.
+  const embedded = await setupEmbedded(t, { app: 'ws_057a1a6e/valu-api-sample' });
+  assert.equal(embedded.valu.mode, 'embedded');
+});
+
 test('a host that does not answer rejects host_unreachable and leaves nothing behind', async (t) => {
   const h = harness(t);
   h.host.onHello = () => {};

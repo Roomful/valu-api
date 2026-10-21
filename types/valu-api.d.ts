@@ -306,6 +306,8 @@ declare module '@arkeytyp/valu-api' {
         constructor(options: {
             /** Where the host is served: a bare origin, `https://valuguru.texpo.io`. */
             hostOrigin: string;
+            /** The app's address, `<workspace>/<slug>`, sent in `host:hello`: dev hosts only. */
+            app?: string;
             window?: Window;
             document?: Document;
             /** How long the handshake waits for `api:ready`. Default 10 000. */
@@ -886,6 +888,8 @@ declare module '@arkeytyp/valu-api' {
         /** The Valu brand users sign in through (`https://chabaduniverse.com` for a Chabad-network
          * app). Default `https://live.valuverse.io`. */
         signInOrigin?: string;
+        /** The app's address, `<workspace>/<slug>`, sent in `host:hello`: dev hosts only. */
+        app?: string;
         /** Default: `dedicated` for a top-level page or one loaded with `?valu-mode=dedicated`,
          * `embedded` for a framed one. */
         mode?: ValuMode;
