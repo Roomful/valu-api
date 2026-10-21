@@ -48,6 +48,14 @@
   or over the host bridge (`HostTransport`), which checks the app's grants before
   every call. `PostMessageTransport` still serves none; `HostTransport` is the one
   other transport that does ([docs/authorization.md](docs/authorization.md)).
+- Client follows the host: an `auth` push with `reason: 'timeout'` (the host gave
+  up redeeming the sign-in token) rejects a waiting `signIn()` with `timeout` at
+  once, not after its own five minutes. `createValuApp`'s `auth.state` and
+  `connection.state` read the signed-in-while-`connecting` start and an
+  `unavailable` push with `signedIn: true`; `valu.ready` still resolves at
+  `api:ready`. Types: `ValuAuthReason` has `timeout`, `bad_origin` is gone from the
+  error codes (the host no longer sends it), `not_a_member` is documented as a
+  `401` call refusal and an intent code.
 - `SocketTransport.socket` is now `ValuSocket | null`. `socket: null` builds a
   transport with no socket: it serves the `local` functions (`Http.*`, `Time.*`,
   the resource-URL builders) and answers every other one `503`. Code that read

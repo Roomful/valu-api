@@ -41,6 +41,13 @@ const READY = {
   host: { protocol: 1, mode: 'dedicated', signedIn: true, user: USER, network: NETWORK },
 };
 const SIGNED_OUT = { ...READY, host: { ...READY.host, signedIn: false, user: null, network: null } };
+/** A stored session the host has taken on trust: who storage knows (no names yet), the master not yet confirmed. */
+const STORED_USER = { id: 'u1', name: null };
+const STORED_NETWORK = { id: 'n1', name: null };
+const STORED = {
+  ...READY,
+  host: { ...READY.host, user: STORED_USER, network: STORED_NETWORK, connection: 'connecting' },
+};
 const SIGNED_IN_PUSH = { action: 'auth', data: { signedIn: true, user: USER, network: NETWORK } };
 
 const CONSENT_REQUIRED = { error: { status: true, code: 403, message: 'consent_required', scope: 'rooms:read' } };
@@ -238,7 +245,7 @@ test('a host that does not answer rejects host_unreachable and leaves nothing be
 });
 
 test('a host:error rejects with its code', async (t) => {
-  for (const code of ['unknown_app', 'nested', 'bad_origin', 'protocol_unsupported', 'resolve_unavailable']) {
+  for (const code of ['unknown_app', 'nested', 'protocol_unsupported', 'resolve_unavailable']) {
     const h = harness(t);
     h.host.onHello = () => h.send(MSG.ERROR, { code, message: `refused: ${code}` });
     const outcome = track(h.create());
@@ -278,6 +285,88 @@ test('auth.state and network come from api:ready', async (t) => {
   assert.deepEqual(signedOut.valu.auth.state, { signedIn: false, user: null, network: null });
   assert.equal(signedOut.valu.network, null);
   assert.equal(signedOut.valu.connection.state, 'signed_out');
+});
+
+test('api:ready names the connection: a stored session is signed in while the link is still connecting', async (t) => {
+  const h = await setup(t, { ready: STORED });
+
+  // `ready` does not wait for the link: it resolves with the factory, at api:ready.
+  const ready = track(h.valu.ready);
+  await settle();
+  assert.equal(ready.settled, true);
+  assert.equal(h.valu.connection.state, 'connecting');
+  assert.deepEqual(h.valu.auth.state, { signedIn: true, user: STORED_USER, network: STORED_NETWORK });
+  assert.deepEqual(h.valu.network, STORED_NETWORK);
+  assert.equal(h.valu.connection.lastError, null);
+
+  // The master confirms: the full identity, then the link.
+  const auths = [];
+  const links = [];
+  h.valu.auth.on('change', (state) => auths.push(state));
+  h.valu.connection.on('change', (change) => links.push(change));
+  h.send(MSG.TRIGGER, SIGNED_IN_PUSH);
+  h.send(MSG.TRIGGER, { action: 'connection', data: { state: 'ready' } });
+
+  assert.deepEqual(auths, [{ signedIn: true, user: USER, network: NETWORK }]);
+  assert.deepEqual(h.valu.auth.state, { signedIn: true, user: USER, network: NETWORK });
+  assert.deepEqual(h.valu.network, NETWORK);
+  assert.deepEqual(links, [{ state: 'ready', reconnected: false, lastError: null }]);
+  assert.equal(h.valu.connection.state, 'ready');
+});
+
+test('every state api:ready can name is the connection state at the start', async (t) => {
+  for (const connection of ['ready', 'connecting', 'reconnecting', 'offline', 'signed_out']) {
+    const signedIn = connection !== 'signed_out';
+    const h = await setup(t, {
+      ready: { ...(signedIn ? STORED : SIGNED_OUT), host: { ...(signedIn ? STORED : SIGNED_OUT).host, connection } },
+    });
+    assert.equal(h.valu.connection.state, connection);
+    assert.equal(h.valu.auth.state.signedIn, signedIn, connection);
+    assert.equal(h.valu.connection.lastError, null, connection);
+  }
+
+  // A host that names no connection (an older one): what signedIn implies.
+  assert.equal((await setup(t)).valu.connection.state, 'ready');
+  assert.equal((await setup(t, { ready: SIGNED_OUT })).valu.connection.state, 'signed_out');
+  // A name that is not a state is no name.
+  const odd = await setup(t, { ready: { ...READY, host: { ...READY.host, connection: 'warming-up' } } });
+  assert.equal(odd.valu.connection.state, 'ready');
+});
+
+test('an unavailable push with signedIn true keeps the user signed in, with the reason, until the retry opens', async (t) => {
+  const h = await setup(t, { ready: STORED });
+  const auths = [];
+  const links = [];
+  h.valu.auth.on('change', (state) => auths.push(state));
+  h.valu.connection.on('change', (change) => links.push(change));
+
+  // The master is unreachable: the session is kept, the host retries.
+  h.send(MSG.TRIGGER, { action: 'auth', data: { signedIn: true, user: STORED_USER, network: STORED_NETWORK, reason: 'unavailable' } });
+  h.send(MSG.TRIGGER, { action: 'connection', data: { state: 'reconnecting' } });
+  assert.deepEqual(h.valu.auth.state, { signedIn: true, user: STORED_USER, network: STORED_NETWORK, reason: 'unavailable' });
+  assert.equal(h.valu.connection.state, 'reconnecting');
+  assert.equal(h.valu.connection.lastError, null, 'a retry in progress is no error of the link');
+
+  // The browser is offline: the same session, `offline`.
+  h.send(MSG.TRIGGER, { action: 'connection', data: { state: 'offline' } });
+  assert.equal(h.valu.connection.state, 'offline');
+  assert.equal(h.valu.auth.state.signedIn, true);
+
+  // A retry opens: the identity, no reason, then the link, which clears everything.
+  h.send(MSG.TRIGGER, SIGNED_IN_PUSH);
+  h.send(MSG.TRIGGER, { action: 'connection', data: { state: 'ready' } });
+  assert.deepEqual(h.valu.auth.state, { signedIn: true, user: USER, network: NETWORK });
+  assert.equal(h.valu.connection.state, 'ready');
+  assert.deepEqual(auths.map((state) => state.reason), ['unavailable', undefined]);
+  assert.deepEqual(links.map((change) => change.state), ['reconnecting', 'offline', 'ready']);
+});
+
+test('a refused stored session after api:ready ends signed out, with the reason', async (t) => {
+  const h = await setup(t, { ready: STORED });
+  h.send(MSG.TRIGGER, { action: 'auth', data: { signedIn: false, user: null, network: null, reason: 'session_expired' } });
+  h.send(MSG.TRIGGER, { action: 'connection', data: { state: 'signed_out' } });
+  assert.deepEqual(h.valu.auth.state, { signedIn: false, user: null, network: null, reason: 'session_expired' });
+  assert.equal(h.valu.connection.state, 'signed_out');
 });
 
 test('auth.on change fires on every auth push, with the new state, and stops when unsubscribed', async (t) => {
@@ -466,7 +555,7 @@ test('signIn rejects cancelled on a cancelled push, signed in or not', async (t)
 });
 
 test('signIn rejects with the reason the host gives', async (t) => {
-  for (const reason of ['master_mismatch', 'not_a_member', 'invalid_token', 'unavailable']) {
+  for (const reason of ['master_mismatch', 'not_a_member', 'invalid_token', 'unavailable', 'timeout']) {
     for (const signedIn of [false, true]) {
       const h = await setup(t, { ready: signedIn ? READY : SIGNED_OUT });
       const base = h.clock.pending;
@@ -489,6 +578,23 @@ test('master_mismatch rejects with its code', async (t) => {
   await settle();
   assert.equal(outcome.error.code, 'master_mismatch');
   assert.equal(h.valu.auth.state.reason, 'master_mismatch');
+});
+
+test('a timeout push (the host gave up redeeming the token) rejects a waiting sign-in at once and closes the popup', async (t) => {
+  const h = await setup(t, { ready: SIGNED_OUT });
+  const base = h.clock.pending;
+  const outcome = track(h.valu.auth.signIn());
+  const popup = h.popups.windows[0];
+  assert.equal(h.clock.pending > base, true, 'the five-minute deadline is armed');
+
+  h.send(MSG.TRIGGER, { action: 'auth', data: { signedIn: false, user: null, network: null, reason: 'timeout' } });
+  await settle();
+
+  assert.equal(outcome.error?.code, 'timeout');
+  assert.ok(outcome.error instanceof Error);
+  assert.equal(popup.closed, true);
+  assert.equal(h.valu.auth.state.reason, 'timeout');
+  assert.equal(h.clock.pending, base, 'the deadline and the popup poll are gone: it did not wait for five minutes');
 });
 
 test('a push that is not an answer leaves signIn waiting', async (t) => {
@@ -1219,7 +1325,7 @@ test('a popup is closed once at close(), not again by the flow that fails with i
 });
 
 test('a push that fails a sign-in closes its popup, once', async (t) => {
-  for (const reason of ['cancelled', 'session_expired', 'master_mismatch', 'not_a_member', 'invalid_token', 'unavailable']) {
+  for (const reason of ['cancelled', 'session_expired', 'master_mismatch', 'not_a_member', 'invalid_token', 'unavailable', 'timeout']) {
     const h = await setup(t, { ready: SIGNED_OUT });
     const outcome = track(h.valu.auth.signIn());
     const popup = countCloses(h.popups.windows[0]);

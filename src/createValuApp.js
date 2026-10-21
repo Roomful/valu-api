@@ -61,10 +61,12 @@ const MODES = ['dedicated', 'embedded'];
 /**
  * The `reason`s of an auth push that end a sign-in without a user. `session_expired`
  * is one only while a sign-in waits: the session the host held ended under it.
+ * `timeout` is the host giving up on redeeming the token (15 s); without it the
+ * sign-in would wait for its own five minutes.
  */
 const SIGN_IN_FAILURES = new Set([
   HOST_ERRORS.MASTER_MISMATCH, HOST_ERRORS.NOT_A_MEMBER, HOST_ERRORS.INVALID_TOKEN, HOST_ERRORS.UNAVAILABLE,
-  HOST_ERRORS.SESSION_EXPIRED,
+  HOST_ERRORS.SESSION_EXPIRED, HOST_ERRORS.TIMEOUT,
 ]);
 const CLOSED = 'closed';
 
@@ -580,9 +582,11 @@ class ValuApp {
  * @param {import('./transport/Transport.js').Transport} [options.localTransport] Runs those functions instead (dedicated).
  * @param {Function} [options.setTimeout] Timers, for a test that turns the clock itself.
  * @param {Function} [options.clearTimeout]
- * @returns {Promise<ValuApp>} Dedicated: once the host has answered `api:ready`; it rejects with the
- *   `code` of why it could not (`host_unreachable`, `unknown_app`, `nested`, `bad_origin`,
- *   `protocol_unsupported`, `resolve_unavailable`). Embedded: at once.
+ * @returns {Promise<ValuApp>} Dedicated: once the host has answered `api:ready`, which does not wait for
+ *   the link to the platform: a user whose session is stored is already signed in then, with
+ *   `connection.state` `connecting` until the host confirms it. It rejects with the `code` of why it
+ *   could not (`host_unreachable`, `unknown_app`, `nested`, `protocol_unsupported`,
+ *   `resolve_unavailable`). Embedded: at once.
  */
 export async function createValuApp({
   hostOrigin = DEFAULT_HOST_ORIGIN,

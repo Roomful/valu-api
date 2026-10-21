@@ -273,11 +273,13 @@ refuses to run nested).
 The popup URLs are built from the two origins and a random nonce, and from nothing
 the host says.
 
-`createValuApp` resolves once the host has answered. When it cannot, it rejects
-with an `Error` whose `code` says why: `host_unreachable` (no answer in 10 s, or
-the iframe failed), or the host's own `unknown_app`, `nested`, `bad_origin`,
-`protocol_unsupported`, `resolve_unavailable`. Nothing is left behind: no iframe,
-no listener, no timer.
+`createValuApp` resolves once the host has answered `api:ready`. That does not
+wait for the link to the platform: see [Connection](#connection) for a user who
+is signed in from storage while the link is still `connecting`. When the host
+cannot answer, it rejects with an `Error` whose `code` says why: `host_unreachable`
+(no answer in 10 s, or the iframe failed), or the host's own `unknown_app`,
+`nested`, `protocol_unsupported`, `resolve_unavailable`. Nothing is left behind:
+no iframe, no listener, no timer.
 
 ### Sign-in: call `signIn()` from a click
 
@@ -301,7 +303,7 @@ would route the token through the app page.
 |---|---|
 | `popup_blocked` | the browser refused the window |
 | `cancelled` | the user pressed Cancel, or closed the window and nothing came of it |
-| `timeout` | five minutes passed (the window is closed) |
+| `timeout` | five minutes passed (the window is closed), or the host gave up redeeming the token after 15 s (it says so at once, by an `auth` push with `reason: 'timeout'`) |
 | `master_mismatch` | the sign-in page talks to another Valu backend than the host does |
 | `not_a_member` | the user is not a member of the app's network |
 | `invalid_token` | the one-time token was refused |
@@ -319,7 +321,7 @@ and the host then takes a few seconds to redeem it.
 
 | | |
 |---|---|
-| `state` | `{signedIn, user, network, reason?}`: a new object on every read, but its `user` and `network` are the transport's own objects, the same ones on every read and every `change`, not copies. Read them; do not mutate them. `reason` is that of the last push (`session_expired`, `signed_out_elsewhere`, a failed sign-in's) until the next. |
+| `state` | `{signedIn, user, network, reason?}`: a new object on every read, but its `user` and `network` are the transport's own objects, the same ones on every read and every `change`, not copies. Read them; do not mutate them. `reason` is that of the last push (`session_expired`, `signed_out_elsewhere`, a failed sign-in's, or `unavailable` on a signed-in user, see [Connection](#connection)) until the next. |
 | `signIn()` | above |
 | `signOut()` | Resolves when the host has finished. The user's Valu Social sign-in is untouched. Rejects as the table below says. |
 | `requestConsent(scopes)` | Resolves whether the user approved. [Consent](#consent). |
@@ -402,6 +404,7 @@ answers:
 | the host answers | a function (`valu.X.y()`, an ack `{error: {status: true, code, message}}`) | an intent (`callService`) |
 |---|---|---|
 | not signed in | `401` `sign_in_required` | `{success: false, code: 'sign_in_required', error}` |
+| not signed in, because the user's last sign-in was refused as `not_a_member` | `401` `not_a_member`, until the next sign-in attempt starts | `{success: false, code: 'not_a_member', error}` (a consent request is answered `{approved: false, reason: 'not_a_member'}`) |
 | scope is `forbidden` | `403` `forbidden` | n/a: no intent has one |
 | scope needs consent, not given | `403` `consent_required`, with `scope` | `{success: false, code: 'consent_required', error, scope}` |
 | not served | `404` `unknown_function` (no such function), `501` `not_available` (a `local` function asked of the host) | `{error: {code: 'not_available', message}}` |
@@ -466,20 +469,43 @@ rejects `cancelled` once the ten-second grace has passed.
 
 | state | |
 |---|---|
-| `connecting` | before the host has answered (never seen in dedicated mode: `createValuApp` waits) |
+| `connecting` | the host is up, but the master has not confirmed the user yet: `api:ready` named it while a stored session was still being checked and the master opened. `auth.state` may already say signed in |
 | `ready` | signed in, link up |
-| `reconnecting` | the host's link to the platform dropped and is coming back; calls are held, not failed |
-| `offline` | the browser is offline (no `lastError`), or the host could not be restarted (`lastError.code`) |
+| `reconnecting` | the host's link to the platform dropped, or could not be made at the start, and the host is retrying; the user stays signed in and calls are held, not failed |
+| `offline` | the browser is offline (no `lastError`), or the host will never serve this page (`lastError.code` is `unknown_app`, `nested` or `protocol_unsupported`) |
 | `signed_out` | no user |
 
 `on('change', ({ state, reconnected, lastError }) => …)` fires for every push;
 `reconnected: true` is the notice that a dropped link is back, and what the app
 cached about the platform predates it (the SDK's own cache is already cleared).
-A host that stops answering is replaced once, silently; calls that were on the
-wire answer `503 host_restarted`, and a write among them is `retryable: false`
-(it may have been applied). If the replacement fails too, the state is `offline`
-with `lastError.code` the host's code (`host_unreachable`, `unknown_app`, …), and
-the app should reload.
+
+**Start with a stored session.** The host checks a stored session and opens the
+master before it says `api:ready`, but waits at most five seconds for both.
+`valu.ready` and the factory do not wait for more than `api:ready`, so the app
+can start with the user **signed in from storage and the link `connecting`**:
+`auth.state` is `{signedIn: true, user: {id, name: null}, network: {id, name: null}}`
+(names are not known yet), `connection.state` is `connecting`. What follows:
+
+| the master | the host pushes |
+|---|---|
+| opens (late) | `auth` with the full identity, then `connection` `ready` |
+| cannot be reached | `auth` `{signedIn: true, reason: 'unavailable'}`, then `connection` `reconnecting` (`offline` when the browser is) |
+| refuses the session | `auth` `{signedIn: false, reason: 'session_expired'}`, then `connection` `signed_out`; the stored session is forgotten. (A refusal that comes before `api:ready` is in `api:ready` itself, signed out, and only the `auth` push follows.) |
+
+`unavailable` with `signedIn: true` is not a failed sign-in: the session is kept and
+the host retries, 1 s doubling to 30 s (each ±20 %), and at once when the browser
+comes `online`. When a retry opens the master the app gets `auth` (no `reason`) and
+`connection` `ready`; a retry the master refuses signs the user out as above.
+Calls made meanwhile are held, within their own timeouts.
+
+**A host that dies.** A host that stops answering is replaced silently; calls that
+were on the wire answer `503 host_restarted`, and a write among them is
+`retryable: false` (it may have been applied). A replacement that fails is tried
+again on a fresh iframe, 1 s doubling to 30 s (each ±20 %), and at once on `online`,
+for as long as the page lives; the state stays `reconnecting` and calls are held
+meanwhile. Only a host that says this page will never be served (`unknown_app`,
+`nested`, `protocol_unsupported`) ends it: `offline` with that code as
+`lastError.code`, and the app should say so.
 
 ### Embedded mode
 

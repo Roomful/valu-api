@@ -218,6 +218,13 @@ declare module '@arkeytyp/valu-api' {
         error?: {
             status?: boolean;
             code?: number;
+            /**
+             * What the host's refusals name themselves with (dedicated mode):
+             * `sign_in_required` (401); `not_a_member` (401: the user's last sign-in was
+             * refused because they are not a member of the app's network, and it stays the
+             * answer until the next sign-in attempt starts); `forbidden` and
+             * `consent_required` (403); `not_available` (501); `busy` (429); `timeout` (408).
+             */
             message?: string;
             description?: string;
             /**
@@ -342,12 +349,15 @@ declare module '@arkeytyp/valu-api' {
             clearTimeout?: (id: any) => void;
         });
         /** Inject the host iframe and shake hands. Rejects with `code` `host_unreachable`
-         * or the host's own (`unknown_app`, `nested`, `bad_origin`, `protocol_unsupported`,
+         * or the host's own (`unknown_app`, `nested`, `protocol_unsupported`,
          * `resolve_unavailable`). */
         open(): Promise<void>;
         get applicationId(): string | null;
         /** What the host last said of the user and itself; `null` before the handshake. */
         get hostState(): HostState | null;
+        /** What `api:ready` named (`connecting` while a stored session is still being
+         * confirmed; from a host that names none, what `signedIn` implies), then every
+         * `connection` push. */
         get connectionState(): ValuAppConnectionState;
     }
 
@@ -819,12 +829,15 @@ declare module '@arkeytyp/valu-api' {
 
     /**
      * Why an auth push happened, when it has a reason. `cancelled`,
-     * `master_mismatch`, `not_a_member`, `invalid_token` and `unavailable`
-     * answer a sign-in; `session_expired` and `signed_out_elsewhere` say the
-     * session ended.
+     * `master_mismatch`, `not_a_member`, `invalid_token`, `unavailable` and
+     * `timeout` (the host gave up redeeming the sign-in token after 15 s) answer a
+     * sign-in; `session_expired` and `signed_out_elsewhere` say the session ended.
+     * `unavailable` also arrives with `signedIn: true`: a stored session the host
+     * has kept while the master is unreachable, which it retries (the connection is
+     * `reconnecting`, or `offline`); the next auth push, with no reason, says it opened.
      */
     export type ValuAuthReason =
-        | 'cancelled' | 'master_mismatch' | 'not_a_member' | 'invalid_token' | 'unavailable'
+        | 'cancelled' | 'master_mismatch' | 'not_a_member' | 'invalid_token' | 'unavailable' | 'timeout'
         | 'session_expired' | 'signed_out_elsewhere';
 
     export interface ValuAuthState {
@@ -838,6 +851,15 @@ declare module '@arkeytyp/valu-api' {
     /**
      * The state of an app's link to its host (`valu.connection.state`), not of a
      * socket: {@link ValuConnectionState} is `ValuSocketConnection`'s.
+     *
+     * - `connecting`: the host is up and has said who the user is from storage (so
+     *   `auth.state.signedIn` may already be `true`), but the master has not confirmed
+     *   it yet. `createValuApp` does not wait for it; `ready` follows, with an auth push.
+     * - `ready`: signed in, link up.
+     * - `reconnecting`: the link dropped, or the master could not be reached at the
+     *   start; the host is retrying and the user stays signed in.
+     * - `offline`: the browser is offline, or the host could not be restarted (`lastError`).
+     * - `signed_out`: no user.
      */
     export type ValuAppConnectionState = 'connecting' | 'ready' | 'reconnecting' | 'offline' | 'signed_out';
 
@@ -853,7 +875,7 @@ declare module '@arkeytyp/valu-api' {
      * The `code` of the Errors a `createValuApp` call rejects with.
      *
      * - `createValuApp()`: `host_unreachable`, or the host's own: `unknown_app`, `nested`,
-     *   `bad_origin`, `protocol_unsupported`, `resolve_unavailable`.
+     *   `protocol_unsupported`, `resolve_unavailable`.
      * - `auth.signIn()`: `popup_blocked`, `cancelled`, `timeout`, `master_mismatch`,
      *   `not_a_member`, `invalid_token`, `unavailable`, `session_expired`, `not_available`
      *   (embedded), `closed`.
@@ -866,7 +888,7 @@ declare module '@arkeytyp/valu-api' {
         | 'popup_blocked' | 'cancelled' | 'timeout' | 'master_mismatch' | 'not_a_member'
         | 'invalid_token' | 'unavailable' | 'session_expired' | 'not_available' | 'closed'
         | 'host_unreachable' | 'host_restarted'
-        | 'unknown_app' | 'nested' | 'bad_origin' | 'protocol_unsupported' | 'resolve_unavailable';
+        | 'unknown_app' | 'nested' | 'protocol_unsupported' | 'resolve_unavailable';
 
     export interface ValuAppError extends Error {
         code: ValuAppErrorCode | (string & {});
@@ -882,8 +904,8 @@ declare module '@arkeytyp/valu-api' {
          * Sign in through a popup on the Valu sign-in origin. Call it from a click:
          * the popup opens before anything is awaited, or the browser blocks it
          * (`popup_blocked`). Resolves with the new state; rejects `cancelled`
-         * (the user turned it down or closed the window), `timeout` (five minutes),
-         * `master_mismatch`, `not_a_member`, `invalid_token`, `unavailable` or
+         * (the user turned it down or closed the window), `timeout` (five minutes, or the
+         * host gave up redeeming the token after 15 s), `master_mismatch`, `not_a_member`, `invalid_token`, `unavailable` or
          * `session_expired` (the session the host held ended meanwhile).
          */
         signIn(): Promise<ValuAuthState>;
@@ -981,7 +1003,9 @@ declare module '@arkeytyp/valu-api' {
          * Ask the host to run one of ITS intents: the Commerce data intents and
          * `Application.get-identity-token` (dedicated). A refusal is an answer, not a rejection,
          * and is not retried: `{success: false, code: 'consent_required', scope}` is yours to
-         * pass to `auth.requestConsent([scope])`.
+         * pass to `auth.requestConsent([scope])`. Its other refusal codes: `sign_in_required`,
+         * `not_a_member` (the user's sign-in was refused for not being a member of the network),
+         * `busy`, `timeout`, `unavailable`.
          */
         callService(intent: Intent): Promise<any>;
         /** Embedded: Valu Social runs the intent. Dedicated: `not_available`. */

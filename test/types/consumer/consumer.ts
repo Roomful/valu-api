@@ -10,6 +10,8 @@ import {
   type ValuAck,
   type ValuApp,
   type ValuAppConnectionState,
+  type ValuAppErrorCode,
+  type ValuAuthReason,
   type ValuConnectionChange,
 } from '@arkeytyp/valu-api';
 
@@ -20,6 +22,13 @@ type Expect<T extends true> = T;
 type _StateIsTheAppsUnion = Expect<
   Equal<ValuAppConnectionState, 'connecting' | 'ready' | 'reconnecting' | 'offline' | 'signed_out'>
 >;
+
+// The reasons and codes the host can give: `timeout` is a sign-in reason; `bad_origin` is gone.
+const timedOut: ValuAuthReason = 'timeout';
+// @ts-expect-error the host no longer says `bad_origin`
+const noSuchCode: ValuAppErrorCode = 'bad_origin';
+void timedOut;
+void noSuchCode;
 
 export async function run(): Promise<void> {
   const valu: ValuApp = await createValuApp();
