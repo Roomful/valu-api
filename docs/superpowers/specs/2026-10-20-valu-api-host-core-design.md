@@ -403,7 +403,7 @@ with `requestId` the same number at the top level.
 
 | Direction | `name` | `message` | Answer |
 |---|---|---|---|
-| app → host | `host:hello` | `{protocol:1, client:'<valu-api version>', app?}` | `api:ready` (below), or `host:error {code:'unknown_app'\|'nested'\|'bad_origin', message}` |
+| app → host | `host:hello` | `{protocol:1, client:'<valu-api version>', app?}` | `api:ready` (below), or `host:error {code:'unknown_app'\|'nested'\|'protocol_unsupported'\|'resolve_unavailable', message}` |
 | host → app | `api:ready` | `{applicationId, action:'start', params:{}, host:{protocol:1, mode:'dedicated', signedIn, user:{id,name}\|null, network:{id,name}\|null}}` | — |
 | app → host | `api:call` | `{service, action, params, requestId}` — one of the 65 descriptors by `service` + `action` | `api:call-completed` with `message` = a **ValuAck**: `{data}` or `{error:{status:true, code, message}}` |
 | app → host | `api:service-intent` | `{applicationId:'Commerce'\|'Application', action, params, requestId}` | `api:run-console-completed` with Valu Social's documented shape for that intent (`{products}`, `{success:false, code, error}` …) |

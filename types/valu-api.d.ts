@@ -858,7 +858,7 @@ declare module '@arkeytyp/valu-api' {
      * - `ready`: signed in, link up.
      * - `reconnecting`: the link dropped, or the master could not be reached at the
      *   start; the host is retrying and the user stays signed in.
-     * - `offline`: the browser is offline, or the host could not be restarted (`lastError`).
+     * - `offline`: the browser is offline, or the host will never serve this page (`lastError` says why: `unknown_app`, `nested` or `protocol_unsupported`).
      * - `signed_out`: no user.
      */
     export type ValuAppConnectionState = 'connecting' | 'ready' | 'reconnecting' | 'offline' | 'signed_out';
