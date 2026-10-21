@@ -703,54 +703,196 @@ test('an iframe error event recovers the same way', async (t) => {
   assert.equal(h.doc.frames.length, 2, 'an error from the iframe that was replaced is not this one\'s');
 });
 
-test('a second failure is host_unreachable, pushed as connection offline', async (t) => {
-  const h = setup(t);
+/** Run the clock `ms` forward and let what it started (a new frame's load, its hello) happen. */
+const advance = async (h, ms) => {
+  h.clock.tick(ms);
+  await settle();
+};
+
+test('a recovery that fails is tried again, 1 s, 2 s ... with the calls held, and the host that answers serves them', async (t) => {
+  const h = setup(t, { random: () => 0.5 });
   await h.transport.open();
   const triggers = h.heard(Transport.TRIGGER);
   const reconnected = h.heard(Transport.RECONNECTED);
-  h.answers.ping = false;
-  h.answers.onHello = () => {};
-  h.clock.tick(5000);
-  h.clock.tick(2000);
+  h.answers.onHello = () => {}; // the host does not come back, twice
+  h.doc.frames[0].fire('error');
   await settle();
+  const held = h.transport.callService(READ, {}, { timeoutMs: 600_000 });
+  const heldRequest = h.transport.request(MSG.AUTH, { action: 'sign-out' });
+  await settle();
+
+  await advance(h, 1000); // the first recovery handshake times out (readyTimeoutMs)
   assert.equal(h.doc.frames.length, 2);
-  const held = h.transport.callService(READ, {}, { timeoutMs: 60_000 });
-  const heldRequest = h.transport.request(MSG.AUTH, {});
-  const heldOutcome = assert.rejects(heldRequest, { code: 'host_unreachable' });
-  await settle();
-  assert.equal(h.sent(MSG.CALL).length, 0, 'a call made while the host is coming back waits for it');
+  assert.equal(h.doc.body.children.length, 0, 'the frame that did not answer is taken out');
+  assert.equal(h.transport.connectionState, 'reconnecting', 'not offline: it is tried again');
+  await advance(h, 999);
+  assert.equal(h.doc.frames.length, 2, 'the next try is 1 s later');
+  await advance(h, 1);
+  assert.equal(h.doc.frames.length, 3);
 
-  h.clock.tick(1000);
-  await settle();
+  await advance(h, 1000); // the second times out too
+  await advance(h, 1999);
+  assert.equal(h.doc.frames.length, 3, 'and the one after that 2 s later');
+  h.answers.onHello = () => h.send(MSG.READY, READY);
+  await advance(h, 1);
+  assert.equal(h.doc.frames.length, 4);
 
-  assert.deepEqual(await held, errorAck(503, 'host_unreachable'));
-  await heldOutcome;
+  assert.equal(h.transport.connected, true);
   assert.deepEqual(triggers, [
     { action: 'connection', data: { state: 'reconnecting' } },
-    { action: 'connection', data: { state: 'offline', reason: 'host_unreachable' } },
-  ]);
-  assert.equal(h.transport.connectionState, 'offline');
-  assert.equal(h.transport.connected, false);
-  assert.equal(reconnected.length, 0);
-  assert.equal(h.doc.frames.length, 2, 'it tried once, and no more');
-  assert.equal(h.doc.body.children.length, 0);
-  assert.equal(h.clock.pending, 0, 'no ping, no timeout, nothing left');
-
-  assert.deepEqual(await h.transport.callService(READ, {}), errorAck(503, 'host_unreachable'));
-  await assert.rejects(h.transport.request(MSG.AUTH, {}), { code: 'host_unreachable' });
+    { action: 'connection', data: { state: 'ready', reconnected: true } },
+  ], 'reconnecting all along, then ready: no offline in between');
+  assert.equal(reconnected.length, 1);
+  const call = h.sent(MSG.CALL)[0];
+  assert.ok(call, 'the held call went to the host that answered');
+  h.send(MSG.CALL_COMPLETED, { data: 'held' }, call.data.message.requestId);
+  assert.deepEqual(await held, { data: 'held' });
+  const request = h.sent(MSG.AUTH)[0];
+  h.send(MSG.AUTH_COMPLETED, { ok: true }, request.data.message.requestId);
+  assert.deepEqual(await heldRequest, { ok: true });
+  assert.equal(h.clock.pending, 1, 'only the ping is left');
 });
 
-test('the reason of connection offline is the host\'s own error code, host_unreachable only when it gave none', async (t) => {
+test('recovery retries back off to 30 s, with +-20 % jitter, and never give up on an unreachable host', async (t) => {
+  for (const [random, factor] of [[() => 0, 0.8], [() => 0.9999, 1.2]]) {
+    const h = setup(t, { random });
+    await h.transport.open();
+    h.answers.onHello = () => {};
+    h.doc.frames[0].fire('error');
+    await settle();
+    let frames = 2;
+    for (const base of [1000, 2000, 4000, 8000, 16_000, 30_000, 30_000, 30_000]) {
+      await advance(h, 1000); // this try's handshake times out
+      const delay = Math.floor(base * factor);
+      await advance(h, delay - 2);
+      assert.equal(h.doc.frames.length, frames, `not before ${delay} ms`);
+      await advance(h, 2);
+      frames += 1;
+      assert.equal(h.doc.frames.length, frames, `tried again after ${delay} ms`);
+    }
+    assert.equal(h.transport.connectionState, 'reconnecting');
+    await h.transport.close();
+  }
+});
+
+for (const code of ['host_unreachable', 'resolve_unavailable', 'something_new']) {
+  test(`a recovery refused with ${code} is tried again`, async (t) => {
+    const h = setup(t, { random: () => 0.5 });
+    await h.transport.open();
+    const triggers = h.heard(Transport.TRIGGER);
+    let refusals = 2;
+    h.answers.onHello = () => {
+      if (refusals > 0) {
+        refusals -= 1;
+        h.send(MSG.ERROR, { code, message: 'not now' });
+      } else {
+        h.send(MSG.READY, READY);
+      }
+    };
+    h.doc.frames[0].fire('error');
+    await settle();
+    await advance(h, 1000);
+    await advance(h, 2000);
+    assert.equal(h.transport.connected, true);
+    assert.deepEqual(triggers.map((m) => m.data.state), ['reconnecting', 'ready']);
+  });
+}
+
+for (const code of ['unknown_app', 'nested', 'protocol_unsupported']) {
+  test(`a recovery refused with ${code} fails for good, pushed as connection offline with that reason`, async (t) => {
+    const h = setup(t, { random: () => 0.5 });
+    await h.transport.open();
+    const triggers = h.heard(Transport.TRIGGER);
+    h.answers.onHello = () => h.send(MSG.ERROR, { code, message: 'no' });
+    h.doc.frames[0].fire('error');
+    await settle();
+    const held = h.transport.callService(READ, {}, { timeoutMs: 60_000 });
+    const heldRequest = assert.rejects(h.transport.request(MSG.AUTH, {}), { code });
+    await settle();
+
+    assert.deepEqual(triggers, [
+      { action: 'connection', data: { state: 'reconnecting' } },
+      { action: 'connection', data: { state: 'offline', reason: code } },
+    ]);
+    assert.deepEqual(await held, errorAck(503, code));
+    await heldRequest;
+    assert.equal(h.transport.connectionState, 'offline');
+    assert.equal(h.transport.connected, false);
+    assert.equal(h.doc.body.children.length, 0);
+    assert.equal(h.clock.pending, 0, 'no retry, no ping, nothing left');
+    await advance(h, 600_000);
+    assert.equal(h.doc.frames.length, 2, 'never tried again');
+    assert.deepEqual(await h.transport.callService(READ, {}), errorAck(503, code));
+  });
+}
+
+test('the browser coming back online tries the recovery again at once', async (t) => {
+  const h = setup(t, { random: () => 0.5 });
+  await h.transport.open();
+  h.answers.onHello = () => {};
+  h.doc.frames[0].fire('error');
+  await settle();
+  await advance(h, 1000); // failed; the next try is booked for 1 s from now
+  await advance(h, 1000);
+  await advance(h, 1000); // failed again; the next is 2 s away
+  h.answers.onHello = () => h.send(MSG.READY, READY);
+  h.pair.app.fire('online');
+  await settle();
+  assert.equal(h.doc.frames.length, 4, 'a new frame at once');
+  assert.equal(h.transport.connected, true);
+  assert.equal(h.clock.pending, 1, 'the booked retry is gone: only the ping');
+  assert.equal(h.pair.app.windowListeners.get('online')?.size ?? 0, 0, 'and nothing listens for online any more');
+});
+
+test('close while a recovery waits to retry clears its timer and its online listener', async (t) => {
+  const h = setup(t, { random: () => 0.5 });
+  await h.transport.open();
+  h.answers.onHello = () => {};
+  h.doc.frames[0].fire('error');
+  await settle();
+  const held = h.transport.callService(READ, {}, { timeoutMs: 600_000 });
+  await advance(h, 1000);
+  assert.equal(h.clock.pending, 2, 'the retry, and the held call\'s own timeout');
+
+  await h.transport.close();
+  assert.deepEqual(await held, errorAck(503, 'transport closed'));
+  assert.equal(h.clock.pending, 0);
+  assert.equal(h.pair.app.windowListeners.get('online')?.size ?? 0, 0);
+  h.pair.app.fire('online');
+  await advance(h, 600_000);
+  assert.equal(h.doc.frames.length, 2, 'nothing more is tried');
+  assert.equal(h.doc.body.children.length, 0);
+});
+
+test('a call that finds the iframe taken out of the page starts a recovery and is held for it', async (t) => {
   const h = setup(t);
   await h.transport.open();
   const triggers = h.heard(Transport.TRIGGER);
-  h.answers.onHello = () => h.send(MSG.ERROR, { code: 'unknown_app', message: 'gone' });
+  const [frame] = h.doc.frames;
+  h.doc.body.removeChild(frame); // the page's own code removed it
 
-  h.doc.frames[0].fire('error');
+  const call = h.transport.callService(READ, {}, { timeoutMs: 60_000 });
+  const request = h.transport.request(MSG.AUTH, { action: 'sign-out' });
   await settle();
 
-  assert.deepEqual(triggers[1], { action: 'connection', data: { state: 'offline', reason: 'unknown_app' } });
-  assert.equal(h.clock.pending, 0);
+  assert.equal(h.doc.frames.length, 2, 'a new frame');
+  assert.equal(h.transport.connected, true);
+  assert.deepEqual(triggers.map((m) => m.data.state), ['reconnecting', 'ready']);
+  const post = h.sent(MSG.CALL)[0];
+  assert.ok(post, 'the call went to the new host, not answered 503');
+  h.send(MSG.CALL_COMPLETED, { data: 'served' }, post.data.message.requestId);
+  assert.deepEqual(await call, { data: 'served' });
+  h.send(MSG.AUTH_COMPLETED, { ok: true }, h.sent(MSG.AUTH)[0].data.message.requestId);
+  assert.deepEqual(await request, { ok: true });
+});
+
+test('a ping that finds the iframe taken out of the page recovers too', async (t) => {
+  const h = setup(t);
+  await h.transport.open();
+  h.doc.body.removeChild(h.doc.frames[0]);
+  await advance(h, 5000);
+  assert.equal(h.doc.frames.length, 2);
+  assert.equal(h.transport.connected, true);
 });
 
 test('a call made while the host is coming back is held, then sent to the new host', async (t) => {

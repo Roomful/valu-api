@@ -22,13 +22,17 @@
 // bridge, and nothing here reads one.
 //
 // A host that dies (spec §4.11). A `host:ping` goes out every `pingIntervalMs`;
-// no `host:pong` within `pingTimeoutMs`, or an `error` on the iframe, is a dead
-// host: the calls that were in flight answer `host_restarted`, the iframe is
-// replaced, and the handshake runs ONCE more. The stored session makes that
-// silent for the user. Calls made while it happens are held for it, within their
-// own timeout; if the second handshake fails too, the transport says
-// `connection offline` (the `reason` is the host's own error code, say
-// `unknown_app`, or `host_unreachable` when it gave none) and stays down.
+// no `host:pong` within `pingTimeoutMs`, an `error` on the iframe, or an iframe
+// that is no longer in the page when something is posted to it, is a dead host:
+// the calls that were in flight answer `host_restarted`, the iframe is replaced,
+// and the handshake runs again. The stored session makes that silent for the
+// user. A handshake that fails is tried again on a fresh iframe, 1 s, 2 s, 4 s
+// ... capped at 30 s (each +-20 %), and at once when the browser says it is
+// `online`, for as long as the page lives; the transport stays `reconnecting`
+// meanwhile, and calls made while it happens are held for it, within their own
+// timeout. Only a host that says this page will never be served (`unknown_app`,
+// `nested`, `protocol_unsupported`) ends it: the transport says `connection
+// offline` with that code as the `reason`, and stays down.
 // ===========================================================================
 import { Transport } from './Transport.js';
 import { SocketTransport } from './SocketTransport.js';
@@ -52,6 +56,19 @@ const REPLY_NAMES = new Set([
 ]);
 
 const NOT_OPEN = 'not_open';
+
+/** The `host:error` codes that mean this page will never be served: a recovery stops at them. */
+const PERMANENT = new Set([HOST_ERRORS.UNKNOWN_APP, HOST_ERRORS.NESTED, HOST_ERRORS.PROTOCOL_UNSUPPORTED]);
+
+/** The recovery backoff: 1 s doubling to 30 s. */
+const RETRY_INITIAL_MS = 1000;
+const RETRY_MAX_MS = 30_000;
+
+/** The wait before recovery attempt `attempt` (0-based), +-20 %. */
+const retryDelayMs = (attempt, random) => Math.min(RETRY_MAX_MS, RETRY_INITIAL_MS * 2 ** attempt) * (0.8 + 0.4 * random());
+
+/** Marks the error of a post to an iframe that is no longer in the page: the host is gone, not the message. */
+const FRAME_GONE = Symbol('frame gone');
 
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
@@ -102,12 +119,11 @@ const identityChanged = (before, after) => before?.signedIn !== after.signedIn
  * TRIGGER for every host push, `{action, data}`; RECONNECTED when the host says
  * it reconnected, or after the iframe was replaced (the SDK cache is dropped).
  *
- * When the host dies, the iframe is replaced once and the handshake re-run
- * (`connection reconnecting`, then `connection {state, reconnected: true}`).
- * When that handshake fails too, the transport is down for good and pushes
- * `connection {state: 'offline', reason}`. The `reason` is the code the host
- * gave (`unknown_app`, `nested`, …), or `host_unreachable` when there was none
- * (it did not answer in time, or the frame failed).
+ * When the host dies, the iframe is replaced and the handshake re-run
+ * (`connection reconnecting`, then `connection {state, reconnected: true}`),
+ * again and again on a backoff while it fails. A host that answers `unknown_app`,
+ * `nested` or `protocol_unsupported` ends that: the transport is down for good
+ * and pushes `connection {state: 'offline', reason}` with that code.
  */
 export class HostTransport extends Transport {
   #hostOrigin;
@@ -140,6 +156,9 @@ export class HostTransport extends Transport {
   #pingTimer = null;
   #pongTimer = null;
   #pingId = null;
+  #random;
+  /** Ends the wait between two recovery attempts: `true` to try now, `false` to stop (close). */
+  #endRetryWait = null;
   /** The address the page claims, sent in `host:hello` when given (a dev host reads it from a localhost page). */
   #app;
 
@@ -162,6 +181,7 @@ export class HostTransport extends Transport {
    * @param {object} [options.config] The origins the default `localTransport`'s URL builders need.
    * @param {Function} [options.setTimeout] Timers, for a test that turns the clock itself.
    * @param {Function} [options.clearTimeout]
+   * @param {() => number} [options.random] In [0, 1): the jitter of the recovery backoff.
    */
   constructor({
     hostOrigin,
@@ -176,6 +196,7 @@ export class HostTransport extends Transport {
     config,
     setTimeout: setTimer = (fn, ms) => globalThis.setTimeout(fn, ms),
     clearTimeout: clearTimer = (id) => globalThis.clearTimeout(id),
+    random = Math.random,
   } = {}) {
     super();
     if (!isOrigin(hostOrigin)) {
@@ -193,6 +214,7 @@ export class HostTransport extends Transport {
     this.#readyTimeoutMs = readyTimeoutMs;
     this.#pingIntervalMs = pingIntervalMs;
     this.#pingTimeoutMs = pingTimeoutMs;
+    this.#random = random;
     this.#ownsLocal = !localTransport;
     this.#local = localTransport ?? new SocketTransport({ socket: null, fetchImpl, config });
   }
@@ -246,7 +268,13 @@ export class HostTransport extends Transport {
 
   notify(name, message) {
     if (this.#phase !== 'ready') throw this.#unavailable();
-    this.#post(name, message);
+    try {
+      this.#post(name, message);
+    } catch (error) {
+      // The iframe was taken out of the page: the host is gone. Bring another; this message is lost.
+      if (error[FRAME_GONE]) this.#recover();
+      throw error;
+    }
   }
 
   /**
@@ -284,6 +312,7 @@ export class HostTransport extends Transport {
   async close() {
     if (this.#phase === 'closed') return;
     this.#phase = 'closed';
+    this.#endRetryWait?.(false);
     this.#stopPing();
     this.#opening?.reject(new Error('transport closed'));
     this.#dropFrame();
@@ -401,7 +430,12 @@ export class HostTransport extends Transport {
     this.#recovery().then(done);
   }
 
-  /** Replace the iframe and shake hands once more. Never rejects. */
+  /**
+   * Replace the iframe and shake hands again, until a host answers: a handshake
+   * that fails is tried again on a fresh iframe after the backoff (or at once on
+   * `online`), and only a permanent refusal ({@link PERMANENT}) gives up. Never
+   * rejects.
+   */
   async #recovery() {
     const before = this.#hostState;
     this.#stopPing();
@@ -412,16 +446,22 @@ export class HostTransport extends Transport {
     if (this.#phase !== 'recovering') return;
 
     let ready;
-    try {
-      ready = await this.#attempt();
-    } catch (error) {
-      if (this.#phase !== 'recovering') return;
-      this.#giveUp(error);
-      this.#apply({
-        action: 'connection',
-        data: { state: CONNECTION_STATE.OFFLINE, reason: error.code ?? HOST_ERRORS.HOST_UNREACHABLE },
-      });
-      return;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        ready = await this.#attempt();
+        break;
+      } catch (error) {
+        if (this.#phase !== 'recovering') return;
+        this.#dropFrame();
+        if (PERMANENT.has(error.code)) {
+          this.#giveUp(error);
+          this.#apply({ action: 'connection', data: { state: CONNECTION_STATE.OFFLINE, reason: error.code } });
+          return;
+        }
+        // Not reachable now (it did not answer, its frame failed, it could not look the app up): again later.
+        const again = await this.#waitToRetry(attempt);
+        if (!again || this.#phase !== 'recovering') return;
+      }
     }
     if (this.#phase !== 'recovering') return;
     this.#phase = 'ready';
@@ -439,6 +479,28 @@ export class HostTransport extends Transport {
       if (this.#phase !== 'ready') return;
     }
     this.#apply({ action: 'connection', data: { state: this.#connectionState, reconnected: true } });
+  }
+
+  /**
+   * Wait out the backoff before recovery attempt `attempt + 1`: resolves `true`
+   * when the timer fires or the browser says it is `online`, `false` when the
+   * transport closes. Nothing of it is left once it resolves.
+   */
+  #waitToRetry(attempt) {
+    return new Promise((resolve) => {
+      let timer = null;
+      const onOnline = () => end(true);
+      const end = (again) => {
+        if (this.#endRetryWait !== end) return;
+        this.#endRetryWait = null;
+        this.#clearTimer(timer);
+        this.#win.removeEventListener('online', onOnline);
+        resolve(again);
+      };
+      this.#endRetryWait = end;
+      timer = this.#setTimer(() => end(true), retryDelayMs(attempt, this.#random));
+      this.#win.addEventListener('online', onOnline);
+    });
   }
 
   /** Answer what was on the wire when the host died: it may or may not have been served. */
@@ -512,13 +574,25 @@ export class HostTransport extends Transport {
       this.#pending.delete(requestId);
       entry.reject(error);
     };
-    if (this.#phase === 'ready') {
-      try { post(); } catch (error) { fail(error); }
-      return;
-    }
-    this.#hold()
-      .then(() => { if (this.#pending.get(requestId) === entry) post(); })
-      .catch(fail);
+    const send = () => {
+      if (this.#pending.get(requestId) !== entry) return;
+      if (this.#phase === 'ready') {
+        try {
+          post();
+          return;
+        } catch (error) {
+          // An iframe taken out of the page is a dead host, not a failed call: bring another one
+          // and send this there. Anything else (a message that cannot be cloned) is the call's.
+          if (!error[FRAME_GONE] || this.#phase !== 'ready') {
+            fail(error);
+            return;
+          }
+          this.#recover();
+        }
+      }
+      this.#hold().then(send, fail);
+    };
+    send();
   }
 
   /** Resolves once the host is there; rejects with why it cannot be. */
@@ -540,7 +614,7 @@ export class HostTransport extends Transport {
   /** The one way out: to the iframe's window, at `hostOrigin`. */
   #post(name, message) {
     const target = this.#iframe?.contentWindow;
-    if (!target) throw unreachable('the host frame is not in the page');
+    if (!target) throw Object.assign(unreachable('the host frame is not in the page'), { [FRAME_GONE]: true });
     try {
       target.postMessage({ name, message }, this.#hostOrigin);
     } catch (error) {
