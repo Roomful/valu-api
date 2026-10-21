@@ -1124,6 +1124,58 @@ test('close closes the sign-in and consent popups it opened', async (t) => {
   assert.equal(consent.error?.code, 'closed');
 });
 
+/** Make a popup window count its `close()` calls (the fake's own close is idempotent, which hides a second call). */
+function countCloses(win) {
+  const count = { closes: 0 };
+  win.close = () => { count.closes += 1; };
+  return count;
+}
+
+test('a popup is closed once at close(), not again by the flow that fails with it', async (t) => {
+  const h = await setup(t);
+  const signIn = track(h.valu.auth.signIn());
+  const consent = track(h.valu.auth.requestConsent(['rooms:read']));
+  const [signInCount, consentCount] = h.popups.windows.map(countCloses);
+
+  await h.valu.close();
+  await settle();
+
+  assert.equal(signIn.error?.code, 'closed');
+  assert.equal(consent.error?.code, 'closed');
+  assert.equal(signInCount.closes, 1, 'the sign-in popup');
+  assert.equal(consentCount.closes, 1, 'the consent popup');
+});
+
+test('a push that fails a sign-in closes its popup, once', async (t) => {
+  for (const reason of ['cancelled', 'session_expired', 'master_mismatch', 'not_a_member', 'invalid_token', 'unavailable']) {
+    const h = await setup(t, { ready: SIGNED_OUT });
+    const outcome = track(h.valu.auth.signIn());
+    const popup = countCloses(h.popups.windows[0]);
+
+    h.send(MSG.TRIGGER, { action: 'auth', data: { signedIn: false, user: null, network: null, reason } });
+    await settle();
+
+    assert.equal(outcome.error?.code, reason);
+    assert.equal(popup.closes, 1, `${reason}: the popup is closed`);
+
+    // Nothing that ends the app touches it again.
+    await h.valu.close();
+    assert.equal(popup.closes, 1, `${reason}: not closed again at close()`);
+  }
+});
+
+test('a sign-in that succeeds leaves its popup to the page', async (t) => {
+  const h = await setup(t, { ready: SIGNED_OUT });
+  const outcome = track(h.valu.auth.signIn());
+  const popup = countCloses(h.popups.windows[0]);
+
+  h.send(MSG.TRIGGER, SIGNED_IN_PUSH);
+  await settle();
+
+  assert.equal(outcome.value.signedIn, true);
+  assert.equal(popup.closes, 0, 'the sign-in page closes itself');
+});
+
 test('a popup that already ended is not closed again by close', async (t) => {
   const h = await setup(t, { ready: SIGNED_OUT });
   const signIn = track(h.valu.auth.signIn());

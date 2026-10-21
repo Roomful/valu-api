@@ -372,6 +372,15 @@ class ValuApp {
     return win;
   }
 
+  /**
+   * Close a popup the flow that opened it is done with and the page will not
+   * close itself, unless something has closed it already (`close()` lets go of
+   * every popup it closes): a popup is closed once.
+   */
+  #closeOwn(win) {
+    if (this.#popups.delete(win)) closeQuietly(win);
+  }
+
   /** A request to the host. One that fails because the app was closed says `closed`, as `signIn` does. */
   async #request(name, message) {
     try {
@@ -427,7 +436,7 @@ class ValuApp {
     this.#signIn = record;
     stopWatching = this.#watchClosed(win, () => record.fail(codedError(HOST_ERRORS.CANCELLED, 'the sign-in window was closed')));
     deadline = this.#setTimer(() => {
-      closeQuietly(win);
+      this.#closeOwn(win);
       record.fail(codedError(HOST_ERRORS.TIMEOUT, 'sign-in did not finish within five minutes'));
     }, SIGN_IN_TIMEOUT_MS);
     return record.promise;
@@ -442,8 +451,14 @@ class ValuApp {
     const record = this.#signIn;
     if (!record) return;
     const { reason } = data;
-    if (reason === HOST_ERRORS.CANCELLED) record.fail(codedError(HOST_ERRORS.CANCELLED, 'sign-in was cancelled'));
-    else if (SIGN_IN_FAILURES.has(reason)) record.fail(codedError(reason, `sign-in failed: ${reason}`));
+    // A sign-in that failed leaves nothing for its window to show (the page may
+    // have closed itself already); one that succeeded is the page's to close.
+    const failed = (error) => {
+      this.#closeOwn(record.win);
+      record.fail(error);
+    };
+    if (reason === HOST_ERRORS.CANCELLED) failed(codedError(HOST_ERRORS.CANCELLED, 'sign-in was cancelled'));
+    else if (SIGN_IN_FAILURES.has(reason)) failed(codedError(reason, `sign-in failed: ${reason}`));
     else if (data.signedIn === true) record.succeed(state);
   }
 
@@ -499,10 +514,10 @@ class ValuApp {
         stopWatching = this.#watchClosed(win, () => resolve({ approved: false }));
         this.#request(MSG.CONSENT, { scopes: [...scopes], nonce }).then(resolve, reject);
       });
-      if (typeof reply?.reason === 'string') closeQuietly(win);
+      if (typeof reply?.reason === 'string') this.#closeOwn(win);
       return reply?.approved === true;
     } catch (error) {
-      closeQuietly(win);
+      this.#closeOwn(win);
       throw error;
     } finally {
       stopWatching();
