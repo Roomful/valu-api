@@ -962,10 +962,27 @@ test('a missing or mistyped config value takes its default: undefined does not b
   }
 });
 
+test('stop clears the timers of a handshake that is still waiting on the resolver or the restore', async () => {
+  const timers = () => process.getActiveResourcesInfo().filter((resource) => resource === 'Timeout').length;
+  const before = timers();
+  const resolving = setup({ resolver: { resolve: () => new Promise(() => {}) } });
+  resolving.hello();
+  await settle();
+  const restoring = setup({ auth: fakeAuth({ restore: () => new Promise(() => {}) }) });
+  restoring.hello();
+  await settle();
+  assert.ok(timers() > before, 'the two waits are bounded by timers');
+
+  await resolving.bridge.stop();
+  await restoring.bridge.stop();
+  assert.equal(timers(), before, 'a stopped host leaves no timer behind');
+  assert.deepEqual([...resolving.posts(), ...restoring.posts()], []);
+});
+
 test('a missing origin list takes its default and cannot throw inside the queue', async () => {
   const ancestors = ['https://demo-ws-1.valuguru.app'];
   const { hello, last, logs } = setup({
-    ancestors, config: { allowedAncestors: undefined, devAncestors: undefined, signInOrigins: undefined, brandOrigins: undefined },
+    ancestors, config: { allowedAncestors: undefined, devAncestors: undefined, signInOrigins: undefined },
   });
   hello();
   await settle();

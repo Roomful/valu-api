@@ -133,7 +133,6 @@ import {
  * @property {string} [master] The master API host.
  * @property {string[]} [signInOrigins] Origins the sign-in popup may report from (a dev build adds
  *   {@link DEV_SIGN_IN_ORIGINS}). Empty allows nobody.
- * @property {string[]} [brandOrigins]
  * @property {string[]} [allowedAncestors] Origin patterns a framing page may have
  *   (`https://*.valuguru.app`: any subdomain; `http://localhost:*`: any port).
  * @property {string[]} [devAncestors] Added to `allowedAncestors` when `dev`.
@@ -154,7 +153,6 @@ export const DEV_SIGN_IN_ORIGINS = Object.freeze(['http://localhost:3005']);
 const DEFAULT_CONFIG = Object.freeze({
   master: 'api.roomful.net',
   signInOrigins: Object.freeze([]),
-  brandOrigins: Object.freeze([]),
   allowedAncestors: Object.freeze(['https://*.valuguru.app']),
   devAncestors: Object.freeze(['http://localhost:*', 'http://127.0.0.1:*']),
   maxInFlight: 16,
@@ -200,7 +198,6 @@ function normalizeConfig(config) {
     hostOrigin: text(given.hostOrigin),
     master: text(given.master) ?? DEFAULT_CONFIG.master,
     signInOrigins: originList(given.signInOrigins, DEFAULT_CONFIG.signInOrigins),
-    brandOrigins: originList(given.brandOrigins, DEFAULT_CONFIG.brandOrigins),
     allowedAncestors: originList(given.allowedAncestors, DEFAULT_CONFIG.allowedAncestors),
     devAncestors: originList(given.devAncestors, DEFAULT_CONFIG.devAncestors),
     dev: given.dev === true,
@@ -343,7 +340,7 @@ export class HostBridge {
   #frames = Promise.resolve();
   /** `api:call` + `api:service-intent` requests running now. */
   #inFlight = 0;
-  /** Timers armed for a running request, so a stop can clear them. */
+  /** Timers armed for a running request or a wait of the handshake, so a stop can clear them. */
   #timers = new Set();
   /** nonce -> a consent request waiting for the popup: `{app, scopes, requestId, timer}`. */
   #consents = new Map();
@@ -913,7 +910,7 @@ export class HostBridge {
     if (!app) {
       try {
         // Bounded, so a resolver that never answers cannot hold up every hello behind this one.
-        app = await orAfter(this.#resolver.resolve(origin), this.#config.resolveTimeoutMs, TIMED_OUT);
+        app = await orAfter(this.#resolver.resolve(origin), this.#config.resolveTimeoutMs, TIMED_OUT, this.#timers);
       } catch (error) {
         this.#log('warn', `the app could not be resolved (${error?.code ?? RESOLVE_UNAVAILABLE})`);
         this.#post(MSG.ERROR, {
@@ -986,7 +983,9 @@ export class HostBridge {
   /** What `auth.restore` finds for this app, within `restoreTimeoutMs`; null when nothing, or it failed. */
   async #storedSession(app) {
     try {
-      return await orAfter(this.#auth.restore({ homeNetworkId: app.homeNetworkId }), this.#config.restoreTimeoutMs);
+      return await orAfter(
+        this.#auth.restore({ homeNetworkId: app.homeNetworkId }), this.#config.restoreTimeoutMs, null, this.#timers,
+      );
     } catch (error) {
       this.#log('warn', `the stored session could not be checked (${error?.code ?? error?.name ?? 'error'})`);
       return null;
@@ -1188,6 +1187,7 @@ export class HostBridge {
   #signInFailed(code, what) {
     const reasons = [
       HOST_ERRORS.NOT_A_MEMBER, HOST_ERRORS.INVALID_TOKEN, HOST_ERRORS.SESSION_EXPIRED, HOST_ERRORS.UNAVAILABLE,
+      HOST_ERRORS.TIMEOUT,
     ];
     const reason = reasons.includes(code) ? code : HOST_ERRORS.UNAVAILABLE;
     this.#notAMember = reason === HOST_ERRORS.NOT_A_MEMBER;

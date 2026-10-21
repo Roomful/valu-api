@@ -41,7 +41,7 @@ test('the protocol constants are frozen and hold the wire names', () => {
   });
   assert.equal(new Set(Object.values(MSG)).size, Object.keys(MSG).length, 'no two keys share a name');
   assert.deepEqual(Object.values(HOST_ERRORS).sort(), [
-    'unknown_app', 'nested', 'bad_origin', 'protocol_unsupported', 'sign_in_required',
+    'unknown_app', 'nested', 'protocol_unsupported', 'sign_in_required',
     'consent_required', 'forbidden', 'not_available', 'busy', 'disconnected', 'host_restarted',
     'host_unreachable', 'popup_blocked', 'cancelled', 'timeout', 'master_mismatch', 'not_a_member',
     'session_expired', 'unknown_function', 'invalid_token', 'signed_out_elsewhere', 'unavailable',

@@ -209,7 +209,7 @@ test('open rejects host_unreachable after the timeout', async (t) => {
   assert.equal(h.transport.connected, false);
 });
 
-for (const code of ['unknown_app', 'nested', 'protocol_unsupported', 'resolve_unavailable', 'bad_origin']) {
+for (const code of ['unknown_app', 'nested', 'protocol_unsupported', 'resolve_unavailable']) {
   test(`host:error rejects open with its code (${code})`, async (t) => {
     const h = setup(t, { answers: { onHello: () => h.send(MSG.ERROR, { code, message: `refused: ${code}` }) } });
 

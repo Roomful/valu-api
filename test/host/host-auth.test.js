@@ -10,7 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { HostAuth, INVALID_TOKEN } from '../../src/host/HostAuth.js';
+import { HostAuth, INVALID_TOKEN, REDEEM_TIMEOUT_MS } from '../../src/host/HostAuth.js';
 import { SessionStore } from '../../src/host/SessionStore.js';
 import { FakeStorage, fakeAuthFetch } from '../helpers/hostFakes.js';
 
@@ -265,6 +265,68 @@ test('redeeming for a second network of the same user keeps the first', async ()
   await auth.redeem(TOKEN, { homeNetworkId: 'n1' });
   await auth.redeem(TOKEN, { homeNetworkId: 'n2' });
   assert.deepEqual(Object.keys(sessionStore.load().sessions).sort(), ['n1', 'n2']);
+});
+
+// ---- redeem: bounded ---------------------------------------------------------
+
+/** Whether a promise has settled, without waiting for it. */
+async function settledYet(promise) {
+  let done = false;
+  promise.then(() => { done = true; }, () => { done = true; });
+  for (let i = 0; i < 5; i += 1) await Promise.resolve();
+  return done;
+}
+
+test('redeem gives up after 15 s with code timeout when the master never answers, and stores nothing', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  assert.equal(REDEEM_TIMEOUT_MS, 15_000);
+  const { auth, sessionStore } = setup({ fetchImpl: () => new Promise(() => {}) });
+
+  const redeeming = auth.redeem(TOKEN, { homeNetworkId: 'n1' });
+  const outcome = rejection(redeeming);
+  t.mock.timers.tick(REDEEM_TIMEOUT_MS - 1);
+  assert.equal(await settledYet(redeeming), false, 'one millisecond short: still waiting');
+  t.mock.timers.tick(1);
+
+  const error = await outcome;
+  assert.equal(error.code, 'timeout');
+  assert.ok(!error.message.includes(TOKEN), 'the token is not in the error');
+  assert.equal(sessionStore.load(), null);
+});
+
+test('the bound covers the whole redeem: a connection that hangs times out too, and is closed when it ends', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let release;
+  const hanging = new Promise((resolve) => { release = resolve; });
+  const makeConnection = connections();
+  const slow = (sessionId) => {
+    const connection = makeConnection(sessionId);
+    const { connect } = connection;
+    connection.connect = async () => { await hanging; return connect(); };
+    return connection;
+  };
+  const { auth, sessionStore } = setup({ connection: slow });
+
+  const outcome = rejection(auth.redeem(TOKEN, { homeNetworkId: 'n1' }));
+  await settledYet(Promise.resolve());
+  t.mock.timers.tick(REDEEM_TIMEOUT_MS);
+  assert.equal((await outcome).code, 'timeout');
+
+  release(); // the master answers at last, after the caller was told it timed out
+  for (let i = 0; i < 10; i += 1) await Promise.resolve();
+  assert.equal(sessionStore.load(), null, 'a redeem that ran out of time stores nothing, even when it finishes');
+  assert.deepEqual(makeConnection.made[0].events, ['connect', 'close'], 'and its temporary connection is closed');
+});
+
+test('redeemTimeoutMs bounds the redeem, and its timer does not outlive a redeem that finished', async () => {
+  const timers = () => process.getActiveResourcesInfo().filter((resource) => resource === 'Timeout').length;
+  const before = timers();
+  const { auth } = setup();
+  await auth.redeem(TOKEN, { homeNetworkId: 'n1' });
+  assert.equal(timers(), before, 'a 15 s timer left behind would hold a page, and a test process, open');
+
+  const quick = setup({ fetchImpl: () => new Promise(() => {}), redeemTimeoutMs: 5 });
+  assert.equal((await rejection(quick.auth.redeem(TOKEN))).code, 'timeout');
 });
 
 // ---- restore ---------------------------------------------------------------

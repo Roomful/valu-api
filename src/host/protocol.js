@@ -94,7 +94,6 @@ export const CONNECTION_STATE = Object.freeze({
 export const HOST_ERRORS = Object.freeze({
   UNKNOWN_APP: 'unknown_app',
   NESTED: 'nested',
-  BAD_ORIGIN: 'bad_origin',
   PROTOCOL_UNSUPPORTED: 'protocol_unsupported',
   SIGN_IN_REQUIRED: 'sign_in_required',
   CONSENT_REQUIRED: 'consent_required',

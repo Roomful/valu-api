@@ -399,6 +399,7 @@ test('every refusal of a token is pushed as its reason, and no session is opened
     [codedError('invalid_token'), 'invalid_token'],
     [codedError('unavailable'), 'unavailable'],
     [codedError('session_expired'), 'session_expired'],
+    [codedError('timeout'), 'timeout'],
     [codedError('something_new'), 'unavailable'],
     [new TypeError('boom'), 'unavailable'],
   ]) {

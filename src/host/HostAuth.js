@@ -27,16 +27,23 @@
 // returned value other than the session `redeem` and `restore` exist to hand
 // back. Errors carry a `code` for the caller to act on: `invalid_token` (the
 // master did not accept the token), `unavailable` (it could not be asked, or
-// answered without something to keep) and, passed on from the connection,
-// `not_a_member` and `session_expired`.
+// answered without something to keep), `timeout` (the redeem as a whole took
+// longer than `redeemTimeoutMs`: the host's sign-ins wait in one line, so a
+// hung one must not hold up the next) and, passed on from the connection,
+// `not_a_member` and `session_expired`. A redeem that ran out of time stores
+// nothing, even when the master answers it afterwards.
 // ===========================================================================
 import { MASTER_UNAVAILABLE } from './MasterConnection.js';
+import { HOST_ERRORS } from './protocol.js';
 
 /** The master did not accept the one-time token. */
 export const INVALID_TOKEN = 'invalid_token';
 
 /** The master API host a host build talks to unless told otherwise. */
 export const DEFAULT_MASTER = 'api.roomful.net';
+
+/** The longest a whole redeem (the token check, the temporary connection, the network switch) may take. */
+export const REDEEM_TIMEOUT_MS = 15_000;
 
 /** An `Error` whose `code` says what the host should do about it. */
 const codedError = (code, message) => Object.assign(new Error(message), { code });
@@ -50,6 +57,7 @@ export class HostAuth {
   #fetch;
   #master;
   #makeConnection;
+  #redeemTimeoutMs;
 
   /**
    * @param {object} options
@@ -61,8 +69,11 @@ export class HostAuth {
    *   switchNetwork: (networkId: string) => Promise<{sessionId: string}>,
    *   close: () => unknown,
    * }} options.makeConnection A `MasterConnection` for a session.
+   * @param {number} [options.redeemTimeoutMs] Default {@link REDEEM_TIMEOUT_MS}.
    */
-  constructor({ sessionStore, fetchImpl, master = DEFAULT_MASTER, makeConnection } = {}) {
+  constructor({
+    sessionStore, fetchImpl, master = DEFAULT_MASTER, makeConnection, redeemTimeoutMs = REDEEM_TIMEOUT_MS,
+  } = {}) {
     if (!sessionStore || typeof fetchImpl !== 'function' || typeof makeConnection !== 'function') {
       throw new TypeError('HostAuth needs a sessionStore, a fetchImpl and a makeConnection.');
     }
@@ -70,6 +81,7 @@ export class HostAuth {
     this.#fetch = fetchImpl;
     this.#master = master;
     this.#makeConnection = makeConnection;
+    this.#redeemTimeoutMs = typeof redeemTimeoutMs === 'number' && redeemTimeoutMs > 0 ? redeemTimeoutMs : REDEEM_TIMEOUT_MS;
   }
 
   /**
@@ -80,9 +92,27 @@ export class HostAuth {
    *   Without it the session is kept under whatever network the master puts it in.
    * @returns {Promise<{userId: string, sessionId: string, networkId: string}>}
    * @throws {Error} `code`: `invalid_token`; `unavailable`; `not_a_member` when
-   *   the user may not join the home network; `session_expired`.
+   *   the user may not join the home network; `session_expired`; `timeout` when
+   *   it took longer than `redeemTimeoutMs` (nothing is stored then).
    */
   async redeem(token, { homeNetworkId } = {}) {
+    let timer;
+    let late = false;
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        late = true;
+        reject(codedError(HOST_ERRORS.TIMEOUT, `the sign-in took longer than ${this.#redeemTimeoutMs} ms`));
+      }, this.#redeemTimeoutMs);
+    });
+    try {
+      return await Promise.race([this.#redeem(token, homeNetworkId, () => late), deadline]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** The redeem itself; `late()` says the caller has been answered `timeout`, and nothing may be stored. */
+  async #redeem(token, homeNetworkId, late) {
     const { userId, sessionToken } = await this.#checkToken(token);
 
     // A temporary connection with the redeemed session: `user_info` says which
@@ -107,6 +137,7 @@ export class HostAuth {
     if (!isText(networkId) || !isText(sessionId)) {
       throw codedError(MASTER_UNAVAILABLE, 'the master did not give a network and a session to keep');
     }
+    if (late()) throw codedError(HOST_ERRORS.TIMEOUT, 'the sign-in finished after it had timed out');
     this.#sessionStore.set({ userId, networkId, sessionId });
     return { userId, sessionId, networkId };
   }
