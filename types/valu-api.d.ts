@@ -347,7 +347,13 @@ declare module '@arkeytyp/valu-api' {
             config?: Partial<ValuConfig>;
             setTimeout?: (fn: () => void, ms: number) => unknown;
             clearTimeout?: (id: any) => void;
+            /** In [0, 1): the jitter of the recovery backoff. Default `Math.random`. */
+            random?: () => number;
         });
+        /** Post `name` and resolve the host's reply. One held while the host is starting or
+         * coming back waits at most `timeoutMs` (default 30 000) for it, then rejects with
+         * `code` `host_unreachable` and `retryable: true`: it never reached a host. */
+        request(name: string, message: object, requestId?: number, options?: { timeoutMs?: number }): Promise<any>;
         /** Inject the host iframe and shake hands. Rejects with `code` `host_unreachable`
          * or the host's own (`unknown_app`, `nested`, `protocol_unsupported`,
          * `resolve_unavailable`). */

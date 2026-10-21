@@ -1085,8 +1085,7 @@ export class HostBridge {
     } else if (outcome === HOST_ERRORS.SESSION_EXPIRED) {
       this.#sessionExpired();
     } else if (outcome === HOST_ERRORS.UNAVAILABLE) {
-      this.pushAuth(HOST_ERRORS.UNAVAILABLE);
-      this.#pushConnection();
+      this.#pushUnavailable();
     }
   }
 
@@ -1381,8 +1380,20 @@ export class HostBridge {
     }
     // Signed in: open, or (`unavailable`) waiting for a master that cannot be reached yet.
     this.#notAMember = false;
-    this.pushAuth(outcome === HOST_ERRORS.UNAVAILABLE ? HOST_ERRORS.UNAVAILABLE : undefined);
+    if (outcome === HOST_ERRORS.UNAVAILABLE) this.#pushUnavailable();
+    else {
+      this.pushAuth();
+      this.#pushConnection();
+    }
+  }
+
+  /**
+   * A signed-in session's master cannot be reached: the link going down first, then the
+   * `unavailable` auth, so no turn of the app shows the link `ready` and the user unavailable.
+   */
+  #pushUnavailable() {
     this.#pushConnection();
+    this.pushAuth(HOST_ERRORS.UNAVAILABLE);
   }
 
   /** This tab's session went with another tab's change, and nothing took its place. */

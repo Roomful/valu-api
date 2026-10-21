@@ -826,6 +826,103 @@ for (const code of ['unknown_app', 'nested', 'protocol_unsupported']) {
   });
 }
 
+for (const state of ['connecting', 'reconnecting']) {
+  test(`after a recovery whose host is still ${state}, reconnected comes with the first ready, and only that one`, async (t) => {
+    const h = setup(t);
+    await h.transport.open();
+    const triggers = h.heard(Transport.TRIGGER);
+    const reconnected = h.heard(Transport.RECONNECTED);
+    h.answers.ready = { ...READY, host: { ...READY.host, connection: state } };
+    h.doc.frames[0].fire('error');
+    await settle();
+
+    assert.deepEqual(triggers, [
+      { action: 'connection', data: { state: 'reconnecting' } },
+      { action: 'connection', data: { state } },
+    ], 'the new host\'s link is not up: no reconnect notice yet');
+    assert.equal(h.transport.connectionState, state);
+    assert.equal(reconnected.length, 0, 'the SDK cache is not cleared on a link that is still down');
+
+    h.send(MSG.TRIGGER, { action: 'connection', data: { state: 'ready' } });
+    assert.deepEqual(triggers.at(-1), { action: 'connection', data: { state: 'ready', reconnected: true } });
+    assert.deepEqual(reconnected, [{ state: 'ready', reconnected: true }]);
+
+    h.send(MSG.TRIGGER, { action: 'connection', data: { state: 'reconnecting' } });
+    h.send(MSG.TRIGGER, { action: 'connection', data: { state: 'ready' } });
+    assert.deepEqual(triggers.at(-1), { action: 'connection', data: { state: 'ready' } }, 'a later ready is the host\'s own');
+    assert.equal(reconnected.length, 1);
+  });
+}
+
+test('a recovery whose host is ready at once says reconnected on that push, and a later ready does not', async (t) => {
+  const h = setup(t);
+  await h.transport.open();
+  const triggers = h.heard(Transport.TRIGGER);
+  h.doc.frames[0].fire('error');
+  await settle();
+  assert.deepEqual(triggers.at(-1), { action: 'connection', data: { state: 'ready', reconnected: true } });
+  h.send(MSG.TRIGGER, { action: 'connection', data: { state: 'reconnecting' } });
+  h.send(MSG.TRIGGER, { action: 'connection', data: { state: 'ready' } });
+  assert.deepEqual(triggers.at(-1), { action: 'connection', data: { state: 'ready' } });
+});
+
+test('a request held across a recovery that never completes rejects host_unreachable at its bound', async (t) => {
+  const h = setup(t, { random: () => 0.5 });
+  await h.transport.open();
+  h.answers.onHello = () => {};
+  h.doc.frames[0].fire('error');
+  await settle();
+
+  const signOut = h.transport.request(MSG.AUTH, { action: 'sign-out' }); // no timeout of its own: 30 s
+  const consent = h.transport.request(MSG.CONSENT, { scopes: ['rooms:read'] }, undefined, { timeoutMs: 5000 });
+  const signOutOutcome = assert.rejects(signOut, (error) => error.code === 'host_unreachable' && error.retryable === true);
+  const consentOutcome = assert.rejects(consent, (error) => error.code === 'host_unreachable' && error.retryable === true);
+  await advance(h, 4999);
+  assert.equal(await settled(consent), false, 'not before its own timeout');
+  await advance(h, 1);
+  await consentOutcome;
+  assert.equal(await settled(signOut), false);
+  await advance(h, 25_000);
+  await signOutOutcome;
+
+  assert.equal(h.transport.connectionState, 'reconnecting', 'the recovery goes on');
+  h.answers.onHello = () => h.send(MSG.READY, READY);
+  for (let second = 0; second < 60 && !h.transport.connected; second += 1) await advance(h, 1000);
+  assert.equal(h.transport.connected, true);
+  assert.deepEqual(h.sent(MSG.AUTH), [], 'a request that was answered is never sent');
+  assert.deepEqual(h.sent(MSG.CONSENT), []);
+});
+
+test('a request held across a recovery that completes before its bound is posted once, and its bound is gone', async (t) => {
+  const h = setup(t);
+  await h.transport.open();
+  h.answers.onHello = () => {};
+  h.doc.frames[0].fire('error');
+  await settle();
+  const request = h.transport.request(MSG.AUTH, { action: 'sign-out' });
+  await settle();
+  assert.equal(h.sent(MSG.AUTH).length, 0, 'held');
+
+  h.send(MSG.READY, READY);
+  await settle();
+  assert.equal(h.sent(MSG.AUTH).length, 1, 'posted to the host that answered');
+  await advance(h, 120_000); // the bound has passed: a posted request waits for its reply
+  assert.equal(await settled(request), false);
+  h.send(MSG.AUTH_COMPLETED, { ok: true }, h.sent(MSG.AUTH)[0].data.message.requestId);
+  assert.deepEqual(await request, { ok: true });
+  assert.equal(h.sent(MSG.AUTH).length, 1);
+});
+
+test('a request sent at once arms no bound', async (t) => {
+  const h = setup(t);
+  await h.transport.open();
+  const pending = h.clock.pending;
+  const request = h.transport.request(MSG.AUTH, { action: 'sign-out' });
+  assert.equal(h.clock.pending, pending);
+  h.send(MSG.AUTH_COMPLETED, { ok: true }, h.sent(MSG.AUTH)[0].data.message.requestId);
+  assert.deepEqual(await request, { ok: true });
+});
+
 test('the browser coming back online tries the recovery again at once', async (t) => {
   const h = setup(t, { random: () => 0.5 });
   await h.transport.open();

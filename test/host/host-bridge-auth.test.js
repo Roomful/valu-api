@@ -863,6 +863,34 @@ test('a replacement whose master cannot be reached is kept signed in, told unava
   assert.equal(env.maker.connections.at(-1).closed, 0, 'kept, to be tried again');
 });
 
+test('from ready, the link going down is pushed before the unavailable auth: never ready and unavailable at once', async () => {
+  const env = await withStoredSession();
+  assert.equal(env.bridge.state.connection, 'ready');
+  env.real.otherTab.set({ userId: 'u1', networkId: 'net-1', sessionId: 'sess-REPLACED' });
+  env.maker.opens = ['fail'];
+  // What the app would show after each push: the state of both, as the client keeps them.
+  const shown = [];
+  let connection = 'ready';
+  let reason;
+  env.app.addEventListener('message', ({ data }) => {
+    if (data?.name !== MSG.TRIGGER) return;
+    const { action, data: pushedData } = data.message;
+    if (action === 'connection') connection = pushedData.state;
+    if (action === 'auth') reason = pushedData.reason;
+    shown.push({ connection, reason });
+  });
+  env.real.change();
+  await settle();
+
+  assert.equal(pushes(env, 'connection').length + pushes(env, 'auth').length, 2);
+  assert.deepEqual(env.posts().map((p) => p.data.message.action), ['connection', 'auth'], 'connection first');
+  assert.deepEqual(shown, [
+    { connection: 'reconnecting', reason: undefined },
+    { connection: 'reconnecting', reason: 'unavailable' },
+  ]);
+  assert.equal(shown.some((turn) => turn.connection === 'ready' && turn.reason === 'unavailable'), false);
+});
+
 test('a sign-out while the other tab\'s session is being restored wins', async () => {
   const env = await withStoredSession();
   env.real.otherTab.set({ userId: 'u1', networkId: 'net-1', sessionId: 'sess-REPLACED' });

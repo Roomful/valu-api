@@ -70,6 +70,12 @@ const retryDelayMs = (attempt, random) => Math.min(RETRY_MAX_MS, RETRY_INITIAL_M
 /** Marks the error of a post to an iframe that is no longer in the page: the host is gone, not the message. */
 const FRAME_GONE = Symbol('frame gone');
 
+/** How long a request without a timeout of its own may be held for a host that is coming back. */
+export const HELD_REQUEST_TIMEOUT_MS = 30_000;
+
+/** The states of a host whose link is not up yet: a recovery that ends on one says `reconnected` with the first `ready`. */
+const LINK_DOWN = new Set([CONNECTION_STATE.CONNECTING, CONNECTION_STATE.RECONNECTING, CONNECTION_STATE.OFFLINE]);
+
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 /** An Error that carries the code the app switches on. */
@@ -120,7 +126,9 @@ const identityChanged = (before, after) => before?.signedIn !== after.signedIn
  * it reconnected, or after the iframe was replaced (the SDK cache is dropped).
  *
  * When the host dies, the iframe is replaced and the handshake re-run
- * (`connection reconnecting`, then `connection {state, reconnected: true}`),
+ * (`connection reconnecting`, then `connection {state, reconnected: true}`; when
+ * the new host's own link is not up yet, `reconnected` comes with its first
+ * `ready`),
  * again and again on a backoff while it fails. A host that answers `unknown_app`,
  * `nested` or `protocol_unsupported` ends that: the transport is down for good
  * and pushes `connection {state: 'offline', reason}` with that code.
@@ -159,6 +167,8 @@ export class HostTransport extends Transport {
   #random;
   /** Ends the wait between two recovery attempts: `true` to try now, `false` to stop (close). */
   #endRetryWait = null;
+  /** A recovery ended on a host whose link was not up yet: its first `ready` push carries `reconnected`. */
+  #reconnectOnReady = false;
   /** The address the page claims, sent in `host:hello` when given (a dev host reads it from a localhost page). */
   #app;
 
@@ -257,12 +267,42 @@ export class HostTransport extends Transport {
     return this.#opened;
   }
 
-  /** @param {string} name @param {object} message @param {number} [requestId] */
-  request(name, message, requestId = nextId()) {
+  /**
+   * Post `name` and resolve the host's reply. A request made while the host is
+   * starting or coming back is held for it, within `timeoutMs` (default
+   * {@link HELD_REQUEST_TIMEOUT_MS}, counted from now): one still held then
+   * rejects `host_unreachable` with `retryable: true` (it never reached a host,
+   * so nothing was done), and the recovery goes on. A request that was posted
+   * waits for its reply, as before.
+   * @param {string} name @param {object} message @param {number} [requestId]
+   * @param {{timeoutMs?: number}} [options]
+   */
+  request(name, message, requestId = nextId(), { timeoutMs } = {}) {
     return new Promise((resolve, reject) => {
-      const entry = { posted: false, resolve, reject };
+      let timer = null;
+      const unbound = () => {
+        this.#clearTimer(timer);
+        timer = null;
+      };
+      const entry = {
+        posted: false,
+        resolve: (reply) => { unbound(); resolve(reply); },
+        reject: (error) => { unbound(); reject(error); },
+        onPosted: unbound,
+      };
       this.#pending.set(requestId, entry);
       this.#send(requestId, entry, name, { ...message, requestId });
+      if (entry.posted || this.#pending.get(requestId) !== entry) return;
+      const bound = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : HELD_REQUEST_TIMEOUT_MS;
+      timer = this.#setTimer(() => {
+        timer = null;
+        if (entry.posted || this.#pending.get(requestId) !== entry) return;
+        this.#pending.delete(requestId);
+        reject(Object.assign(
+          hostError(HOST_ERRORS.HOST_UNREACHABLE, `the host was not back within ${bound}ms`),
+          { retryable: true },
+        ));
+      }, bound);
     });
   }
 
@@ -478,7 +518,11 @@ export class HostTransport extends Transport {
       // reconnect is then not the news.
       if (this.#phase !== 'ready') return;
     }
-    this.#apply({ action: 'connection', data: { state: this.#connectionState, reconnected: true } });
+    // The reconnect notice (and the SDK cache drop) belongs to the link being up: a host still
+    // `connecting` (its master opening) says it with the first `ready` it pushes.
+    const state = this.#connectionState;
+    this.#reconnectOnReady = LINK_DOWN.has(state);
+    this.#apply({ action: 'connection', data: this.#reconnectOnReady ? { state } : { state, reconnected: true } });
   }
 
   /**
@@ -568,6 +612,7 @@ export class HostTransport extends Transport {
         entry.posted = false;
         throw error;
       }
+      entry.onPosted?.();
     };
     const fail = (error) => {
       if (this.#pending.get(requestId) !== entry) return;
@@ -647,7 +692,7 @@ export class HostTransport extends Transport {
         this.#onPong(requestId);
         return;
       case MSG.TRIGGER:
-        if (this.#phase === 'ready' && isPlainObject(message)) this.#apply(message);
+        if (this.#phase === 'ready' && isPlainObject(message)) this.#apply(this.#carryReconnect(message));
         return;
       default:
         if (REPLY_NAMES.has(name)) this.#onReply(message, requestId);
@@ -660,6 +705,19 @@ export class HostTransport extends Transport {
     if (!entry?.posted) return;
     this.#pending.delete(requestId);
     entry.resolve(message);
+  }
+
+  /**
+   * The host's first `connection ready` after a recovery that ended on a link
+   * that was not up yet, with `reconnected: true` added; any other push as it came.
+   */
+  #carryReconnect(message) {
+    const { action, data } = message;
+    if (!this.#reconnectOnReady || action !== 'connection' || !isPlainObject(data) || data.state !== CONNECTION_STATE.READY) {
+      return message;
+    }
+    this.#reconnectOnReady = false;
+    return { ...message, data: { ...data, reconnected: true } };
   }
 
   /** One `api:trigger` (or one the transport makes of its own): state first, then the events. */

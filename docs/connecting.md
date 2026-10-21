@@ -478,6 +478,8 @@ rejects `cancelled` once the ten-second grace has passed.
 `on('change', ({ state, reconnected, lastError }) => …)` fires for every push;
 `reconnected: true` is the notice that a dropped link is back, and what the app
 cached about the platform predates it (the SDK's own cache is already cleared).
+After the host iframe itself was replaced it comes with the first `ready`, which
+is later than the replacement when the new host is still `connecting`.
 
 **Start with a stored session.** The host checks a stored session and opens the
 master before it says `api:ready`, but waits at most five seconds for both.
@@ -503,7 +505,10 @@ were on the wire answer `503 host_restarted`, and a write among them is
 `retryable: false` (it may have been applied). A replacement that fails is tried
 again on a fresh iframe, 1 s doubling to 30 s (each ±20 %), and at once on `online`,
 for as long as the page lives; the state stays `reconnecting` and calls are held
-meanwhile. Only a host that says this page will never be served (`unknown_app`,
+meanwhile, each within its own timeout: a service call answers `408` at its
+`timeoutMs`, and a request to the host (`signOut()`, a consent, an intent) that is
+still held after 30 s rejects `host_unreachable` with `retryable: true` (it never
+reached a host). Only a host that says this page will never be served (`unknown_app`,
 `nested`, `protocol_unsupported`) ends it: `offline` with that code as
 `lastError.code`, and the app should say so.
 

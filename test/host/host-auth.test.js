@@ -318,6 +318,25 @@ test('the bound covers the whole redeem: a connection that hangs times out too, 
   assert.deepEqual(makeConnection.made[0].events, ['connect', 'close'], 'and its temporary connection is closed');
 });
 
+test('a redeem whose token check answers after the timeout opens no connection and switches nothing', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let answer;
+  const checking = new Promise((resolve) => { answer = resolve; });
+  const inner = fakeAuthFetch({ redeem: VALID });
+  const fetchImpl = async (url, options) => { await checking; return inner(url, options); };
+  const makeConnection = connections({ networkId: 'elsewhere' });
+  const { auth, sessionStore } = setup({ fetchImpl, connection: makeConnection });
+
+  const outcome = rejection(auth.redeem(TOKEN, { homeNetworkId: 'n1' }));
+  t.mock.timers.tick(REDEEM_TIMEOUT_MS);
+  assert.equal((await outcome).code, 'timeout');
+
+  answer(); // the master answers the token check at last
+  for (let i = 0; i < 10; i += 1) await Promise.resolve();
+  assert.deepEqual(makeConnection.made, [], 'no temporary connection was opened, so no network:switch ran');
+  assert.equal(sessionStore.load(), null);
+});
+
 test('redeemTimeoutMs bounds the redeem, and its timer does not outlive a redeem that finished', async () => {
   const timers = () => process.getActiveResourcesInfo().filter((resource) => resource === 'Timeout').length;
   const before = timers();

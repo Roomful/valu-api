@@ -114,6 +114,8 @@ export class HostAuth {
   /** The redeem itself; `late()` says the caller has been answered `timeout`, and nothing may be stored. */
   async #redeem(token, homeNetworkId, late) {
     const { userId, sessionToken } = await this.#checkToken(token);
+    // The caller was answered `timeout` while the token was checked: no socket, no network switch.
+    if (late()) return null;
 
     // A temporary connection with the redeemed session: `user_info` says which
     // network it is in, and `network:switch` is a call on a connection.

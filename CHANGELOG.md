@@ -104,5 +104,11 @@
   handshake is tried again (1 s doubling to 30 s, +-20 %, at once on `online`)
   with calls held and the state `reconnecting`; only `unknown_app`, `nested` and
   `protocol_unsupported` end it with `connection offline`. An iframe the page
-  removed starts a recovery instead of failing the call with 503.
+  removed starts a recovery instead of failing the call with 503. A request
+  held meanwhile (`signOut()`, a consent, an intent) waits at most its
+  `timeoutMs`, else 30 s, then rejects `host_unreachable` with `retryable:
+  true`. When the new host is still `connecting`, `reconnected: true` comes
+  with its first `ready` push instead of the replacement's.
+- A tab whose master becomes unreachable is pushed `connection reconnecting`
+  before `auth {reason: 'unavailable'}`, never `ready` with `unavailable`.
 - Removed: the unused `brandOrigins` host config and `HOST_ERRORS.BAD_ORIGIN`.

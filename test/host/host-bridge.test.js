@@ -587,11 +587,11 @@ test('a slow master that fails after api:ready is pushed reconnecting, then read
   t.mock.timers.tick(2400); // 2 s, +-20 %: opens
   await settle();
   assert.deepEqual(pushed(posts()), [
-    ['auth', { signedIn: true, user: STORED_USER, network: null, reason: 'unavailable' }],
     ['connection', { state: 'reconnecting' }],
+    ['auth', { signedIn: true, user: STORED_USER, network: null, reason: 'unavailable' }],
     ['auth', FULL],
     ['connection', { state: 'ready' }],
-  ], 'connecting (in api:ready), reconnecting, ready');
+  ], 'connecting (in api:ready), reconnecting (before the unavailable auth), ready');
   assert.equal(maker.connections[0].connects, 3);
   await bridge.stop();
 });
