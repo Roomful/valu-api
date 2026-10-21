@@ -307,7 +307,7 @@ test('answerCall: an app-state function answers 501 not_available before its sco
     services: () => ({ call: async (name) => { calls.push(name); return { data: 1 }; } }),
   });
   const notServed = { error: { status: true, code: 501, message: 'not_available' } };
-  // A consent scope (veruswallet:read): the user must never be asked about a function the host cannot serve.
+  // VerusWallet.get-balance: the user must never be asked about a function the host cannot serve.
   assert.deepEqual(await answerCall(host, { service: 'VerusWallet', action: 'get-balance', params: {} }), notServed);
   assert.deepEqual(await answerCall(host, { service: 'VerusWallet', action: 'get-balance', params: [] }), notServed, 'not 400');
   // Forbidden scopes: 501 as well, the same answer the channel gives.

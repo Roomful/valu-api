@@ -791,6 +791,7 @@ test('a consent request is refused when it asks for scopes that are not the user
     ['not a list', 'groups:read'],
     ['empty', []],
     ['forbidden scope', ['veruswallet:write']],
+    ['veruswallet:read, forbidden since its only function answers 501', ['veruswallet:read']],
     ['basic scope', ['users:read']],
     ['local scope', ['http:read']],
     ['unknown scope', ['nonsense:scope']],

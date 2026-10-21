@@ -304,7 +304,7 @@ test('a post that fails shows an error and leaves the window open', () => {
 
 const CONSENT_SCOPES = [
   'users:write', 'rooms:read', 'rooms:write', 'textchat:read', 'textchat:write', 'groups:read', 'groups:write',
-  'events:read', 'events:write', 'community:read', 'cbac:read', 'cms:read', 'cms:write', 'veruswallet:read',
+  'events:read', 'events:write', 'community:read', 'cbac:read', 'cms:read', 'cms:write',
   'commerce:read', 'commerce:write', 'commerce:sell',
 ];
 
@@ -335,9 +335,6 @@ test('the sentences say the strongest thing their scope allows, and promise noth
   // events:write invites other people
   assert.match(said('events:write'), /meetings/);
   assert.match(said('events:write'), /invite other people to them/);
-  // veruswallet:read: an agent's wallet, with no claim about whose it is
-  assert.match(said('veruswallet:read'), /balance of a wallet attached to an agent/);
-  assert.doesNotMatch(said('veruswallet:read'), /\b(your|my|the user's)\b/i);
   // commerce:sell: what the host serves of the seller intents, and no more (it does not create sales, codes or tiers)
   for (const part of [
     'set up your store', 'create and change your products and their prices', 'read your sales and analytics', 'end sales',

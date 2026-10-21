@@ -1302,7 +1302,35 @@ test('a resolver that answers in time leaves no timer behind', async () => {
   hello();
   await settle();
   assert.deepEqual(names(), [MSG.ERROR]);
-  assert.equal(timers(), before, 'the 10 s resolve timer is cleared when the lookup answers');
+  assert.equal(timers(), before, 'the 4 s resolve timer is cleared when the lookup answers');
+});
+
+test('the resolver is bounded at 4 s by default, so hello to api:ready stays under the client\'s 10 s', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const never = setup({ resolver: { resolve: () => new Promise(() => {}) } });
+  never.hello();
+  await settle();
+  t.mock.timers.tick(3999);
+  await settle();
+  assert.deepEqual(never.posts(), [], 'not before 4 s');
+  t.mock.timers.tick(1);
+  await settle();
+  assert.equal(never.posts()[0].data.message.code, 'resolve_unavailable');
+
+  // The worst case that still binds: the lookup answers just in time, and the master never opens.
+  const slow = { resolve: () => new Promise((resolve) => { setTimeout(() => resolve(APP), 3999); }) };
+  const maker = fakeMaker();
+  maker.opens = [new Promise(() => {})];
+  const worst = setup({ resolver: slow, auth: fakeAuth({ session: SESSION }), maker });
+  worst.hello();
+  await settle();
+  t.mock.timers.tick(3999);
+  await settle();
+  t.mock.timers.tick(5000);
+  await settle();
+  assert.equal(worst.posts()[0].data.name, MSG.READY, 'api:ready by 9 s: resolve 4 s + readyWaitMs 5 s');
+  assert.equal(worst.posts()[0].data.message.host.connection, 'connecting');
+  await worst.bridge.stop();
 });
 
 // ---------------------------------------------------------------------------

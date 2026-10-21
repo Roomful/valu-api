@@ -61,14 +61,16 @@ export const TIER_OF = Object.freeze({
   'cbac:read': 'consent',
   'cms:read': 'consent',
   'cms:write': 'consent',
-  'veruswallet:read': 'consent',
   'commerce:read': 'consent',
   'commerce:write': 'consent',
   'commerce:sell': 'consent',
   // local: runs in the app page
   'http:read': 'local',
   'http:write': 'local',
-  // forbidden: an app never gets these, whatever the user says
+  // forbidden: an app never gets these, whatever the user says. veruswallet:read is here because its one
+  // function (VerusWallet.get-balance) is on the app-state channel and the host answers it 501: a consent
+  // for it would grant nothing.
+  'veruswallet:read': 'forbidden',
   'veruswallet:write': 'forbidden',
   'cbac:write': 'forbidden',
   'developer:write': 'forbidden',

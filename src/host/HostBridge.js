@@ -104,8 +104,9 @@
 // Hellos are handled one at a time, in arrival order, so two that overlap (the
 // resolver and the session restore are asynchronous) cannot bind twice. Each of
 // those waits is bounded, so one that never answers cannot hold up every hello
-// behind it: the resolver by `resolveTimeoutMs` (10 s), and the stored session
-// (its `auth/check`, then the master) by `readyWaitMs` (5 s) in all.
+// behind it: the resolver by `resolveTimeoutMs` (4 s), and the stored session
+// (its `auth/check`, then the master) by `readyWaitMs` (5 s) in all, so a hello
+// is answered within 9 s, under the client's 10 s `readyTimeoutMs`.
 //
 // A stored session (spec §4.4, §4.11). The user counts as signed in from the
 // moment the host finds one, as storage knows them (ids, no names), while the
@@ -164,7 +165,8 @@ import {
  *   session (the check and the master together). A master that is not open by
  *   then is reported `connecting` with the user storage knows, and keeps opening.
  * @property {number} [resolveTimeoutMs] How long the resolver may take before the
- *   hello is answered `resolve_unavailable`.
+ *   hello is answered `resolve_unavailable`. Default 4 s: with `readyWaitMs` it
+ *   keeps hello to `api:ready` under the client's 10 s.
  */
 
 /** The sign-in origins a dev build accepts besides `config.signInOrigins`: the Valu Social dev server. */
@@ -180,7 +182,7 @@ const DEFAULT_CONFIG = Object.freeze({
   consentTimeoutMs: 600_000,
   restoreTimeoutMs: 5_000,
   readyWaitMs: 5_000,
-  resolveTimeoutMs: 10_000,
+  resolveTimeoutMs: 4_000,
 });
 
 /** The longest a timer can be: `setTimeout` fires a longer one at once. */

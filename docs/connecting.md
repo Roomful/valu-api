@@ -408,7 +408,7 @@ answers:
 | scope is `forbidden` | `403` `forbidden` | n/a: no intent has one |
 | scope needs consent, not given | `403` `consent_required`, with `scope` | `{success: false, code: 'consent_required', error, scope}` |
 | not served | `404` `unknown_function` (no such function), `501` `not_available` (a `local` function asked of the host) | `{error: {code: 'not_available', message}}` |
-| an app-state function | `Developer.*` are `forbidden`; `VerusWallet.get-balance`, once the user has consented, answers `501`: it is answered from state only the Valu Social application holds | n/a |
+| an app-state function | `501` `not_available` for `Developer.*` and `VerusWallet.get-balance`, before the scope is weighed: they are answered from state only the Valu Social application holds, so nobody is asked to consent to them | n/a |
 | params do not fit | `400` | n/a |
 | 16 requests are running | `429` `busy`, at once; calls and intents count together | `{success: false, code: 'busy', error}` |
 | a request runs past 30 s | `408` `timeout`; the late result is dropped | `{success: false, code: 'timeout', error}` |
@@ -424,8 +424,8 @@ the host serves map to one. Each scope is in one tier:
 | tier | what it means | scopes |
 |---|---|---|
 | `basic` | any signed-in user, no asking | `users:read`, `networks:read`, `profile:read`, `resources:read`, `time:read`, `applicationstorage:read`, `applicationstorage:write`, `application:identity` (`Application.get-identity-token`) |
-| `consent` | the user's yes, once per app, kept until revoked; until then `consent_required` | `users:write`, `rooms:read`, `rooms:write`, `textchat:read`, `textchat:write`, `groups:read`, `groups:write`, `events:read`, `events:write`, `community:read`, `cbac:read`, `cms:read`, `cms:write`, `veruswallet:read`, `commerce:read`, `commerce:write`, `commerce:sell` |
-| `forbidden` | never, whatever the user says, and never asked about | `cbac:write`, `veruswallet:write`, `developer:read`, `developer:write` |
+| `consent` | the user's yes, once per app, kept until revoked; until then `consent_required` | `users:write`, `rooms:read`, `rooms:write`, `textchat:read`, `textchat:write`, `groups:read`, `groups:write`, `events:read`, `events:write`, `community:read`, `cbac:read`, `cms:read`, `cms:write`, `commerce:read`, `commerce:write`, `commerce:sell` |
+| `forbidden` | never, whatever the user says, and never asked about | `cbac:write`, `veruswallet:read` (its one function, `VerusWallet.get-balance`, needs state only Valu Social holds and answers `501`), `veruswallet:write`, `developer:read`, `developer:write` |
 | `local` | runs in the page with its own `fetch`; never reaches the host | `http:read`, `http:write` (`Http.*`; the `Time.*` and resource-URL functions also run in the page, under basic scopes) |
 
 A scope the table does not have is refused, not allowed. The Commerce intents and

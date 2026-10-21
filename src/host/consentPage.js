@@ -65,7 +65,6 @@ export const SCOPE_WORDING = Object.freeze({
   'cbac:read': 'See badges and the access rules built on them, and find people who hold a badge.',
   'cms:read': 'Search the files in your content library.',
   'cms:write': 'Add files to your content library and delete files from it.',
-  'veruswallet:read': 'Read the balance of a wallet attached to an agent.',
   'commerce:read': 'See products, your cart, your orders and your purchases, and be told when they change.',
   'commerce:write': 'Add things to your cart, and change, remove or clear the items in your cart.',
   'commerce:sell': 'Sell in your name: set up your store, create and change your products and their prices, read your sales and analytics, end sales, delete unused discount codes and remove volume discounts, and ask to sell in a network.',

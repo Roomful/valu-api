@@ -55,7 +55,7 @@ the app noticing more than a delay (§4.11). The milestones after the core
 | Host, socket core | Master socket through valu-api's `ValuSocketConnection` with socket.io-client 2.5.0 injected; a new small Valu Guru client (one-time token per connect). |
 | Host, security | Parent-only messages bound to one origin, origin → app lookup, nesting rule, `frame-ancestors`, credentials never leave the iframe. |
 | Host, auth | Sign-in popup on a Valu origin → one-time-token handoff to the iframe → session in the iframe's own storage; validation, expiry, sign-out. |
-| Host, bridge + permissions | valu-api's wire protocol plus three host messages; allow-list of 54 socket service functions + 30 Commerce data intents + identity token + Commerce events; 27 + 4 scopes in three tiers; grants in Valu Guru; first-use consent popup. |
+| Host, bridge + permissions | valu-api's wire protocol plus three host messages; allow-list of 54 socket service functions + 30 Commerce data intents + identity token + Commerce events; 26 + 5 scopes in three tiers; grants in Valu Guru; first-use consent popup. |
 | Host, API services | valu-api's own service SDK over the host's socket; Commerce data intents mapped to `valuguru.commerce.*` ops. |
 | valu-api client | Dedicated mode: iframe injection and handshake, `signIn` / `signOut` / consent, auth state, `valu.network`, hardening of the existing bridge transport. |
 | Valu Guru server | Resolve endpoint (origin → app), grants table and ops, a `client=host` connection flag, static serving of the host page with headers. |
@@ -456,8 +456,8 @@ Per `api:call` and per served intent, in this order:
 | Tier | Scopes |
 |---|---|
 | Basic | `users:read`, `networks:read`, `time:read`, `resources:read`, `profile:read`, `applicationstorage:read`, `applicationstorage:write`, `application:identity` (new; `Application.get-identity-token`) |
-| Consent | `users:write`, `rooms:read`, `rooms:write`, `textchat:read`, `textchat:write`, `groups:read`, `groups:write`, `events:read`, `events:write`, `community:read`, `cbac:read`, `cms:read`, `cms:write`, `http:read`, `http:write`, `veruswallet:read`, `commerce:read`, `commerce:write`, `commerce:sell` (new) |
-| Forbidden | `veruswallet:write`, `cbac:write`, `developer:write`, `developer:read` |
+| Consent | `users:write`, `rooms:read`, `rooms:write`, `textchat:read`, `textchat:write`, `groups:read`, `groups:write`, `events:read`, `events:write`, `community:read`, `cbac:read`, `cms:read`, `cms:write`, `http:read`, `http:write`, `commerce:read`, `commerce:write`, `commerce:sell` (new) |
+| Forbidden | `veruswallet:read` (ruling 2026-10-21: its one function is `app-state` and answers 501, so a consent would grant nothing), `veruswallet:write`, `cbac:write`, `developer:write`, `developer:read` |
 
 ApplicationStorage is basic because it addresses only the app's own bucket
 (`app:<id>:userSortingTable:<user>`). The three `app-state` functions
@@ -743,7 +743,8 @@ cost an app a delay, not an error, wherever that is safe. Rules:
 - **A slow platform at startup is not session death (2026-10-21).** The master
   wait before `api:ready` is bounded at 5 s: `api:ready` then answers with the
   stored identity and `connecting`, and the host pushes `reconnecting` or
-  `ready` as the link comes up. A stored session that cannot be checked is
+  `ready` as the link comes up. The resolver is bounded at 4 s, so hello to
+  `api:ready` stays under the client's 10 s even when both are slow. A stored session that cannot be checked is
   kept with `reason:'unavailable'` and retried with backoff, not signed out;
   only a 401 ends it.
 - **The host iframe itself can die.** If the host stops answering (no reply

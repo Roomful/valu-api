@@ -59,7 +59,7 @@ const USER = Object.freeze({ userId: 'user-1', networkId: 'roomful' });
 const APP_UNDER_TEST = Object.freeze({ ...APP, slug: 'app-1', homeNetworkId: USER.networkId });
 
 /** The scopes no user can grant to an app (spec §4.6). Written out here, not read from the tiers the host uses. */
-const FORBIDDEN_SCOPES = Object.freeze(['veruswallet:write', 'cbac:write', 'developer:write', 'developer:read']);
+const FORBIDDEN_SCOPES = Object.freeze(['veruswallet:read', 'veruswallet:write', 'cbac:write', 'developer:write', 'developer:read']);
 
 /**
  * The code the host refuses `descriptor` with before the function runs, or

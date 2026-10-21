@@ -111,4 +111,11 @@
   with its first `ready` push instead of the replacement's.
 - A tab whose master becomes unreachable is pushed `connection reconnecting`
   before `auth {reason: 'unavailable'}`, never `ready` with `unavailable`.
+- `veruswallet:read` is a `forbidden` scope, no longer `consent`: its only
+  function, `VerusWallet.get-balance`, is on the `app-state` channel and the
+  host answers it 501, so a consent for it would grant nothing. A consent
+  request naming it is refused (`invalid_request`).
+- The host's resolver lookup is bounded at 4 s (was 10 s), so hello to
+  `api:ready` (resolve plus the 5 s stored-session wait) stays under the
+  client's 10 s.
 - Removed: the unused `brandOrigins` host config and `HOST_ERRORS.BAD_ORIGIN`.

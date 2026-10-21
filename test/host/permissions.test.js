@@ -28,11 +28,13 @@ const SPEC = {
   consent: [
     'users:write', 'rooms:read', 'rooms:write', 'textchat:read', 'textchat:write',
     'groups:read', 'groups:write', 'events:read', 'events:write', 'community:read',
-    'cbac:read', 'cms:read', 'cms:write', 'veruswallet:read',
+    'cbac:read', 'cms:read', 'cms:write',
     'commerce:read', 'commerce:write', 'commerce:sell',
   ],
   local: ['http:read', 'http:write'],
-  forbidden: ['veruswallet:write', 'cbac:write', 'developer:write', 'developer:read'],
+  // veruswallet:read (ruling 2026-10-21): its one function is on the app-state channel and answers 501,
+  // so a consent for it would grant nothing.
+  forbidden: ['veruswallet:read', 'veruswallet:write', 'cbac:write', 'developer:write', 'developer:read'],
 };
 
 /** Commerce intents of spec §4.6, by scope. */
@@ -108,7 +110,7 @@ test('the named tiers, spot-checked through tierOf', () => {
   assert.equal(tierOf('application:identity'), 'basic');
   assert.equal(tierOf('rooms:write'), 'consent');
   assert.equal(tierOf('commerce:sell'), 'consent');
-  assert.equal(tierOf('veruswallet:read'), 'consent');
+  assert.equal(tierOf('veruswallet:read'), 'forbidden');
   assert.equal(tierOf('veruswallet:write'), 'forbidden');
   assert.equal(tierOf('developer:read'), 'forbidden');
 });
