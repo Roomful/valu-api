@@ -27,7 +27,7 @@ let consumer;
 before(() => {
   consumer = fs.mkdtempSync(path.join(os.tmpdir(), 'valu-api-exports-'));
   fs.mkdirSync(path.join(consumer, 'node_modules', '@arkeytyp'), { recursive: true });
-  fs.symlinkSync(ROOT, path.join(consumer, 'node_modules', PACKAGE), 'dir');
+  fs.symlinkSync(ROOT, path.join(consumer, 'node_modules', PACKAGE), 'junction');
 });
 
 after(() => {
