@@ -61,15 +61,22 @@ export function fakeResolver(table = { [APP_ORIGIN]: APP }) {
  * An `auth` whose `restore` answers `session` (or runs `restore`) and whose `redeem`
  * runs `redeem(token, options)` (a result `{userId, sessionId, networkId}`, or a throw),
  * recording what each was asked. Without a `redeem`, a token is redeemed into `REDEEMED`.
+ * `stored` is what storage holds, unchecked (what the host falls back on when the check
+ * cannot be made): `session` unless given.
  */
-export function fakeAuth({ session = null, restore, redeem } = {}) {
+export function fakeAuth({ session = null, restore, redeem, stored = session } = {}) {
   const auth = {
     restoreCalls: [],
     redeemCalls: [],
     signOutCalls: 0,
+    storedCalls: 0,
     restore: async (options) => {
       auth.restoreCalls.push(options);
       return restore ? restore(options) : session;
+    },
+    stored: () => {
+      auth.storedCalls += 1;
+      return stored;
     },
     redeem: async (token, options) => {
       auth.redeemCalls.push({ token, options });
@@ -95,6 +102,13 @@ export function fakeMaker({ info = INFO, error = null, connect } = {}) {
     keepHandlers: false,
     /** How the retries of a `failed` connection end, in order (see `connect` below); empty: they succeed. */
     script: [],
+    /**
+     * How the next connects end, whatever the state the connection is in, before `script` and the defaults are
+     * read: each entry `'ok'`, a `MasterInfo`, `'fail'` (unavailable), `'expire'` (refused), or a promise of
+     * one (a connect that hangs until the test settles it). The connection moves as `MasterConnection` moves:
+     * `connecting`, then `ready` or `failed` with the error. What resuming a stored session meets.
+     */
+    opens: [],
     make(sessionId) {
       maker.sessions.push(sessionId);
       const stateHandlers = new Set();
@@ -112,6 +126,19 @@ export function fakeMaker({ info = INFO, error = null, connect } = {}) {
         // `'expire'` (the master refuses the session).
         connect: connect ? () => connect(connection) : async () => {
           connection.connects += 1;
+          if (maker.opens.length > 0) {
+            const next = maker.opens.shift();
+            connection.setState('connecting');
+            const outcome = await next;
+            if (outcome === 'ok' || (outcome && typeof outcome === 'object')) {
+              connection.lastError = null;
+              connection.setState('ready');
+              return outcome === 'ok' ? info : outcome;
+            }
+            const failure = codedError(outcome === 'expire' ? 'session_expired' : 'unavailable');
+            connection.setState('failed', failure);
+            throw failure;
+          }
           if (connection.state !== 'failed') {
             if (error) throw error;
             connection.state = 'ready';

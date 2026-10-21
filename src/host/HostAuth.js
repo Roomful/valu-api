@@ -6,7 +6,7 @@
 // master for a Roomful session, moves that session into the app's home network
 // when it arrived in another one, and keeps it in the `SessionStore`, one
 // session per network. `restore` asks the master whether the stored session
-// still stands. `signOut` forgets it.
+// still stands (`stored` is the same session without asking). `signOut` forgets it.
 //
 // Facts about the master that shape this, measured against production
 // (`2026-10-20-m0-prototype-results.md`):
@@ -143,20 +143,35 @@ export class HostAuth {
   }
 
   /**
-   * The stored session for `homeNetworkId`, when the master still accepts it.
-   * Without a home network: the only stored one, and none when there are
-   * several. A refused session is cleared; one that could not be checked is
-   * kept, since it may be fine and the caller retries.
+   * The stored session for `homeNetworkId`, as storage holds it, without asking
+   * the master. Without a home network: the only stored one, and none when
+   * there are several.
    *
-   * @param {{homeNetworkId?: string}} [options]
-   * @returns {Promise<{userId: string, sessionId: string}|null>}
+   * @param {{homeNetworkId?: string|null}} [options]
+   * @returns {{userId: string, sessionId: string, networkId: string}|null}
    */
-  async restore({ homeNetworkId } = {}) {
+  stored({ homeNetworkId } = {}) {
     const record = this.#sessionStore.load();
     if (!record) return null;
     const networkId = homeNetworkId ?? this.#onlyNetwork(record);
     if (networkId === null || !Object.hasOwn(record.sessions, networkId)) return null;
-    const { sessionId } = record.sessions[networkId];
+    return { userId: record.userId, sessionId: record.sessions[networkId].sessionId, networkId };
+  }
+
+  /**
+   * The stored session for `homeNetworkId` ({@link stored}), unless the master
+   * refuses it. A refused session is cleared and answers null. One that could
+   * not be checked (the master could not be reached, answered non-2xx, or not
+   * JSON) is answered as stored: it may be fine, and the master connection the
+   * caller opens with it is what tells.
+   *
+   * @param {{homeNetworkId?: string|null}} [options]
+   * @returns {Promise<{userId: string, sessionId: string, networkId: string}|null>}
+   */
+  async restore({ homeNetworkId } = {}) {
+    const stored = this.stored({ homeNetworkId });
+    if (!stored) return null;
+    const { sessionId, networkId } = stored;
 
     const fetchImpl = this.#fetch;
     let response;
@@ -168,8 +183,8 @@ export class HostAuth {
       });
       body = await response.json();
     } catch {
-      // The check could not be made, or what answered is not the master.
-      return null;
+      // The check could not be made, or what answered is not the master: not a refusal.
+      return stored;
     }
 
     // The refusal is in the body; the HTTP status of it is 200.
@@ -179,8 +194,7 @@ export class HostAuth {
       if (this.#sessionStore.get(networkId)?.sessionId === sessionId) this.#sessionStore.clear();
       return null;
     }
-    if (!response.ok) return null;
-    return { userId: record.userId, sessionId };
+    return stored;
   }
 
   /** Forget the session. It is not revoked: it is the one Valu Social itself is signed in with. */

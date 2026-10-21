@@ -65,13 +65,21 @@ const unreachable = (message) => hostError(HOST_ERRORS.HOST_UNREACHABLE, message
 /** A write that was handed to the host may have been applied: the app decides whether to repeat it. */
 const unsafeToRepeat = (descriptor, ack) => (descriptor.mutates ? { error: { ...ack.error, retryable: false } } : ack);
 
-/** What `api:ready` says, in the shape the transport keeps; `null` when it is not an `api:ready` body. */
+const CONNECTION_STATES = new Set(Object.values(CONNECTION_STATE));
+
+/**
+ * What `api:ready` says, in the shape the transport keeps; `null` when it is not an `api:ready` body.
+ * `connection` is the state of the host's link it names (`connecting` while a stored session is still
+ * opening), or, from a host that names none, what `signedIn` implies.
+ */
 function readyOf(message) {
   if (!isPlainObject(message) || !isPlainObject(message.host) || typeof message.host.signedIn !== 'boolean') return null;
   const { host } = message;
+  const implied = host.signedIn ? CONNECTION_STATE.READY : CONNECTION_STATE.SIGNED_OUT;
   return {
     message,
     applicationId: typeof message.applicationId === 'string' ? message.applicationId : null,
+    connection: CONNECTION_STATES.has(host.connection) ? host.connection : implied,
     host: {
       signedIn: host.signedIn,
       user: host.user ?? null,
@@ -204,7 +212,7 @@ export class HostTransport extends Transport {
    */
   get hostState() { return this.#hostState ? { ...this.#hostState } : null; }
 
-  /** One of CONNECTION_STATE: from `api:ready`, then every `connection` push. */
+  /** One of CONNECTION_STATE: what `api:ready` named (`connecting` while a stored session opens), then every `connection` push. */
   get connectionState() { return this.#connectionState; }
 
   /**
@@ -371,7 +379,7 @@ export class HostTransport extends Transport {
   #adopt(ready) {
     this.#hostState = ready.host;
     this.#applicationId = ready.applicationId;
-    this.#connectionState = ready.host.signedIn ? CONNECTION_STATE.READY : CONNECTION_STATE.SIGNED_OUT;
+    this.#connectionState = ready.connection;
   }
 
   /** The handshake failed for good: the transport is down, and says so to whoever asks. */

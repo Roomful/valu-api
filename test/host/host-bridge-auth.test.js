@@ -848,6 +848,21 @@ test('a session replaced by one the master refuses leaves the user signed out', 
   assert.deepEqual(connectionPushes(env), [{ state: 'signed_out' }]);
 });
 
+test('a replacement whose master cannot be reached is kept signed in, told unavailable, and retried', async () => {
+  const env = await withStoredSession();
+  env.real.otherTab.set({ userId: 'u1', networkId: 'net-1', sessionId: 'sess-REPLACED' });
+  env.maker.opens = ['fail'];
+  env.real.change();
+  await settle();
+
+  assert.equal(env.bridge.state.signedIn, true, 'a master that cannot be reached is not a sign-out');
+  assert.deepEqual(authPushes(env), [
+    { signedIn: true, user: { id: 'u1', name: null }, network: { id: 'net-1', name: null }, reason: 'unavailable' },
+  ]);
+  assert.deepEqual(connectionPushes(env), [{ state: 'reconnecting' }]);
+  assert.equal(env.maker.connections.at(-1).closed, 0, 'kept, to be tried again');
+});
+
 test('a sign-out while the other tab\'s session is being restored wins', async () => {
   const env = await withStoredSession();
   env.real.otherTab.set({ userId: 'u1', networkId: 'net-1', sessionId: 'sess-REPLACED' });
@@ -1566,11 +1581,19 @@ test('a stored session the master refuses at the hello is reported after api:rea
   assert.equal(auth.signOutCalls, 1);
   assert.deepEqual(env.bridge.state.lastError, { code: 'session_expired', message: 'the session is no longer valid' });
 
-  const unreachable = setup({ auth: fakeAuth({ session: SESSION }), maker: fakeMaker({ error: codedError('unavailable') }) });
+  const unreachableAuth = fakeAuth({ session: SESSION });
+  const unreachable = setup({ auth: unreachableAuth, maker: fakeMaker({ error: codedError('unavailable') }) });
   bridges.push(unreachable.bridge);
   unreachable.hello();
   await settle();
-  assert.deepEqual(unreachable.names(), ['api:ready'], 'a master that cannot be reached is not a verdict on the session');
+  // A master that cannot be reached is not a verdict on the session: still signed in, told why the link is down.
+  assert.deepEqual(unreachable.names(), ['api:ready', MSG.TRIGGER]);
+  assert.equal(unreachable.posts()[0].data.message.host.signedIn, true);
+  assert.equal(unreachable.posts()[0].data.message.host.connection, 'reconnecting');
+  assert.deepEqual(unreachable.posts()[1].data.message, {
+    action: 'auth', data: { signedIn: true, user: { id: 'u1', name: null }, network: null, reason: 'unavailable' },
+  });
+  assert.equal(unreachableAuth.signOutCalls, 0);
 });
 
 // ---------------------------------------------------------------------------

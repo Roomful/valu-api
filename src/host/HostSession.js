@@ -11,6 +11,15 @@
 //     session; `unavailable`, anything else) or {@link SUPERSEDED} when the
 //     session was dropped while it connected, so a caller that has moved on is
 //     not told a thing.
+//   - RESUME. `resume(sessionId, {userId, networkId})` is how a STORED session
+//     comes back: the user counts as signed in at once, as storage knows them
+//     (ids, no names; `state` is `connecting`), while the master connects. It
+//     answers the first attempt as `open()` does, but a master that cannot be
+//     reached does not end it: the session stays signed in (`reconnecting`, or
+//     `offline`) and is tried again with the backoff below, and at once when the
+//     network comes back, until the master accepts it (`onOpened`, with
+//     `user_info` adopted) or refuses it (`onExpired`). A first attempt that is
+//     refused answers `session_expired`, and the drop is the caller's.
 //   - DROP. `drop()` forgets the user and closes the connection, at once. A
 //     connection that is let go of is never listened to again: whatever it
 //     says after `drop()`, or after another `open()` replaced it, is ignored.
@@ -19,8 +28,8 @@
 //     changes; `onReconnected` says a drop came back (and whether `user_info`
 //     now says someone else, or another network); `onExpired` says the master
 //     refused the session. Nothing is said while the first connection is being
-//     made: the caller has that answer in hand, and the page starts out
-//     `connecting` on the app's side.
+//     made, or while a resume's first attempt runs: the caller has that answer
+//     in hand, and the page starts out `connecting` on the app's side.
 //   - RETRY. `MasterConnection` replaces a lost connection only on the next call
 //     that needs one, so an idle app would stay disconnected for good. When the
 //     master reaches `failed` for any reason but a refused session, this calls
@@ -100,6 +109,7 @@ export class HostSession {
   #online;
   #random;
   #onState;
+  #onOpened;
   #onReconnected;
   #onExpired;
 
@@ -124,6 +134,10 @@ export class HostSession {
   #retrying = false;
   /** Retries since the link was last up (or this session began): the backoff exponent. */
   #attempts = 0;
+  /** The master has accepted this session (`open()` did, or a resume was confirmed); false while a resume waits. */
+  #confirmed = false;
+  /** The owner has been told this session was refused: once is enough. */
+  #expired = false;
 
   /**
    * @param {object} options
@@ -132,18 +146,21 @@ export class HostSession {
    * @param {() => boolean} [options.online] Whether the browser has a network (`navigator.onLine`).
    * @param {() => number} [options.random] In [0, 1): the jitter of the retry delay.
    * @param {(state: string) => void} [options.onState] The mapped state changed, while signed in.
+   * @param {() => void} [options.onOpened] A resumed session that was waiting for the master is open: the
+   *   state is `ready` and `identity()` is what `user_info` says (the owner tells the app both).
    * @param {(change: {changed: boolean}) => void} [options.onReconnected] The master came back; `changed`
    *   says `user_info` now names another user or network.
    * @param {() => void} [options.onExpired] The master refused the session.
    */
   constructor({
-    makeConnection, log, online = () => true, random = Math.random, onState, onReconnected, onExpired,
+    makeConnection, log, online = () => true, random = Math.random, onState, onOpened, onReconnected, onExpired,
   }) {
     this.#makeConnection = makeConnection;
     this.#log = log;
     this.#online = online;
     this.#random = random;
     this.#onState = onState;
+    this.#onOpened = onOpened;
     this.#onReconnected = onReconnected;
     this.#onExpired = onExpired;
   }
@@ -188,16 +205,17 @@ export class HostSession {
     try {
       connection = this.#makeConnection(sessionId);
       this.#connection = connection;
+      this.#expired = false;
       const info = await connection.connect();
       if (this.#connection !== connection) return SUPERSEDED;
       this.#sessionId = sessionId;
       this.#signedIn = true;
+      this.#confirmed = true;
       this.#adopt(info);
       this.#lastError = null;
       this.#state = CONNECTION_STATE.READY;
       this.#masterState = 'ready';
-      connection.onStateChange?.((state) => this.#onMasterState(connection, state));
-      connection.onReconnected?.((fresh) => this.#onMasterReconnected(connection, fresh));
+      this.#listen(connection);
       return null;
     } catch (error) {
       const current = this.#connection === connection;
@@ -212,6 +230,140 @@ export class HostSession {
   }
 
   /**
+   * Resume a stored session: signed in at once, as `stored` says (what storage
+   * knows: the user's and the network's ids, no names), while the master
+   * connects. Answers the first attempt as {@link open} does, and says nothing
+   * about it through the callbacks: `null` (the master accepted it; `user_info`
+   * is adopted), `session_expired` (refused: the session stays as it is until
+   * the caller drops it), `unavailable` or {@link SUPERSEDED}. `unavailable` is
+   * not the end of it: the session stays signed in, `reconnecting` (or
+   * `offline`), and the master is tried again on the backoff, and at once when
+   * the network comes back, until it opens (`onOpened`) or refuses the session
+   * (`onExpired`). Only a connection that cannot even be made leaves the user
+   * signed out.
+   * @param {string} sessionId
+   * @param {{userId?: string|null, networkId?: string|null}} [stored]
+   * @returns {Promise<null|'session_expired'|'unavailable'|typeof SUPERSEDED>}
+   */
+  async resume(sessionId, { userId = null, networkId = null } = {}) {
+    let connection;
+    try {
+      connection = this.#makeConnection(sessionId);
+    } catch (error) {
+      const failure = failureOf(error?.code);
+      this.#log('warn', `the master did not accept the session (${failure.code})`);
+      this.#lastError = failure;
+      return failure.code;
+    }
+    this.#stopRetry();
+    this.#connection = connection;
+    this.#sessionId = sessionId;
+    this.#signedIn = true;
+    this.#confirmed = false;
+    this.#expired = false;
+    this.#masterUser = null;
+    this.#user = text(userId) ? { id: userId, name: null } : null;
+    this.#network = text(networkId) ? { id: networkId, name: null } : null;
+    this.#lastError = null;
+    this.#state = CONNECTION_STATE.CONNECTING;
+    this.#masterState = 'idle';
+
+    const first = await this.#attemptResume(connection, { quiet: true });
+    if (first === SUPERSEDED) return first;
+    if (first === HOST_ERRORS.SESSION_EXPIRED) {
+      this.#expired = true;
+      this.#lastError = failureOf(first);
+      return first;
+    }
+    // Open or waiting: from here on, what the master says is heard (a call can bring it up too).
+    this.#listen(connection);
+    if (first === HOST_ERRORS.UNAVAILABLE) {
+      this.#state = this.#online() ? CONNECTION_STATE.RECONNECTING : CONNECTION_STATE.OFFLINE;
+      this.#scheduleRetry(connection);
+    }
+    return first;
+  }
+
+  /**
+   * One attempt at the master for a resumed session. Answers `null` when it is
+   * open (confirmed here, quietly or with `onOpened`), `session_expired`,
+   * `unavailable` (with `lastError` set and a retry due), or SUPERSEDED.
+   */
+  async #attemptResume(connection, { quiet = false } = {}) {
+    this.#retrying = true;
+    let info = null;
+    let failure = null;
+    try {
+      info = await connection.connect();
+    } catch (error) {
+      failure = failureOf(error?.code);
+    } finally {
+      this.#retrying = false;
+    }
+    if (connection !== this.#connection) return SUPERSEDED;
+    if (this.#confirmed) return null;   // brought up meanwhile, by an attempt a call made
+    if (!failure) {
+      this.#confirm(connection, info, quiet);
+      return null;
+    }
+    if (failure.code === HOST_ERRORS.SESSION_EXPIRED) return failure.code;
+    if (quiet) this.#log('warn', 'the master could not be reached for the stored session (unavailable); it is tried again');
+    this.#lastError = failure;
+    this.#failed = true;
+    return failure.code;
+  }
+
+  /** A resumed session's retry, from the timer or the network coming back. */
+  async #retryResume(connection) {
+    if (this.#retrying || connection !== this.#connection || !this.#signedIn || this.#confirmed) return;
+    if (!this.#online()) return;   // `networkChanged()` retries when the network is back
+    const outcome = await this.#attemptResume(connection);
+    if (outcome === HOST_ERRORS.SESSION_EXPIRED) {
+      this.#expire(connection);
+    } else if (outcome === HOST_ERRORS.UNAVAILABLE) {
+      this.#announce(this.#online() ? CONNECTION_STATE.RECONNECTING : CONNECTION_STATE.OFFLINE);
+      this.#scheduleRetry(connection);
+    }
+  }
+
+  /** A resumed session is open: take what `user_info` says, and (unless the caller is told directly) say so. */
+  #confirm(connection, info, quiet) {
+    if (this.#confirmed || connection !== this.#connection || !this.#signedIn) return;
+    this.#confirmed = true;
+    this.#adopt(info);
+    this.#lastError = null;
+    this.#masterState = 'ready';
+    this.#stopRetry();
+    this.#state = CONNECTION_STATE.READY;
+    if (!quiet) this.#onOpened?.();
+  }
+
+  /** The master came up for a resumed session through an attempt that was not the resume's own (a call's). */
+  async #confirmFromMaster(connection) {
+    let info;
+    try {
+      info = await connection.connect();   // `ready`: what `user_info` said, at once
+    } catch {
+      return;
+    }
+    this.#confirm(connection, info, false);
+  }
+
+  /** The master refused the session: tell the owner, once, and try nothing more. */
+  #expire(connection) {
+    if (connection !== this.#connection || this.#expired) return;
+    this.#expired = true;
+    this.#stopRetry();
+    this.#lastError = failureOf(HOST_ERRORS.SESSION_EXPIRED);
+    this.#onExpired?.();
+  }
+
+  #listen(connection) {
+    connection.onStateChange?.((state) => this.#onMasterState(connection, state));
+    connection.onReconnected?.((fresh) => this.#onMasterReconnected(connection, fresh));
+  }
+
+  /**
    * Forget the user and close the connection. The connection is let go of
    * first, so nothing it says afterwards is heard.
    * @param {string|null} [why] `session_expired` keeps that as the `lastError`; anything else, none.
@@ -223,6 +375,8 @@ export class HostSession {
     this.#masterState = 'idle';
     this.#connection = null;
     this.#signedIn = false;
+    this.#confirmed = false;
+    this.#expired = false;
     this.#sessionId = null;
     this.#masterUser = null;
     this.#user = null;
@@ -243,6 +397,15 @@ export class HostSession {
     if (!this.#signedIn || !connection) return;
     if (!this.#online()) {
       this.#announce(CONNECTION_STATE.OFFLINE);
+      return;
+    }
+    if (!this.#confirmed) {
+      // A resumed session the master has not accepted yet: still connecting, or waiting to retry.
+      this.#announce(this.#failed ? CONNECTION_STATE.RECONNECTING : CONNECTION_STATE.CONNECTING);
+      if (this.#failed) {
+        this.#clearRetryTimer();
+        void this.#retryResume(connection);
+      }
       return;
     }
     this.#announce(connectionStateOf(this.#masterState, true) ?? CONNECTION_STATE.READY);
@@ -273,9 +436,13 @@ export class HostSession {
     this.#masterState = masterState;
     const failed = masterState === 'failed';
     if (failed && connection.lastError?.code === HOST_ERRORS.SESSION_EXPIRED) {
-      this.#stopRetry();
-      this.#lastError = failureOf(HOST_ERRORS.SESSION_EXPIRED);
-      this.#onExpired?.();
+      this.#expire(connection);
+      return;
+    }
+    if (!this.#confirmed) {
+      // A resumed session's own attempts say how they end. One a call started that brings the
+      // master up confirms it; anything else waits for the resume's next attempt.
+      if (masterState === 'ready' && !this.#retrying) void this.#confirmFromMaster(connection);
       return;
     }
     const next = connectionStateOf(masterState, this.#online());
@@ -294,6 +461,10 @@ export class HostSession {
 
   #onMasterReconnected(connection, fresh) {
     if (connection !== this.#connection) return;
+    if (!this.#confirmed) {
+      if (!this.#retrying) this.#confirm(connection, fresh, false);
+      return;
+    }
     const before = JSON.stringify(this.identity());
     if (isPlainObject(fresh)) this.#adopt(fresh);
     this.#lastError = null;
@@ -312,7 +483,7 @@ export class HostSession {
     this.#attempts += 1;
     this.#retryTimer = setTimeout(() => {
       this.#retryTimer = null;
-      void this.#retry(connection);
+      void (this.#confirmed ? this.#retry(connection) : this.#retryResume(connection));
     }, delay);
   }
 

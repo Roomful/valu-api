@@ -49,7 +49,7 @@ test('hello from the parent binds the origin and answers api:ready with the app 
     applicationId: 'ws_1/demo',
     action: 'start',
     params: {},
-    host: { protocol: 1, mode: 'dedicated', signedIn: false, user: null, network: null },
+    host: { protocol: 1, mode: 'dedicated', signedIn: false, user: null, network: null, connection: 'signed_out' },
   });
   assert.deepEqual(bridge.state, {
     bound: { origin: APP_ORIGIN, app: APP }, signedIn: false, user: null, network: null, connection: 'signed_out', lastError: null,
@@ -473,6 +473,7 @@ test('a restored session connects the master and api:ready says signedIn with th
     signedIn: true,
     user: { id: 'u1', name: 'Ada Lovelace' },
     network: { id: 'n1', name: 'Roomful' },
+    connection: 'ready',
   });
   assert.deepEqual(bridge.state, {
     bound: { origin: APP_ORIGIN, app: APP },
@@ -503,17 +504,213 @@ test('a session the master refuses (session_expired) is cleared and the app is t
   assert.equal(posts().length, 2);
 });
 
-test('a master that cannot be reached keeps the session and answers signedIn:false', async () => {
+// A stored session (spec §4.11): api:ready waits at most readyWaitMs (5 s) for the master; a master
+// that cannot be reached is not a sign-out, and is tried again until it opens or refuses the session.
+
+const STORED_USER = { id: 'u1', name: null };
+const FULL = { signedIn: true, user: { id: 'u1', name: 'Ada Lovelace' }, network: { id: 'n1', name: 'Roomful' } };
+/** What the host pushed after api:ready, as `[action, data]`. */
+const pushed = (posts) => posts.filter((p) => p.data.name === MSG.TRIGGER).map((p) => [p.data.message.action, p.data.message.data]);
+
+test('a stored session whose master cannot be reached stays signed in, is told unavailable, and is retried', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const auth = fakeAuth({ session: SESSION });
-  const maker = fakeMaker({ error: codedError('unavailable') });
-  const { hello, posts, logs } = setup({ auth, maker });
+  const maker = fakeMaker();
+  maker.opens = ['fail', 'ok'];
+  const { hello, posts, logs, bridge } = setup({ auth, maker });
   hello();
   await settle();
 
   assert.equal(auth.signOutCalls, 0, 'unreachable is not expired');
-  assert.equal(maker.connections[0].closed, 1);
-  assert.equal(posts()[0].data.message.host.signedIn, false);
+  assert.equal(maker.connections[0].closed, 0, 'the connection is kept, to be tried again');
+  assert.equal(posts()[0].data.name, MSG.READY);
+  assert.deepEqual(posts()[0].data.message.host, {
+    protocol: 1, mode: 'dedicated', signedIn: true, user: STORED_USER, network: null, connection: 'reconnecting',
+  }, 'signed in, as storage knows the user');
+  assert.deepEqual(pushed(posts()), [
+    ['auth', { signedIn: true, user: STORED_USER, network: null, reason: 'unavailable' }],
+  ]);
+  assert.equal(bridge.state.signedIn, true);
+  assert.equal(bridge.state.connection, 'reconnecting');
   assert.ok(logs.every((l) => !l.message.includes('sess-SECRET-1')));
+
+  t.mock.timers.tick(1200); // the first retry: 1 s, +-20 %
+  await settle();
+  assert.equal(maker.connections[0].connects, 2);
+  assert.deepEqual(pushed(posts()).slice(1), [['auth', FULL], ['connection', { state: 'ready' }]], 'then who the user is, then ready');
+  assert.equal(bridge.state.connection, 'ready');
+  await bridge.stop();
+});
+
+test('api:ready waits at most readyWaitMs (5 s) for a slow master, then says connecting with the stored user', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const opening = deferred();
+  const maker = fakeMaker();
+  maker.opens = [opening.promise];
+  const { hello, posts, bridge } = setup({ auth: fakeAuth({ session: { ...SESSION, networkId: 'net-1' } }), maker });
+  hello();
+  await settle();
+  t.mock.timers.tick(4999);
+  await settle();
+  assert.deepEqual(posts(), [], 'not before the 5 s');
+
+  t.mock.timers.tick(1);
+  await settle();
+  assert.equal(posts().length, 1);
+  assert.deepEqual(posts()[0].data.message.host, {
+    protocol: 1, mode: 'dedicated', signedIn: true, user: STORED_USER, network: { id: 'net-1', name: null }, connection: 'connecting',
+  });
+
+  opening.resolve('ok');
+  await settle();
+  assert.deepEqual(pushed(posts()), [['auth', FULL], ['connection', { state: 'ready' }]]);
+  assert.equal(bridge.state.connection, 'ready');
+  await bridge.stop();
+});
+
+test('a slow master that fails after api:ready is pushed reconnecting, then ready when a retry opens it', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const opening = deferred();
+  const maker = fakeMaker();
+  maker.opens = [opening.promise, 'fail', 'ok'];
+  const { hello, posts, bridge } = setup({ auth: fakeAuth({ session: SESSION }), maker });
+  hello();
+  await settle();
+  t.mock.timers.tick(5000);
+  await settle();
+  assert.equal(posts()[0].data.message.host.connection, 'connecting');
+
+  opening.resolve('fail');
+  await settle();
+  t.mock.timers.tick(1200); // 1 s, +-20 %: fails again
+  await settle();
+  t.mock.timers.tick(2400); // 2 s, +-20 %: opens
+  await settle();
+  assert.deepEqual(pushed(posts()), [
+    ['auth', { signedIn: true, user: STORED_USER, network: null, reason: 'unavailable' }],
+    ['connection', { state: 'reconnecting' }],
+    ['auth', FULL],
+    ['connection', { state: 'ready' }],
+  ], 'connecting (in api:ready), reconnecting, ready');
+  assert.equal(maker.connections[0].connects, 3);
+  await bridge.stop();
+});
+
+test('a stored session the master refuses during the retries is signed out, as at the hello', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const auth = fakeAuth({ session: SESSION });
+  const maker = fakeMaker();
+  maker.opens = ['fail', 'expire'];
+  const { hello, call, posts, bridge } = setup({ auth, maker });
+  hello();
+  await settle();
+  t.mock.timers.tick(1200);
+  await settle();
+
+  assert.equal(bridge.state.signedIn, false);
+  assert.equal(auth.signOutCalls, 1, 'the refused session is forgotten');
+  assert.equal(maker.connections[0].closed, 1);
+  assert.deepEqual(pushed(posts()).slice(1), [
+    ['auth', { signedIn: false, user: null, network: null, reason: 'session_expired' }],
+    ['connection', { state: 'signed_out' }],
+  ]);
+  t.mock.timers.tick(100_000);
+  await settle();
+  assert.equal(maker.connections[0].connects, 2, 'and nothing is retried after that');
+  call(MSG.CALL, { service: 'Users', action: 'current', requestId: 3 });
+  await settle();
+  assert.equal(posts().at(-1).data.message.error.message, 'sign_in_required');
+});
+
+test('a slow master that refuses the session after api:ready signs the user out', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const opening = deferred();
+  const auth = fakeAuth({ session: SESSION });
+  const maker = fakeMaker();
+  maker.opens = [opening.promise];
+  const { hello, posts, bridge } = setup({ auth, maker });
+  hello();
+  await settle();
+  t.mock.timers.tick(5000);
+  await settle();
+  opening.resolve('expire');
+  await settle();
+  assert.equal(bridge.state.signedIn, false);
+  assert.equal(auth.signOutCalls, 1);
+  assert.deepEqual(pushed(posts()), [
+    ['auth', { signedIn: false, user: null, network: null, reason: 'session_expired' }],
+    ['connection', { state: 'signed_out' }],
+  ]);
+});
+
+test('stop ends the retries of a stored session and the wait for api:ready, and leaves no timer', async () => {
+  const timers = () => process.getActiveResourcesInfo().filter((resource) => resource === 'Timeout').length;
+  const before = timers();
+  const retrying = fakeMaker();
+  retrying.opens = ['fail'];
+  const failing = setup({ auth: fakeAuth({ session: SESSION }), maker: retrying });
+  failing.hello();
+  await settle();
+  const slow = fakeMaker();
+  slow.opens = [new Promise(() => {})];
+  const waiting = setup({ auth: fakeAuth({ session: SESSION }), maker: slow });
+  waiting.hello();
+  await settle();
+  assert.ok(timers() >= before + 2, 'a retry is booked, and api:ready is waited for');
+
+  await failing.bridge.stop();
+  await waiting.bridge.stop();
+  assert.equal(timers(), before, 'nothing is left to fire');
+  assert.deepEqual(waiting.posts(), [], 'a stopped host says nothing');
+});
+
+test('the network coming back retries a stored session that was waiting at once', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const maker = fakeMaker();
+  maker.opens = ['fail', 'ok'];
+  const env = setup({ auth: fakeAuth({ session: SESSION }), maker });
+  env.host.navigator = { onLine: false };
+  env.hello();
+  await settle();
+  assert.equal(env.posts()[0].data.message.host.connection, 'offline');
+  t.mock.timers.tick(100_000);
+  await settle();
+  assert.equal(maker.connections[0].connects, 1, 'nothing is tried while the browser is offline');
+
+  env.host.navigator.onLine = true;
+  env.host.fire('online');
+  await settle();
+  assert.equal(maker.connections[0].connects, 2);
+  assert.deepEqual(pushed(env.posts()).slice(-2), [['auth', FULL], ['connection', { state: 'ready' }]]);
+  await env.bridge.stop();
+});
+
+test('a stored session that could not be checked is resumed, not signed out', async () => {
+  const storage = new FakeStorage();
+  const sessionStore = new SessionStore({ storage });
+  sessionStore.set({ userId: 'u1', networkId: 'net-1', sessionId: 'sess-REAL' });
+  const maker = fakeMaker();
+  const down = async () => { throw new TypeError('Failed to fetch'); };
+  const auth = new HostAuth({ sessionStore, fetchImpl: down, makeConnection: (id) => maker.make(id) });
+  const { hello, last, bridge } = setup({ auth, sessionStore, maker });
+  hello();
+  await settle();
+  assert.equal(last().data.message.host.signedIn, true, 'the master socket said it stands');
+  assert.deepEqual(maker.sessions, ['sess-REAL']);
+  assert.equal(sessionStore.get('net-1').sessionId, 'sess-REAL');
+  await bridge.stop();
+});
+
+test('a restore that never answers falls back on what storage holds after restoreTimeoutMs', async () => {
+  const auth = fakeAuth({ restore: () => new Promise(() => {}), stored: SESSION });
+  const maker = fakeMaker();
+  const { hello, posts, bridge } = setup({ auth, maker, config: { restoreTimeoutMs: 15 } });
+  hello();
+  await new Promise((resolve) => { setTimeout(resolve, 60); });
+  assert.equal(posts()[0].data.name, MSG.READY);
+  assert.equal(posts()[0].data.message.host.signedIn, true);
+  assert.deepEqual(maker.sessions, ['sess-SECRET-1'], 'resumed unchecked: the master connection is what tells');
+  await bridge.stop();
 });
 
 test('a restore that never answers is treated as no session after restoreTimeoutMs', async () => {
@@ -952,7 +1149,7 @@ test('a missing or mistyped config value takes its default: undefined does not b
   const bad = [undefined, null, 0, -5, NaN, Infinity, '10', '', {}, [], true];
   for (const restoreTimeoutMs of bad) {
     const { hello, last, maker } = setup({
-      auth: fakeAuth({ restore: slowSession }), config: { restoreTimeoutMs },
+      auth: fakeAuth({ restore: slowSession }), config: { restoreTimeoutMs, readyWaitMs: restoreTimeoutMs },
     });
     hello();
     await new Promise((resolve) => { setTimeout(resolve, 80); });

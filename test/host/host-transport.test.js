@@ -185,6 +185,27 @@ test('open starts a signed-out page as signed_out', async (t) => {
   assert.deepEqual(h.transport.hostState, { ...READY.host, signedIn: false, user: null, network: null });
 });
 
+test('open takes the connection state api:ready names: a stored session still opening is connecting', async (t) => {
+  for (const connection of ['connecting', 'reconnecting', 'offline', 'ready']) {
+    const h = setup(t, { answers: { ready: { ...READY, host: { ...READY.host, connection } } } });
+    const triggers = h.heard(Transport.TRIGGER);
+    await h.transport.open();
+    assert.equal(h.transport.connectionState, connection);
+    assert.deepEqual(h.transport.hostState, READY.host, 'the connection state is not part of hostState');
+    h.send(MSG.TRIGGER, { action: 'connection', data: { state: 'ready' } });
+    assert.equal(h.transport.connectionState, 'ready');
+    assert.equal(triggers.length, 1);
+  }
+});
+
+test('an api:ready connection that is not a state is ignored: the state follows signedIn', async (t) => {
+  for (const connection of ['nonsense', 7, null, {}]) {
+    const h = setup(t, { answers: { ready: { ...READY, host: { ...READY.host, connection } } } });
+    await h.transport.open();
+    assert.equal(h.transport.connectionState, 'ready', JSON.stringify(connection));
+  }
+});
+
 test('open is one handshake however often it is asked', async (t) => {
   const h = setup(t);
   await Promise.all([h.transport.open(), h.transport.open()]);

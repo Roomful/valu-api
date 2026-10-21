@@ -14,8 +14,10 @@
 //   auth         `{signedIn, user, network, reason?}` on every change of who the
 //                user is, with the `reason` when the change has one (see
 //                HOST_ERRORS: `cancelled`, `master_mismatch`, `not_a_member`,
-//                `invalid_token`, `unavailable`, `session_expired`,
-//                `signed_out_elsewhere`). `signedIn` is the state NOW, so a push
+//                `invalid_token`, `timeout`, `unavailable`, `session_expired`,
+//                `signed_out_elsewhere`). `unavailable` with `signedIn:true` is
+//                a stored session the master could not be reached for yet: it
+//                is retried, and an `auth` without a reason follows when it opens. `signedIn` is the state NOW, so a push
 //                is not always a sign-in result: `cancelled` and `master_mismatch`
 //                report what the popup did and change nothing, and arrive with
 //                the current `signedIn` (true for a user who was signed in).
@@ -25,7 +27,12 @@
 //                host's link to the platform changes; after a drop that came
 //                back, `{state:'ready', reconnected:true}`, which a client reads
 //                as "forget what you cached". The host itself starts a page as
-//                `connecting`, before `api:ready`, and says nothing then.
+//                `connecting`, before `api:ready`, and says nothing then;
+//                `api:ready` names the state it starts the app in
+//                (`host.connection`): `connecting` while a stored session's
+//                master is still opening (the user is signed in as storage
+//                knows them, and `ready` follows), `reconnecting` / `offline`
+//                while it cannot be reached, `ready`, or `signed_out`.
 //   commerce     `{event, ...}` for the Commerce events the app subscribed to.
 // ===========================================================================
 

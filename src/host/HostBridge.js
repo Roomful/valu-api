@@ -103,8 +103,21 @@
 //
 // Hellos are handled one at a time, in arrival order, so two that overlap (the
 // resolver and the session restore are asynchronous) cannot bind twice. Each of
-// those two waits is bounded (`resolveTimeoutMs`, `restoreTimeoutMs`), so one
-// that never answers cannot hold up every hello behind it.
+// those waits is bounded, so one that never answers cannot hold up every hello
+// behind it: the resolver by `resolveTimeoutMs` (10 s), and the stored session
+// (its `auth/check`, then the master) by `readyWaitMs` (5 s) in all.
+//
+// A stored session (spec §4.4, §4.11). The user counts as signed in from the
+// moment the host finds one, as storage knows them (ids, no names), while the
+// master opens. `api:ready` says so, with `host.connection`: `ready` when the
+// master opened within `readyWaitMs`, else `connecting` (and the outcome is
+// pushed when it comes). A check that could not be made (`auth/check` failed or
+// took longer than `restoreTimeoutMs`) is not a sign-out, and neither is a
+// master that cannot be reached: the app is pushed `auth {signedIn:true,
+// reason:'unavailable'}` and `connection reconnecting` (or `offline`), the
+// session is tried again (1 s doubling to 30 s, +-20 %, and at once on
+// `online`), and `auth` and `connection ready` follow when it opens. Only the
+// master refusing the session (`session_expired`) signs the user out.
 //
 // The config is read from the keys the bridge knows and nothing else
 // (`normalizeConfig`): a wrong-typed or missing value takes its default, and the
@@ -144,8 +157,12 @@ import {
  * @property {number} [maxInFlight] Concurrent requests per bound app.
  * @property {number} [callTimeoutMs] How long a call or an intent may run before it answers 408 `timeout`.
  * @property {number} [consentTimeoutMs] How long a consent request waits for the popup.
- * @property {number} [restoreTimeoutMs] How long a stored session may take to
- *   check before the user is treated as signed out.
+ * @property {number} [restoreTimeoutMs] How long the check of a stored session
+ *   (`auth/check`) may take; after it, the session storage holds is resumed
+ *   unchecked and the master connection is what tells.
+ * @property {number} [readyWaitMs] The longest `api:ready` waits for a stored
+ *   session (the check and the master together). A master that is not open by
+ *   then is reported `connecting` with the user storage knows, and keeps opening.
  * @property {number} [resolveTimeoutMs] How long the resolver may take before the
  *   hello is answered `resolve_unavailable`.
  */
@@ -162,6 +179,7 @@ const DEFAULT_CONFIG = Object.freeze({
   callTimeoutMs: 30_000,
   consentTimeoutMs: 600_000,
   restoreTimeoutMs: 5_000,
+  readyWaitMs: 5_000,
   resolveTimeoutMs: 10_000,
 });
 
@@ -208,6 +226,7 @@ function normalizeConfig(config) {
     callTimeoutMs: positive(given.callTimeoutMs, DEFAULT_CONFIG.callTimeoutMs),
     consentTimeoutMs: positive(given.consentTimeoutMs, DEFAULT_CONFIG.consentTimeoutMs),
     restoreTimeoutMs: positive(given.restoreTimeoutMs, DEFAULT_CONFIG.restoreTimeoutMs),
+    readyWaitMs: positive(given.readyWaitMs, DEFAULT_CONFIG.readyWaitMs),
     resolveTimeoutMs: positive(given.resolveTimeoutMs, DEFAULT_CONFIG.resolveTimeoutMs),
   });
 }
@@ -358,8 +377,9 @@ export class HostBridge {
    * @param {object} options
    * @param {Window} options.win The host page's window.
    * @param {{resolve: (origin: string) => Promise<object|null>}} options.resolver
-   * @param {{restore: Function, redeem: Function, signOut: Function}} options.auth A `HostAuth`. `redeem` is
-   *   what the sign-in token channel needs; the bridge answers `unavailable` to a token when it is missing.
+   * @param {{restore: Function, redeem: Function, signOut: Function, stored?: Function}} options.auth A `HostAuth`.
+   *   `redeem` is what the sign-in token channel needs; the bridge answers `unavailable` to a token when it is
+   *   missing. `stored` (what storage holds, unchecked) is what a check that cannot be made falls back on.
    * @param {{onChange: (handler: () => void) => (() => void), load?: () => object|null}} [options.sessionStore]
    *   A `SessionStore`: `onChange` is how another tab's sign-out or sign-in arrives, `load` says what is
    *   stored. The page wiring (Task 12) feeds `onChange` from the browser's `storage` event and must treat an
@@ -411,6 +431,7 @@ export class HostBridge {
       log: (level, message) => this.#log(level, message),
       online: () => this.#win.navigator?.onLine !== false,
       onState: (state) => this.#pushConnection(state),
+      onOpened: () => this.#onOpened(),
       onReconnected: ({ changed }) => this.#onReconnected(changed),
       onExpired: () => this.#sessionExpired(),
     });
@@ -435,7 +456,7 @@ export class HostBridge {
 
   /**
    * Who the host is bound to and what it knows of the user: `connection` is the
-   * state the app is told (`ready`, `reconnecting`, `offline`, `signed_out`) and
+   * state the app is told (`connecting`, `ready`, `reconnecting`, `offline`, `signed_out`) and
    * `lastError` why the link is down or the session ended, as `{code, message}`
    * with a fixed message, or null. For tests and the consent page.
    */
@@ -940,12 +961,15 @@ export class HostBridge {
     }
 
     this.#bound = { origin, app };
-    const failure = await this.#restoreSession(app);
+    await this.#restoreSession(app);
     if (this.#stopped) return;
     this.#ready = true;
     this.#sendReady();
-    // A stored session the master refused at connect: say why, not only "signed out".
-    if (failure === HOST_ERRORS.SESSION_EXPIRED) this.pushAuth(HOST_ERRORS.SESSION_EXPIRED);
+    // What became of the stored session before api:ready that api:ready itself does not say: why the
+    // user is signed out after all (the master refused it), or that it could not be reached yet.
+    const { signedIn, lastError } = this.#session;
+    if (!signedIn && lastError?.code === HOST_ERRORS.SESSION_EXPIRED) this.pushAuth(HOST_ERRORS.SESSION_EXPIRED);
+    else if (signedIn && lastError?.code === HOST_ERRORS.UNAVAILABLE) this.pushAuth(HOST_ERRORS.UNAVAILABLE);
     // Another tab changed the stored session while this one was starting: judge it now.
     if (this.#storeChangedEarly) {
       this.#storeChangedEarly = false;
@@ -983,23 +1007,115 @@ export class HostBridge {
 
   // --- the session ---------------------------------------------------------
 
-  /** Restore the stored session, and when there is one, open the master. A timeout is "no session". */
+  /**
+   * Bring the stored session back before `api:ready`, waiting at most
+   * `readyWaitMs` for the check and the master together. The user is signed in
+   * from the moment the session is resumed (as storage knows them); a master
+   * that has not answered by the deadline keeps opening after `api:ready`
+   * (`connecting`), and what it ends in is pushed when it does.
+   */
   async #restoreSession(app) {
-    const stored = await this.#storedSession(app);
-    if (this.#stopped || !text(stored?.sessionId)) return null;
-    return this.#openMaster(stored.sessionId);
+    const deadline = this.#deadline(this.#config.readyWaitMs);
+    try {
+      const checked = await Promise.race([this.#storedSession(app), deadline.promise]);
+      if (this.#stopped) return;
+      const stored = checked === TIMED_OUT ? this.#storedUnchecked(app) : checked;
+      if (!text(stored?.sessionId)) return;
+      const first = this.#resume(stored);
+      const outcome = await Promise.race([first, deadline.promise]);
+      if (outcome === TIMED_OUT) {
+        first.then((late) => this.#afterResume(late)).catch((error) => {
+          this.#log('error', `a stored session could not be resumed (${error?.name ?? 'error'})`);
+        });
+      } else {
+        this.#afterResume(outcome);
+      }
+    } finally {
+      deadline.cancel();
+    }
   }
 
-  /** What `auth.restore` finds for this app, within `restoreTimeoutMs`; null when nothing, or it failed. */
+  /**
+   * The stored session for this app, checked with the master (`auth.restore`)
+   * within `restoreTimeoutMs`: `{userId, sessionId, networkId}`, or null when
+   * there is none or the master refused it. A check that could not be made (it
+   * failed or ran out of time) is not a refusal: what storage holds is answered
+   * unchecked, and the master connection is what tells.
+   */
   async #storedSession(app) {
     try {
-      return await orAfter(
-        this.#auth.restore({ homeNetworkId: app.homeNetworkId }), this.#config.restoreTimeoutMs, null, this.#timers,
+      const checked = await orAfter(
+        this.#auth.restore({ homeNetworkId: app.homeNetworkId }), this.#config.restoreTimeoutMs, TIMED_OUT, this.#timers,
       );
+      if (checked !== TIMED_OUT) return checked;
+      this.#log('warn', 'the stored session could not be checked in time');
     } catch (error) {
       this.#log('warn', `the stored session could not be checked (${error?.code ?? error?.name ?? 'error'})`);
+    }
+    return this.#storedUnchecked(app);
+  }
+
+  /** What storage holds for this app, unchecked (`auth.stored`); null when nothing, or it cannot be read. */
+  #storedUnchecked(app) {
+    try {
+      const stored = this.#auth.stored?.({ homeNetworkId: app.homeNetworkId }) ?? null;
+      return text(stored?.sessionId) ? stored : null;
+    } catch (error) {
+      this.#log('warn', `the stored session could not be read (${error?.name ?? 'error'})`);
       return null;
     }
+  }
+
+  /** Resume a stored session: signed in at once, as storage knows the user; answers the first attempt. */
+  #resume({ userId, sessionId, networkId }) {
+    return this.#session.resume(sessionId, { userId, networkId });
+  }
+
+  /**
+   * What the first attempt of a resumed session at startup ended in, told to
+   * the app (nothing is sent before `api:ready`, which then says it itself):
+   * open, refused (signed out, as any refused session is), or not reachable
+   * (signed in, `unavailable`, and tried again by the session).
+   */
+  #afterResume(outcome) {
+    if (this.#stopped) return;
+    if (outcome === null) {
+      this.pushAuth();
+      this.#pushConnection();
+    } else if (outcome === HOST_ERRORS.SESSION_EXPIRED) {
+      this.#sessionExpired();
+    } else if (outcome === HOST_ERRORS.UNAVAILABLE) {
+      this.pushAuth(HOST_ERRORS.UNAVAILABLE);
+      this.#pushConnection();
+    }
+  }
+
+  /** A resumed session that was waiting for the master is open: who the user is (with names now), and ready. */
+  #onOpened() {
+    this.pushAuth();
+    this.#pushConnection(CONNECTION_STATE.READY);
+  }
+
+  /**
+   * A wait of `ms` that resolves `TIMED_OUT`. Its timer is in `#timers`, so a
+   * stop clears it; `cancel()` ends it early.
+   */
+  #deadline(ms) {
+    let timer;
+    const promise = new Promise((resolve) => {
+      timer = setTimeout(() => {
+        this.#timers.delete(timer);
+        resolve(TIMED_OUT);
+      }, ms);
+    });
+    this.#timers.add(timer);
+    return {
+      promise,
+      cancel: () => {
+        clearTimeout(timer);
+        this.#timers.delete(timer);
+      },
+    };
   }
 
   /**
@@ -1246,14 +1362,24 @@ export class HostBridge {
       if (wasSignedIn) this.#signedOutElsewhere();
       return;
     }
-    const failure = await this.#openMaster(replacement.sessionId);
-    if (failure === SUPERSEDED || this.#stopped) return;
-    if (failure !== null) {
+    const outcome = await this.#resume(replacement);
+    if (outcome === SUPERSEDED || this.#stopped) return;
+    if (outcome === HOST_ERRORS.SESSION_EXPIRED) {
+      // The master refused what storage holds: this tab is signed out, as it was or as the other tab left it.
+      this.#forgetSession(replacement.sessionId);
+      void this.#dropSession();
+      for (const held of [...this.#running]) held.expire();
       if (wasSignedIn) this.#signedOutElsewhere();
       return;
     }
+    if (!this.#session.signedIn) {
+      // The connection could not even be made: nothing took this tab's session's place.
+      if (wasSignedIn) this.#signedOutElsewhere();
+      return;
+    }
+    // Signed in: open, or (`unavailable`) waiting for a master that cannot be reached yet.
     this.#notAMember = false;
-    this.pushAuth();
+    this.pushAuth(outcome === HOST_ERRORS.UNAVAILABLE ? HOST_ERRORS.UNAVAILABLE : undefined);
     this.#pushConnection();
   }
 
@@ -1266,14 +1392,20 @@ export class HostBridge {
   // --- sending -------------------------------------------------------------
 
   #sendReady() {
-    // What the app assumes of the link from what `api:ready` says of the user.
-    this.#announced = this.#session.signedIn ? CONNECTION_STATE.READY : CONNECTION_STATE.SIGNED_OUT;
+    // `api:ready` says the state of the link itself: `connecting` while a stored session's master is still
+    // opening, `reconnecting` / `offline` while it cannot be reached, `ready`, or `signed_out`.
+    const connection = this.#session.state;
+    this.#announced = connection;
     this.#post(MSG.READY, {
       applicationId: this.#bound.app.address,
       action: 'start',
       params: {},
       host: {
-        protocol: PROTOCOL_VERSION, mode: 'dedicated', signedIn: this.#session.signedIn, ...this.#session.identity(),
+        protocol: PROTOCOL_VERSION,
+        mode: 'dedicated',
+        signedIn: this.#session.signedIn,
+        ...this.#session.identity(),
+        connection,
       },
     });
   }

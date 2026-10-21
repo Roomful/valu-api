@@ -341,7 +341,7 @@ function signedIn(options = {}) {
 test('restore returns the session on 200', async () => {
   const { auth, fetch, sessionStore } = signedIn();
 
-  assert.deepEqual(await auth.restore({ homeNetworkId: 'n1' }), { userId: 'u1', sessionId: SESSION });
+  assert.deepEqual(await auth.restore({ homeNetworkId: 'n1' }), { userId: 'u1', sessionId: SESSION, networkId: 'n1' });
 
   assert.equal(fetch.calls.length, 1);
   assert.equal(fetch.calls[0].url, 'https://api.roomful.net/api/v1/auth/check');
@@ -362,7 +362,7 @@ test('restore asks the master about the stored session of the home network', asy
   const { auth, fetch, sessionStore } = signedIn();
   sessionStore.set({ userId: 'u1', networkId: 'n2', sessionId: SWITCHED });
 
-  assert.deepEqual(await auth.restore({ homeNetworkId: 'n2' }), { userId: 'u1', sessionId: SWITCHED });
+  assert.deepEqual(await auth.restore({ homeNetworkId: 'n2' }), { userId: 'u1', sessionId: SWITCHED, networkId: 'n2' });
   assert.deepEqual(fetch.calls[0].headers, { 'X-Session-Id': SWITCHED });
 });
 
@@ -380,8 +380,8 @@ test('restore is null, and asks nothing, when the home network has no session', 
 
 test('restore without a home network uses the only stored network, and none when there are several', async () => {
   const { auth, fetch, sessionStore } = signedIn();
-  assert.deepEqual(await auth.restore({}), { userId: 'u1', sessionId: SESSION });
-  assert.deepEqual(await auth.restore(), { userId: 'u1', sessionId: SESSION });
+  assert.deepEqual(await auth.restore({}), { userId: 'u1', sessionId: SESSION, networkId: 'n1' });
+  assert.deepEqual(await auth.restore(), { userId: 'u1', sessionId: SESSION, networkId: 'n1' });
   assert.equal(fetch.calls.length, 2);
 
   sessionStore.set({ userId: 'u1', networkId: 'n2', sessionId: SWITCHED });
@@ -390,25 +390,40 @@ test('restore without a home network uses the only stored network, and none when
   assert.equal(sessionStore.get('n1').sessionId, SESSION, 'and it does not clear either');
 });
 
-test('restore keeps the session when the check cannot be made', async () => {
+const UNCHECKED = { userId: 'u1', sessionId: SESSION, networkId: 'n1' };
+
+test('restore answers the stored session, unchecked, when the check cannot be made: it is not a refusal', async () => {
   const { auth, sessionStore } = signedIn({ fetchImpl: async () => { throw new TypeError('Failed to fetch'); } });
 
-  assert.equal(await auth.restore({ homeNetworkId: 'n1' }), null);
-  assert.equal(sessionStore.get('n1').sessionId, SESSION, 'the session may still be fine; the caller retries later');
+  assert.deepEqual(await auth.restore({ homeNetworkId: 'n1' }), UNCHECKED);
+  assert.equal(sessionStore.get('n1').sessionId, SESSION, 'the session may still be fine; the master connection tells');
 });
 
-test('restore keeps the session when the master answers non-2xx', async () => {
+test('restore answers the stored session when the master answers non-2xx', async () => {
   for (const status of [500, 502, 503]) {
     const { auth, sessionStore } = signedIn({ fetchImpl: async () => response(status, { error: { status: true, code: status } }) });
-    assert.equal(await auth.restore({ homeNetworkId: 'n1' }), null, String(status));
+    assert.deepEqual(await auth.restore({ homeNetworkId: 'n1' }), UNCHECKED, String(status));
     assert.equal(sessionStore.get('n1').sessionId, SESSION, String(status));
   }
 });
 
-test('restore keeps the session when the answer is not JSON', async () => {
+test('restore answers the stored session when the answer is not JSON', async () => {
   const { auth, sessionStore } = signedIn({ fetchImpl: async () => response(200, new SyntaxError('Unexpected token <')) });
-  assert.equal(await auth.restore({ homeNetworkId: 'n1' }), null);
+  assert.deepEqual(await auth.restore({ homeNetworkId: 'n1' }), UNCHECKED);
   assert.equal(sessionStore.get('n1').sessionId, SESSION);
+});
+
+test('stored is what restore would ask about, read from storage without asking the master', async () => {
+  const { auth, fetch, sessionStore } = signedIn();
+  assert.deepEqual(auth.stored({ homeNetworkId: 'n1' }), UNCHECKED);
+  assert.deepEqual(auth.stored(), UNCHECKED, 'the only stored network');
+  assert.equal(auth.stored({ homeNetworkId: 'n9' }), null);
+  sessionStore.set({ userId: 'u1', networkId: 'n2', sessionId: SWITCHED });
+  assert.equal(auth.stored({}), null, 'two candidates: it does not guess');
+  assert.equal(auth.stored({ homeNetworkId: null }), null);
+  assert.deepEqual(auth.stored({ homeNetworkId: 'n2' }), { userId: 'u1', sessionId: SWITCHED, networkId: 'n2' });
+  assert.equal(setup().auth.stored({ homeNetworkId: 'n1' }), null);
+  assert.equal(fetch.calls.length, 0, 'nothing is asked');
 });
 
 test('restore reads a refusal from the body whatever the HTTP status says', async () => {
