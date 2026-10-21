@@ -2,8 +2,10 @@ declare module '@arkeytyp/valu-api' {
     // The generated per-function types live next door. They are a MODULE (they
     // import this one), so they are imported rather than merged — that is what
     // lets `valu.Users.current()` be typed without generating anything into
-    // this hand-written file.
-    import type { ValuServices, ValuServicesData } from './valu-services';
+    // this hand-written file. The import names the package path: inside an
+    // ambient `declare module` a relative path does not resolve, and a consumer
+    // would get `ValuServices` (and so `ValuApp`) as `any`.
+    import type { ValuServices, ValuServicesData } from '@arkeytyp/valu-api/types/valu-services';
 
     export type { ValuServices, ValuServicesData };
 
@@ -217,6 +219,19 @@ declare module '@arkeytyp/valu-api' {
             code?: number;
             message?: string;
             description?: string;
+            /**
+             * The scope a refusal is about. Present on a `403` `consent_required`
+             * answer of the host (dedicated mode): the scope the user has not given
+             * this app yet. Pass it to `auth.requestConsent([scope])`.
+             */
+            scope?: string;
+            /**
+             * `false` when repeating the call is not safe: a call that WRITES and
+             * was cut off (`503`) or ran out of time (`408`) after it was handed to
+             * the host may have been applied. The app decides whether to repeat it.
+             * Absent when the call is safe to repeat (it never ran, or it only reads).
+             */
+            retryable?: boolean;
         };
     }
 
@@ -330,7 +345,7 @@ declare module '@arkeytyp/valu-api' {
         get applicationId(): string | null;
         /** What the host last said of the user and itself; `null` before the handshake. */
         get hostState(): HostState | null;
-        get connectionState(): ValuConnectionState;
+        get connectionState(): ValuAppConnectionState;
     }
 
     /** What `api:ready` and the `auth` pushes say of the user. */
@@ -817,11 +832,15 @@ declare module '@arkeytyp/valu-api' {
         reason?: ValuAuthReason | (string & {});
     }
 
-    export type ValuConnectionState = 'connecting' | 'ready' | 'reconnecting' | 'offline' | 'signed_out';
+    /**
+     * The state of an app's link to its host (`valu.connection.state`), not of a
+     * socket: {@link ValuConnectionState} is `ValuSocketConnection`'s.
+     */
+    export type ValuAppConnectionState = 'connecting' | 'ready' | 'reconnecting' | 'offline' | 'signed_out';
 
     /** What a `connection` `change` handler receives. */
     export interface ValuConnectionChange {
-        state: ValuConnectionState;
+        state: ValuAppConnectionState;
         /** True for the notice that a dropped link is back: what the app cached about the platform predates it. */
         reconnected: boolean;
         lastError: { code: string } | null;
@@ -875,7 +894,7 @@ declare module '@arkeytyp/valu-api' {
     }
 
     export interface ValuConnection {
-        readonly state: ValuConnectionState;
+        readonly state: ValuAppConnectionState;
         /** The reason of the last connection push that had one (`host_unreachable` …); cleared when the link is back. */
         readonly lastError: { code: string } | null;
         /** Every connection push. Returns the way to stop. */
