@@ -87,6 +87,8 @@ function harness(t, { ready = READY, search = '', activation = false, framedBy, 
   const send = (name, message, requestId) => pair.app.postMessage(toParent(name, message, requestId), pair.app.origin);
   const host = {
     ready,
+    /** Whether the host answers `host:ping`; off, it looks dead. */
+    ping: true,
     onHello: () => send(MSG.READY, host.ready),
     call: () => ({ data: { id: 'x' } }),
     intent: () => ({ success: true }),
@@ -94,7 +96,7 @@ function harness(t, { ready = READY, search = '', activation = false, framedBy, 
   pair.host.addEventListener('message', ({ data }) => {
     const { name, message } = data;
     if (name === MSG.HELLO) host.onHello();
-    else if (name === MSG.PING) send(MSG.PONG, {}, message.requestId);
+    else if (name === MSG.PING) { if (host.ping) send(MSG.PONG, {}, message.requestId); }
     else if (name === MSG.CALL) send(MSG.CALL_COMPLETED, host.call(message), message.requestId);
     else if (name === MSG.SERVICE_INTENT) send(MSG.RUN_CONSOLE_COMPLETED, host.intent(message), message.requestId);
     else if (name === MSG.RUN_INTENT) send(MSG.RUN_COMPLETED, { error: { code: 'not_available' } }, message.requestId);
@@ -479,12 +481,47 @@ test('a push that is not an answer leaves signIn waiting', async (t) => {
   const h = await setup(t, { ready: SIGNED_OUT });
   const outcome = track(h.valu.auth.signIn());
 
-  h.send(MSG.TRIGGER, { action: 'auth', data: { signedIn: false, user: null, network: null, reason: 'session_expired' } });
+  h.send(MSG.TRIGGER, { action: 'auth', data: { signedIn: false, user: null, network: null, reason: 'signed_out_elsewhere' } });
   h.send(MSG.TRIGGER, { action: 'auth', data: { signedIn: false, user: null, network: null } });
   h.send(MSG.TRIGGER, { action: 'connection', data: { state: 'ready' } });
   await settle();
   assert.equal(outcome.settled, false);
 
+  h.send(MSG.TRIGGER, SIGNED_IN_PUSH);
+  await settle();
+  assert.equal(outcome.value.signedIn, true);
+});
+
+test('a session_expired push rejects a sign-in that is waiting, at once', async (t) => {
+  const h = await setup(t, { ready: SIGNED_OUT });
+  const base = h.clock.pending;
+  const outcome = track(h.valu.auth.signIn());
+
+  h.send(MSG.TRIGGER, { action: 'auth', data: { signedIn: false, user: null, network: null, reason: 'session_expired' } });
+  await settle();
+
+  assert.equal(outcome.error?.code, 'session_expired');
+  assert.ok(outcome.error instanceof Error);
+  assert.equal(h.valu.auth.state.reason, 'session_expired');
+  assert.equal(h.clock.pending, base);
+
+  // The window was closed, and its grace is running: the push does not wait for it.
+  const closing = await setup(t, { ready: SIGNED_OUT });
+  const waiting = track(closing.valu.auth.signIn());
+  closing.popups.windows[0].closed = true;
+  closing.clock.tick(POLL_MS);
+  closing.send(MSG.TRIGGER, { action: 'auth', data: { signedIn: false, user: null, network: null, reason: 'session_expired' } });
+  await settle();
+  assert.equal(waiting.error?.code, 'session_expired');
+});
+
+test('a session_expired push with no sign-in waiting is state, not an error', async (t) => {
+  const h = await setup(t);
+  h.send(MSG.TRIGGER, { action: 'auth', data: { signedIn: false, user: null, network: null, reason: 'session_expired' } });
+  assert.equal(h.valu.auth.state.reason, 'session_expired');
+
+  // And it does not poison the next sign-in.
+  const outcome = track(h.valu.auth.signIn());
   h.send(MSG.TRIGGER, SIGNED_IN_PUSH);
   await settle();
   assert.equal(outcome.value.signedIn, true);
@@ -668,6 +705,31 @@ test('requestConsent resolves false when the user declines or the host refuses',
     await settle();
     assert.equal(outcome.value, false, JSON.stringify(reply));
     assert.equal(h.clock.pending, base);
+  }
+});
+
+test('a consent the host refused before the dialog closes the popup it opened', async (t) => {
+  for (const reason of ['sign_in_required', 'busy', 'invalid_request', 'timeout', 'unavailable']) {
+    const h = await setup(t);
+    const outcome = track(h.valu.auth.requestConsent(['rooms:read']));
+    assert.equal(h.popups.windows[0].closed, false, 'open while the host has not answered');
+
+    h.send(MSG.CONSENT_COMPLETED, { approved: false, reason }, h.sent(MSG.CONSENT)[0].data.message.requestId);
+    await settle();
+
+    assert.equal(outcome.value, false, reason);
+    assert.equal(h.popups.windows[0].closed, true, `${reason}: the popup is closed`);
+  }
+});
+
+test('a decision made in the dialog leaves the popup to the page that made it', async (t) => {
+  for (const approved of [true, false]) {
+    const h = await setup(t);
+    const outcome = track(h.valu.auth.requestConsent(['rooms:read']));
+    h.send(MSG.CONSENT_COMPLETED, { approved }, h.sent(MSG.CONSENT)[0].data.message.requestId);
+    await settle();
+    assert.equal(outcome.value, approved);
+    assert.equal(h.popups.windows[0].closed, false, 'the consent page closes itself');
   }
 });
 
@@ -1033,7 +1095,7 @@ test('close removes the iframe, the listener and every timer, and fails what is 
   assert.equal(h.pair.app.listeners.size, 0);
   assert.equal(h.clock.pending, 0);
   assert.equal(signIn.error.code, 'closed');
-  assert.equal(consent.settled, true, 'the consent request ended with the transport');
+  assert.equal(consent.error?.code, 'closed', 'the consent request ended with the app, saying so');
   assert.ok(consent.error instanceof Error);
 
   // A write: a read that fails 503 is retried by the client's policy, after real sleeps.
@@ -1043,6 +1105,69 @@ test('close removes the iframe, the listener and every timer, and fails what is 
   await assert.rejects(h.valu.auth.requestConsent(['rooms:read']), { code: 'closed' });
   assert.equal(h.popups.calls.length, 2, 'nothing opened after the close');
   await h.valu.close();
+});
+
+test('close closes the sign-in and consent popups it opened', async (t) => {
+  const h = await setup(t);
+  const signIn = track(h.valu.auth.signIn());
+  const consent = track(h.valu.auth.requestConsent(['rooms:read']));
+  const [signInWindow, consentWindow] = h.popups.windows;
+  assert.equal(h.popups.windows.length, 2);
+  assert.equal(signInWindow.closed || consentWindow.closed, false);
+
+  await h.valu.close();
+  await settle();
+
+  assert.equal(signInWindow.closed, true, 'the sign-in popup');
+  assert.equal(consentWindow.closed, true, 'the consent popup');
+  assert.equal(signIn.error?.code, 'closed');
+  assert.equal(consent.error?.code, 'closed');
+});
+
+test('a popup that already ended is not closed again by close', async (t) => {
+  const h = await setup(t, { ready: SIGNED_OUT });
+  const signIn = track(h.valu.auth.signIn());
+  const consent = track(h.valu.auth.requestConsent(['rooms:read']));
+  h.send(MSG.TRIGGER, SIGNED_IN_PUSH);
+  h.send(MSG.CONSENT_COMPLETED, { approved: true }, h.sent(MSG.CONSENT)[0].data.message.requestId);
+  await settle();
+  assert.equal(signIn.value.signedIn, true);
+  assert.equal(consent.value, true);
+  let closes = 0;
+  for (const win of h.popups.windows) win.close = () => { closes += 1; };
+
+  await h.valu.close();
+
+  assert.equal(closes, 0, 'the pages closed them; the client has let go of them');
+});
+
+test('a consent whose request fails closes its popup and rejects with the failure', async (t) => {
+  const h = await setup(t);
+  const outcome = track(h.valu.auth.requestConsent(['rooms:read']));
+
+  // The host stops answering pings: the transport replaces it and fails what was on the wire.
+  h.host.ping = false;
+  h.clock.tick(15_000);
+  h.clock.tick(10_000);
+  await settle();
+
+  assert.equal(outcome.error?.code, 'host_restarted');
+  assert.equal(h.popups.windows[0].closed, true);
+});
+
+test('signOut after close, and one waiting at close, reject closed', async (t) => {
+  const h = await setup(t);
+  const waiting = track(h.valu.auth.signOut());
+  await settle();
+  assert.equal(h.sent(MSG.AUTH).length, 1);
+
+  await h.valu.close();
+  await settle();
+  assert.equal(waiting.error?.code, 'closed');
+  assert.ok(waiting.error instanceof Error);
+
+  await assert.rejects(h.valu.auth.signOut(), { code: 'closed' });
+  assert.equal(h.sent(MSG.AUTH).length, 1, 'nothing more was posted');
 });
 
 // ---------------------------------------------------------------------------

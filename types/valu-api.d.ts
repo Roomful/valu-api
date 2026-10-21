@@ -831,14 +831,16 @@ declare module '@arkeytyp/valu-api' {
      * - `createValuApp()`: `host_unreachable`, or the host's own: `unknown_app`, `nested`,
      *   `bad_origin`, `protocol_unsupported`, `resolve_unavailable`.
      * - `auth.signIn()`: `popup_blocked`, `cancelled`, `timeout`, `master_mismatch`,
-     *   `not_a_member`, `invalid_token`, `unavailable`, `not_available` (embedded), `closed`.
+     *   `not_a_member`, `invalid_token`, `unavailable`, `session_expired`, `not_available`
+     *   (embedded), `closed`.
      * - `auth.requestConsent()`: `popup_blocked`, `not_available` (embedded), `closed`;
      *   `host_restarted`, `host_unreachable` when the host went away meanwhile.
-     * - `auth.signOut()`: `not_available` (embedded), `host_restarted`, `host_unreachable`.
+     * - `auth.signOut()`: `not_available` (embedded), `closed`, `host_restarted`, `host_unreachable`.
+     * - `closed`: `valu.close()` ran, before the call or while it waited.
      */
     export type ValuAppErrorCode =
         | 'popup_blocked' | 'cancelled' | 'timeout' | 'master_mismatch' | 'not_a_member'
-        | 'invalid_token' | 'unavailable' | 'not_available' | 'closed'
+        | 'invalid_token' | 'unavailable' | 'session_expired' | 'not_available' | 'closed'
         | 'host_unreachable' | 'host_restarted'
         | 'unknown_app' | 'nested' | 'bad_origin' | 'protocol_unsupported' | 'resolve_unavailable';
 
@@ -855,7 +857,8 @@ declare module '@arkeytyp/valu-api' {
          * the popup opens before anything is awaited, or the browser blocks it
          * (`popup_blocked`). Resolves with the new state; rejects `cancelled`
          * (the user turned it down or closed the window), `timeout` (five minutes),
-         * `master_mismatch`, `not_a_member`, `invalid_token` or `unavailable`.
+         * `master_mismatch`, `not_a_member`, `invalid_token`, `unavailable` or
+         * `session_expired` (the session the host held ended meanwhile).
          */
         signIn(): Promise<ValuAuthState>;
         /** Sign out of this app's session. The user's Valu Social sign-in is untouched. */
@@ -894,6 +897,7 @@ declare module '@arkeytyp/valu-api' {
         fetchImpl?: typeof fetch;
         /** Dedicated only: runs those functions instead. */
         localTransport?: Transport;
+        /** Timers: the popup poll, the sign-in deadline, the host handshake and ping. For a test that turns the clock itself. */
         setTimeout?: (fn: () => void, ms: number) => unknown;
         clearTimeout?: (id: any) => void;
     }

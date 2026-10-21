@@ -30,5 +30,7 @@
   (`valu.ready` and `valu.connection.state` are the gates).
 - `PostMessageTransport` takes the embedding window from its `target` (the
   constructor option) rather than from `globalThis.parent`, when it decides which
-  window may bind the bridge with `api:ready`. Nothing changes for a page that
-  passes no `target`.
+  window may bind the bridge with `api:ready`. A custom `target` without a
+  `parent` property now skips the parent pin (the first `api:ready` binds, subject
+  to `hostOrigins`); it used to fall back to `globalThis.parent`. The default
+  target (`globalThis`) is unchanged.

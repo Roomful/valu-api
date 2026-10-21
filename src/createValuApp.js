@@ -57,9 +57,13 @@ const CLOSED_GRACE_MS = 10_000;
 /** How long a sign-in may take (spec §4.4: five minutes). */
 const SIGN_IN_TIMEOUT_MS = 300_000;
 const MODES = ['dedicated', 'embedded'];
-/** The `reason`s of an auth push that end a sign-in without a user. */
+/**
+ * The `reason`s of an auth push that end a sign-in without a user. `session_expired`
+ * is one only while a sign-in waits: the session the host held ended under it.
+ */
 const SIGN_IN_FAILURES = new Set([
   HOST_ERRORS.MASTER_MISMATCH, HOST_ERRORS.NOT_A_MEMBER, HOST_ERRORS.INVALID_TOKEN, HOST_ERRORS.UNAVAILABLE,
+  HOST_ERRORS.SESSION_EXPIRED,
 ]);
 const CLOSED = 'closed';
 
@@ -204,6 +208,8 @@ class ValuApp {
   #signIn = null;
   /** The consent dialogs open, by their scopes: sorted, space-joined. */
   #consents = new Map();
+  /** The popups this app opened whose flow has not ended: `close()` closes them. */
+  #popups = new Set();
   #closed = false;
 
   /**
@@ -296,6 +302,8 @@ class ValuApp {
   async close() {
     if (this.#closed) return;
     this.#closed = true;
+    for (const win of this.#popups) closeQuietly(win);
+    this.#popups.clear();
     this.#signIn?.fail(closedError());
     for (const off of this.#unsubscribe) off();
     this.#authChanges.clear();
@@ -354,10 +362,22 @@ class ValuApp {
 
   /** `window.open`, now. `null` when the browser said no (or threw, as a sandboxed frame does). */
   #open(url, name) {
+    let win = null;
     try {
-      return this.#popup(url, name, POPUP_FEATURES) ?? null;
+      win = this.#popup(url, name, POPUP_FEATURES) ?? null;
     } catch {
-      return null;
+      win = null;
+    }
+    if (win) this.#popups.add(win);
+    return win;
+  }
+
+  /** A request to the host. One that fails because the app was closed says `closed`, as `signIn` does. */
+  async #request(name, message) {
+    try {
+      return await this.#transport.request(name, message);
+    } catch (error) {
+      throw this.#closed ? closedError() : error;
     }
   }
 
@@ -396,6 +416,7 @@ class ValuApp {
       const end = (settle, value) => {
         if (this.#signIn !== record) return;
         this.#signIn = null;
+        this.#popups.delete(win);
         this.#clearTimer(deadline);
         stopWatching();
         settle(value);
@@ -429,7 +450,7 @@ class ValuApp {
   /** `auth.signOut()`: resolves when the host has finished. */
   async #signOut() {
     if (this.#mode !== 'dedicated') throw notAvailable('signOut');
-    const reply = await this.#transport.request(MSG.AUTH, { action: 'sign-out' });
+    const reply = await this.#request(MSG.AUTH, { action: 'sign-out' });
     if (isPlainObject(reply?.error)) {
       const { code, message } = reply.error;
       throw codedError(typeof code === 'string' ? code : HOST_ERRORS.UNAVAILABLE, typeof message === 'string' ? message : undefined);
@@ -465,17 +486,27 @@ class ValuApp {
     return entry;
   }
 
-  /** Post `host:consent` and wait for the decision; a popup closed with no decision is a no. */
+  /**
+   * Post `host:consent` and wait for the decision; a popup closed with no decision
+   * is a no. A decision made in the dialog leaves the popup to the page that made
+   * it; every other end (the host refused before the dialog could matter, or the
+   * request failed) leaves it with nothing to show, so it is closed here.
+   */
   async #askConsent(win, scopes, nonce) {
     let stopWatching = () => {};
     try {
       const reply = await new Promise((resolve, reject) => {
         stopWatching = this.#watchClosed(win, () => resolve({ approved: false }));
-        this.#transport.request(MSG.CONSENT, { scopes: [...scopes], nonce }).then(resolve, reject);
+        this.#request(MSG.CONSENT, { scopes: [...scopes], nonce }).then(resolve, reject);
       });
+      if (typeof reply?.reason === 'string') closeQuietly(win);
       return reply?.approved === true;
+    } catch (error) {
+      closeQuietly(win);
+      throw error;
     } finally {
       stopWatching();
+      this.#popups.delete(win);
     }
   }
 

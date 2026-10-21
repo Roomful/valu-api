@@ -220,6 +220,9 @@ returns carries the bridge (`callService`, `sendIntent`, `onCommerceEvent`,
 `addEventListener`, and the whole `ValuApi` as `valu.bridge`) and the service
 tree (`valu.Users.current()` answers an ack, `valu.data.Users.current()` the
 payload), next to `mode`, `ready`, `auth`, `network` and `connection`.
+`removeEventListener(name, handler)` removes every registration of that handler
+for `name`; without a handler it clears every listener of `name` (the bridge's
+emitter, as in `ValuApi`).
 
 ### Which mode
 
@@ -244,6 +247,7 @@ refuses to run nested).
 | `mode` | from the page | `'dedicated'` or `'embedded'`. |
 | `window`, `document` | the globals | Where messages arrive, and where the iframe goes. |
 | `popup` | `window.open` | `(url, name, features)`, returning the window or `null`: for a page that opens windows its own way. |
+| `setTimeout`, `clearTimeout` | the globals | The timers the client uses: the popup poll, the five-minute sign-in deadline, and the host handshake and ping. For a test that turns the clock itself. |
 | `fetchImpl`, `localTransport` | | Dedicated only. The functions on the `local` channel (`Http.*`, `Time.*`, the resource-URL builders) run in the page, not through the host; these are what they run with. |
 
 The popup URLs are built from the two origins and a random nonce, and from nothing
@@ -282,6 +286,7 @@ would route the token through the app page.
 | `not_a_member` | the user is not a member of the app's network |
 | `invalid_token` | the one-time token was refused |
 | `unavailable` | the host could not reach the platform |
+| `session_expired` | the session the host held ended while the window was open |
 | `not_available` | the page is embedded |
 | `closed` | `valu.close()` ran meanwhile |
 
