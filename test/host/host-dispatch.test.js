@@ -55,6 +55,7 @@ test('callRefusal: each verdict code is its ack, and an unknown code is a 404', 
   });
   assert.deepEqual(callRefusal({ code: 'not_available' }), { error: { status: true, code: 501, message: 'not_available' } });
   assert.deepEqual(callRefusal({ code: 'unavailable' }), { error: { status: true, code: 503, message: 'unavailable' } });
+  assert.deepEqual(callRefusal({ code: 'not_a_member' }), { error: { status: true, code: 401, message: 'not_a_member' } });
   for (const code of ['unknown_function', undefined, '__proto__', 'whatever']) {
     assert.deepEqual(callRefusal({ code }), { error: { status: true, code: 404, message: 'unknown_function' } }, String(code));
   }
@@ -62,7 +63,7 @@ test('callRefusal: each verdict code is its ack, and an unknown code is a 404', 
 });
 
 test('intentRefusal: {success:false, code, error}, a scope only on consent_required, anything else not_available', () => {
-  for (const code of ['sign_in_required', 'forbidden', 'not_available', 'unavailable']) {
+  for (const code of ['sign_in_required', 'forbidden', 'not_available', 'unavailable', 'not_a_member']) {
     const answer = intentRefusal({ code, scope: 'groups:read' });
     assert.equal(answer.success, false);
     assert.equal(answer.code, code);
@@ -204,6 +205,16 @@ test('permit: signed out is sign_in_required; so is a session that ended while t
     assert.equal(log.length, 1);
     assert.equal(log[0].level, 'warn');
   }
+});
+
+test('permit and answerCall: a signed-out user is refused with the host\'s signed-out code', async () => {
+  const { host } = fakeHost({ signedIn: () => false, signedOutCode: () => 'not_a_member' });
+  assert.deepEqual(await permit(host, 'users:read'), { ok: false, code: 'not_a_member' });
+  assert.deepEqual(await answerCall(host, { service: 'Users', action: 'current', params: {} }), {
+    error: { status: true, code: 401, message: 'not_a_member' },
+  });
+  const plain = fakeHost({ signedIn: () => false }).host;
+  assert.deepEqual(await permit(plain, 'users:read'), { ok: false, code: 'sign_in_required' }, 'without the seam: sign_in_required');
 });
 
 test('answerCall tells its tracker when a write is handed to the services, and not before', async () => {

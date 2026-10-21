@@ -442,6 +442,89 @@ test('not_a_member is pushed when the switch is refused', async () => {
   assert.equal(storage.getItem(SESSION_KEY), null, 'nothing was stored');
 });
 
+test('after a not_a_member sign-in, calls answer 401 not_a_member, not sign_in_required', async () => {
+  const auth = fakeAuth({ redeem: () => { throw codedError('not_a_member'); } });
+  const env = await ready({ auth });
+  ask(env, 'Users', 'current', {}, 1);
+  await settle();
+  assert.deepEqual(replyTo(env, 1).message, { error: { status: true, code: 401, message: 'sign_in_required' } }, 'before: signed out');
+
+  token(env);
+  await settle();
+  assert.deepEqual(authPushes(env), [{ ...SIGNED_OUT, reason: 'not_a_member' }]);
+  assert.equal(env.bridge.state.signedIn, false, 'the host stays signed out');
+
+  ask(env, 'Users', 'current', {}, 2);
+  ask(env, 'Groups', 'list-groups', {}, 3);
+  intent(env, 'Commerce', 'list-products', {}, 4);
+  intent(env, 'Application', 'get-identity-token', {}, 5);
+  env.call(MSG.CONSENT, { scopes: ['rooms:read'], nonce: 'n-1', requestId: 6 });
+  await settle();
+  for (const id of [2, 3]) {
+    assert.deepEqual(replyTo(env, id).message, { error: { status: true, code: 401, message: 'not_a_member' } }, `request ${id}`);
+  }
+  for (const id of [4, 5]) {
+    assert.equal(replyTo(env, id).message.success, false, `request ${id}`);
+    assert.equal(replyTo(env, id).message.code, 'not_a_member', `request ${id}`);
+    assert.equal(typeof replyTo(env, id).message.error, 'string');
+  }
+  assert.deepEqual(replyTo(env, 6).message, { approved: false, reason: 'not_a_member' });
+  assert.deepEqual(env.services.calls, []);
+  assert.deepEqual(env.guru.requests, []);
+
+  // A cancelled popup changes nothing about the user's membership.
+  token(env, { cancelled: true });
+  await settle();
+  ask(env, 'Users', 'current', {}, 7);
+  await settle();
+  assert.equal(replyTo(env, 7).message.error.message, 'not_a_member');
+});
+
+test('not_a_member lasts until the next sign-in attempt starts', async () => {
+  const redeeming = deferred();
+  let attempt = 0;
+  const auth = fakeAuth({
+    redeem: () => {
+      attempt += 1;
+      if (attempt === 1) throw codedError('not_a_member');
+      return redeeming.promise;
+    },
+  });
+  const env = await ready({ auth });
+  token(env);
+  await settle();
+
+  token(env, { token: 'ott-2' }); // the next attempt: the redeem is under way
+  await settle();
+  ask(env, 'Users', 'current', {}, 1);
+  await settle();
+  assert.deepEqual(replyTo(env, 1).message, { error: { status: true, code: 401, message: 'sign_in_required' } });
+
+  redeeming.resolve(REDEEMED);
+  await settle();
+  assert.equal(env.bridge.state.signedIn, true);
+  ask(env, 'Users', 'current', {}, 2);
+  await settle();
+  assert.deepEqual(replyTo(env, 2).message, { data: {} }, 'signed in: the call runs');
+
+  env.call(MSG.AUTH, { action: 'sign-out', requestId: 3 });
+  await settle();
+  ask(env, 'Users', 'current', {}, 4);
+  await settle();
+  assert.equal(replyTo(env, 4).message.error.message, 'sign_in_required', 'a later sign-out is a plain one');
+});
+
+test('any other refusal of a sign-in leaves calls at sign_in_required', async () => {
+  for (const code of ['invalid_token', 'unavailable', 'session_expired']) {
+    const env = await ready({ auth: fakeAuth({ redeem: () => { throw codedError(code); } }) });
+    token(env);
+    await settle();
+    ask(env, 'Users', 'current', {}, 1);
+    await settle();
+    assert.equal(replyTo(env, 1).message.error.message, 'sign_in_required', code);
+  }
+});
+
 test('a redeemed session the master then refuses is forgotten and pushed as session_expired', async () => {
   const auth = fakeAuth();
   const env = await ready({ auth, maker: fakeMaker({ error: codedError('session_expired') }) });

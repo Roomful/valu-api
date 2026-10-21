@@ -36,6 +36,8 @@ import { HOST_ERRORS, MSG } from './protocol.js';
  * @property {object} permissions `decide`, `scopeOfDescriptor`, `scopeOfIntent` (the Permissions module).
  * @property {object} commerce `COMMERCE_INTENTS`, `COMMERCE_APP_EVENTS`, `runCommerceIntent`.
  * @property {() => boolean} signedIn
+ * @property {() => string} [signedOutCode] Why a signed-out user is refused: `not_a_member` after a sign-in the
+ *   home network refused, until the next attempt; `sign_in_required` otherwise (also when this is missing).
  * @property {() => {slug: string}} app the bound app: its slug is the only id stamped on anything.
  * @property {() => {call: Function}} services the SDK's service functions over the master.
  * @property {() => {has: (scope: string) => Promise<boolean>}} grants may throw when the Guru client cannot be made.
@@ -76,13 +78,20 @@ export const ackError = (code, message, extra) => ({ error: { status: true, code
 /** An intent refusal, in the shape Valu Social documents for every intent. */
 export const intentError = (code, error, extra) => ({ success: false, code, error, ...extra });
 
+/** The code a signed-out user is refused with (see `DispatchHost.signedOutCode`). */
+const signedOutCode = (host) => (host.signedOutCode?.() === HOST_ERRORS.NOT_A_MEMBER
+  ? HOST_ERRORS.NOT_A_MEMBER
+  : HOST_ERRORS.SIGN_IN_REQUIRED);
+
 /**
  * What a refused `api:call` answers, from the verdict (`{ok:false, code, scope?}`,
- * the codes of `Permissions.decide` plus `sign_in_required` and `unavailable`).
+ * the codes of `Permissions.decide` plus `sign_in_required`, `not_a_member` and
+ * `unavailable`). Both signed-out codes are a 401.
  */
 export function callRefusal({ code, scope }) {
   switch (code) {
     case HOST_ERRORS.SIGN_IN_REQUIRED: return ackError(ACK.UNAUTHENTICATED, HOST_ERRORS.SIGN_IN_REQUIRED);
+    case HOST_ERRORS.NOT_A_MEMBER: return ackError(ACK.UNAUTHENTICATED, HOST_ERRORS.NOT_A_MEMBER);
     case HOST_ERRORS.FORBIDDEN: return ackError(ERROR_CODES.FORBIDDEN, HOST_ERRORS.FORBIDDEN);
     case HOST_ERRORS.CONSENT_REQUIRED: return ackError(ERROR_CODES.FORBIDDEN, HOST_ERRORS.CONSENT_REQUIRED, { scope });
     case HOST_ERRORS.NOT_AVAILABLE: return ackError(ERROR_CODES.UNSUPPORTED, HOST_ERRORS.NOT_AVAILABLE);
@@ -93,6 +102,7 @@ export function callRefusal({ code, scope }) {
 
 const INTENT_REFUSALS = Object.freeze({
   [HOST_ERRORS.SIGN_IN_REQUIRED]: 'sign in to use this',
+  [HOST_ERRORS.NOT_A_MEMBER]: 'the user is not a member of this app\'s network',
   [HOST_ERRORS.FORBIDDEN]: 'this app is never allowed to do that',
   [HOST_ERRORS.CONSENT_REQUIRED]: 'the user has not allowed this app to do that yet',
   [HOST_ERRORS.NOT_AVAILABLE]: 'that is not available through the valu-api host',
@@ -219,7 +229,8 @@ export const notAvailable = (what) => ({
 /**
  * May a request that needs `scope` run? `{ok:true}`, or `{ok:false, code,
  * scope}`: the code of `Permissions.decide` (`forbidden`, `consent_required`,
- * `not_available`, `unknown_function`), `sign_in_required` (also when the
+ * `not_available`, `unknown_function`), the signed-out code (`sign_in_required`,
+ * or `not_a_member` after a sign-in the home network refused; also when the
  * session went while the grants were being read), or `unavailable` (the grants
  * could not be read). The grants are read only for a `consent` scope, and never
  * for one that is refused anyway.
@@ -227,7 +238,7 @@ export const notAvailable = (what) => ({
  * @param {string|null} scope
  */
 export async function permit(host, scope) {
-  if (!host.signedIn()) return { ok: false, code: HOST_ERRORS.SIGN_IN_REQUIRED };
+  if (!host.signedIn()) return { ok: false, code: signedOutCode(host) };
   let verdict = host.permissions.decide({ scope });
   if (!verdict.ok && verdict.code === HOST_ERRORS.CONSENT_REQUIRED) {
     let hasGrant;
@@ -237,7 +248,7 @@ export async function permit(host, scope) {
       host.log('warn', `the grants could not be read (${error?.code ?? error?.name ?? 'error'})`);
       return { ok: false, code: HOST_ERRORS.UNAVAILABLE };
     }
-    if (!host.signedIn()) return { ok: false, code: HOST_ERRORS.SIGN_IN_REQUIRED };
+    if (!host.signedIn()) return { ok: false, code: signedOutCode(host) };
     verdict = host.permissions.decide({ scope, hasGrant });
   }
   return verdict.ok ? verdict : { ...verdict, scope };
@@ -252,7 +263,8 @@ const UNSERVED_CHANNELS = new Set(['local', 'app-state']);
 
 /**
  * One `api:call`, to its ValuAck. In this order, each refusing before the next
- * is asked: a known function (404), a signed-in user (401), a channel the host
+ * is asked: a known function (404), a signed-in user (401 `sign_in_required`,
+ * or `not_a_member`), a channel the host
  * serves (501 for `local` and `app-state`: the channel is checked before the
  * scope, so a local function with a basic scope is refused too, and the user is
  * never asked to consent to a function that would then answer 501), params that
@@ -278,7 +290,7 @@ export async function answerCall(host, { service, action, params, timeoutMs }, t
     ? findDescriptor(`${service}.${action}`)
     : undefined;
   if (!descriptor) return callRefusal({ code: HOST_ERRORS.UNKNOWN_FUNCTION });
-  if (!host.signedIn()) return callRefusal({ code: HOST_ERRORS.SIGN_IN_REQUIRED });
+  if (!host.signedIn()) return callRefusal({ code: signedOutCode(host) });
   if (UNSERVED_CHANNELS.has(descriptor.channel)) return callRefusal({ code: HOST_ERRORS.NOT_AVAILABLE });
   const input = params === undefined ? {} : params;
   const invalid = validationAck(descriptor, input);

@@ -30,7 +30,9 @@
 // every one on every path, before anything runs:
 //
 //   1. the function is one the host serves (404 / `not_available`);
-//   2. the user is signed in (401 / `sign_in_required`);
+//   2. the user is signed in (401 / `sign_in_required`, or `not_a_member` while
+//      the last sign-in ended in the home network refusing the user, until the
+//      next attempt starts);
 //   3. the params fit the descriptor (400);
 //   4. the scope's tier: `forbidden` is never run and never asked about,
 //      `basic` runs, `consent` runs only with an unrevoked grant, read from
@@ -317,6 +319,13 @@ export class HostBridge {
   #announced = CONNECTION_STATE.SIGNED_OUT;
   /** Bumped whenever a session is dropped, so a sign-in that was waiting on the network can tell it was overtaken. */
   #epoch = 0;
+  /**
+   * The last sign-in ended `not_a_member` (the app's home network refused the user): while the
+   * user stays signed out, requests answer `not_a_member` instead of `sign_in_required`, so the
+   * app shows that rather than asking for a sign-in again. Cleared when the next attempt starts
+   * (a token is taken) and when a session comes up any other way.
+   */
+  #notAMember = false;
   /** Changes of who is signed in (a token, another tab) run one at a time; this is the tail of the line. */
   #sessionLine = Promise.resolve();
   /** Requests running now, each with what settles it early: `{expire}`. */
@@ -407,6 +416,7 @@ export class HostBridge {
       permissions,
       commerce,
       signedIn: () => this.#session.signedIn,
+      signedOutCode: () => this.#signedOutCode(),
       callTimeoutMs: this.#config.callTimeoutMs,
       app: () => this.#bound.app,
       services: () => this.#servicesFor(),
@@ -814,7 +824,7 @@ export class HostBridge {
   /** `host:consent`: register what the consent page will show, and wait for its decision. */
   #requestConsent({ scopes, nonce }, id) {
     const refuse = (reason) => this.#post(MSG.CONSENT_COMPLETED, { approved: false, reason }, id);
-    if (!this.#session.signedIn) return refuse(HOST_ERRORS.SIGN_IN_REQUIRED);
+    if (!this.#session.signedIn) return refuse(this.#signedOutCode());
     const wanted = validConsentScopes(scopes, (scope) => this.#permissions.tierOf(scope));
     // The nonce names a request, so one that is already waiting is not rewritten.
     if (!wanted || typeof nonce !== 'string' || nonce === '' || nonce.length > NONCE_MAX || this.#consents.has(nonce)) {
@@ -1090,6 +1100,11 @@ export class HostBridge {
 
   // --- signing in ----------------------------------------------------------
 
+  /** Why a signed-out user is refused: `not_a_member` after a sign-in the home network refused, else `sign_in_required`. */
+  #signedOutCode() {
+    return this.#notAMember && !this.#session.signedIn ? HOST_ERRORS.NOT_A_MEMBER : HOST_ERRORS.SIGN_IN_REQUIRED;
+  }
+
   /** Run `task` after every earlier change of who is signed in; a failure is logged, never thrown. */
   #inSessionLine(task) {
     this.#sessionLine = this.#sessionLine.then(task).catch((error) => {
@@ -1129,6 +1144,8 @@ export class HostBridge {
     }
 
     const { app } = this.#bound;
+    // A sign-in attempt starts: whatever the last one ended in no longer speaks for the user.
+    this.#notAMember = false;
     if (this.#session.signedIn) {
       this.#forgetSession();
       void this.#dropSession();
@@ -1173,6 +1190,7 @@ export class HostBridge {
       HOST_ERRORS.NOT_A_MEMBER, HOST_ERRORS.INVALID_TOKEN, HOST_ERRORS.SESSION_EXPIRED, HOST_ERRORS.UNAVAILABLE,
     ];
     const reason = reasons.includes(code) ? code : HOST_ERRORS.UNAVAILABLE;
+    this.#notAMember = reason === HOST_ERRORS.NOT_A_MEMBER;
     if (what) this.#log('warn', `${what} (${reason})`);
     this.pushAuth(reason);
     this.#pushConnection();
@@ -1202,6 +1220,7 @@ export class HostBridge {
     if (this.#stopped || epoch !== this.#epoch) return;
     const failure = text(replacement?.sessionId) ? await this.#openMaster(replacement.sessionId) : HOST_ERRORS.SIGNED_OUT_ELSEWHERE;
     if (failure === SUPERSEDED || this.#stopped) return;
+    if (failure === null) this.#notAMember = false;
     this.pushAuth(failure === null ? undefined : HOST_ERRORS.SIGNED_OUT_ELSEWHERE);
     this.#pushConnection();
   }
