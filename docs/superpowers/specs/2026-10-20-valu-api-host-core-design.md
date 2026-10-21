@@ -11,6 +11,9 @@ verification of the three repos on 2026-10-20.
   contradicts the handoff, this document is right and §3 says why.
 - Calls made here rather than by Pavlo are marked **(my call)**. Questions only
   Pavlo can answer are in §9.3.
+- **Amended 2026-10-21**, after the overnight implementation: a sentence changed
+  in place carries **(2026-10-21)**, and §11 lists each ruling with the section
+  it amends.
 
 ---
 
@@ -145,7 +148,9 @@ app page  https://<slug>-ws-<ws>.valuguru.app/            (top-level window)
   - Why not a dedicated sub-domain such as `host.valuguru.app`: it needs
     DevOps work and infrastructure we cannot read. It stays an option if M0
     shows third-party storage is too fragile (§7), since a same-site host
-    would get first-party storage on every Workspaces app.
+    would get first-party storage on every Workspaces app. It is also the
+    structural fix for the shared-origin risk (§4.3, "Origin invariant"); a
+    follow-up in the M8–M10 plan. **(2026-10-21)**
 - **The origin is configuration**, read by the client from its options and by
   the sign-in page from its build config, so moving the host later is a
   constant change.
@@ -224,14 +229,39 @@ refuses to run if any ancestor is not an allowed origin.
 `Content-Security-Policy: frame-ancestors https://*.valuguru.app; default-src 'self'; connect-src 'self' https://api.roomful.net wss://api.roomful.net https://valuguru.texpo.io wss://valuguru.texpo.io; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'`,
 `Referrer-Policy: strict-origin-when-cross-origin`, `X-Content-Type-Options: nosniff`,
 `Cache-Control: no-cache` for the HTML and immutable, hashed names for the
-bundle. A dev build adds `http://localhost:*` and `http://127.0.0.1:*` to
-`frame-ancestors` and accepts a `?valu-app=<workspace>/<slug>` claim from a
-localhost parent; the production build has neither. (`frame-ancestors` cannot
-be set from a `<meta>` tag, which is one reason the server serves the page.)
+bundle; `consent.html` is served with `frame-ancestors 'none'` instead
+**(2026-10-21)**. A dev build adds `http://localhost:*` and `http://127.0.0.1:*`
+to `frame-ancestors` and accepts an app claim from a localhost parent, named
+by the client's `app` option in `host:hello` as `<workspace>/<slug>` (not a
+`?valu-app=` query) **(2026-10-21)**; the production build has neither.
+(`frame-ancestors` cannot be set from a `<meta>` tag, which is one reason the
+server serves the page.)
+
+**Build configuration (2026-10-21).** A dev build (`HOST_DEV=1`, which is
+refused under `NODE_ENV=production`) can override the constants the bundle is
+built with: `HOST_ORIGIN`, `HOST_MASTER`, `HOST_GURU_URL`,
+`HOST_RESOLVE_BASE_URL` and `HOST_SIGN_IN_ORIGINS` (comma-separated, replacing
+the list below; a dev build otherwise adds `http://localhost:3005`, the dev
+web, to it). Without `HOST_DEV=1` all five are ignored. The server reads
+`HOST_STATIC_DIR` for the folder it serves the page from. The version the
+client reports in `host:hello` is the constant in `src/version.js`, which
+`scripts/generate.mjs` writes.
 
 Because the host has no UI, clickjacking does not apply to it; the header is
-defense in depth. Its security rests on the binding rule, the resolve lookup
-and the two popup channels.
+defense in depth. Its security rests on the binding rule, the resolve lookup,
+the two popup channels and the origin invariant below **(2026-10-21)**.
+
+**Origin invariant (2026-10-21).** The host origin holds every signed-in user's
+session in the iframe's storage and receives the one-time token by
+`postMessage`, so nothing else served on that origin may render
+attacker-influenced bytes as a same-origin document: such a page would reach
+the host through a sibling frame. Responses the server relays from other
+systems (the App API forward, the project gateway, the RAG bridges) therefore
+carry `Content-Security-Policy: sandbox` and `X-Content-Type-Options: nosniff`,
+and the review's one reflected-script case, the MCP OAuth callback page, is
+fixed. A dedicated host origin (§4.1) would make this structural; until then it
+is kept by audit, and the `/debug` dashboard (a same-origin HTML app) is not
+yet audited.
 
 **Popup channels.** Two message types reach the host from windows other than
 its parent:
@@ -240,7 +270,8 @@ its parent:
   from the sign-in page: accepted only when `event.origin` is in the host's
   compiled allow-list of Valu sign-in origins, `https://live.valuverse.io`,
   `https://valu-social.com`, `https://chabaduniverse.com` and `https://texpo.io`
-  (§4.4).
+  (§4.4). A message with neither a `token` nor `cancelled:true` is ignored
+  **(2026-10-21)**.
 - `{type:'valu-host:consent', nonce, approved, scopes}` from the consent page:
   accepted only when `event.origin === location.origin` (the host origin) and
   the nonce matches an outstanding request.
@@ -257,7 +288,8 @@ in addition to valu-api's list. Logs redact the session the way
 **Resource limits (my call).** Per bound app: at most 16 in-flight requests
 (the 17th answers `{error:{code:'busy'}}`), 30 s per call. Server-side rate
 limits and an audit table are out of the core; the host keeps a 200-entry
-debug ring buffer of (app, action, outcome, ms) readable from DevTools.
+debug ring buffer of (app, action, outcome, ms) readable from DevTools (not
+implemented in the core; moved to M8 **(2026-10-21)**).
 
 ### 4.4 Auth
 
@@ -315,14 +347,22 @@ enforces grants per app; the shared session is never shared with app code.
    home network when needed ("Network" below), stores the session for that
    network under `localStorage['valu-host:session']` (a memory fallback when
    storage throws, as it does in some private modes), connects the master
-   socket, and pushes the auth state (§4.5).
+   socket, and pushes the auth state (§4.5). The redeem is bounded at 15 s,
+   and a sign-in replaces the shared stored session only after the redeem has
+   succeeded; the other tabs adopt the new session. **(2026-10-21)**
 5. The client resolves `signIn()` with the new state, or rejects with
-   `{code:'cancelled'}` when the popup closes without a token, or
-   `{code:'timeout'}` after 5 minutes.
+   `{code:'cancelled'}` when the popup has been closed for 10 s without a
+   result, or `{code:'timeout'}` after 5 minutes. **(2026-10-21)** The grace is
+   needed because the page closes itself right after posting the token and the
+   host takes about 3 s to redeem it. A failure push from the host (`cancelled`,
+   `session_expired`, `master_mismatch`, `not_a_member`, `invalid_token`,
+   `unavailable`) rejects the pending `signIn()` at once, with that code, and
+   closes the popup.
 
 **On every host start with a stored session:** `GET https://api.roomful.net/api/v1/auth/check`
 with `X-Session-Id`. A JSON `error.code === 401` clears the session. Otherwise
-the master socket connects; `user_info` provides user and network.
+the master socket connects; `user_info` provides user and network. A session
+that cannot be checked at all is kept, not cleared (§4.11). **(2026-10-21)**
 
 **Sign-out.** `valu.auth.signOut()` → `host:auth {action:'sign-out'}` → the
 host clears storage, closes both sockets and pushes `signedIn:false`. The
@@ -343,10 +383,12 @@ returned session for that network. Storage is therefore per network:
 `localStorage['valu-host:session'] = { v:1, userId, sessions: { <networkId>: { sessionId, createdAt } } }`,
 shared by every Workspaces app in the browser; a host page serves one app and
 so one network, and `MasterConnection` stays a single instance. A refused
-switch (the user is not a member of that network) answers `not_a_member` on
-every call, and the app shows that. The Guru client sends the home network as
-`networkId`. M0 question 2 records what `user_info` reports for a redeemed
-session and whether the original session stays valid after the switch.
+switch (the user is not a member of that network) leaves the host signed out
+and answers 401 `not_a_member` (not `sign_in_required`) on every call until the
+next sign-in attempt **(2026-10-21)**, and the app shows that. The Guru client
+sends the home network as `networkId`. M0 question 2 records what `user_info`
+reports for a redeemed session and whether the original session stays valid
+after the switch.
 
 **Not used:** the Storage Access API and "Sign in with Valu" (handoff D12).
 
@@ -361,7 +403,7 @@ with `requestId` the same number at the top level.
 
 | Direction | `name` | `message` | Answer |
 |---|---|---|---|
-| app → host | `host:hello` | `{protocol:1, client:'<valu-api version>'}` | `api:ready` (below), or `host:error {code:'unknown_app'\|'nested'\|'bad_origin', message}` |
+| app → host | `host:hello` | `{protocol:1, client:'<valu-api version>', app?}` | `api:ready` (below), or `host:error {code:'unknown_app'\|'nested'\|'bad_origin', message}` |
 | host → app | `api:ready` | `{applicationId, action:'start', params:{}, host:{protocol:1, mode:'dedicated', signedIn, user:{id,name}\|null, network:{id,name}\|null}}` | — |
 | app → host | `api:call` | `{service, action, params, requestId}` — one of the 65 descriptors by `service` + `action` | `api:call-completed` with `message` = a **ValuAck**: `{data}` or `{error:{status:true, code, message}}` |
 | app → host | `api:service-intent` | `{applicationId:'Commerce'\|'Application', action, params, requestId}` | `api:run-console-completed` with Valu Social's documented shape for that intent (`{products}`, `{success:false, code, error}` …) |
@@ -369,6 +411,9 @@ with `requestId` the same number at the top level.
 | host → app | `api:trigger` | `{action:'auth', data:{signedIn, user, network}}` on every change; `{action:'commerce', data:{event, …}}` for subscribed Commerce events | — |
 | app → host | `api:run-intent`, `api:create-pointer`, `api:run`, `api:run-console` | — | their usual reply name with `{error:{code:'not_available', message}}` |
 | app → host | `api:run-command` | — | ignored: in dedicated mode the app owns its URL |
+
+`app` (`<workspace>/<slug>`) is read by a dev host from a localhost parent only
+(§4.3); a production host ignores it. **(2026-10-21)**
 
 **Why `api:call` rather than `api:service-intent` for service functions
 (my call).** The 64 manifest intents have Valu Social's answer shapes;
@@ -381,7 +426,8 @@ A raw `api:service-intent` for an intent that has an SDK function answers
 `{error:{code:'not_available', message:'use valu.<Service>.<method>()'}}`.
 
 **Calls while signed out** answer `{error:{status:true, code:401, message:'sign_in_required'}}`
-(ValuAck) or `{success:false, code:'sign_in_required'}` (intent).
+(ValuAck) or `{success:false, code:'sign_in_required'}` (intent); after a
+refused network switch the code is `not_a_member` (§4.4). **(2026-10-21)**
 
 **`applicationId` in `api:ready` (my call)** is the canonical App API address
 `<workspace>/<slug>` (handoff §3.4). It is informational for the app.
@@ -403,7 +449,7 @@ Per `api:call` and per served intent, in this order:
      and the client runs the consent flow below.
 4. **Execute**, with `applicationId` stamped from the binding and the network
    from the master socket.
-5. **Record** in the debug ring buffer.
+5. **Record** in the debug ring buffer (not implemented in the core; M8). **(2026-10-21)**
 
 **Scopes and tiers (my call, from the handoff's proposal):**
 
@@ -451,9 +497,12 @@ the core (only published site hosts resolve), so the handoff's "own grants for
 
 1. The client receives `consent_required` for scope *s*. If
    `navigator.userActivation.isActive` (the app made the call from a click),
-   it opens the consent popup at once; otherwise the call rejects with
-   `consent_required` and the app calls `valu.auth.requestConsent([s])` from
-   its own click.
+   it opens the consent popup at once; otherwise the ack is the answer and the
+   app calls `valu.auth.requestConsent([s])` from its own click. **(2026-10-21)**
+   The library does this for **service functions** only (`valu.X.y()`,
+   `valu.data.X.y()` and the by-name calls). A `callService` intent is refused
+   `{success:false, code:'consent_required', scope}` as it is, and the app calls
+   `valu.auth.requestConsent([scope])` itself and repeats the intent.
 2. The popup is `<host-origin>/host/consent.html?nonce=…`, part of the host
    bundle. It carries only the nonce. The app's name and address and the
    requested scopes come from the host iframe itself: the popup is same-origin
@@ -461,12 +510,16 @@ the core (only published site hosts resolve), so the handoff's "own grants for
    request for that nonce. Nothing the app page controls can put another
    app's name on the dialog. It shows the scopes in plain words (the wording
    comes from Valu Social's `consent.js` where one exists), with Allow and
-   Don't allow.
+   Don't allow. Both buttons stay disabled until about 600 ms after the window
+   is visible and focused, and again after each refocus, and `consent.html` is
+   served with `frame-ancestors 'none'` (§4.3). **(2026-10-21)**
 3. The decision goes to the host iframe only: `window.opener.frames[i].postMessage({type:'valu-host:consent', nonce, approved, scopes}, HOST_ORIGIN)`.
    The host verifies origin and nonce, writes the grant through
    `valuguru.apps.grants.grant`, and answers the client's outstanding consent
-   request.
-4. The client retries the original call once.
+   request. A popup closed without a decision resolves `false` after the same
+   10 s grace as sign-in; the host's slot for that nonce expires on its own
+   timer, as there is no cancel message yet (M8). **(2026-10-21)**
+4. The client retries the original function call once.
 
 Declared scopes (an app manifest listing what it needs, asked once after the
 first sign-in) are out of the core; every scope is asked on first use (D6).
@@ -515,7 +568,7 @@ families.
 
 ### 4.8 valu-api client
 
-**New factory (my call on naming):** `createValuApp({ hostOrigin?, signInOrigin?, mode? })`
+**New factory (my call on naming):** `createValuApp({ hostOrigin?, signInOrigin?, mode?, hostOrigins?, app? })`
 returns one object that carries both halves of today's package:
 
 - `valu.mode`: `'embedded' | 'dedicated'`.
@@ -537,10 +590,26 @@ returns one object that carries both halves of today's package:
   rejecting, enforcing `timeoutMs` itself, `subscribe`, `close`. It posts
   `api:call` and resolves on `api:call-completed`, and emits `reconnected`
   when the host reports one so the client-side cache clears (§4.11).
+- Also on the object **(2026-10-21)**: `valu.data` (the same tree answering the
+  payload and throwing `ValuServiceError`), the by-name `valu.call(name, params)`,
+  `valu.invoke(name, params)` and `valu.toolDefinitions(filter)`, and
+  `valu.bridge`, the `ValuApi` underneath (in dedicated mode for the lifecycle
+  only: `setApplication` and `onCreate`).
 - The bridge methods as today (`callService(new Intent('Commerce', 'add-to-cart', …))`,
   `ValuApi.ON_COMMERCE`, `onCommerceEvent`), over the same transport.
-- In embedded mode the service tree answers 501 as today; nothing changes for
-  framed apps in the core.
+- In embedded mode the host-only service functions answer 501 as today (by
+  name too), `auth.state` is a constant signed-out, and `signIn`, `signOut`
+  and `requestConsent` reject `not_available`; nothing else changes for framed
+  apps in the core. **(2026-10-21)**
+
+**Options (2026-10-21).** `hostOrigins` (embedded only) pins the origins the
+parent's `api:ready` may come from. `app` (dedicated, dev hosts only) is the
+`<workspace>/<slug>` a localhost page names in `host:hello`; a production host
+ignores it. `hostOrigin` and `signInOrigin` must belong together: the sign-in
+page hands the token only to the host origin of its own build, so a local host
+goes with the local sign-in page and the default host with a published brand.
+A mismatch fails quietly (the popup closes and `signIn()` rejects `cancelled`
+after the grace).
 
 **Iframe injection.** `<iframe src="<hostOrigin>/host/" hidden aria-hidden="true">`
 appended to `document.body`, no `sandbox`, no `allow`. On `load` the client
@@ -563,9 +632,10 @@ itself. Replies are still matched by numeric `requestId`.
 never run over the postMessage bridge because the bridge has no enforcement.
 The host *is* the enforcement, so the rule becomes: service functions run over
 a connection, or over the host bridge, which checks grants before every call.
-`PostMessageTransport.servesServiceFunctions` stays `false`; only
-`HostTransport` serves them. The test at `test/valuapi.test.js:307-318` keeps
-its meaning.
+`PostMessageTransport.servesServiceFunctions` stays `false`; `SocketTransport`
+and `HostTransport` are the two that serve them, and no wording that only
+`SocketTransport` does remains **(2026-10-21)**. The test at
+`test/valuapi.test.js:307-318` keeps its meaning.
 
 **Types and docs.** `types/valu-api.d.ts` gains `createValuApp`, `HostTransport`,
 the auth state and error codes; `docs/connecting.md` gains a "dedicated mode"
@@ -589,7 +659,12 @@ the migration (`VALUGURU_MIGRATIONS_ENABLED`), so the merge is a deploy.
      (`homeNetworkId` = `vg_workspaces.network_id`) with
      `Cache-Control: public, max-age=300`, or 404 `{ok:false, error:{code:'unknown_app'}}`.
      Legacy `web.texpo.io/{ws}/{slug}/` apps are not resolvable (their origin
-     does not identify a project) and are out of scope.
+     does not identify a project) and are out of scope. A valid https origin
+     that is not a single-label `*.valuguru.app` host (several labels, a custom
+     domain) answers the same 404 `unknown_app`; a malformed or non-https
+     origin, localhost included, answers 400 `bad_origin`, which the host's
+     resolver client reports as `resolve_unavailable`. The production host
+     therefore serves only published `*.valuguru.app` origins. **(2026-10-21)**
    - Per-IP rate limit, reusing `src/app-api/rate-limit.ts`.
 2. **Grants.** Migration `supabase/migrations/<timestamp>_app_grants.sql`:
    `vg_app_grants (user_id text, app_id text, scope text, granted_at timestamptz not null default now(), revoked_at timestamptz, primary key (user_id, app_id, scope))`.
@@ -609,9 +684,11 @@ the migration (`VALUGURU_MIGRATIONS_ENABLED`), so the merge is a deploy.
    one) **(my call)**. It also skips `closeUserConnectionIfIdleLogged` on
    close.
 4. **Static host page.** `GET /host/`, `/host/consent.html` and the hashed
-   bundle, with the headers of §4.3. Built at image build time by an esbuild
-   step in the Dockerfile from `node_modules/@arkeytyp/valu-api/src/host/`
-   plus `host/` in this repo.
+   bundle, with the headers of §4.3; the router serves only `index.html`,
+   `consent.html` and `assets/*` by name, from `HOST_STATIC_DIR` when set
+   **(2026-10-21)**. Built at image build time by an esbuild step in the
+   Dockerfile from `node_modules/@arkeytyp/valu-api/src/host/` plus `host/` in
+   this repo.
 5. **Pin** `@arkeytyp/valu-api` to the commit that carries `src/host/`.
 
 ### 4.10 valusocial-web change
@@ -644,10 +721,12 @@ cost an app a delay, not an error, wherever that is safe. Rules:
   the read policy retries only ~0.75 s, which is shorter than one reconnect;
   the host's `MasterConnection` wrapper adds the hold in front of it.
 - **Reads may be retried, writes never.** A read that was on the wire when
-  the socket dropped is retried once after reconnect. A write that was on the
-  wire answers 503 `disconnected` with `retryable: false`; the app decides,
-  because the master may have applied it. Commerce writes keep their
-  idempotency keys so the app can repeat them safely.
+  the socket dropped is retried by the client's `CallPolicy` (on 408 and 503
+  only); retries are client-only, and the host's own service calls run with
+  `retries:0` **(2026-10-21)**. A write that was on the wire answers 503
+  `disconnected` with `retryable: false`; the app decides, because the master
+  may have applied it. Commerce writes keep their idempotency keys so the app
+  can repeat them safely.
 - **Both sockets reconnect on their own**, with exponential backoff and
   jitter (master: socket.io's 0.5–5 s; Guru: 1 s doubling to 30 s), pause
   while `navigator.onLine` is false and resume on `online`, and never give
@@ -661,11 +740,21 @@ cost an app a delay, not an error, wherever that is safe. Rules:
 - **Session death is reported, not retried.** A 401 at reconnect (the session
   was revoked or expired) clears the session, answers every held call
   `sign_in_required`, and pushes `signedIn:false, reason:'session_expired'`.
+- **A slow platform at startup is not session death (2026-10-21).** The master
+  wait before `api:ready` is bounded at 5 s: `api:ready` then answers with the
+  stored identity and `connecting`, and the host pushes `reconnecting` or
+  `ready` as the link comes up. A stored session that cannot be checked is
+  kept with `reason:'unavailable'` and retried with backoff, not signed out;
+  only a 401 ends it.
 - **The host iframe itself can die.** If the host stops answering (no reply
   to a ping `host:ping` within 10 s, or the iframe fired `error`), the client
-  reloads the iframe once, re-runs the handshake, and answers the calls that
+  reloads the iframe, re-runs the handshake, and answers the calls that
   were in flight with 503 `host_restarted`; the stored session makes the
-  reload silent for the user.
+  reload silent for the user. **(2026-10-21)** The handshake is retried with
+  backoff (1 s doubling to 30 s, ±20 %, and at once on `online`) while the
+  answer is `host_unreachable` or `resolve_unavailable`; `unknown_app`,
+  `nested` and `protocol_unsupported` are permanent. An iframe removed from the
+  page starts the same recovery instead of failing calls.
 - **Observable.** `valu.connection`: `state` ∈ `connecting | ready | reconnecting | offline | signed_out`,
   `on('change')`, `lastError`. Apps can show "reconnecting…" without polling.
 - **Multiple tabs.** Sign-out in one tab reaches the others through the
@@ -762,6 +851,20 @@ simulator):
 
 Also note whether a Guru connection from the host changed the user's stored
 session token (ask the server log, or watch whether server agents restart).
+
+**The local rig the core was verified on (2026-10-21).** The host's dev bundle
+at `http://localhost:3001/host/`, served by the local Guru (`HOST_DEV=1`,
+`HOST_GURU_URL=ws://localhost:3001/`, `HOST_SIGN_IN_ORIGINS=http://localhost:3006`;
+the local Guru has the grants ops before the server branch is deployed, and uses
+the production database, so grant rows are real); the sign-in page from the
+valusocial-web `feat/host-signin` worktree on `:3006`, with `localStorage.session`
+copied from the signed-in `:3005`; `examples/dedicated/` on `:5173`, served from
+the repo root (`npx serve . -p 5173`, since it imports `../../src`); and the test
+app `ws_057a1a6e/valu-api-sample` in "Valu Apps Development" (network roomful),
+which the dev host serves to the localhost page through the sample's `app`
+option. Sign-in (about 3 s from Continue), a reload keeping the session, a basic
+function, a consent-gated function and a Commerce intent after explicit consent
+all passed in Chromium.
 
 ## 7. Risks and unknowns
 
@@ -874,7 +977,9 @@ Found during the review; each deserves its own ticket.
 ### 9.3 Open
 Nothing. The questions raised on 2026-10-20 (network rule, code location,
 sign-in origin, prototype hosting, deploys, scope, tiers) are answered above.
-Next step: the implementation plan, starting with M0.
+Next step: the implementation plan, starting with M0. **(2026-10-21)** The core
+has since been built; what the build changed is in §11, and what is left is the
+M8–M10 plan with its follow-ups.
 
 ## 10. Left to the builder
 
@@ -890,3 +995,63 @@ Next step: the implementation plan, starting with M0.
   refresh.
 - Whether the `/auth/host` page shows the user's name (it would need one extra
   call) or only the app host.
+
+## 11. Rulings during implementation (2026-10-21)
+
+Made during the overnight build and its final review; each one also amends the
+sentence marked **(2026-10-21)** in the section it names.
+
+1. **Sign-in (§4.4; the token message in §4.3).** A closed sign-in popup is
+   `cancelled` only after a 10 s grace (the page closes itself after posting the
+   token, and the host needs about 3 s to redeem). A failure push (`cancelled`,
+   `session_expired`, `master_mismatch`, `not_a_member`, `invalid_token`,
+   `unavailable`) rejects the pending `signIn()` at once and closes the popup.
+   After `not_a_member` the host stays signed out and answers 401 `not_a_member`
+   (not `sign_in_required`) until the next sign-in attempt. A sign-in replaces
+   the shared stored session only after the redeem succeeds (other tabs adopt
+   it). A token message without a `token` is ignored.
+2. **Consent (§4.6; `consent.html` headers in §4.3).** Service functions get the
+   consent window from the library automatically; `callService` intents are
+   refused `{success:false, code:'consent_required', scope}` and the app calls
+   `auth.requestConsent([scope])` itself. The consent page keeps its buttons
+   disabled until about 600 ms after the window is visible and focused (and
+   again after each refocus); `consent.html` has `frame-ancestors 'none'`. A
+   consent popup closed without a decision resolves `false` after the 10 s
+   grace; the host's slot expires on its own timer (no cancel message yet, M8).
+3. **Client (§4.8; `app` in §4.3 and §4.5).** The entry point is
+   `createValuApp()`; `HostTransport` serves service functions (the old "only
+   `SocketTransport`" wording is gone). The object also has `call`, `invoke`,
+   `toolDefinitions`, `valu.data` and `valu.bridge`; options `hostOrigins`
+   (embedded origin pin) and `app` (dev hosts only). Embedded host-only functions
+   answer 501, embedded `auth.state` is a constant signed-out, and `hostOrigin`
+   and `signInOrigin` must belong together.
+4. **Resilience (§4.11; the redeem bound in §4.4).** Retries are client-only
+   (host calls run with `retries:0`; the client's `CallPolicy` retries reads on
+   408 and 503 only). Iframe recovery retries the handshake with backoff (1 s
+   doubling to 30 s, ±20 %, and on `online`) for `host_unreachable` and
+   `resolve_unavailable`, and gives up only for `unknown_app`, `nested` and
+   `protocol_unsupported`; a removed iframe starts recovery instead of failing
+   calls. The master wait before `api:ready` is bounded at 5 s (ready answers
+   with the stored identity and `connecting`, then pushes `reconnecting` or
+   `ready`). A stored session that cannot be checked is kept with
+   `reason:'unavailable'` and retried with backoff, not signed out. Redeem is
+   bounded at 15 s.
+5. **Host page and server (§4.3; §4.9 item 4, §4.6 step 5).** A dev build
+   overrides `HOST_ORIGIN`, `HOST_MASTER`, `HOST_GURU_URL`,
+   `HOST_RESOLVE_BASE_URL` and `HOST_SIGN_IN_ORIGINS` (dev only: `HOST_DEV=1`,
+   refused under `NODE_ENV=production`); the server reads `HOST_STATIC_DIR`.
+   The origin invariant: nothing served on the host origin may render
+   attacker-influenced bytes as a same-origin document (relayed responses carry
+   `CSP: sandbox` and `nosniff`). The debug ring buffer is not implemented
+   (moved to M8). `src/version.js` is generated by `scripts/generate.mjs`.
+6. **Resolve (§4.9 item 1).** A valid https origin that is not a single-label
+   `*.valuguru.app` host answers 404 `unknown_app`; a malformed or non-https
+   origin (localhost included) answers 400 `bad_origin`, which the host's
+   resolver client reports as `resolve_unavailable`. The production host serves
+   only published `*.valuguru.app` origins.
+7. **Development rig (§6).** The local end-to-end setup: host `:3001` with a dev
+   bundle and the local Guru, sign-in page `:3006`, sample `:5173`, test app
+   `ws_057a1a6e/valu-api-sample` in "Valu Apps Development".
+
+What the final review deferred is listed in the M8–M10 plan, "Follow-ups from
+the core's final review".

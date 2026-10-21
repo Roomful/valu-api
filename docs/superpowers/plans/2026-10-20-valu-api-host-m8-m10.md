@@ -28,6 +28,33 @@
 4. A skill may name only functions and intents that the pinned valu-api has; a skill naming `valu.Users.getUser()` (which does not exist) must fail the test. Test in Task 11.
 5. The action popup must refuse a pending action whose **app id in the URL** does not match the app bound in the host; the host, not the URL, is the source of truth. Test in Task 17.
 
+## Follow-ups from the core's final review
+
+Added 2026-10-21. The final review of the core (M0–M7) deferred these; they are
+candidates for M8's tasks and its verification, not tasks yet, and what the core
+settled is in §11 of the spec.
+
+**valu-guru-server**
+- Give the host a dedicated origin (the structural fix for the shared-origin risk; touches the server, the client's default `hostOrigin` and the sign-in page's `HOST_ORIGIN`), or at least set `DEBUG_FRAME_ANCESTORS` in production and audit the `/debug` dashboard (a same-origin HTML app on the host origin) for escaping.
+- Release the pooled master sockets of host-only users (a `closeIfIdle` for users who never opened Guru chat in Valu Social).
+
+**valu-api (host)**
+- A host "redeeming" notice, so the client can drop the closed-popup grace, and a consent cancel message, so a closed consent window frees the host's slot at once.
+- The debug ring buffer of spec §4.3 (200 entries of app, action, outcome, ms), not implemented in the core.
+- `MasterConnection`: backoff for the call-driven reconnect, and prompt detection of a revoked session during an outage.
+- Commerce params bounded host-side (most are unbounded today).
+- Guru client: the "stable" rule counts any frame, which with the `online` reset gives ~1 s reconnects on a flapping link.
+- One network's refused session clearing every network's session.
+- The consent message source also checked by pathname, and the leak guard checking values as well as keys.
+
+**valu-api (client, docs)**
+- `requestConsent` distinguishing a host refusal from the user's decline (both resolve `false` today).
+- README Quick Start and the doc index onto `createValuApp`: M9 Task 13 already covers it (README.md, docs/connecting.md, docs/sdk.md); nothing to add here.
+
+**valusocial-web**
+- Guest sessions on `/auth/host` land on the Account page (a click-driven ping-pong; Logout is the way out).
+- Fix the web deploy before production sign-in works: the brand sites get `/auth/host` only with a production web deploy (spec §4.10), and that deploy is broken today.
+
 ---
 
 ## M8 — Embedded mode through the host
