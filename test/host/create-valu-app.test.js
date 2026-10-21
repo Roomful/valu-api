@@ -215,9 +215,10 @@ test('the app option reaches the host in host:hello, and is absent without it', 
   const plain = await setup(t);
   assert.equal(Object.hasOwn(plain.sent(MSG.HELLO)[0].data.message, 'app'), false);
 
-  // Embedded mode has no host and ignores it.
+  // Embedded mode has no host and ignores it: nothing is posted to the parent, hello or otherwise.
   const embedded = await setupEmbedded(t, { app: 'ws_057a1a6e/valu-api-sample' });
   assert.equal(embedded.valu.mode, 'embedded');
+  assert.deepEqual(embedded.win.posted, [], 'nothing was posted to the fake target');
 });
 
 test('a host that does not answer rejects host_unreachable and leaves nothing behind', async (t) => {

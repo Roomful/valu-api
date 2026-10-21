@@ -244,6 +244,7 @@ refuses to run nested).
 |---|---|---|
 | `hostOrigin` | `https://valuguru.texpo.io` | Where the host is served: a bare origin. The iframe's origin, and the only origin it is heard from. |
 | `signInOrigin` | `https://live.valuverse.io` | The Valu brand users sign in through. A Chabad-network app passes `https://chabaduniverse.com`. The host accepts a sign-in only from its four known brand origins. |
+| `app` | none | The app's address `<workspace>/<slug>`, sent in `host:hello` (dedicated only). A dev host serves a localhost page under it; a production host ignores it. |
 | `mode` | from the page | `'dedicated'` or `'embedded'`. |
 | `window`, `document` | the globals | Where messages arrive, and where the iframe goes. |
 | `popup` | `window.open` | `(url, name, features)`, returning the window or `null`: for a page that opens windows its own way. |

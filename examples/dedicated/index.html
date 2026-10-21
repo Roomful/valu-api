@@ -90,6 +90,7 @@
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }
+    pre .entry + .entry { margin-top: 1.25em; }
 
     @media (prefers-reduced-motion: reduce) {
       button { transition: none; }
@@ -120,10 +121,10 @@
       <button type="button" id="rooms" disabled>Rooms.searchMyRooms()</button>
       <button type="button" id="commerce" disabled>Commerce list-products</button>
     </div>
-    <p class="actions-note">Users.current() needs only a sign-in. Rooms.searchMyRooms() and Commerce need the user's consent, asked once in a window when you click.</p>
+    <p class="actions-note">Users.current() needs only a sign-in. Rooms.searchMyRooms() needs the user's consent, and the library opens the consent window for it from the click. A Commerce intent is refused <code>consent_required</code> instead: this page then asks for consent itself and repeats the intent once.</p>
 
     <h2>Answers</h2>
-    <pre id="out" aria-live="polite" tabindex="0">Waiting for the host…</pre>
+    <pre id="out" aria-live="polite" tabindex="0"><div id="placeholder">Waiting for the host…</div></pre>
   </main>
   <script type="module" src="./app.js"></script>
 </body>

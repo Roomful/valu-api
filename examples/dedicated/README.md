@@ -9,7 +9,7 @@ reads who they are, and makes one call of each kind the host tells apart:
 | Sign in | `valu.auth.signIn()`, from the click | nothing: it opens the sign-in window |
 | Users.current() | a service function, `users:read` | a signed-in user |
 | Rooms.searchMyRooms() | a service function, `rooms:read` | the user's consent for this app |
-| Commerce list-products | `callService(new Intent('Commerce', 'list-products', {}))`, `commerce:read` | the user's consent for this app |
+| Commerce list-products | `callService(new Intent('Commerce', 'list-products', {}))`, `commerce:read` | the user's consent for this app, which the page asks for itself (below) |
 
 The page shows `valu.auth.state` and `valu.connection.state` live (it re-renders on
 both `change` events) and prints each answer into the box at the bottom: an `ok`
@@ -17,9 +17,16 @@ or `refused: code, message` line, then the ack itself. A key that looks like a
 credential (`token`, `secret`, `session` ...) is printed as `[hidden]`.
 
 There is no `Rooms.list()` in the catalogue; `Rooms.searchMyRooms({ filter: 'all', size: 5 })`
-is the rooms read the button runs. The consent window opens by itself the first time
-a consent call is clicked (the client repeats the call once the user allows it); if the
-browser blocks that window, click the button again.
+is the rooms read the button runs. It is a service function, so the library does the
+consent: the first time it is clicked the host refuses it `consent_required`, the client
+opens the consent window from the click and, once the user allows it, repeats the call
+once. If the browser blocks that window, click the button again.
+
+A Commerce intent is different: the client does not retry intents, so `callService` gets the
+host's refusal as it is, `{success: false, code: 'consent_required', scope}`. The Commerce
+button handles that itself, from the same click: it calls
+`valu.auth.requestConsent([scope])`, and when that resolves `true` it repeats the intent
+once. The box prints the refusal, the consent outcome and the second ack.
 
 No bundler, no dependencies: `index.html` loads `app.js`, which imports
 `../../src/ValuApi.js`. Serve the repository root, not this folder, so that path resolves.
@@ -73,7 +80,9 @@ https://<the app's published origin>/examples/dedicated/
 
 A `localhost` page is not a published origin: production answers it `unknown_app`.
 Pass `?host=` or `?signin=` only to point at another host or another Valu brand
-(`?signin=https://chabaduniverse.com` for a Chabad-network app).
+(`?signin=https://chabaduniverse.com` for a Chabad-network app). `?host=`, `?signin=` and
+`?app=` are conveniences of this sample for development: remove them from a real app, which
+passes its options in code or takes the defaults.
 
 ## Verified
 

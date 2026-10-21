@@ -74,16 +74,21 @@ function render() {
 
 // --- what the page prints ----------------------------------------------------
 
-const MAX_CHARS = 20_000;
+/** The box keeps the last entries, each cut short, so a long session stays light. */
+const MAX_ENTRIES = 50;
+const MAX_ENTRY_CHARS = 8000;
 /** A key that looks like a credential is never printed, whatever answered. */
 const SECRET_KEY = /token|secret|password|passwd|session|cookie|authorization|api[-_]?key/i;
 const redact = (key, value) => (SECRET_KEY.test(key) ? '[hidden]' : value);
 
-let printed = false;
+/** One `<div>` per entry, appended: the box is a live region, so a screen reader hears only the new entry. */
 function print(text) {
-  out.textContent = (printed ? `${out.textContent}\n\n` : '') + text;
-  printed = true;
-  if (out.textContent.length > MAX_CHARS) out.textContent = `…${out.textContent.slice(-MAX_CHARS)}`;
+  $('placeholder')?.remove();
+  const entry = document.createElement('div');
+  entry.className = 'entry';
+  entry.textContent = text.length > MAX_ENTRY_CHARS ? `${text.slice(0, MAX_ENTRY_CHARS)}\n… (cut)` : text;
+  out.append(entry);
+  while (out.children.length > MAX_ENTRIES) out.firstElementChild.remove();
   out.scrollTop = out.scrollHeight;
 }
 
@@ -109,20 +114,54 @@ const describeError = (error) => `error: code ${error?.code ?? 'none'}, ${error?
 /**
  * Run one call from a click and print what came back. `start` is called in the
  * click's own turn, so `signIn()` still opens its window from the user gesture.
+ * It gets `show(heading, text)` to print a step of its own, and returns the ack
+ * to print under `label`, or `null` when it has printed everything itself.
  */
 async function run(button, label, start) {
   button.dataset.busy = 'true';
   button.disabled = true;
-  const began = performance.now();
-  let text;
+  let began = performance.now();
+  const show = (heading, text) => {
+    print(`${heading}  (${Math.round(performance.now() - began)} ms)\n${text}`);
+    began = performance.now();
+  };
   try {
-    text = describe(await start());
+    const ack = await start(show);
+    if (ack !== null) show(label, describe(ack));
   } catch (error) {
-    text = describeError(error);
+    show(label, describeError(error));
   }
-  print(`${label}  (${Math.round(performance.now() - began)} ms)\n${text}`);
   delete button.dataset.busy;
   render();
+}
+
+/**
+ * A Commerce intent is not a service function, so the client does not ask for
+ * consent for it: the host answers `{success: false, code: 'consent_required', scope}`.
+ * The app asks, from the same click, and repeats the intent once if the user allowed it.
+ */
+async function commerceListProducts(label, show) {
+  const listProducts = () => valu.callService(new Intent('Commerce', 'list-products', {}));
+  const ack = await listProducts();
+  const refusal = refusalOf(ack);
+  if (refusal?.code !== 'consent_required' || typeof refusal.scope !== 'string') return ack;
+
+  show(label, describe(ack));
+  const asking = `auth.requestConsent(['${refusal.scope}'])`;
+  let approved;
+  try {
+    approved = await valu.auth.requestConsent([refusal.scope]);
+  } catch (error) {
+    show(asking, `${describeError(error)}\nClick the button again: a browser opens the window only from a click.`);
+    return null;
+  }
+  if (!approved) {
+    show(asking, 'not approved (declined, or the window was closed): nothing was repeated');
+    return null;
+  }
+  show(asking, 'approved');
+  show(`${label}, once more`, describe(await listProducts()));
+  return null;
 }
 
 // --- start -------------------------------------------------------------------
@@ -132,9 +171,8 @@ buttons.usersCurrent.addEventListener('click', () => run(buttons.usersCurrent, '
 buttons.rooms.addEventListener('click', () => run(buttons.rooms, "Rooms.searchMyRooms({ filter: 'all', size: 5 })", () => (
   valu.Rooms.searchMyRooms({ filter: 'all', size: 5 })
 )));
-buttons.commerce.addEventListener('click', () => run(buttons.commerce, "callService(new Intent('Commerce', 'list-products', {}))", () => (
-  valu.callService(new Intent('Commerce', 'list-products', {}))
-)));
+const COMMERCE_LABEL = "callService(new Intent('Commerce', 'list-products', {}))";
+buttons.commerce.addEventListener('click', () => run(buttons.commerce, COMMERCE_LABEL, (show) => commerceListProducts(COMMERCE_LABEL, show)));
 
 render();
 try {
