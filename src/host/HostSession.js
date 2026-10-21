@@ -326,11 +326,15 @@ export class HostSession {
     }
   }
 
-  /** A resumed session is open: take what `user_info` says, and (unless the caller is told directly) say so. */
+  /**
+   * A resumed session is open: take what `user_info` says (an answer that says
+   * nothing keeps what storage knew), and (unless the caller is told directly)
+   * say so.
+   */
   #confirm(connection, info, quiet) {
     if (this.#confirmed || connection !== this.#connection || !this.#signedIn) return;
     this.#confirmed = true;
-    this.#adopt(info);
+    if (isPlainObject(info)) this.#adopt(info);
     this.#lastError = null;
     this.#masterState = 'ready';
     this.#stopRetry();

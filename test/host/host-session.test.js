@@ -757,6 +757,15 @@ test('drop ends a resume: its first answer is SUPERSEDED, and no retry or timer 
   assert.equal(maker.connections[0].closed, 1);
 });
 
+test('a master that opens without saying who the user is keeps what storage knew', async () => {
+  const maker = fakeMaker({ connect: async () => undefined });
+  const session = new HostSession({ makeConnection: (id) => maker.make(id), log: () => {} });
+  assert.equal(await session.resume('s', STORED), null);
+  assert.equal(session.state, 'ready');
+  assert.deepEqual(session.identity(), FROM_STORAGE);
+  await session.drop();
+});
+
 test('resume answers unavailable when the connection cannot even be made, and is not signed in', async () => {
   const session = new HostSession({
     makeConnection: () => { throw codedError('boom'); }, log: () => {},
