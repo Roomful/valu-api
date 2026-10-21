@@ -315,6 +315,19 @@ test('a local-channel function answers 501 not_available, even with a basic scop
   assert.deepEqual(env.guru.requests, []);
 });
 
+test('an app-state function answers 501 not_available and the user is never asked for consent', async () => {
+  const env = await ready({ guru: guruWithGrants([]) });
+  ask(env, 'VerusWallet', 'get-balance', { agentId: 'a1' }, 1);
+  ask(env, 'Developer', 'list-applications', {}, 2);
+  await settle();
+
+  for (const id of [1, 2]) {
+    assert.deepEqual(replyTo(env, id).message, { error: { status: true, code: 501, message: 'not_available' } }, `request ${id}`);
+  }
+  assert.deepEqual(env.services.calls, []);
+  assert.deepEqual(env.guru.requests, [], 'no grant was read, so no consent_required was ever answered');
+});
+
 test('consent-tier call without grant answers consent_required with the scope', async () => {
   const env = await ready({ guru: guruWithGrants(['rooms:read']) });
   ask(env, 'Groups', 'list-groups', {}, 1);
@@ -343,11 +356,12 @@ test('a granted consent-tier scope runs, and the grants are read once for the ne
 });
 
 test('forbidden scope answers 403 without consulting grants', async () => {
+  // The roomful-channel ones: `Developer.*` is forbidden too, but on the app-state channel, which answers 501 first.
   const env = await ready();
   ask(env, 'Cbac', 'create-policy', {
     networkId: 'n', targetType: 't', targetId: 'i', badgeIds: [], badgeMatchMode: 'any', grantedPermission: 'x',
   }, 1);
-  ask(env, 'Developer', 'list-applications', {}, 2);
+  ask(env, 'Cbac', 'delete-policy', { policyId: 'p', networkId: 'n', targetType: 't', targetId: 'i' }, 2);
   ask(env, 'VerusWallet', 'transfer', { agentId: 'a', destination: 'd', amount: 1 }, 3);
   await settle();
 

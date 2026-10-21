@@ -20,10 +20,12 @@
 // instead of being weakened for everybody:
 //   - `local`-channel functions (Http.*, Resources.generate-*, Time.*) answer
 //     501: the client runs those in the page, they never reach the host;
-//   - forbidden-tier functions (Developer.*, Cbac writes, VerusWallet.transfer)
-//     answer 403 and are never asked about, whatever the user has granted;
 //   - `app-state` functions (Developer.*, VerusWallet.get-balance) need state a
-//     runtime holds and the host holds none: 501 (Developer.* answer 403 first).
+//     runtime holds and the host holds none: 501, answered before the scope is
+//     weighed, so nobody is asked to consent to one (Developer.* too, although
+//     its scopes are forbidden);
+//   - forbidden-tier functions (Cbac writes, VerusWallet.transfer) answer 403
+//     and are never asked about, whatever the user has granted.
 //
 // WHAT THE HOST'S OWN SERVICES ARE: not production's. `hostServicesFor` builds the
 // host-side services in place of `defaultMakeServices` (slug stamping,
@@ -66,9 +68,8 @@ const FORBIDDEN_SCOPES = Object.freeze(['veruswallet:write', 'cbac:write', 'deve
  * @returns {number|null}
  */
 export function hostRefuses(descriptor) {
-  if (descriptor.channel === 'local') return ERROR_CODES.UNSUPPORTED;
+  if (descriptor.channel === 'local' || descriptor.channel === 'app-state') return ERROR_CODES.UNSUPPORTED;
   if (FORBIDDEN_SCOPES.includes(descriptor.scopes[0])) return ERROR_CODES.FORBIDDEN;
-  if (descriptor.channel === 'app-state') return ERROR_CODES.UNSUPPORTED;
   return null;
 }
 

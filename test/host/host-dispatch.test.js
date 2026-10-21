@@ -288,6 +288,46 @@ test('answerIntent: Commerce goes to the module with the host\'s stamp, anything
   assert.equal((await answerIntent(host, { applicationId: 'Commerce', action: 'list-products', params: 'x' })).ran.params.constructor, Object);
 });
 
+test('answerCall: an app-state function answers 501 not_available before its scope is weighed or its params read', async () => {
+  let grantsRead = 0;
+  const calls = [];
+  const { host } = fakeHost({
+    grants: () => ({ has: async () => { grantsRead += 1; return true; } }),
+    services: () => ({ call: async (name) => { calls.push(name); return { data: 1 }; } }),
+  });
+  const notServed = { error: { status: true, code: 501, message: 'not_available' } };
+  // A consent scope (veruswallet:read): the user must never be asked about a function the host cannot serve.
+  assert.deepEqual(await answerCall(host, { service: 'VerusWallet', action: 'get-balance', params: {} }), notServed);
+  assert.deepEqual(await answerCall(host, { service: 'VerusWallet', action: 'get-balance', params: [] }), notServed, 'not 400');
+  // Forbidden scopes: 501 as well, the same answer the channel gives.
+  assert.deepEqual(await answerCall(host, { service: 'Developer', action: 'list-applications', params: {} }), notServed);
+  assert.deepEqual(await answerCall(host, { service: 'Developer', action: 'create-application', params: {} }), notServed);
+  assert.equal(grantsRead, 0, 'the grants were never read');
+  assert.deepEqual(calls, []);
+
+  const signedOut = fakeHost({ signedIn: () => false }).host;
+  assert.equal((await answerCall(signedOut, { service: 'VerusWallet', action: 'get-balance', params: {} })).error.code, 401,
+    'signed out is still asked first, as for local');
+});
+
+test('answerIntent: a service function asked for as an intent names the SDK method to call instead', async () => {
+  const { host } = fakeHost();
+  for (const [applicationId, action, method] of [
+    ['Users', 'current', 'valu.Users.current()'],
+    ['Users', 'find-user', 'valu.Users.findUser()'],
+    ['users', 'search_users', 'valu.Users.searchUsers()'],
+    ['VerusWallet', 'get-balance', 'valu.VerusWallet.getBalance()'],
+    ['Http', 'get', 'valu.Http.get()'],
+  ]) {
+    const answer = await answerIntent(host, { applicationId, action, params: {} });
+    assert.equal(answer.error.code, 'not_available', `${applicationId}.${action}`);
+    assert.ok(answer.error.message.includes(`use ${method}`), answer.error.message);
+  }
+  const plain = await answerIntent(host, { applicationId: 'Rooms', action: 'list-products', params: {} });
+  assert.deepEqual(plain, notAvailable('Rooms.list-products'), 'an intent that is no function keeps the plain answer');
+  assert.ok(!(await answerIntent(host, { applicationId: 'Users', action: 'nope' })).error.message.includes('use valu.'));
+});
+
 test('answerIntent: the identity token marks its reply, and only that reply', async () => {
   const { host } = fakeHost();
   const reply = await answerIntent(host, { applicationId: 'Application', action: 'get-identity-token', params: {} });

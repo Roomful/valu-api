@@ -244,10 +244,18 @@ export async function permit(host, scope) {
 }
 
 /**
+ * The channels the host does not serve: `local` (the client runs those in the
+ * app page itself) and `app-state` (`Developer.*`, `VerusWallet.get-balance`:
+ * they read state a Valu Social runtime holds, and the host holds none).
+ */
+const UNSERVED_CHANNELS = new Set(['local', 'app-state']);
+
+/**
  * One `api:call`, to its ValuAck. In this order, each refusing before the next
- * is asked: a known function (404), a signed-in user (401), not a `local`-channel
- * function (501: the client runs those itself, and the channel is checked before
- * the scope so a local function with a basic scope is refused too), params that
+ * is asked: a known function (404), a signed-in user (401), a channel the host
+ * serves (501 for `local` and `app-state`: the channel is checked before the
+ * scope, so a local function with a basic scope is refused too, and the user is
+ * never asked to consent to a function that would then answer 501), params that
  * fit (400), the scope's tier (403), and only then the services, whose ack is
  * returned unchanged except that a write cut off by a drop or a timeout is
  * marked `retryable: false`. The services are asked once (`retries: 0`) with the
@@ -271,7 +279,7 @@ export async function answerCall(host, { service, action, params, timeoutMs }, t
     : undefined;
   if (!descriptor) return callRefusal({ code: HOST_ERRORS.UNKNOWN_FUNCTION });
   if (!host.signedIn()) return callRefusal({ code: HOST_ERRORS.SIGN_IN_REQUIRED });
-  if (descriptor.channel === 'local') return callRefusal({ code: HOST_ERRORS.NOT_AVAILABLE });
+  if (UNSERVED_CHANNELS.has(descriptor.channel)) return callRefusal({ code: HOST_ERRORS.NOT_AVAILABLE });
   const input = params === undefined ? {} : params;
   const invalid = validationAck(descriptor, input);
   if (invalid) return invalid;
@@ -293,9 +301,11 @@ export async function answerCall(host, { service, action, params, timeoutMs }, t
 /**
  * One `api:service-intent`, to its answer. The host serves the Commerce intents
  * (the 30 data intents and the two subscriptions) and
- * `Application.get-identity-token`; anything else is `not_available`. As for
- * `answerCall`, an intent that has not started by the time `track.abandoned` is
- * set never does.
+ * `Application.get-identity-token`; anything else is `not_available`. A service
+ * function asked for this way (`Users.current` as an intent) is `not_available`
+ * too, with a message naming the SDK method that serves it
+ * (`use valu.Users.current()`). As for `answerCall`, an intent that has not
+ * started by the time `track.abandoned` is set never does.
  * @param {DispatchHost} host
  * @param {{applicationId?: unknown, action?: unknown, params?: unknown}} message
  * @param {Track} [track]
@@ -304,6 +314,18 @@ export async function answerIntent(host, { applicationId, action, params }, trac
   const input = isPlainObject(params) ? params : {};
   if (applicationId === 'Commerce' && isCommerceAction(host, action)) return commerceIntent(host, action, input, track);
   if (applicationId === 'Application' && action === 'get-identity-token') return identityToken(host, track);
+  const descriptor = typeof applicationId === 'string' && typeof action === 'string'
+    ? findDescriptor(`${applicationId}.${action}`)
+    : undefined;
+  if (descriptor) {
+    const { service, method } = descriptor;
+    return {
+      error: {
+        code: HOST_ERRORS.NOT_AVAILABLE,
+        message: `${service}.${descriptor.action} is a service function, not an intent: use valu.${service}.${method}()`,
+      },
+    };
+  }
   return notAvailable(`${label(applicationId)}.${label(action)}`);
 }
 

@@ -184,13 +184,14 @@ test('host adapter: local, forbidden and application-state functions are refused
 
   // The client runs `local` functions in the page; they are not the host's to serve.
   assert.deepEqual((await answer('Http.get')).error, { status: true, code: 501, message: 'not_available' });
-  // Never allowed, never asked about; a forbidden function that also needs application state is 403, not 501.
-  for (const key of ['Cbac.create-policy', 'VerusWallet.transfer', 'Developer.list-applications']) {
+  // Never allowed, never asked about.
+  for (const key of ['Cbac.create-policy', 'VerusWallet.transfer']) {
     assert.deepEqual((await answer(key)).error, { status: true, code: 403, message: 'forbidden' }, key);
   }
-  // Allowed, and then the function itself says the host holds no application state.
-  const balance = await answer('VerusWallet.get-balance');
-  assert.equal(balance.error.code, 501);
-  assert.match(balance.error.message, /needs application state/);
+  // The host holds no application state: refused by channel before the scope is weighed, so nobody is
+  // asked to consent to VerusWallet.get-balance, and Developer.* answers 501 although its scopes are forbidden.
+  for (const key of ['VerusWallet.get-balance', 'Developer.list-applications', 'Developer.create-application']) {
+    assert.deepEqual((await answer(key)).error, { status: true, code: 501, message: 'not_available' }, key);
+  }
   assert.equal(responder.calls.length, 0, 'none of them reached the master');
 });
