@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isOrigin, isLocalOrigin, matchesOrigin } from '../../src/host/origins.js';
+import { isHostPath, isOrigin, isLocalOrigin, matchesOrigin } from '../../src/host/origins.js';
 
 test('isOrigin accepts http(s) origins and nothing else', () => {
   for (const origin of [
@@ -72,5 +72,19 @@ test('matchesOrigin: a pattern that is not well formed matches nothing', () => {
     for (const origin of ['https://demo.valuguru.app', 'https://valuguru.app', 'null', '*']) {
       assert.equal(matchesOrigin(pattern, origin), false, `${String(pattern)} vs ${origin}`);
     }
+  }
+});
+
+test('isHostPath accepts a path that starts and ends with a slash, and nothing that could leave it', () => {
+  for (const path of ['/', '/host/', '/a/b/', '/v1.2/', '/a_b-c~d/']) {
+    assert.equal(isHostPath(path), true, path);
+  }
+  // Appended to an origin, none of these may reach another path, a query, a
+  // fragment or another origin: `https://api.valuguru.app` + path must stay there.
+  for (const path of [
+    undefined, null, 7, '', 'host/', '/host', '//', '//evil.example/', '/../', '/./', '/a/../', '/a/./b/',
+    '/?x/', '/#/', '/a b/', '/a%2f/', 'https://evil.example/', '/host/consent.html', '/\\evil/',
+  ]) {
+    assert.equal(isHostPath(path), false, String(path));
   }
 });

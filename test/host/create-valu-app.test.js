@@ -1507,3 +1507,29 @@ test('embedded: close removes the listener', async (t) => {
   await h.valu.close();
   assert.equal(h.win.listeners.size, 0);
 });
+
+// ---------------------------------------------------------------------------
+// hostPath
+// ---------------------------------------------------------------------------
+
+test('hostPath "/" serves the host and its consent page from the root of the host origin', async (t) => {
+  const h = await setup(t, { hostPath: '/' });
+  assert.equal(h.doc.frames[0].src, 'https://valuguru.texpo.io/');
+
+  const consent = track(h.valu.auth.requestConsent(['rooms:read']));
+  assert.match(h.popups.calls[0].url, /^https:\/\/valuguru\.texpo\.io\/consent\.html\?nonce=[0-9a-f]{32}$/);
+  assert.equal(consent.settled, false);
+});
+
+test('the default hostPath is /host/, for the iframe and the consent page', async (t) => {
+  const h = await setup(t);
+  assert.equal(h.doc.frames[0].src, 'https://valuguru.texpo.io/host/');
+  track(h.valu.auth.requestConsent(['rooms:read']));
+  assert.match(h.popups.calls[0].url, /^https:\/\/valuguru\.texpo\.io\/host\/consent\.html\?nonce=/);
+});
+
+test('createValuApp refuses a hostPath that is not a slash-delimited path', async () => {
+  for (const hostPath of ['', '/host', 'host/', '//evil.example/', '/../']) {
+    await assert.rejects(createValuApp({ hostPath, mode: 'dedicated' }), TypeError, String(hostPath));
+  }
+});

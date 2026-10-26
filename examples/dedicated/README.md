@@ -40,6 +40,7 @@ cannot point a deployed copy at another host or sign-in page.
 | parameter | is | default |
 |---|---|---|
 | `host` | where the host is served (`hostOrigin`) | `https://valuguru.texpo.io` |
+| `hostPath` | where on that origin the host page is (`hostPath`); `/` for the web host | `/host/` |
 | `signin` | the Valu brand the sign-in popup opens on (`signInOrigin`) | `https://live.valuverse.io` |
 | `app` | the app's address, `<workspace>/<slug>` (`app`) | none |
 

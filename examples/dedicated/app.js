@@ -4,6 +4,7 @@
 // localhost or 127.0.0.1 (a page anywhere else always uses the defaults, so a link
 // cannot point a deployed copy at another host or sign-in page):
 //   ?host=    where the host is served          (default https://valuguru.texpo.io)
+//   ?hostPath= where on it the host page is      (default /host/; / for api.valuguru.app)
 //   ?signin=  the Valu brand users sign in on   (default https://live.valuverse.io)
 //   ?app=     the app's address, <workspace>/<slug>; a dev host serves a localhost
 //             page under it, a production host ignores it
@@ -13,6 +14,7 @@ const query = new URLSearchParams(location.search);
 const options = {};
 if (['localhost', '127.0.0.1'].includes(location.hostname)) {
   if (query.get('host')) options.hostOrigin = query.get('host');
+  if (query.get('hostPath')) options.hostPath = query.get('hostPath');
   if (query.get('signin')) options.signInOrigin = query.get('signin');
   if (query.get('app')) options.app = query.get('app');
 }
@@ -38,7 +40,7 @@ let failure = null;
 /** The three settings in use, so a wrong query string is seen before anything is clicked. */
 const configEl = $('config');
 const settings = [
-  ['host', options.hostOrigin ?? 'https://valuguru.texpo.io (default)'],
+  ['host', `${options.hostOrigin ?? 'https://valuguru.texpo.io'}${options.hostPath ?? '/host/'}${options.hostOrigin ? '' : ' (default)'}`],
   ['sign-in', options.signInOrigin ?? 'https://live.valuverse.io (default)'],
   ['app', options.app ?? 'none'],
 ];

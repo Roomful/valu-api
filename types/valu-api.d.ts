@@ -331,6 +331,8 @@ declare module '@arkeytyp/valu-api' {
         constructor(options: {
             /** Where the host is served: a bare origin, `https://valuguru.texpo.io`. */
             hostOrigin: string;
+            /** Where on `hostOrigin` the host page is, starting and ending with `/`. Default `/host/`. */
+            hostPath?: string;
             /** The app's address, `<workspace>/<slug>`, sent in `host:hello`: dev hosts only. */
             app?: string;
             window?: Window;
@@ -937,6 +939,12 @@ declare module '@arkeytyp/valu-api' {
     export interface CreateValuAppOptions {
         /** Where the host is served: a bare origin. Default `https://valuguru.texpo.io`. */
         hostOrigin?: string;
+        /**
+         * Where on `hostOrigin` the host page is, starting and ending with `/`; the consent
+         * page is `consent.html` beside it. Default `/host/`. The web host at
+         * `https://api.valuguru.app` is served from the root: `hostPath: '/'`.
+         */
+        hostPath?: string;
         /** The Valu brand users sign in through (`https://chabaduniverse.com` for a Chabad-network
          * app). Default `https://live.valuverse.io`. */
         signInOrigin?: string;

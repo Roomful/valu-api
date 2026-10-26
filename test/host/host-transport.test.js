@@ -1208,3 +1208,27 @@ test('close does not close a localTransport it was given', async (t) => {
   await h.transport.close();
   assert.equal(closed, 0);
 });
+
+// ---------------------------------------------------------------------------
+// hostPath: where on the host origin the host page is
+// ---------------------------------------------------------------------------
+
+test('hostPath "/" puts the iframe at the root of the host origin', async (t) => {
+  const h = setup(t, { hostPath: '/' });
+  const opening = h.transport.open();
+  const [frame] = h.doc.frames;
+  assert.equal(frame.src, `${h.hostOrigin}/`);
+  await opening;
+});
+
+test('hostPath must start and end with a slash and stay on the host origin', () => {
+  const pair = FakeWindowPair();
+  for (const hostPath of [null, '', 'host/', '/host', '//evil.example/', '/../', '/?x/', 7]) {
+    assert.throws(
+      () => new HostTransport({ hostOrigin: 'https://api.valuguru.app', hostPath, window: pair.app, document: fakeDocumentFor(pair) }),
+      TypeError,
+      String(hostPath),
+    );
+  }
+  assert.doesNotThrow(() => new HostTransport({ hostOrigin: 'https://api.valuguru.app', hostPath: '/', window: pair.app, document: fakeDocumentFor(pair) }));
+});

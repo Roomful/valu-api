@@ -28,6 +28,17 @@ const LOCAL_ORIGIN_RE = /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d{1,5})?$/;
 /** Is `value` an origin a message can be answered at? */
 export const isOrigin = (value) => typeof value === 'string' && ORIGIN_RE.test(value);
 
+/**
+ * Is `value` a path a host page can be served at: `/`, `/host/`, `/a/b/`? It
+ * starts and ends with `/`, and each segment is plain (letters, digits, `.`
+ * `_` `~` `-`) and never `.` or `..`, so appending it to an origin cannot
+ * leave that origin or reach a query, a fragment or another path than the one
+ * written.
+ */
+export const isHostPath = (value) => typeof value === 'string'
+  && /^\/(?:[A-Za-z0-9._~-]+\/)*$/.test(value)
+  && !value.split('/').some((segment) => segment === '.' || segment === '..');
+
 /** Is `value` `http://localhost` or `http://127.0.0.1`, on any port? (Exactly those hosts: no look-alikes.) */
 export const isLocalOrigin = (value) => typeof value === 'string' && LOCAL_ORIGIN_RE.test(value);
 

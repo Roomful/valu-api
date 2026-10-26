@@ -4,6 +4,11 @@
 
 ### Added
 
+- `hostPath` on `createValuApp` and `HostTransport`: where on `hostOrigin` the host
+  page is, `/host/` by default. The consent page is `consent.html` beside it.
+  valusocial-web's web host is served from the root of its own origin:
+  `createValuApp({ hostOrigin: 'https://api.valuguru.app', hostPath: '/' })`.
+
 - `createValuApp(options)`: the one entry point an app uses. It returns one
   object with the bridge (`callService`, `sendIntent`, `onCommerceEvent`,
   `addEventListener`), the service tree (`valu.Users.current()`,

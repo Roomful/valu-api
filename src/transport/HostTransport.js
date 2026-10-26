@@ -2,7 +2,7 @@
 // The host transport — an app page's side of the host bridge.
 //
 // In dedicated mode the Roomful connection, the session and the permission
-// checks live in a hidden iframe on the host origin (`<hostOrigin>/host/`,
+// checks live in a hidden iframe on the host origin (`<hostOrigin><hostPath>`, `/host/` by default,
 // src/host/HostBridge.js). This transport injects that iframe, says
 // `host:hello`, and from then on is the page's only way to the host:
 //
@@ -40,7 +40,7 @@ import { nextId } from '../Utils.js';
 import { ERROR_CODES, errorAck } from '../Errors.js';
 import { DEFAULT_TIMEOUT_MS } from '../CallPolicy.js';
 import { CONNECTION_STATE, HOST_ERRORS, MSG, PROTOCOL_VERSION } from '../host/protocol.js';
-import { isOrigin } from '../host/origins.js';
+import { isHostPath, isOrigin } from '../host/origins.js';
 // Registers the service functions: the `local` ones run on this page.
 import '../services/impl/index.js';
 import { VERSION } from '../version.js';
@@ -135,6 +135,8 @@ const identityChanged = (before, after) => before?.signedIn !== after.signedIn
  */
 export class HostTransport extends Transport {
   #hostOrigin;
+  /** Where on `hostOrigin` the host page is: `/host/` unless the host says otherwise. */
+  #hostPath;
   #win;
   #doc;
   #setTimer;
@@ -177,6 +179,9 @@ export class HostTransport extends Transport {
    * @param {string} options.hostOrigin Where the host is served, a bare origin
    *   (`https://valuguru.texpo.io`): the iframe's origin, the `targetOrigin` of
    *   everything posted to it, and the only origin it is heard from.
+   * @param {string} [options.hostPath] Where on that origin the host page is served:
+   *   `/host/` (the default, valu-guru-server's host) or `/` (the web host at
+   *   `https://api.valuguru.app`). Starts and ends with `/`.
    * @param {string} [options.app] The app's address (`<workspace>/<slug>`), sent in `host:hello`
    *   as `app`. A dev host serves it to a page on localhost; a production host ignores it.
    * @param {Window} [options.window] Where the host's messages arrive.
@@ -195,6 +200,7 @@ export class HostTransport extends Transport {
    */
   constructor({
     hostOrigin,
+    hostPath = '/host/',
     app,
     window: win = globalThis,
     document: doc = globalThis.document,
@@ -212,10 +218,14 @@ export class HostTransport extends Transport {
     if (!isOrigin(hostOrigin)) {
       throw new TypeError('HostTransport hostOrigin must be an origin such as "https://host.example": no path, no trailing slash');
     }
+    if (!isHostPath(hostPath)) {
+      throw new TypeError('HostTransport hostPath must be a path that starts and ends with "/", such as "/" or "/host/"');
+    }
     if (app !== undefined && typeof app !== 'string') {
       throw new TypeError('HostTransport app must be a string such as "ws_1/my-app"');
     }
     this.#hostOrigin = hostOrigin;
+    this.#hostPath = hostPath;
     this.#app = app;
     this.#win = win;
     this.#doc = doc;
@@ -411,7 +421,7 @@ export class HostTransport extends Transport {
         const frame = this.#doc.createElement('iframe');
         frame.hidden = true;
         frame.setAttribute('aria-hidden', 'true');
-        frame.src = `${this.#hostOrigin}/host/`;
+        frame.src = `${this.#hostOrigin}${this.#hostPath}`;
         pending.frame = frame;
         this.#iframe = frame;
         frame.addEventListener('load', () => this.#hello(pending, frame));

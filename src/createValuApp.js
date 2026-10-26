@@ -46,9 +46,11 @@ import { PostMessageTransport } from './transport/PostMessageTransport.js';
 import { createValuServices } from './services/api.js';
 import { ERROR_CODES, errorAck } from './Errors.js';
 import { CONNECTION_STATE, HOST_ERRORS, MSG } from './host/protocol.js';
-import { isOrigin } from './host/origins.js';
+import { isHostPath, isOrigin } from './host/origins.js';
 
 const DEFAULT_HOST_ORIGIN = 'https://valuguru.texpo.io';
+/** Where on the host origin the host page is; the consent page is `consent.html` beside it. */
+const DEFAULT_HOST_PATH = '/host/';
 const DEFAULT_SIGN_IN_ORIGIN = 'https://live.valuverse.io';
 const POPUP_FEATURES = 'popup,width=480,height=640';
 /** How often an open popup is asked whether it was closed. */
@@ -188,6 +190,7 @@ class UnservedTransport extends Transport {
 class ValuApp {
   #mode;
   #hostOrigin;
+  #hostPath;
   #signInOrigin;
   #win;
   #popup;
@@ -220,10 +223,11 @@ class ValuApp {
    * @param {'dedicated'|'embedded'} parts.mode
    * @param {Transport} parts.transport HostTransport or PostMessageTransport, not yet opened.
    */
-  constructor({ mode, transport, hostOrigin, signInOrigin, win, popup, setTimer, clearTimer }) {
+  constructor({ mode, transport, hostOrigin, hostPath = DEFAULT_HOST_PATH, signInOrigin, win, popup, setTimer, clearTimer }) {
     this.#mode = mode;
     this.#transport = transport;
     this.#hostOrigin = hostOrigin;
+    this.#hostPath = hostPath;
     this.#signInOrigin = signInOrigin;
     this.#win = win;
     this.#popup = popup;
@@ -507,7 +511,7 @@ class ValuApp {
     } catch (error) {
       return Promise.reject(error);
     }
-    const win = this.#open(`${this.#hostOrigin}/host/consent.html?nonce=${nonce}`, 'valu-consent');
+    const win = this.#open(`${this.#hostOrigin}${this.#hostPath}consent.html?nonce=${nonce}`, 'valu-consent');
     if (!win) return Promise.reject(popupBlocked('consent'));
 
     const asked = this.#askConsent(win, scopes, nonce);
@@ -565,6 +569,9 @@ class ValuApp {
  *
  * @param {object} [options]
  * @param {string} [options.hostOrigin] Where the host is served. Default `https://valuguru.texpo.io`.
+ * @param {string} [options.hostPath] Where on `hostOrigin` the host page is, starting and ending with
+ *   `/`; the consent page is `consent.html` beside it. Default `/host/`. The web host at
+ *   `https://api.valuguru.app` is served from the root: `{hostOrigin: 'https://api.valuguru.app', hostPath: '/'}`.
  * @param {string} [options.signInOrigin] Where the sign-in page is, the Valu brand the app signs users in
  *   through. Default `https://live.valuverse.io`.
  * @param {string} [options.app] The app's address (`<workspace>/<slug>`), told to the host in
@@ -590,6 +597,7 @@ class ValuApp {
  */
 export async function createValuApp({
   hostOrigin = DEFAULT_HOST_ORIGIN,
+  hostPath = DEFAULT_HOST_PATH,
   signInOrigin = DEFAULT_SIGN_IN_ORIGIN,
   app: appAddress,
   hostOrigins,
@@ -607,11 +615,15 @@ export async function createValuApp({
       throw new TypeError(`createValuApp ${name} must be an origin such as "https://host.example": no path, no trailing slash`);
     }
   }
+  if (!isHostPath(hostPath)) {
+    throw new TypeError('createValuApp hostPath must be a path that starts and ends with "/", such as "/" or "/host/"');
+  }
   const resolved = modeOf(mode, win);
   const dedicated = resolved === 'dedicated';
   const transport = dedicated
     ? new HostTransport({
       hostOrigin,
+      hostPath,
       app: appAddress,
       window: win,
       document: doc,
@@ -623,7 +635,7 @@ export async function createValuApp({
     : new PostMessageTransport({ target: win, ...(hostOrigins !== undefined ? { hostOrigins } : {}) });
 
   const app = new ValuApp({
-    mode: resolved, transport, hostOrigin, signInOrigin, win, popup, setTimer, clearTimer,
+    mode: resolved, transport, hostOrigin, hostPath, signInOrigin, win, popup, setTimer, clearTimer,
   });
   // A failed handshake leaves nothing behind (HostTransport takes its iframe,
   // listener and timers away), so the app is simply dropped.

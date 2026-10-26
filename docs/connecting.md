@@ -199,10 +199,18 @@ app does not end up with two sockets per tab.
 A page that is not inside Valu Social — its own domain, `*.valuguru.app`, a
 `localhost` dev server — has no Roomful socket and must not hold a Valu session.
 Dedicated mode gives it the same functions anyway, through a **host**: a hidden
-iframe on a Valu origin (`<hostOrigin>/host/`) that keeps the session and the
+iframe on a Valu origin (`<hostOrigin><hostPath>`) that keeps the session and the
 socket, signs the user in through a popup, and checks the app's grants before
 every call. The page only ever sees answers; no credential crosses the iframe
 boundary.
+
+Two hosts serve the same engine. `hostPath` says where on the origin the host
+page is, and the consent page is `consent.html` beside it:
+
+| host | options |
+|---|---|
+| valu-guru-server (the default) | `hostOrigin: 'https://valuguru.texpo.io'`, `hostPath: '/host/'` |
+| valusocial-web's web host | `hostOrigin: 'https://api.valuguru.app'`, `hostPath: '/'` |
 
 ```javascript
 import { createValuApp } from '@arkeytyp/valu-api';
@@ -352,7 +360,7 @@ is the scope's: `rooms:read`, `commerce:write` …). The host answers such a cal
 - **Otherwise** the ack is the answer, and the app asks from its own click:
   `button.onclick = () => valu.auth.requestConsent(['rooms:read'])`, then calls again.
 
-`requestConsent` opens `<hostOrigin>/host/consent.html?nonce=…` (the page names
+`requestConsent` opens `<hostOrigin><hostPath>consent.html?nonce=…` (the page names
 the app and the scopes from the host itself, never from the app page). A window
 closed without a decision resolves `false` after ten seconds; a user who declines,
 or a request the host refuses, resolves `false` too. Like `signIn()` it must be
@@ -445,7 +453,7 @@ the subscription for the signed-in session, so it ends with a sign-out, a reload
 and a revoked `commerce:read`: subscribe after every start and every sign-in. The
 events and their data are in the README, "Commerce Events".
 
-**Your CSP.** The client puts `<iframe src="<hostOrigin>/host/">` in the page, so an
+**Your CSP.** The client puts `<iframe src="<hostOrigin><hostPath>">` in the page, so an
 app that sends its own `Content-Security-Policy` must allow the host origin in
 `frame-src` (or in `default-src`, when there is no `frame-src`):
 `frame-src https://valuguru.texpo.io`. The sign-in and consent windows are popups,
