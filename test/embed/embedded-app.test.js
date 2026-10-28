@@ -377,6 +377,68 @@ test('hostOrigins, when given, is the whole list: a local Valu Social works, a d
   assert.equal(both.valu.auth.state.signedIn, true);
 });
 
+// The matching is exact, on the origin the bridge is bound to: a look-alike is a stranger.
+for (const parentOrigin of [
+  'https://live.valuverse.io.evil.com', // a trusted name as a prefix
+  'https://evil.live.valuverse.io', // a subdomain of a trusted origin
+  'http://live.valuverse.io', // the trusted host on another scheme
+  'https://live.valuverse.io:8443', // the trusted host on another port
+  'null', // an opaque origin (a sandboxed frame, a data: URL)
+  'https://LIVE.valuverse.io', // not how a browser writes an origin
+  'https://live.valuverse.io/', // nor this
+]) {
+  test(`trusted-origin matching is exact: ${parentOrigin} gets 501, signed out, and no api:call`, async (t) => {
+    const h = await setup(t, { parentOrigin });
+    h.ready();
+    await settle();
+    assert.deepEqual(h.valu.auth.state, { signedIn: false, user: null, network: null });
+    const ack = await h.valu.Users.current();
+    assert.equal(ack.error.code, 501);
+    assert.match(ack.error.message, /is not available in embedded mode/);
+    assert.equal(h.calls().length, 0);
+  });
+}
+
+test('hostOrigins: [] admits none: the bridge never binds, ready gives up, and nothing is posted', async (t) => {
+  const h = await setup(t, { parentOrigin: 'https://live.valuverse.io', hostOrigins: [] });
+  const ready = track(h.valu.ready);
+  h.ready();
+  await settle();
+  assert.equal(ready.settled, false);
+  assert.equal(h.valu.auth.state.signedIn, false);
+  h.clock.tick(READY_TIMEOUT_MS);
+  await settle();
+  assert.equal(ready.error.code, 'host_unreachable');
+  assert.deepEqual(await h.valu.call('Users.current', {}, { retries: 0 }), {
+    error: { status: true, code: 503, message: 'host_unreachable', retryable: true },
+  });
+  assert.equal(h.posts().length, 0);
+});
+
+test('an untrusted parent gains no trust by repeating api:ready, or by naming a trusted origin in it', async (t) => {
+  const h = await setup(t, { parentOrigin: 'https://evil.example' });
+  h.send(MSG.READY, {
+    applicationId: 'app-1', action: 'open', params: {}, origin: 'https://live.valuverse.io',
+    valuApi: { ...VALU_API, origin: 'https://live.valuverse.io' },
+  });
+  h.ready();
+  h.ready();
+  await settle();
+  assert.equal(h.valu.auth.state.signedIn, false);
+  assert.equal((await h.valu.Users.current()).error.code, 501);
+  assert.equal(h.calls().length, 0);
+});
+
+test('a trusted parent that says nothing of valuApi first and then says it is taken at its word', async (t) => {
+  const h = await setup(t, { parentOrigin: 'https://texpo.io' });
+  h.ready(undefined);
+  await settle();
+  assert.equal((await h.valu.Users.current()).error.code, 501);
+  h.ready();
+  assert.equal(h.valu.auth.state.signedIn, true);
+  assert.deepEqual(await h.valu.Users.current(), { data: { ok: true } });
+});
+
 // ---------------------------------------------------------------------------
 // auth
 // ---------------------------------------------------------------------------

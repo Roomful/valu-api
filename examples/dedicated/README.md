@@ -43,6 +43,7 @@ cannot point a deployed copy at another host or sign-in page.
 | `hostPath` | where on that origin the host page is (`hostPath`); `/` for the web host | `/host/` |
 | `signin` | the Valu brand the sign-in popup opens on (`signInOrigin`) | `https://live.valuverse.io` |
 | `app` | the app's address, `<workspace>/<slug>` (`app`) | none |
+| `hostOrigins` | embedded only: the origins of the Valu Social that frames the page, comma-separated (`hostOrigins`) | the Valu origins the host trusts for sign-in |
 
 `app` is for a dev host only: a host built in dev mode serves a page on `localhost`
 under the address it is given. A production host ignores it and finds the app from
@@ -84,6 +85,8 @@ asks the server who `http://localhost:5173` is, gets no answer, and the page sho
 Signed out, the connection reads `signed_out` and every call prints a refusal with
 `sign_in_required`. Press Sign in, finish the popup, and the Auth tile shows the user.
 
+To try it embedded, have a local Valu Social on `http://localhost:3007` frame the page at `http://localhost:5174/examples/dedicated/?hostOrigins=http://localhost:3007`: a local origin is not trusted with the service calls unless the page names it.
+
 ## Run it against production
 
 The production host finds the app from the page's own origin, so the page has to be
@@ -96,7 +99,7 @@ https://<the app's published origin>/examples/dedicated/
 ```
 
 A `localhost` page is not a published origin, so it cannot use the production host
-(`docs/connecting.md`, "What the host serves"). `?host=`, `?signin=` and `?app=` are
+(`docs/connecting.md`, "What the host serves"). `?host=`, `?signin=`, `?app=` and `?hostOrigins=` are
 conveniences of this sample for development, and they only work on `localhost` and
 `127.0.0.1`; on a published origin the page always uses the defaults. A real app
 passes its options in code (`signInOrigin: 'https://chabaduniverse.com'` for a
