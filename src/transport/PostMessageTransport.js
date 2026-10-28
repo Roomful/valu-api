@@ -35,11 +35,15 @@ import { Transport } from './Transport.js';
 import { nextId } from '../Utils.js';
 
 
-/** Replies that carry a `requestId` and settle a pending request. */
+/**
+ * Replies that carry a `requestId` and settle a pending request. `api:call-completed`
+ * answers a service function's `api:call` (EmbeddedTransport, over this bridge).
+ */
 const REPLY_MESSAGES = new Set([
   'api:run-completed',
   'api:run-console-completed',
   'api:pointer-created',
+  'api:call-completed',
 ]);
 
 export class PostMessageTransport extends Transport {
@@ -72,7 +76,9 @@ export class PostMessageTransport extends Transport {
   get connected() { return this.#peer.origin !== undefined; }
 
   /**
-   * The bridge does not serve service functions.
+   * The bridge does not serve service functions. (`createValuApp` in embedded
+   * mode puts an `EmbeddedTransport` over it, which sends them as valu-api's
+   * own `api:call` when Valu Social says it answers that: not as intents.)
    *
    * It could: the Valu Social application answers `api:service-intent` for
    * everything it declares, and this transport used to forward service calls

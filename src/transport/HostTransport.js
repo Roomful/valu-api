@@ -86,7 +86,7 @@ const hostError = (code, message = code, cause) => Object.assign(
 const unreachable = (message) => hostError(HOST_ERRORS.HOST_UNREACHABLE, message);
 
 /** A write that was handed to the host may have been applied: the app decides whether to repeat it. */
-const unsafeToRepeat = (descriptor, ack) => (descriptor.mutates ? { error: { ...ack.error, retryable: false } } : ack);
+export const unsafeToRepeat = (descriptor, ack) => (descriptor.mutates ? { error: { ...ack.error, retryable: false } } : ack);
 
 const CONNECTION_STATES = new Set(Object.values(CONNECTION_STATE));
 

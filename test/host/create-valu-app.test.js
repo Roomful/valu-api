@@ -735,9 +735,11 @@ test('a second signIn while one is waiting shares it and opens no second popup',
   assert.equal(third.settled, false);
 });
 
-test('signIn in embedded mode rejects not_available and opens nothing', async (t) => {
+test('signIn in embedded mode, with no user from Valu Social, rejects not_available and opens nothing', async (t) => {
+  // The rest of embedded signIn (a user, the wait for api:ready) is test/embed/embedded-app.test.js.
   const popups = fakePopups();
   const h = await setupEmbedded(t, { popup: popups });
+  h.win.ready();
   await assert.rejects(h.valu.auth.signIn(), { code: 'not_available' });
   assert.equal(popups.calls.length, 0);
 });
@@ -922,11 +924,12 @@ test('the same consent asked twice at once is asked once', async (t) => {
   assert.equal(second.value, true);
 });
 
-test('requestConsent in embedded mode rejects not_available', async (t) => {
+test('requestConsent in embedded mode resolves true and opens nothing: an app needs no permissions inside Valu Social', async (t) => {
   const popups = fakePopups();
   const h = await setupEmbedded(t, { popup: popups });
-  await assert.rejects(h.valu.auth.requestConsent(['rooms:read']), { code: 'not_available' });
+  assert.equal(await h.valu.auth.requestConsent(['rooms:read']), true);
   assert.equal(popups.calls.length, 0);
+  assert.deepEqual(h.win.posted, []);
 });
 
 // ---------------------------------------------------------------------------
@@ -1435,7 +1438,7 @@ test('embedded: auth is the embedding application\'s, and the page sees none of 
   off();
 });
 
-test('embedded: the service tree answers 501 and posts nothing', async (t) => {
+test('embedded: without valuApi in api:ready (an older Valu Social) the service tree answers 501 and posts nothing', async (t) => {
   const h = await setupEmbedded(t);
   h.win.ready();
 
@@ -1446,7 +1449,7 @@ test('embedded: the service tree answers 501 and posts nothing', async (t) => {
   assert.equal(h.win.posted.length, 0);
 });
 
-test('embedded: call and invoke by name answer 501 and post nothing; toolDefinitions still work', async (t) => {
+test('embedded: without valuApi, call and invoke by name answer 501 and post nothing; toolDefinitions still work', async (t) => {
   const h = await setupEmbedded(t);
   h.win.ready();
 

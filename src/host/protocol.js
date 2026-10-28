@@ -129,6 +129,20 @@ export const HOST_ERRORS = Object.freeze({
 });
 
 /**
+ * A user or a network as an app is told it: `{id, name}`, `name` `null` when
+ * unknown; `null` for anything without a non-empty string `id`. What the frame
+ * server puts in `api:ready`'s `valuApi`, and what an embedded client reads off it.
+ * @param {unknown} value
+ * @returns {{id: string, name: string|null}|null}
+ */
+export function identityOf(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const { id, name } = value;
+  if (typeof id !== 'string' || id === '') return null;
+  return { id, name: typeof name === 'string' && name !== '' ? name : null };
+}
+
+/**
  * Wrap a host -> app message. `requestId` goes at the top level — the same
  * number the request carried — and the key is always present, so a push (which
  * answers nothing) has the same shape as a reply.

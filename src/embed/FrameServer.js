@@ -52,7 +52,9 @@ import {
   CALL_REPLIES, CALL_TIMEOUT_MS, TIMED_OUT, attemptTimeoutMs, callDescriptor, callOnce, callRefusal, isPlainObject,
   orAfter,
 } from '../host/HostDispatch.js';
-import { HOST_ERRORS, MSG, PROTOCOL_VERSION, assertNoHostLeak, blockedOutbound } from '../host/protocol.js';
+import {
+  HOST_ERRORS, MSG, PROTOCOL_VERSION, assertNoHostLeak, blockedOutbound, identityOf,
+} from '../host/protocol.js';
 // Registers the service functions: an `app-state` call runs on a transport of its own.
 import '../services/impl/index.js';
 
@@ -60,13 +62,6 @@ import '../services/impl/index.js';
 const consoleLog = (level, message) => {
   globalThis.console?.[level === 'error' ? 'error' : 'warn']?.(`[valu-frame-server] ${message}`);
 };
-
-const text = (value) => (typeof value === 'string' && value !== '' ? value : null);
-
-/** `{id, name}` of a user or a network, as the host tells an app (`name` may be null); `null` without an id. */
-const identityOf = (value) => (isPlainObject(value) && text(value.id)
-  ? { id: value.id, name: text(value.name) }
-  : null);
 
 /** The shared replies, copied before they leave: whoever posts an answer may change it. */
 const SHARED_REPLIES = new Set(Object.values(CALL_REPLIES));

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  PROTOCOL_VERSION, MSG, HOST_ERRORS, POPUP_MSG, CONNECTION_STATE, toParent, parseAppMessage, assertNoHostLeak,
+  PROTOCOL_VERSION, MSG, HOST_ERRORS, POPUP_MSG, CONNECTION_STATE, toParent, parseAppMessage, assertNoHostLeak, identityOf,
 } from '../../src/host/protocol.js';
 import {
   FakeStorage, FakeGuruSocket, fakeGuruWebSocket, FakeWindowPair, fakeResolveFetch, fakeAuthFetch,
@@ -433,4 +433,14 @@ test('fakeAuthFetch signals 401 in the body, as the master does, and redeems tok
   // check is a knob a test can turn mid-way: a session that was good and then is not.
   ok.check = 401;
   assert.equal((await (await ok('https://api.roomful.net/api/v1/auth/check')).json()).error.code, 401);
+});
+
+test('identityOf: a user or a network as an app is told it, {id, name}, or null without an id', () => {
+  assert.deepEqual(identityOf({ id: 'u1', name: 'Ada', email: 'ada@example.test' }), { id: 'u1', name: 'Ada' });
+  assert.deepEqual(identityOf({ id: 'u1' }), { id: 'u1', name: null });
+  assert.deepEqual(identityOf({ id: 'u1', name: '' }), { id: 'u1', name: null });
+  assert.deepEqual(identityOf({ id: 'u1', name: 5 }), { id: 'u1', name: null });
+  for (const value of [undefined, null, 'u1', ['u1'], {}, { id: '' }, { id: 5 }, { name: 'Ada' }]) {
+    assert.equal(identityOf(value), null, JSON.stringify(value));
+  }
 });
