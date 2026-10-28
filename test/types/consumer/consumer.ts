@@ -96,7 +96,8 @@ export const badTimeout = createValuApp({ readyTimeoutMs: '5s' });
 
 // Valu Social's half: the frame server over its own connection.
 export async function valuSocial(webSocketService: { emitAsync(endpoint: string, data?: object, timeout?: number): Promise<any> }): Promise<void> {
-  const services = await connectValuServices({ socket: webSocketService, userId: 'u1' });
+  // One per framed app: its slug, and no cache.
+  const services = await connectValuServices({ socket: webSocketService, userId: 'u1', applicationId: 'my-app', cache: null });
   const frames: FrameServer = createFrameServer({ services, log: (level, message) => { void level; void message; } });
   const info: ValuApiReadyInfo = frames.readyInfo({ user: { id: 'u1', name: 'Ada' }, network: null });
   const calls: true = info.calls;

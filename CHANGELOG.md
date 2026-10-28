@@ -20,8 +20,10 @@
   No permissions inside Valu Social: no tiers, no grants, no consent. See
   [docs/connecting.md](docs/connecting.md#inside-valu-social).
 - `createFrameServer({ services, appState?, log? })`, from the package root and
-  `@arkeytyp/valu-api/src/embed/FrameServer.js`: what Valu Social mounts over
-  `connectValuServices({ socket, userId })` to answer its framed apps.
+  `@arkeytyp/valu-api/src/embed/FrameServer.js`: what Valu Social mounts to answer
+  its framed apps, one per framed app, over
+  `connectValuServices({ socket, userId, applicationId: <the app's slug>, cache: null })`
+  (the app's storage shelf is addressed by that slug, as at the host).
   `readyInfo({ user, network })` is the `valuApi` key of `api:ready`;
   `handle(message)` is the ack of one `api:call`: the host's checks less sign-in
   and the permission gate (`404`; `501` for `local`, and `app-state` without an

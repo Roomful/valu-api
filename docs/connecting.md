@@ -600,14 +600,15 @@ embedding window (`window.parent`) only, bound once by its first `api:ready`, an
 every later message is taken only from that window and origin. `hostOrigins`
 narrows it further, and is the trust list above.
 
-**Valu Social's side** is `createFrameServer`, one per session, over the
-connection it already has:
+**Valu Social's side** is `createFrameServer`, **one per framed app**, each over
+services of its own on the connection Valu Social already has:
 
 ```javascript
 import { connectValuServices, createFrameServer } from '@arkeytyp/valu-api';
 // or: import { createFrameServer } from '@arkeytyp/valu-api/src/embed/FrameServer.js';
 
-const services = await connectValuServices({ socket: webSocketService, userId });
+// For each framed app: its slug as the host resolver names it (`ResolvedApp.slug`).
+const services = await connectValuServices({ socket: webSocketService, userId, applicationId: app.slug, cache: null });
 const frames = createFrameServer({ services });
 
 // the api:ready posted to a frame carries one more key
@@ -631,15 +632,25 @@ replaced by `{error: {code: 'internal', message: 'blocked outbound credential'}}
 and logged by key path, never by value. It never rejects. `readyInfo({ user,
 network })` keeps only `{id, name}` of each. Rebuild the services (or
 `handleReconnect` them) on a reconnect, and both on a change of network or user,
-so nothing cached outlives the connection it came from.
+so no services outlive the connection they were made on.
 
-The functions that address the calling app's own shelf (`ApplicationStorage.*`,
-and the two `CMS` functions when no room, directory or community is named) read
-the services' `applicationId`, never the call's params. Services built without one
-answer `ApplicationStorage.*` `403` (and the `CMS` default shelf is `app:null:…`);
-services built with one put every framed app on that one shelf. Where the shelf
-must be the app's, build the services (and a frame server) per framed app:
-`connectValuServices({ socket, userId, applicationId })`.
+Per app is required, not a tuning. The functions that address the calling app's
+own shelf (`ApplicationStorage.*`, and the two `CMS` functions when no room,
+directory or community is named) read the services' `applicationId`, never the
+call's params, and the host stamps the app's slug there. So:
+
+- `applicationId` is the framed app's **slug**, as the host resolver names it (the
+  `slug` of its `ResolvedApp`, what the host stamps): never the launch intent's
+  `applicationId`, and never the full `<workspace>/<slug>` address. Services built
+  without one answer `ApplicationStorage.*` `403` and put the `CMS` default shelf at
+  `app:null:…`; services shared by two apps put both on one shelf.
+- `cache: null`, as the host's services have: the frame server reads nothing from
+  a cache (every call is `bypassCache`), and the default one would only fill with
+  entries nobody reads.
+
+The shelf is `app:{slug}:userSortingTable:{userId}`, keyed by the slug alone, so
+two workspaces whose apps have the same slug share a user's shelf. That is the
+host's behaviour too; embedded mode only matches it.
 
 See also: [socket-adapters.md](socket-adapters.md) for what a socket *is* here
 and how to write a third adapter, [socket-functions.md](socket-functions.md) for

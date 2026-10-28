@@ -1094,8 +1094,10 @@ declare module '@arkeytyp/valu-api' {
     }
 
     export interface FrameServerOptions {
-        /** The service functions over Valu Social's connection:
-         * `await connectValuServices({ socket: webSocketService, userId })`. */
+        /** The service functions over Valu Social's connection, for ONE framed app:
+         * `await connectValuServices({ socket: webSocketService, userId, applicationId: app.slug, cache: null })`.
+         * `applicationId` is the app's slug as the host resolver names it (its storage shelf is
+         * addressed by it), never the launch intent's id or the `<workspace>/<slug>` address. */
         services: Pick<ValuServiceApi, 'call'>;
         /** State Valu Social holds, for the `app-state` functions (`Developer.*`,
          * `VerusWallet.get-balance`) and the others that read it; every call carries it.

@@ -86,6 +86,15 @@ nothing about modes.
   (the adopted-socket door: `adoptValuSocket` recognises the WebSocket service by `emitAsync`),
   wrapped in one `createFrameServer`. Rebuilt (or `handleReconnect`ed) on reconnect and on a
   network or user change, so no cache outlives the connection it came from.
+  - **Amended 2026-10-28 (review of feat/embedded-calls): per framed app, not per session.**
+    One `connectValuServices({ socket, userId, applicationId: <the app's slug from the host
+    resolver>, cache: null })` and one `createFrameServer` per framed app, on the same socket.
+    `ApplicationStorage.*` and the CMS default shelf are addressed by the services'
+    `applicationId` (`app:{slug}:userSortingTable:{userId}`), as the host stamps it: a shared
+    one would put every framed app on one shelf, or none (403, `app:null`). Never the launch
+    intent's `applicationId`, never the `<workspace>/<slug>` address. `cache: null` as the host's
+    services have it (the frame server bypasses the cache on every call). Two workspaces whose
+    apps share a slug share a user's shelf, as at the host.
 - `IFrameStore`: the `api:ready` it posts carries `valuApi: frameServer.readyInfo(...)`; a new
   `api:call` case, taken only from the app's own frame (`event.source === iframe.contentWindow`
   and its origin), answers `api:call-completed` with the frame server's ack, posted to the frame's

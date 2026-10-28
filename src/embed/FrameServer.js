@@ -11,7 +11,8 @@
 // answers it with this module: valu-api's own function over Valu Social's own
 // connection, so the answer is the one the host gives.
 //
-//   const services = await connectValuServices({ socket: webSocketService, userId });
+//   // one per framed app: its slug as the host resolver names it, and no cache (the host's services have none)
+//   const services = await connectValuServices({ socket: webSocketService, userId, applicationId: app.slug, cache: null });
 //   const frames = createFrameServer({ services });
 //
 //   // the api:ready Valu Social posts to a frame carries one more key:
@@ -71,8 +72,10 @@ const own = (reply) => (SHARED_REPLIES.has(reply) ? { ...reply, error: { ...repl
  *
  * @param {object} options
  * @param {{call: (name: string, params: object, options: object) => Promise<object>}} options.services
- *   The service functions over Valu Social's connection: a `ValuServiceApi`, from
- *   `connectValuServices({ socket: webSocketService, userId })`.
+ *   The service functions over Valu Social's connection, for ONE framed app: a `ValuServiceApi`, from
+ *   `connectValuServices({ socket: webSocketService, userId, applicationId: app.slug, cache: null })`. The
+ *   app's storage shelf is addressed by that `applicationId`: the slug the host resolver names, never
+ *   the launch intent's id or the `<workspace>/<slug>` address.
  * @param {import('../app-state/AppState.js').AppState|null} [options.appState] State Valu Social
  *   holds, for the `app-state` functions (`Developer.*`, `VerusWallet.get-balance`) and the others
  *   that read it; every call carries it. Without it the `app-state` functions answer 501
