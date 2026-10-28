@@ -1,15 +1,20 @@
 // ===========================================================================
 // The conformance suite.
 //
-// ONE suite, run against both adapters (test/conformance.test.js). Everything
+// ONE suite, run against every adapter (test/conformance.test.js). Everything
 // in here is a clause of the contract the 84 Phase 2 functions are written
 // against: the ack envelope, the emit payload, the callbacks policy, the
 // cache, the scope check, reconnect. If an adapter passes this, a function
 // written against the SDK behaves the same wherever it runs.
 //
 // Phase 2 extends it per function; nothing here should need changing to do so.
+//
+// Two ways in. A SOCKET adapter (`makeSocket`) is wrapped here in a
+// `SocketTransport` and a `ServiceClient`. A TRANSPORT that is not a socket —
+// the host (test/conformance/host-adapter.js) — brings its own service surface
+// (`makeServices`) and the clauses run against that, unchanged.
 // ===========================================================================
-import { test } from 'node:test';
+import { test as nodeTest, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { ServiceClient } from '../../src/services/ServiceClient.js';
@@ -20,6 +25,19 @@ import { AuthProvider } from '../../src/auth/AuthProvider.js';
 import { ERROR_CODES } from '../../src/Errors.js';
 import { findDescriptor } from '../../src/services/descriptors.js';
 import { Responder, FakeClock } from '../helpers/fakes.js';
+
+/**
+ * Whatever a case opened through `makeServices` (a host, a window pair, timers)
+ * and has to shut down when it ends, pass or fail.
+ */
+const opened = [];
+
+const test = (title, body) => nodeTest(title, async (t) => {
+  t.after(async () => {
+    for (const close of opened.splice(0).reverse()) await close();
+  });
+  await body();
+});
 
 /** A read and a write, taken from the real catalogue rather than invented. */
 const READ = 'Users.get';
@@ -33,33 +51,71 @@ function testRegistry() {
 }
 
 /**
+ * @typedef {object} MadeServices What `makeServices` hands back.
+ * @property {import('../../src/services/api.js').ValuServiceApi} services The
+ *   function surface the clauses run against.
+ * @property {object} [socket] The socket the identity clause reads.
+ * @property {() => Promise<void>} [reconnect] Brings about what a reconnect is
+ *   for this adapter (the connection drops and comes back) and resolves once
+ *   `services` has been told, so a subscriber has heard it. The reconnect
+ *   clauses need it.
+ * @property {() => unknown} [close] Shuts down what the adapter opened; runs
+ *   when the case ends, pass or fail.
+ */
+
+/**
  * @param {object} options
  * @param {string} options.name Adapter name, for the test titles.
- * @param {(responder: Responder) => {socket: object, push?: (payload: any) => void}} options.makeSocket
+ * @param {(responder: Responder) => {socket: object, push?: (payload: any) => void}} [options.makeSocket]
+ *   A socket adapter: the suite builds a `SocketTransport` and a `ServiceClient` over it.
+ * @param {(responder: Responder, options: {cache: ServiceCache|null, auth?: AuthProvider, hooks: object, registry: ServiceRegistry}) => MadeServices|Promise<MadeServices>} [options.makeServices]
+ *   An adapter that is not a socket and brings its own surface, which is used
+ *   in place of that transport and client. It is handed the responder the case
+ *   scripted and what the clauses configure: the `cache` (on the injected
+ *   clock), the token's scopes (`auth`), the retry `hooks`, and the `registry`
+ *   of the two handlers the clauses are written against, for whatever answers
+ *   over the wire to run. One of `makeSocket` and `makeServices` is required.
  */
-export function runConformanceSuite({ name, makeSocket }) {
-  const setup = ({ handlers = {}, clock = new FakeClock(), auth, cache } = {}) => {
+export function runConformanceSuite({ name, makeSocket, makeServices }) {
+  const setup = async ({ handlers = {}, clock = new FakeClock(), auth, cache } = {}) => {
     const responder = new Responder(handlers);
+    const hooks = { sleep: clock.sleep, random: () => 0.5 };
+    const resolvedCache = cache === undefined ? new ServiceCache({ now: clock.now }) : cache;
+
+    if (makeServices) {
+      const made = await makeServices(responder, { cache: resolvedCache, auth, hooks, registry: testRegistry() });
+      if (made.close) opened.push(made.close);
+      return {
+        responder,
+        socket: made.socket,
+        transport: made.services.transport,
+        client: made.services,
+        clock,
+        push: made.push,
+        reconnect: () => made.reconnect(),
+      };
+    }
+
     const { socket, push } = makeSocket(responder);
     const transport = new SocketTransport({ socket, registry: testRegistry() });
     const client = new ServiceClient({
       transport,
-      cache: cache === undefined ? new ServiceCache({ now: clock.now }) : cache,
+      cache: resolvedCache,
       auth,
-      hooks: { sleep: clock.sleep, random: () => 0.5 },
+      hooks,
     });
-    return { responder, socket, transport, client, clock, push };
+    return { responder, socket, transport, client, clock, push, reconnect: () => transport.handleReconnect(socket) };
   };
 
-  test(`${name}: identity is on the socket`, () => {
-    const { socket } = setup();
+  test(`${name}: identity is on the socket`, async () => {
+    const { socket } = await setup();
     assert.equal(typeof socket.userId, 'string');
     assert.equal(typeof socket.networkId, 'string');
     assert.ok(socket.selfUserId === null || typeof socket.selfUserId === 'string');
   });
 
   test(`${name}: a successful call resolves {data} and emits the PLAIN payload`, async () => {
-    const { client, responder } = setup({
+    const { client, responder } = await setup({
       handlers: { 'social:getUsersSimpleInfo': { data: { users: [{ id: 'u-9' }] } } },
     });
 
@@ -74,7 +130,7 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: a remote failure resolves {error}, it does not reject`, async () => {
-    const { client } = setup({
+    const { client } = await setup({
       handlers: { 'social:getUsersSimpleInfo': { error: { status: true, code: 404, message: 'Resource not found' } } },
     });
 
@@ -86,7 +142,7 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: invoke() throws what call() returns`, async () => {
-    const { client } = setup({
+    const { client } = await setup({
       handlers: { 'social:getUsersSimpleInfo': { error: { status: true, code: 403, message: 'nope' } } },
     });
 
@@ -97,7 +153,7 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: a timeout is an ack with code 408, from either adapter`, async () => {
-    const { client } = setup({ handlers: { 'social:getUsersSimpleInfo': 'timeout' } });
+    const { client } = await setup({ handlers: { 'social:getUsersSimpleInfo': 'timeout' } });
 
     const ack = await client.call(READ, { userId: 'u-1' }, { retries: 0 });
 
@@ -106,7 +162,7 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: a lost connection is an ack with code 503`, async () => {
-    const { client } = setup({ handlers: { 'social:getUsersSimpleInfo': 'disconnect' } });
+    const { client } = await setup({ handlers: { 'social:getUsersSimpleInfo': 'disconnect' } });
 
     const ack = await client.call(READ, { userId: 'u-1' }, { retries: 0 });
 
@@ -115,7 +171,7 @@ export function runConformanceSuite({ name, makeSocket }) {
 
   test(`${name}: a read retries twice, with backoff`, async () => {
     const attempts = [];
-    const { client, clock } = setup({
+    const { client, clock } = await setup({
       handlers: {
         'social:getUsersSimpleInfo': (_params, n) => {
           attempts.push(n);
@@ -133,7 +189,7 @@ export function runConformanceSuite({ name, makeSocket }) {
 
   test(`${name}: a write is never retried`, async () => {
     let attempts = 0;
-    const { client, clock } = setup({
+    const { client, clock } = await setup({
       handlers: { 'social:sendConnectionRequest': () => { attempts++; return 'timeout'; } },
     });
 
@@ -146,7 +202,7 @@ export function runConformanceSuite({ name, makeSocket }) {
 
   test(`${name}: a remote error is not retried`, async () => {
     let attempts = 0;
-    const { client } = setup({
+    const { client } = await setup({
       handlers: {
         'social:getUsersSimpleInfo': () => { attempts++; return { error: { status: true, code: 404, message: 'gone' } }; },
       },
@@ -157,7 +213,7 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: params are validated before the wire`, async () => {
-    const { client, responder } = setup();
+    const { client, responder } = await setup();
 
     const missing = await client.call(READ, {});
     const wrongType = await client.call(READ, { userId: 42 });
@@ -171,7 +227,7 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: an unknown function is 404, not a socket call`, async () => {
-    const { client, responder } = setup();
+    const { client, responder } = await setup();
 
     const ack = await client.call('Users.teleport', {});
 
@@ -180,7 +236,7 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: an application-only intent is not in the catalogue at all`, async () => {
-    const { client, responder } = setup();
+    const { client, responder } = await setup();
 
     // `DataProvider.pick-single` is declared by the application and served
     // only by it. This package does not declare it, so it does not resolve —
@@ -196,7 +252,7 @@ export function runConformanceSuite({ name, makeSocket }) {
     // This registry holds two handlers on purpose, so every other declared
     // function is unimplemented in it. Phase 2 filled the DEFAULT registry;
     // the answer for an empty slot still has to name itself.
-    const { client } = setup();
+    const { client } = await setup();
 
     const ack = await client.call('Rooms.get-room', { roomId: 'r-1' });
 
@@ -205,7 +261,7 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: a read is served from cache, a write bypasses and invalidates it`, async () => {
-    const { client, responder } = setup({
+    const { client, responder } = await setup({
       handlers: {
         'social:getUsersSimpleInfo': { data: { users: [{ id: 'u-1' }] } },
         'social:sendConnectionRequest': { data: { ok: true } },
@@ -224,7 +280,7 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: a write that FAILED still invalidates`, async () => {
-    const { client, responder } = setup({
+    const { client, responder } = await setup({
       handlers: {
         'social:getUsersSimpleInfo': { data: { users: [] } },
         'social:sendConnectionRequest': 'timeout',
@@ -240,7 +296,7 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: a cache entry expires`, async () => {
-    const { client, responder, clock } = setup({
+    const { client, responder, clock } = await setup({
       handlers: { 'social:getUsersSimpleInfo': { data: { users: [] } } },
     });
 
@@ -252,7 +308,7 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: a failed read is not cached`, async () => {
-    const { client, responder } = setup({
+    const { client, responder } = await setup({
       handlers: {
         'social:getUsersSimpleInfo': (_p, n) => (n === 1
           ? { error: { status: true, code: 500, message: 'bad moment' } }
@@ -268,7 +324,7 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: bypassCache goes to the socket`, async () => {
-    const { client, responder } = setup({
+    const { client, responder } = await setup({
       handlers: { 'social:getUsersSimpleInfo': { data: { users: [] } } },
     });
 
@@ -279,7 +335,7 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: a seeded entry answers without a call`, async () => {
-    const { client, responder } = setup();
+    const { client, responder } = await setup();
 
     client.seed(READ, { userId: 'u-7' }, { users: [{ id: 'u-7', seeded: true }] });
     const ack = await client.call(READ, { userId: 'u-7' });
@@ -293,7 +349,7 @@ export function runConformanceSuite({ name, makeSocket }) {
       acquire: async () => ({ token: 't', expiresAt: Date.now() + 60_000, scopes: ['events:read'] }),
     });
     await auth.getToken();
-    const { client, responder } = setup({ auth });
+    const { client, responder } = await setup({ auth });
 
     const ack = await client.call(READ, { userId: 'u-1' });
 
@@ -303,39 +359,46 @@ export function runConformanceSuite({ name, makeSocket }) {
   });
 
   test(`${name}: reconnect drops the cache and tells subscribers`, async () => {
-    const { client, transport, responder, socket } = setup({
+    const { client, reconnect, responder } = await setup({
       handlers: { 'social:getUsersSimpleInfo': { data: { users: [] } } },
     });
     const seen = [];
     client.subscribe('reconnected', (data) => seen.push(data));
 
     await client.call(READ, { userId: 'u-1' });
-    transport.handleReconnect(socket);
+    await reconnect();
     await client.call(READ, { userId: 'u-1' });
 
     assert.equal(seen.length, 1);
     assert.equal(responder.callsTo('social:getUsersSimpleInfo').length, 2, 'nothing cached survives the gap');
   });
 
-  test(`${name}: a throwing subscriber does not take the others down`, () => {
-    const { client, transport } = setup();
+  test(`${name}: a throwing subscriber does not take the others down`, async () => {
+    const { client, reconnect } = await setup();
     const seen = [];
     client.subscribe('reconnected', () => { throw new Error('boom'); });
     client.subscribe('reconnected', () => seen.push('ok'));
 
-    transport.handleReconnect();
+    // The client reports the throw on the console; the run does not need to hear it.
+    const reported = mock.method(console, 'error', () => {});
+    try {
+      await reconnect();
+    } finally {
+      reported.mock.restore();
+    }
 
     assert.deepEqual(seen, ['ok']);
+    assert.equal(reported.mock.callCount(), 1, 'one subscriber threw, and it was reported rather than lost');
   });
 
-  test(`${name}: unsubscribe stops delivery`, () => {
-    const { client, transport } = setup();
+  test(`${name}: unsubscribe stops delivery`, async () => {
+    const { client, reconnect } = await setup();
     const seen = [];
     const off = client.subscribe('reconnected', () => seen.push('x'));
 
-    transport.handleReconnect();
+    await reconnect();
     off();
-    transport.handleReconnect();
+    await reconnect();
 
     assert.equal(seen.length, 1);
   });

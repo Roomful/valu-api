@@ -129,15 +129,17 @@ test('createValuServices builds a socket transport, and refuses the bridge', () 
   const { valu } = headless();
   assert.ok(valu.transport instanceof SocketTransport);
 
-  // The postMessage bridge is not a service transport. It could carry these
+  // The plain postMessage bridge is not a service transport. It could carry these
   // calls — the application answers `api:service-intent` — and that is exactly
-  // the ambiguity this package dropped: a service function runs over a
-  // connection, the same way everywhere, or it is not a service function.
+  // the ambiguity this package dropped: a service function runs over a socket or
+  // over the valu-api host (`createValuApp`), the same way everywhere, or it is
+  // not a service function. The refusals say where they do run.
   const bridge = new PostMessageTransport({ target: new FakeWindow() });
-  assert.throws(() => createValuServices({ transport: bridge }), /does not serve service functions/);
-  assert.throws(() => new ServiceClient({ transport: bridge }), /does not serve service functions/);
+  assert.throws(() => createValuServices({ transport: bridge }), /does not serve service functions.*createValuApp/s);
+  assert.throws(() => new ServiceClient({ transport: bridge }), /does not serve service functions.*createValuApp/s);
+  assert.throws(() => new ServiceClient({ transport: bridge }), /plain intents bridge \(ValuApi\.callService\)/);
 
-  assert.throws(() => createValuServices({}), /needs a socket/);
+  assert.throws(() => createValuServices({}), /needs a socket.*valu-api host.*createValuApp/s);
 });
 
 test('the tool definitions are the service functions, and nothing else', () => {
@@ -163,4 +165,29 @@ test('the SDK-declared read works exactly like a declared one', async () => {
   assert.deepEqual(requests, [{ id: 'r-1', initiatorUserId: 'u-7' }]);
   assert.deepEqual(users, [{ id: 'u-7', firstName: 'Ada' }]);
   assert.equal(hasMore, false);
+});
+
+test('a call may carry its own appState: the handler reads it in place of the transport\'s', async () => {
+  const own = { listDeveloperApplications: async () => [{ appId: 'transport-own' }] };
+  const given = { listDeveloperApplications: async () => [{ appId: 'this-call' }] };
+  const services = createValuServices({ socket: new NodeSocketAdapter({ connection: new FakeRoomfulConnection(new Responder()) }), appState: own, cache: null });
+
+  assert.equal((await services.call('Developer.list-applications', {}, { appState: given })).data.applications[0].appId, 'this-call');
+  assert.equal((await services.call('Developer.list-applications', {})).data.applications[0].appId, 'transport-own');
+
+  const bare = createValuServices({ socket: new NodeSocketAdapter({ connection: new FakeRoomfulConnection(new Responder()) }), cache: null });
+  assert.equal((await bare.call('Developer.list-applications', {})).error.code, ERROR_CODES.UNSUPPORTED);
+  assert.equal((await bare.call('Developer.list-applications', {}, { appState: given })).data.applications.length, 1);
+});
+
+test('a call\'s appState reaches the transport only when it is given', async () => {
+  const seen = [];
+  const transport = new SocketTransport({ socket: new NodeSocketAdapter({ connection: new FakeRoomfulConnection(new Responder()) }) });
+  transport.callService = async (descriptor, params, options) => { seen.push(options); return { data: {} }; };
+  const client = new ServiceClient({ transport, cache: null });
+  const state = { getAgentWallet: async () => null };
+  await client.call('Users.current', {}, { retries: 0 });
+  await client.call('Users.current', {}, { retries: 0, appState: state });
+  assert.deepEqual(seen[0], { timeoutMs: 30_000, attempt: 1 });
+  assert.deepEqual(seen[1], { timeoutMs: 30_000, attempt: 1, appState: state });
 });

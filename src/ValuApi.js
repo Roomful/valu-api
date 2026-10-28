@@ -13,6 +13,13 @@ export { APIPointer } from "./APIPointer.js";
 // so `import { ... } from '@arkeytyp/valu-api'` reaches all of it.
 export { Transport } from "./transport/Transport.js";
 export { PostMessageTransport } from "./transport/PostMessageTransport.js";
+// Dedicated mode: the host iframe, and the one factory an app calls
+// (docs/connecting.md, "Dedicated mode").
+export { HostTransport } from "./transport/HostTransport.js";
+export { createValuApp } from "./createValuApp.js";
+// Embedded mode, Valu Social's half: what answers a framed app's `api:call`
+// (docs/connecting.md, "Inside Valu Social").
+export { createFrameServer } from "./embed/FrameServer.js";
 export { SocketTransport } from "./transport/SocketTransport.js";
 export { BrowserSocketAdapter } from "./socket/BrowserSocketAdapter.js";
 export { NodeSocketAdapter } from "./socket/NodeSocketAdapter.js";
@@ -117,7 +124,8 @@ export class ValuApi {
    *
    *   This object is that bridge: pointers, intents, console and routes.
    *   Service functions are not on it — they run over a socket, from anywhere,
-   *   and `createValuServices({ socket })` is how you get them.
+   *   and `createValuServices({ socket })` is how you get them, or over the
+   *   host of a dedicated app, which `createValuApp()` sets up.
    */
   constructor(options = {}) {
     this.#eventEmitter = new EventEmitter();
@@ -245,7 +253,8 @@ export class ValuApi {
    * (docs/api-pointers.md).
    *
    * Service functions are the other thing, and they are not on this bridge:
-   * `createValuServices({ socket })` (docs/socket-functions.md).
+   * `createValuServices({ socket })` (docs/socket-functions.md), or, in a
+   * dedicated app, `createValuApp()` (docs/connecting.md).
    */
   async callService(intent) {
     return this.#transport.request('api:service-intent', {

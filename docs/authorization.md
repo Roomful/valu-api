@@ -32,6 +32,31 @@ nothing about it relaxes the rule above:
 - A framed application reaching services over this package still gets an
   application token, and still gets no socket until 3.3 (below).
 
+### Service functions run over a connection, or over the host bridge
+
+A service function is one a *connection* answers, and the connection is where its
+caller is checked. Three transports serve them:
+
+- `SocketTransport`, over a Roomful socket that something authorized (the session
+  or application token above);
+- `HostTransport`, the page's side of the host bridge in dedicated mode
+  (`createValuApp`, [connecting.md](connecting.md#dedicated-mode--createvaluapp)).
+  The page holds no session and no socket: each call is an `api:call` to a host
+  iframe on a Valu origin, and that host **checks the app's grants before every
+  call**. That check is the host's, not the page's, so it is not advisory in the
+  sense of the scope check below.
+- `EmbeddedTransport`, a framed app's side in embedded mode (`createValuApp`,
+  [connecting.md](connecting.md#inside-valu-social)): each call is the same
+  `api:call`, posted to the Valu Social application around the frame, which runs
+  valu-api's own function over its own connection (`createFrameServer`). There is
+  no grant check there by decision: Valu Social gives its framed apps the trust it
+  gives their intents, and the user is Valu Social's.
+
+`PostMessageTransport`, the bare bridge to the Valu Social application, serves
+none itself: it carries the application's intents by name (`ValuApi.callService`),
+and, under `EmbeddedTransport`, the `api:call` messages of a Valu Social that says
+it answers them; an older one leaves the service tree answering `501`.
+
 ## Acquisition
 
 `AuthProvider({acquire})`. The SDK never mints a token:

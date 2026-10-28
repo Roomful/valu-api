@@ -33,9 +33,12 @@ export class SocketTransport extends Transport {
 
   /**
    * @param {object} options
-   * @param {import('../socket/ValuSocket.js').ValuSocket} options.socket
+   * @param {import('../socket/ValuSocket.js').ValuSocket | null} options.socket
    *   The Roomful socket, and the only one. Required — it is what 54 of the 65
-   *   functions use, and what the upload pipeline runs on.
+   *   functions use, and what the upload pipeline runs on. `null` builds a
+   *   transport with no socket, which serves the `local` functions (Http, Time,
+   *   the resource-URL builders) and answers every other one 503: the
+   *   application page of a dedicated-mode client, whose socket is the host's.
    * @param {import('../app-state/AppState.js').AppState} [options.appState]
    *   State no RPC can produce, for the 3 functions whose channel is
    *   `app-state`. The Valu Social application holds it in a browser; a
@@ -55,8 +58,11 @@ export class SocketTransport extends Transport {
    */
   constructor({ socket, appState, fetchImpl, config, now, applicationId, registry = serviceRegistry } = {}) {
     super();
-    if (!socket || typeof socket.emit !== 'function') {
-      throw new TypeError('SocketTransport needs a ValuSocket');
+    // `socket: null` is the one way to say "no socket on purpose": the
+    // transport then serves only the `local` channel. An omitted socket is
+    // still a mistake, not a mode.
+    if (socket !== null && typeof socket?.emit !== 'function') {
+      throw new TypeError('SocketTransport needs a ValuSocket (or socket: null for local functions only)');
     }
     this.#socket = socket;
     this.#appState = appState ?? null;
@@ -85,8 +91,16 @@ export class SocketTransport extends Transport {
   /** True when the socket can push `resource:updated`; false means poll. */
   get supportsPush() { return typeof this.#socket?.onResourceUpdated === 'function'; }
 
-  async callService(descriptor, params = {}, { timeoutMs = DEFAULT_TIMEOUT_MS, attempt = 1 } = {}) {
-    if (!this.#socket) {
+  /**
+   * @param {import('../services/descriptors.js').ServiceDescriptor} descriptor
+   * @param {object} [params]
+   * @param {{timeoutMs?: number, attempt?: number, appState?: import('../app-state/AppState.js').AppState|null}} [options]
+   *   `appState`, when given, is the state this call's handler reads in place of this transport's.
+   */
+  async callService(descriptor, params = {}, { timeoutMs = DEFAULT_TIMEOUT_MS, attempt = 1, appState } = {}) {
+    // `local` functions need no connection, so they run without a socket; every
+    // other channel is the socket's and fails the way a dropped one does.
+    if (!this.#socket && descriptor.channel !== 'local') {
       return errorAck(ERROR_CODES.DISCONNECTED, `${descriptor.key}: no socket`);
     }
     // `app-state` is left to the handler: it names the one capability it
@@ -97,7 +111,7 @@ export class SocketTransport extends Transport {
     try {
       const ack = await handler(params, {
         socket: this.#socket,
-        appState: this.#appState,
+        appState: appState === undefined ? this.#appState : appState,
         fetchImpl: this.#fetchImpl,
         config: this.#config,
         applicationId: this.#applicationId,

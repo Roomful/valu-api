@@ -1036,37 +1036,102 @@ export const CASES = [
 // ===========================================================================
 
 /**
+ * What a case builds its transport from, and so what an adapter that brings its
+ * own surface (`makeServices`) is handed: the fakes the case scripts, the
+ * registry of handlers whatever answers over the wire runs, and no cache.
+ * @typedef {object} CaseEnvironment
+ * @property {FakeAppState|null} appState
+ * @property {ReturnType<typeof fakeFetch>} fetchImpl
+ * @property {typeof CONFIG} config
+ * @property {() => Date} now
+ * @property {string|null} applicationId
+ * @property {ServiceRegistry} registry
+ * @property {null} cache
+ */
+
+/**
+ * A case's environment, fresh: its app state (`null` when the case says so), a
+ * recording `fetch`, the config, the clock, the application id (`null` when the
+ * case says so) and a registry of every handler.
+ * @param {object} testCase One of {@link CASES}.
+ * @returns {CaseEnvironment}
+ */
+export function caseEnvironment(testCase) {
+  return {
+    appState: testCase.appState === null ? null : new FakeAppState(testCase.appState ?? {}),
+    fetchImpl: fakeFetch(),
+    config: CONFIG,
+    now: NOW,
+    applicationId: testCase.applicationId === null ? null : (testCase.applicationId ?? APPLICATION_ID),
+    registry: registerAll(new ServiceRegistry()),
+    cache: null,
+  };
+}
+
+/**
+ * @typedef {object} MadeServices
+ * @property {import('../../src/services/api.js').ValuServiceApi} services
+ * @property {() => unknown} [close] Shuts down what the adapter opened; runs when the case ends, pass or fail.
+ */
+
+/**
  * @param {object} options
  * @param {string} options.name Adapter name, for the test titles.
- * @param {(responder: Responder) => {socket: object}} options.makeSocket
+ * @param {(responder: Responder) => {socket: object}} [options.makeSocket]
+ *   A socket adapter: the suite builds a `SocketTransport` and a `ServiceClient` over it.
+ * @param {(responder: Responder, environment: CaseEnvironment) => MadeServices|Promise<MadeServices>} [options.makeServices]
+ *   An adapter that is not a socket and brings its own surface, which is used
+ *   in place of that transport and client. One of `makeSocket` and
+ *   `makeServices` is required.
+ * @param {(descriptor: import('../../src/services/descriptors.js').ServiceDescriptor) => number|null} [options.expectRefused]
+ *   The code an adapter refuses `descriptor` with, by design, before the
+ *   function runs, or `null` when it runs it. A refused function is checked
+ *   for that refusal and for never reaching the wire, in place of its case's
+ *   own expectations (which say what the function DOES, and the adapter will
+ *   not let it). Absent, every case runs: the three socket adapters refuse
+ *   nothing.
  */
-export function runFunctionSuite({ name, makeSocket }) {
+export function runFunctionSuite({ name, makeSocket, makeServices, expectRefused }) {
   for (const testCase of CASES) {
     const descriptor = findDescriptor(testCase.key);
     const title = `${name}: ${testCase.key}${testCase.name ? ` — ${testCase.name}` : ''}`;
 
-    test(title, async () => {
+    test(title, async (t) => {
       assert.ok(descriptor, `${testCase.key} is not a declared function`);
 
       const responder = new Responder(testCase.rpc ?? {});
-      const { socket } = makeSocket(responder);
-      const appState = testCase.appState === null ? null : new FakeAppState(testCase.appState ?? {});
-      const fetch = fakeFetch();
+      const environment = caseEnvironment(testCase);
+      const { appState, fetchImpl: fetch, applicationId, registry } = environment;
 
-      const transport = new SocketTransport({
-        socket,
-        appState,
-        fetchImpl: fetch,
-        config: CONFIG,
-        now: NOW,
-        applicationId: testCase.applicationId === null ? null : (testCase.applicationId ?? APPLICATION_ID),
-        registry: registerAll(new ServiceRegistry()),
-      });
+      let client;
+      if (makeServices) {
+        const made = await makeServices(responder, environment);
+        if (made.close) t.after(() => made.close());
+        client = made.services;
+      } else {
+        const { socket } = makeSocket(responder);
+        const transport = new SocketTransport({
+          socket,
+          appState,
+          fetchImpl: fetch,
+          config: CONFIG,
+          now: NOW,
+          applicationId,
+          registry,
+        });
+        client = new ServiceClient({ transport, cache: null });
+      }
+
       // No cache and no retries: a per-function case asserts what the function
       // sends and answers, and both of those would blur it.
-      const client = new ServiceClient({ transport, cache: null });
-
       const ack = await client.call(testCase.key, testCase.params, { retries: 0 });
+
+      const refused = expectRefused?.(descriptor) ?? null;
+      if (refused !== null) {
+        assert.equal(ack.error?.code, refused, `${testCase.key} is refused with ${refused} by this adapter`);
+        assert.equal(responder.calls.length, 0, 'a refused function never reaches the wire');
+        return;
+      }
       testCase.expect({ ack, calls: responder.calls, responder, appState, fetch });
     });
   }

@@ -2,8 +2,10 @@ declare module '@arkeytyp/valu-api' {
     // The generated per-function types live next door. They are a MODULE (they
     // import this one), so they are imported rather than merged — that is what
     // lets `valu.Users.current()` be typed without generating anything into
-    // this hand-written file.
-    import type { ValuServices, ValuServicesData } from './valu-services';
+    // this hand-written file. The import names the package path: inside an
+    // ambient `declare module` a relative path does not resolve, and a consumer
+    // would get `ValuServices` (and so `ValuApp`) as `any`.
+    import type { ValuServices, ValuServicesData } from '@arkeytyp/valu-api/types/valu-services';
 
     export type { ValuServices, ValuServicesData };
 
@@ -23,7 +25,8 @@ declare module '@arkeytyp/valu-api' {
          *
          *  Service functions are NOT on this object: they run over a socket,
          *  from anywhere, and `createValuServices({ socket })` is how you get
-         *  them (docs/socket-functions.md).
+         *  them (docs/socket-functions.md), or over the host of a dedicated
+         *  app, which `createValuApp()` sets up (docs/connecting.md).
          */
         constructor(options?: { transport?: Transport });
 
@@ -215,8 +218,28 @@ declare module '@arkeytyp/valu-api' {
         error?: {
             status?: boolean;
             code?: number;
+            /**
+             * What the host's refusals name themselves with (dedicated mode):
+             * `sign_in_required` (401); `not_a_member` (401: the user's last sign-in was
+             * refused because they are not a member of the app's network, and it stays the
+             * answer until the next sign-in attempt starts); `forbidden` and
+             * `consent_required` (403); `not_available` (501); `busy` (429); `timeout` (408).
+             */
             message?: string;
             description?: string;
+            /**
+             * The scope a refusal is about. Present on a `403` `consent_required`
+             * answer of the host (dedicated mode): the scope the user has not given
+             * this app yet. Pass it to `auth.requestConsent([scope])`.
+             */
+            scope?: string;
+            /**
+             * `false` when repeating the call is not safe: a call that WRITES and
+             * was cut off (`503`) or ran out of time (`408`) after it was handed to
+             * the host may have been applied. The app decides whether to repeat it.
+             * Absent when the call is safe to repeat (it never ran, or it only reads).
+             */
+            retryable?: boolean;
         };
     }
 
@@ -254,8 +277,9 @@ declare module '@arkeytyp/valu-api' {
     export function dataAck<T>(data: T): ValuAck<T>;
     export function errorAck(code?: number, message?: string, description?: string): ValuAck;
 
-    /** What carries a call: the postMessage bridge, or a socket. Only a socket
-     * transport serves service functions. */
+    /** What carries a call: the postMessage bridge, a socket, or the host. A
+     * socket transport and the host transport serve service functions; the
+     * bare postMessage bridge does not. */
     export abstract class Transport {
         static READY: string;
         static TRIGGER: string;
@@ -264,14 +288,18 @@ declare module '@arkeytyp/valu-api' {
         static RESOURCE_UPDATED: string;
 
         get connected(): boolean;
-        /** Whether this transport can run service functions. Only
-         * `SocketTransport` can; `ServiceClient` refuses anything else. */
+        /** Whether this transport can run service functions. `SocketTransport`
+         * and `HostTransport` can; `PostMessageTransport` cannot, and
+         * `ServiceClient` refuses a transport that does not. */
         get servesServiceFunctions(): boolean;
         get name(): string;
         open(): Promise<void>;
         request(name: string, message: object, requestId?: number): Promise<any>;
         notify(name: string, message: object): void;
-        callService(descriptor: ServiceDescriptor, params?: object, options?: { timeoutMs?: number; attempt?: number }): Promise<ValuAck>;
+        /** `appState`: the state this call's handler reads in place of the transport's (a `SocketTransport`'s; others ignore it). */
+        callService(descriptor: ServiceDescriptor, params?: object, options?: {
+            timeoutMs?: number; attempt?: number; appState?: AppState | null;
+        }): Promise<ValuAck>;
         subscribe(event: string, handler: (data: any) => void): () => void;
         addEventListener(event: string, handler: (data: any) => void): void;
         removeEventListener(event: string, handler: (data: any) => void): void;
@@ -281,14 +309,83 @@ declare module '@arkeytyp/valu-api' {
     /** The postMessage bridge to the Valu Social application — today's traffic,
      * unchanged. */
     export class PostMessageTransport extends Transport {
-        constructor(options?: { target?: EventTarget });
+        constructor(options?: {
+            target?: EventTarget;
+            /** Origins the first `api:ready` may come from. No default. The peer
+             * is bound once, to `window.parent` when embedded, and later
+             * messages are taken only from it. */
+            hostOrigins?: string[];
+        });
         get applicationId(): string | undefined;
+    }
+
+    /**
+     * The page's side of the host bridge in dedicated mode: a hidden iframe on
+     * the host origin, the `host:hello` handshake, and the one transport besides
+     * `SocketTransport` that serves service functions (each call is an
+     * `api:call` the host checks the grants of). `createValuApp` builds it; make
+     * one yourself only to share it. See docs/connecting.md, "Dedicated mode".
+     *
+     * Events (`subscribe`): `Transport.READY` once, with the `api:ready`
+     * message; `Transport.TRIGGER` for every host push, `{action, data}`;
+     * `Transport.RECONNECTED` after a reconnect the host reports.
+     */
+    export class HostTransport extends Transport {
+        constructor(options: {
+            /** Where the host is served: a bare origin, `https://valuguru.texpo.io`. */
+            hostOrigin: string;
+            /** Where on `hostOrigin` the host page is, starting and ending with `/`. Default `/host/`. */
+            hostPath?: string;
+            /** The app's address, `<workspace>/<slug>`, sent in `host:hello`: dev hosts only. */
+            app?: string;
+            window?: Window;
+            document?: Document;
+            /** How long the handshake waits for `api:ready`. Default 10 000. */
+            readyTimeoutMs?: number;
+            /** Between a pong (or the start) and the next `host:ping`. Default 15 000. */
+            pingIntervalMs?: number;
+            /** How long a ping waits for its pong before the host counts as dead. Default 10 000. */
+            pingTimeoutMs?: number;
+            /** Runs the `local` functions. Default: a `SocketTransport` with no socket. */
+            localTransport?: Transport;
+            fetchImpl?: typeof fetch;
+            config?: Partial<ValuConfig>;
+            setTimeout?: (fn: () => void, ms: number) => unknown;
+            clearTimeout?: (id: any) => void;
+            /** In [0, 1): the jitter of the recovery backoff. Default `Math.random`. */
+            random?: () => number;
+        });
+        /** Post `name` and resolve the host's reply. One held while the host is starting or
+         * coming back waits at most `timeoutMs` (default 30 000) for it, then rejects with
+         * `code` `host_unreachable` and `retryable: true`: it never reached a host. */
+        request(name: string, message: object, requestId?: number, options?: { timeoutMs?: number }): Promise<any>;
+        /** Inject the host iframe and shake hands. Rejects with `code` `host_unreachable`
+         * or the host's own (`unknown_app`, `nested`, `protocol_unsupported`,
+         * `resolve_unavailable`). */
+        open(): Promise<void>;
+        get applicationId(): string | null;
+        /** What the host last said of the user and itself; `null` before the handshake. */
+        get hostState(): HostState | null;
+        /** What `api:ready` named (`connecting` while a stored session is still being
+         * confirmed; from a host that names none, what `signedIn` implies), then every
+         * `connection` push. */
+        get connectionState(): ValuAppConnectionState;
+    }
+
+    /** What `api:ready` and the `auth` pushes say of the user. */
+    export interface HostState {
+        signedIn: boolean;
+        user: ValuUser | null;
+        network: ValuNetwork | null;
+        protocol: number;
+        mode: string;
     }
 
     /** Declared functions over a ValuSocket. Does not speak the bridge. */
     export class SocketTransport extends Transport {
         constructor(options: {
-            socket: ValuSocket;
+            /** `null` for a transport that serves only the `local` functions. */
+            socket: ValuSocket | null;
             /** For the 3 `app-state` functions. */
             appState?: AppState;
             fetchImpl?: typeof fetch;
@@ -298,7 +395,7 @@ declare module '@arkeytyp/valu-api' {
             applicationId?: string | null;
             registry?: ServiceRegistry;
         });
-        get socket(): ValuSocket;
+        get socket(): ValuSocket | null;
         get appState(): AppState | null;
         get config(): ValuConfig;
         get applicationId(): string | null;
@@ -618,6 +715,19 @@ declare module '@arkeytyp/valu-api' {
         clear(): void;
     }
 
+    /** The per-call options of `ServiceClient.call` and `ValuServiceApi.call`. */
+    export interface ServiceCallOptions {
+        timeoutMs?: number;
+        retries?: number;
+        bypassCache?: boolean;
+        /**
+         * The application state this call's handler reads, in place of the one the
+         * `SocketTransport` was built with: how the frame server gives the apps Valu
+         * Social frames the state Valu Social holds.
+         */
+        appState?: AppState | null;
+    }
+
     /** One call path: validate, check scope, cache, transport, retry. */
     export class ServiceClient {
         constructor(options: {
@@ -629,13 +739,9 @@ declare module '@arkeytyp/valu-api' {
         get transport(): Transport;
         get cache(): ServiceCache | null;
         /** Resolves the ack envelope. Never rejects. */
-        call<T = any>(name: string, params?: object, options?: {
-            timeoutMs?: number; retries?: number; bypassCache?: boolean;
-        }): Promise<ValuAck<T>>;
+        call<T = any>(name: string, params?: object, options?: ServiceCallOptions): Promise<ValuAck<T>>;
         /** `call` unwrapped: returns data, throws ValuServiceError. */
-        invoke<T = any>(name: string, params?: object, options?: {
-            timeoutMs?: number; retries?: number; bypassCache?: boolean;
-        }): Promise<T>;
+        invoke<T = any>(name: string, params?: object, options?: ServiceCallOptions): Promise<T>;
         subscribe(event: 'resource:updated' | 'reconnected' | string, handler: (data: any) => void): () => void;
         seed(name: string, params: object, data: any, options?: { ttlMs?: number }): this;
         close(): Promise<void>;
@@ -661,12 +767,8 @@ declare module '@arkeytyp/valu-api' {
          * else's. Only `close()` cares, and only about the first case. */
         readonly connection: ValuSocketConnection | null;
 
-        call<T = any>(name: string, params?: object, options?: {
-            timeoutMs?: number; retries?: number; bypassCache?: boolean;
-        }): Promise<ValuAck<T>>;
-        invoke<T = any>(name: string, params?: object, options?: {
-            timeoutMs?: number; retries?: number; bypassCache?: boolean;
-        }): Promise<T>;
+        call<T = any>(name: string, params?: object, options?: ServiceCallOptions): Promise<ValuAck<T>>;
+        invoke<T = any>(name: string, params?: object, options?: ServiceCallOptions): Promise<T>;
         subscribe(event: 'resource:updated' | 'reconnected' | string, handler: (data: any) => void): () => void;
         seed(name: string, params: object, data: any, options?: { ttlMs?: number }): ValuServiceApi;
         toolDefinitions(filter?: {
@@ -721,6 +823,311 @@ declare module '@arkeytyp/valu-api' {
         options: ValuServiceOptions
             & (({ socket: unknown } & AdoptSocketOptions) | ValuSocketConnectionOptions),
     ): Promise<ValuServiceApi>;
+
+    // ---------------------------------------------------------------------
+    // createValuApp — the one entry point an app uses. See docs/connecting.md,
+    // "Dedicated mode".
+    // ---------------------------------------------------------------------
+
+    /** `dedicated`: a top-level page that runs on its own host iframe and signs
+     * the user in through a popup. `embedded`: a page inside Valu Social, whose
+     * service functions Valu Social answers (the same functions, the same answers,
+     * no permissions; the user is Valu Social's). */
+    export type ValuMode = 'dedicated' | 'embedded';
+
+    export interface ValuUser {
+        id: string;
+        name: string | null;
+    }
+
+    export interface ValuNetwork {
+        id: string;
+        name: string | null;
+    }
+
+    /**
+     * Why an auth push happened, when it has a reason. `cancelled`,
+     * `master_mismatch`, `not_a_member`, `invalid_token`, `unavailable` and
+     * `timeout` (the host gave up redeeming the sign-in token after 15 s) answer a
+     * sign-in; `session_expired` and `signed_out_elsewhere` say the session ended.
+     * `unavailable` also arrives with `signedIn: true`: a stored session the host
+     * has kept while the master is unreachable, which it retries (the connection is
+     * `reconnecting`, or `offline`); the next auth push, with no reason, says it opened.
+     */
+    export type ValuAuthReason =
+        | 'cancelled' | 'master_mismatch' | 'not_a_member' | 'invalid_token' | 'unavailable' | 'timeout'
+        | 'session_expired' | 'signed_out_elsewhere';
+
+    export interface ValuAuthState {
+        signedIn: boolean;
+        user: ValuUser | null;
+        network: ValuNetwork | null;
+        /** The reason of the last auth push, until the next push. Absent when it had none. */
+        reason?: ValuAuthReason | (string & {});
+    }
+
+    /**
+     * The state of an app's link to its host (`valu.connection.state`), not of a
+     * socket: {@link ValuConnectionState} is `ValuSocketConnection`'s.
+     *
+     * - `connecting`: the host is up and has said who the user is from storage (so
+     *   `auth.state.signedIn` may already be `true`), but the master has not confirmed
+     *   it yet. `createValuApp` does not wait for it; `ready` follows, with an auth push.
+     * - `ready`: signed in, link up.
+     * - `reconnecting`: the link dropped, or the master could not be reached at the
+     *   start; the host is retrying and the user stays signed in.
+     * - `offline`: the browser is offline, or the host will never serve this page (`lastError` says why: `unknown_app`, `nested` or `protocol_unsupported`).
+     * - `signed_out`: no user.
+     */
+    export type ValuAppConnectionState = 'connecting' | 'ready' | 'reconnecting' | 'offline' | 'signed_out';
+
+    /** What a `connection` `change` handler receives. */
+    export interface ValuConnectionChange {
+        state: ValuAppConnectionState;
+        /** True for the notice that a dropped link is back: what the app cached about the platform predates it. */
+        reconnected: boolean;
+        lastError: { code: string } | null;
+    }
+
+    /**
+     * The `code` of the Errors a `createValuApp` call rejects with.
+     *
+     * - `createValuApp()`: `host_unreachable`, or the host's own: `unknown_app`, `nested`,
+     *   `protocol_unsupported`, `resolve_unavailable`.
+     * - `auth.signIn()`: `popup_blocked`, `cancelled`, `timeout`, `master_mismatch`,
+     *   `not_a_member`, `invalid_token`, `unavailable`, `session_expired`, `closed`. Embedded:
+     *   `not_available` (Valu Social has no user), `host_unreachable` (no `api:ready`), `closed`.
+     * - `auth.requestConsent()`: `popup_blocked`, `closed`; `host_restarted`, `host_unreachable`
+     *   when the host went away meanwhile. Embedded: `closed` only (it resolves `true`).
+     * - `auth.signOut()`: `not_available` (embedded), `closed`, `host_restarted`, `host_unreachable`.
+     * - `valu.ready` (embedded): `host_unreachable` when no `api:ready` came within `readyTimeoutMs`, `closed`.
+     * - `closed`: `valu.close()` ran, before the call or while it waited.
+     */
+    export type ValuAppErrorCode =
+        | 'popup_blocked' | 'cancelled' | 'timeout' | 'master_mismatch' | 'not_a_member'
+        | 'invalid_token' | 'unavailable' | 'session_expired' | 'not_available' | 'closed'
+        | 'host_unreachable' | 'host_restarted'
+        | 'unknown_app' | 'nested' | 'protocol_unsupported' | 'resolve_unavailable';
+
+    export interface ValuAppError extends Error {
+        code: ValuAppErrorCode | (string & {});
+    }
+
+    export interface ValuAuth {
+        /** Who the user is, now. A new object on every read, but its `user` and
+         * `network` are shared objects (the same on every read), not copies: do
+         * not mutate them. In embedded mode: Valu Social's user and network, as its
+         * `api:ready` names them (`signedIn: user !== null`; signed out until it comes). */
+        readonly state: ValuAuthState;
+        /**
+         * Sign in through a popup on the Valu sign-in origin. Call it from a click:
+         * the popup opens before anything is awaited, or the browser blocks it
+         * (`popup_blocked`). Resolves with the new state; rejects `cancelled`
+         * (the user turned it down or closed the window), `timeout` (five minutes, or the
+         * host gave up redeeming the token after 15 s), `master_mismatch`, `not_a_member`, `invalid_token`, `unavailable` or
+         * `session_expired` (the session the host held ended meanwhile).
+         *
+         * Embedded: nothing to do, the user is Valu Social's. Once its `api:ready` has come,
+         * resolves the state when there is a user and rejects `not_available` when there is none
+         * (`host_unreachable` when none came within `readyTimeoutMs`). Opens nothing.
+         */
+        signIn(): Promise<ValuAuthState>;
+        /** Sign out of this app's session. The user's Valu Social sign-in is untouched.
+         * Embedded: rejects `not_available`; an app cannot sign the user out of Valu Social. */
+        signOut(): Promise<void>;
+        /**
+         * Ask the user to let this app use `scopes` (`rooms:read` …), in a popup:
+         * call it from a click. Resolves whether the user approved. Embedded: resolves
+         * `true` and asks nothing (an app needs no permissions inside Valu Social); a
+         * `scopes` that is not a non-empty array of names still rejects a `TypeError`.
+         */
+        requestConsent(scopes: string[]): Promise<boolean>;
+        /** Every auth push, with the new state. Embedded: the `api:ready` that names a user,
+         * or another one. Returns the way to stop. */
+        on(event: 'change', handler: (state: ValuAuthState) => void): () => void;
+    }
+
+    export interface ValuConnection {
+        readonly state: ValuAppConnectionState;
+        /** The reason of the last connection push that had one (`host_unreachable` …); cleared when the link is back. */
+        readonly lastError: { code: string } | null;
+        /** Every connection push. Returns the way to stop. */
+        on(event: 'change', handler: (change: ValuConnectionChange) => void): () => void;
+    }
+
+    export interface CreateValuAppOptions {
+        /** Where the host is served: a bare origin. Default `https://valuguru.texpo.io`. */
+        hostOrigin?: string;
+        /**
+         * Where on `hostOrigin` the host page is, starting and ending with `/`; the consent
+         * page is `consent.html` beside it. Default `/host/`. The web host at
+         * `https://api.valuguru.app` is served from the root: `hostPath: '/'`.
+         */
+        hostPath?: string;
+        /** The Valu brand users sign in through (`https://chabaduniverse.com` for a Chabad-network
+         * app). Default `https://live.valuverse.io`. */
+        signInOrigin?: string;
+        /** The app's address, `<workspace>/<slug>`, sent in `host:hello`: dev hosts only. */
+        app?: string;
+        /**
+         * Embedded only: the origins the embedding application's `api:ready` may
+         * come from (the sender must be `window.parent` regardless), and the ones it
+         * is trusted from on `valuApi`: whether it answers the service calls, and who
+         * the user is. Omitted: any origin binds the bridge, and only the Valu origins
+         * the host trusts for sign-in (`https://live.valuverse.io`,
+         * `https://valu-social.com`, `https://chabaduniverse.com`, `https://texpo.io`)
+         * are trusted; from any other the tree answers 501 and the user is signed out.
+         * A local Valu Social needs it: `hostOrigins: ['http://localhost:3005']`.
+         * Dedicated mode ignores it; its host is the one at `hostOrigin`.
+         */
+        hostOrigins?: string[];
+        /** Default: `dedicated` for a top-level page or one loaded with `?valu-mode=dedicated`,
+         * `embedded` for a framed one. */
+        mode?: ValuMode;
+        /**
+         * How long to wait for `api:ready`, in ms. Default 10 000. Dedicated: from the host
+         * (`createValuApp` rejects `host_unreachable` after it). Embedded: from Valu Social
+         * (`valu.ready` rejects `host_unreachable` after it, and so do the service calls held
+         * for it; one that comes later still serves calls). A positive number, or a `TypeError`.
+         */
+        readyTimeoutMs?: number;
+        window?: Window;
+        document?: Document;
+        /** Opens a window. Default `window.open`. */
+        popup?: (url: string, name: string, features: string) => Window | null;
+        /** `fetch` for the functions that run in the page (`Http.*`), in either mode. */
+        fetchImpl?: typeof fetch;
+        /** Runs those functions instead, in either mode. */
+        localTransport?: Transport;
+        /** Timers: the popup poll, the sign-in deadline, the host handshake and ping, the wait for
+         * Valu Social's `api:ready` and the calls' timeouts (embedded). For a test that turns the clock itself. */
+        setTimeout?: (fn: () => void, ms: number) => unknown;
+        clearTimeout?: (id: any) => void;
+    }
+
+    /**
+     * What `createValuApp` returns: the service functions (`valu.Users.current()`,
+     * every method answers an ack; `call`, `invoke` and `toolDefinitions` for a
+     * caller that holds a name) next to `auth`, `network`, `connection` and the
+     * bridge methods.
+     */
+    export type ValuApp = ValuServices & {
+        readonly mode: ValuMode;
+        /** Dedicated: already resolved. Embedded: resolves on Valu Social's `api:ready`; rejects
+         * `host_unreachable` when none came within `readyTimeoutMs`, `closed` on `close()`. */
+        readonly ready: Promise<void>;
+        readonly auth: ValuAuth;
+        /** The network the host runs in (embedded: Valu Social's), or `null`. A shared object: do not mutate it. */
+        readonly network: ValuNetwork | null;
+        readonly connection: ValuConnection;
+        /** The same functions, returning the payload and throwing `ValuServiceError`. */
+        readonly data: ValuServicesData;
+        /**
+         * The `ValuApi` underneath. Dedicated: for the lifecycle (`setApplication`) only; `getApi`,
+         * `runConsoleCommand` and `sendIntent` are Valu Social's and the host answers them
+         * `not_available`, and the routes are not answered. Embedded: all of it.
+         */
+        readonly bridge: ValuApi;
+
+        /**
+         * Call a service function by name (`'Rooms.searchMyRooms'`, `'Rooms.search-my-rooms'`),
+         * for a caller that holds a string. The same call as `valu.Rooms.searchMyRooms(...)`:
+         * resolves the ack and never rejects, and a `consent_required` refusal gets the
+         * same retry. Embedded: the same, answered by Valu Social (`501` from an older one).
+         */
+        call<T = any>(name: string, params?: object, options?: {
+            timeoutMs?: number; retries?: number; bypassCache?: boolean;
+        }): Promise<ValuAck<T>>;
+        /** `call`, unwrapped: resolves the payload, throws `ValuServiceError`. */
+        invoke<T = any>(name: string, params?: object, options?: {
+            timeoutMs?: number; retries?: number; bypassCache?: boolean;
+        }): Promise<T>;
+        /** LLM tool definitions of the service functions; by default the ones an AI caller may reach. */
+        toolDefinitions(filter?: {
+            service?: string; channel?: ServiceChannel; availability?: string | null; mutates?: boolean;
+        }): LlmToolDefinition[];
+
+        /**
+         * Ask the host to run one of ITS intents: the Commerce data intents and
+         * `Application.get-identity-token` (dedicated). A refusal is an answer, not a rejection,
+         * and is not retried: `{success: false, code: 'consent_required', scope}` is yours to
+         * pass to `auth.requestConsent([scope])`. Its other refusal codes: `sign_in_required`,
+         * `not_a_member` (the user's sign-in was refused for not being a member of the network),
+         * `busy`, `timeout`, `unavailable`.
+         */
+        callService(intent: Intent): Promise<any>;
+        /** Embedded: Valu Social runs the intent. Dedicated: `not_available`. */
+        sendIntent(intent: Intent): Promise<any>;
+        /**
+         * Listen for Commerce events (`ValuApi.ON_COMMERCE`). Returns the way to stop. Nothing
+         * arrives until the app subscribes: `callService(new Intent('Commerce', 'subscribe-events', {events}))`.
+         */
+        onCommerceEvent(handler: (event: CommerceEvent) => void): () => void;
+        addEventListener(event: string, callback: (data: any) => void): void;
+        /** Pass the handler: a call without one clears every listener of the event, `onCommerceEvent`'s too. */
+        removeEventListener(event: string, callback: (data: any) => void): void;
+        /** Fail what is waiting, drop the caches, remove the host iframe or the window listener. */
+        close(): Promise<void>;
+    };
+
+    /**
+     * Make the app's one object. Dedicated: opens the host and resolves once it
+     * has answered; rejects with an Error whose `code` says why not
+     * (`host_unreachable`, `unknown_app` …, see {@link ValuAppErrorCode}).
+     * Embedded: resolves at once; `valu.ready` follows the parent's `api:ready`.
+     */
+    export function createValuApp(options?: CreateValuAppOptions): Promise<ValuApp>;
+
+    // ---------------------------------------------------------------------
+    // The frame server — embedded mode, Valu Social's half. See
+    // docs/connecting.md, "Inside Valu Social".
+    // ---------------------------------------------------------------------
+
+    /** The `valuApi` key of the `api:ready` Valu Social posts to a frame it serves. */
+    export interface ValuApiReadyInfo {
+        /** The embedded protocol's own version, `1` (not the host protocol's): a client calls only on the one it speaks. */
+        protocol: number;
+        /** Valu Social answers `api:call`. */
+        calls: true;
+        user: ValuUser | null;
+        network: ValuNetwork | null;
+    }
+
+    export interface FrameServerOptions {
+        /** The service functions over Valu Social's connection, for ONE framed app:
+         * `await connectValuServices({ socket: webSocketService, userId, applicationId: app.slug, cache: null })`.
+         * `applicationId` is the app's slug as the host resolver names it (its storage shelf is
+         * addressed by it), never the launch intent's id or the `<workspace>/<slug>` address. */
+        services: Pick<ValuServiceApi, 'call'>;
+        /** State Valu Social holds, for the `app-state` functions (`Developer.*`,
+         * `VerusWallet.get-balance`) and the others that read it; every call carries it.
+         * Without it the `app-state` functions answer 501 `not_available`. */
+        appState?: AppState | null;
+        /** Default: the console. A blocked credential is logged by key path, never by value. */
+        log?: (level: 'warn' | 'error', message: string) => void;
+    }
+
+    export interface FrameServer {
+        /** The `valuApi` key for a frame's `api:ready`: who the user and the network are,
+         * as `{id, name}` (anything else they carry is dropped), or `null`. */
+        readyInfo(identity?: {
+            user?: { id: string; name?: string | null } | null;
+            network?: { id: string; name?: string | null } | null;
+        }): ValuApiReadyInfo;
+        /**
+         * One `api:call` message from a frame (`{service, action, params, requestId,
+         * timeoutMs}`), to the ack to post back as `api:call-completed`, with the
+         * envelope's `requestId`, to the frame's origin. The host's checks less sign-in
+         * and the permission gate (404, 501 for `local` and `app-state` without an app
+         * state, 400), ONE attempt bounded by `timeoutMs` (capped at 30 s), the host's
+         * leak guard. Never rejects.
+         */
+        handle(message: unknown): Promise<ValuAck>;
+    }
+
+    /** What Valu Social answers its framed apps' `api:call` with: valu-api's own functions
+     * over its own connection, so an app gets the answers it gets at its own address. */
+    export function createFrameServer(options: FrameServerOptions): FrameServer;
 
     export interface AppToken {
         token: string;
@@ -893,4 +1300,10 @@ declare module '@arkeytyp/valu-api' {
     }): Promise<{ resolved: Array<{ id: string; fileName: string }>; failed: Array<{ fileName: string; error: string }> }>;
     export function createUploadSession(socket: ValuSocket, userId: string): Promise<string>;
 
+}
+
+/** The frame server by path (`package.json` maps `./src/*`), for a bundle that imports only what it mounts. */
+declare module '@arkeytyp/valu-api/src/embed/FrameServer.js' {
+    export { createFrameServer } from '@arkeytyp/valu-api';
+    export type { FrameServer, FrameServerOptions, ValuApiReadyInfo } from '@arkeytyp/valu-api';
 }

@@ -194,6 +194,467 @@ the socket once, builds this once, and hands the same instance to anything else
 that needs the platform — which is the whole of requirement 1 and the reason the
 app does not end up with two sockets per tab.
 
+## Dedicated mode — `createValuApp`
+
+A page that is not inside Valu Social — its own domain, `*.valuguru.app`, a
+`localhost` dev server — has no Roomful socket and must not hold a Valu session.
+Dedicated mode gives it the same functions anyway, through a **host**: a hidden
+iframe on a Valu origin (`<hostOrigin><hostPath>`) that keeps the session and the
+socket, signs the user in through a popup, and checks the app's grants before
+every call. The page only ever sees answers; no credential crosses the iframe
+boundary.
+
+Two hosts serve the same engine. `hostPath` says where on the origin the host
+page is, and the consent page is `consent.html` beside it:
+
+| host | options |
+|---|---|
+| valu-guru-server (the default) | `hostOrigin: 'https://valuguru.texpo.io'`, `hostPath: '/host/'` |
+| valusocial-web's web host | `hostOrigin: 'https://api.valuguru.app'`, `hostPath: '/'` |
+
+```javascript
+import { createValuApp } from '@arkeytyp/valu-api';
+
+const valu = await createValuApp();            // a top-level page is dedicated
+
+valu.auth.on('change', ({ signedIn, user }) => render(signedIn, user));
+signInButton.onclick = () => valu.auth.signIn().catch(showWhy);   // from a click
+
+const me = await valu.data.Users.current();    // the same tree as everywhere
+```
+
+`createValuApp` is the one entry point an app uses, in either mode. The object it
+returns carries the bridge (`callService`, `sendIntent`, `onCommerceEvent`,
+`addEventListener`, and the whole `ValuApi` as `valu.bridge`) and the service
+tree (`valu.Users.current()` answers an ack, `valu.data.Users.current()` the
+payload), next to `mode`, `ready`, `auth`, `network` and `connection`.
+`removeEventListener(name, handler)` removes every registration of that handler
+for `name`. Pass the handler: the bridge's emitter reads a call without one as
+"clear every listener of `name`" (and without a name, all of them), which also
+drops the ones other code registered, `onCommerceEvent`'s among them.
+
+`valu.bridge` is the `ValuApi` underneath, and in dedicated mode it is for the
+lifecycle only: `setApplication(app)` gets `onCreate` with the launch intent of
+`api:ready`. Its pointer, console and run-intent methods (`getApi`,
+`runConsoleCommand`, `sendIntent`) belong to Valu Social, and the host answers them
+`not_available`; `pushRoute` and `replaceRoute` are not answered at all (the app
+owns its URL).
+
+For a caller that holds a string (an LLM tool call, say) the same object has the
+by-name surface of the services tree: `valu.call(name, params, options)` resolves
+the ack and never rejects, `valu.invoke(name, params, options)` resolves the
+payload and throws `ValuServiceError`, and `valu.toolDefinitions(filter)` lists the
+functions as LLM tool definitions (by default the ones an AI caller may reach). A
+name resolves in any spelling the tree's methods accept (`Rooms.searchMyRooms`,
+`Rooms.search-my-rooms`). They run through the same client and transport as
+`valu.Rooms.searchMyRooms()`, so the consent retry below is under them too, and in
+embedded mode they go to Valu Social like the tree ([Inside Valu
+Social](#inside-valu-social)).
+
+### Which mode
+
+| the page is | mode |
+|---|---|
+| top-level (`window.parent === window`) | `dedicated` |
+| framed, loaded with `?valu-mode=dedicated` | `dedicated` |
+| framed | `embedded` |
+| given `mode` in the options | whatever it says |
+
+A framed page waits for the parent's `api:ready`: `valu.ready` resolves on it, and
+rejects `host_unreachable` when none comes within `readyTimeoutMs` (10 s), so a
+parent that never answers (a preview, say) fails fast instead of waiting forever. A
+parent that does answer but is not Valu Social is the other case: any page can frame
+an app and send `api:ready`, so the bridge binds to it as it always did, but what it
+says of the service functions and the user is taken only from a trusted origin
+([whom an embedded app trusts](#whom-an-embedded-app-trusts)). There is no switch to
+dedicated, because a framed page could not use the host anyway (the host refuses
+to run nested).
+
+### Options
+
+| option | default | |
+|---|---|---|
+| `hostOrigin` | `https://valuguru.texpo.io` | Where the host is served: a bare origin. The iframe's origin, and the only origin it is heard from. |
+| `signInOrigin` | `https://live.valuverse.io` | The Valu brand users sign in through. A Chabad-network app passes `https://chabaduniverse.com`. The host accepts a sign-in only from its four known brand origins. It belongs with `hostOrigin`: see [The two origins](#the-two-origins-belong-together). |
+| `app` | none | The app's address `<workspace>/<slug>`, sent in `host:hello` (dedicated only). A dev host serves a localhost page under it; a production host ignores it. |
+| `hostOrigins` | none | Embedded only: the origins the embedding application's `api:ready` may come from, an array such as `['https://live.valuverse.io']`, and the only ones trusted with its `valuApi` (the service calls and the user). The sender must be `window.parent` regardless; the origin of the first `api:ready` is then the only one replies go to and messages are taken from. Omitted, any origin binds the bridge, and only the Valu origins the host trusts for sign-in are trusted with `valuApi` ([whom an embedded app trusts](#whom-an-embedded-app-trusts)). A local Valu Social needs it: `['http://localhost:3005']`. Dedicated mode ignores it. |
+| `mode` | from the page | `'dedicated'` or `'embedded'`. |
+| `readyTimeoutMs` | `10000` | How long to wait for `api:ready`. Dedicated: from the host, and `createValuApp` rejects `host_unreachable` after it. Embedded: from Valu Social, and `valu.ready` rejects `host_unreachable` after it (see [Inside Valu Social](#inside-valu-social)). A positive number of milliseconds, or a `TypeError`. |
+| `window`, `document` | the globals | Where messages arrive, and where the iframe goes. |
+| `popup` | `window.open` | `(url, name, features)`, returning the window or `null`: for a page that opens windows its own way. |
+| `setTimeout`, `clearTimeout` | the globals | The timers the client uses: the popup poll, the five-minute sign-in deadline, the host handshake and ping, and (embedded) the wait for `api:ready` and the calls' timeouts. For a test that turns the clock itself. |
+| `fetchImpl`, `localTransport` | | The functions on the `local` channel (`Http.*`, `Time.*`, the resource-URL builders) run in the page, in either mode, never through the host or Valu Social; these are what they run with. |
+
+The popup URLs are built from the two origins and a random nonce, and from nothing
+the host says.
+
+`createValuApp` resolves once the host has answered `api:ready`. That does not
+wait for the link to the platform: see [Connection](#connection) for a user who
+is signed in from storage while the link is still `connecting`. When the host
+cannot answer, it rejects with an `Error` whose `code` says why: `host_unreachable`
+(no answer within `readyTimeoutMs`, 10 s, or the iframe failed), or the host's own `unknown_app`,
+`nested`, `protocol_unsupported`, `resolve_unavailable`. Nothing is left behind:
+no iframe, no listener, no timer.
+
+### Sign-in: call `signIn()` from a click
+
+```javascript
+button.onclick = async () => {
+  try {
+    const { user } = await valu.auth.signIn();     // the popup opens right here
+  } catch (error) {
+    // error.code: popup_blocked | cancelled | timeout | master_mismatch | not_a_member | invalid_token | unavailable
+  }
+};
+```
+
+A browser opens a window only from a user gesture, so `signIn()` opens the popup
+before it does anything else — before any `await` of its own, and so before
+yours: do not `await` anything between the click and the call. A `null` from the
+browser is `popup_blocked`; there is no redirect fallback, because a redirect
+would route the token through the app page.
+
+| `signIn()` rejects | when |
+|---|---|
+| `popup_blocked` | the browser refused the window |
+| `cancelled` | the user pressed Cancel, or closed the window and nothing came of it |
+| `timeout` | five minutes passed (the window is closed), or the host gave up redeeming the token after 15 s (it says so at once, by an `auth` push with `reason: 'timeout'`) |
+| `master_mismatch` | the sign-in page talks to another Valu backend than the host does |
+| `not_a_member` | the user is not a member of the app's network |
+| `invalid_token` | the one-time token was refused |
+| `unavailable` | the host could not reach the platform |
+| `session_expired` | the session the host held ended while the window was open |
+| `not_available` | embedded, and Valu Social has no user ([Inside Valu Social](#inside-valu-social)) |
+| `closed` | `valu.close()` ran meanwhile |
+
+It resolves with the new `auth.state`. A second call while one is waiting shares
+it and opens nothing. A closed window is `cancelled` only after ten seconds with
+no result: the sign-in page closes itself the moment it has handed the token over,
+and the host then takes a few seconds to redeem it.
+
+`valu.auth` in full:
+
+| | |
+|---|---|
+| `state` | `{signedIn, user, network, reason?}`: a new object on every read, but its `user` and `network` are the transport's own objects, the same ones on every read and every `change`, not copies. Read them; do not mutate them. `reason` is that of the last push (`session_expired`, `signed_out_elsewhere`, a failed sign-in's, or `unavailable` on a signed-in user, see [Connection](#connection)) until the next. |
+| `signIn()` | above |
+| `signOut()` | Resolves when the host has finished. The user's Valu Social sign-in is untouched. Rejects as the table below says. |
+| `requestConsent(scopes)` | Resolves whether the user approved. [Consent](#consent). |
+| `on('change', handler)` | Every auth push, with the new state. Returns the way to stop. |
+
+| `signOut()` rejects | when |
+|---|---|
+| `not_available` | the page is embedded: an app cannot sign the user out of Valu Social |
+| `closed` | `valu.close()` ran before the call or while it waited |
+| `host_restarted`, `host_unreachable` | the host went away meanwhile |
+
+`valu.network` is `{id, name}` for the network the host runs in (the app's home
+network), or `null`; like `auth.state.user` it is a shared object. The session is
+the browser's, shared by every Workspaces app in it; grants are per app.
+
+### Consent
+
+Some functions need the user's say-so the first time an app uses them (the tier
+is the scope's: `rooms:read`, `commerce:write` …). The host answers such a call
+`{error: {status: true, code: 403, message: 'consent_required', scope}}`.
+
+- **From a click.** If the call was made inside a user gesture
+  (`navigator.userActivation.isActive`), the client opens the consent dialog at
+  once and, when the user allows it, repeats the call **once**. The app only sees
+  the final answer, whichever way it called: `valu.X.y()`, `valu.data.X.y()`,
+  `valu.call(name)` or `valu.invoke(name)`. Calls that wait on the same scope share
+  one dialog; the dialog never opens beside another.
+- **Otherwise** the ack is the answer, and the app asks from its own click:
+  `button.onclick = () => valu.auth.requestConsent(['rooms:read'])`, then calls again.
+
+`requestConsent` opens `<hostOrigin><hostPath>consent.html?nonce=…` (the page names
+the app and the scopes from the host itself, never from the app page). A window
+closed without a decision resolves `false` after ten seconds; a user who declines,
+or a request the host refuses, resolves `false` too. Like `signIn()` it must be
+called from a click.
+
+| `requestConsent(scopes)` rejects | when |
+|---|---|
+| `popup_blocked` | the browser refused the window |
+| `closed` | `valu.close()` ran before the call or while it waited |
+| `host_restarted`, `host_unreachable` | the host went away meanwhile |
+
+`scopes` that are not a non-empty array of scope names reject with a `TypeError`
+before anything opens. Only the consent tier is asked about: a basic scope needs
+no asking, and a `forbidden` one is never asked about (below). Embedded, it
+resolves `true` and asks nothing ([Inside Valu Social](#inside-valu-social)); the
+`TypeError` is the same.
+
+An intent refusal is not retried: `callService` for a Commerce intent resolves
+`{success: false, code: 'consent_required', scope}` as it is, and the app calls
+`valu.auth.requestConsent([scope])` itself, from a click, and repeats the intent
+if that resolves `true`. (`examples/dedicated/` does exactly that.) Service
+functions are the ones that get the dialog automatically.
+
+### What the host serves
+
+The host is not Valu Social. For a signed-in user it serves the service functions
+(65 in the catalogue; the `local` ones run in the page and never reach it), the 30
+Commerce data intents and the two Commerce event subscriptions, and
+`Application.get-identity-token`. Everything else answers `not_available`: the
+intents Valu Social serves itself (open a dock, a picker, `Commerce.checkout`, the
+`open-*` windows, the seller's publish functions …), and, on the bridge,
+`valu.sendIntent`, `valu.bridge.getApi` and `valu.bridge.runConsoleCommand`.
+
+**Where it runs.** The production host (`https://valuguru.texpo.io/host/`) serves
+a page only when the server can say which app its origin is, and it knows the
+published `*.valuguru.app` origins of Workspaces apps and no others. A custom
+domain gets `unknown_app`. A `localhost` page cannot use it: the production host
+may be framed only from `https://*.valuguru.app`, and its lookup takes https
+origins only, so the page sees `host_unreachable`, `resolve_unavailable` or
+`unknown_app`, and no host. To develop on `localhost`, run a **dev host**
+(`hostOrigin: 'http://localhost:3001'`; see `examples/dedicated/README.md`): a dev
+build accepts a `localhost` or `127.0.0.1` page that names its app with the `app`
+option (`<workspace>/<slug>`) and serves it as that app. A production host
+ignores `app`.
+
+**What a refusal looks like.** Every request is checked in this order: it is
+served at all; the user is signed in; the params fit; the scope's tier. The
+answers:
+
+| the host answers | a function (`valu.X.y()`, an ack `{error: {status: true, code, message}}`) | an intent (`callService`) |
+|---|---|---|
+| not signed in | `401` `sign_in_required` | `{success: false, code: 'sign_in_required', error}` |
+| not signed in, because the user's last sign-in was refused as `not_a_member` | `401` `not_a_member`, until the next sign-in attempt starts | `{success: false, code: 'not_a_member', error}` (a consent request is answered `{approved: false, reason: 'not_a_member'}`) |
+| scope is `forbidden` | `403` `forbidden` | n/a: no intent has one |
+| scope needs consent, not given | `403` `consent_required`, with `scope` | `{success: false, code: 'consent_required', error, scope}` |
+| not served | `404` `unknown_function` (no such function), `501` `not_available` (a `local` function asked of the host) | `{error: {code: 'not_available', message}}` |
+| an app-state function | `501` `not_available` for `Developer.*` and `VerusWallet.get-balance`, before the scope is weighed: they are answered from state only the Valu Social application holds, so nobody is asked to consent to them | n/a |
+| params do not fit | `400` | n/a |
+| 16 requests are running | `429` `busy`, at once; calls and intents count together | `{success: false, code: 'busy', error}` |
+| a request runs past 30 s | `408` `timeout`; the late result is dropped | `{success: false, code: 'timeout', error}` |
+| the grants could not be read | `503` `unavailable` | `{success: false, code: 'unavailable', error}` |
+
+A write that was handed to the services and then ran out of time (`408`) or was
+cut off (`503`) may have been applied: its ack carries `retryable: false`, and the
+app decides whether to repeat it. A read is retried by the client's own policy.
+
+**Scopes.** Every function has one scope, `<service>:<read|write>`; the intents
+the host serves map to one. Each scope is in one tier:
+
+| tier | what it means | scopes |
+|---|---|---|
+| `basic` | any signed-in user, no asking | `users:read`, `networks:read`, `profile:read`, `resources:read`, `time:read`, `applicationstorage:read`, `applicationstorage:write`, `application:identity` (`Application.get-identity-token`) |
+| `consent` | the user's yes, once per app, kept until revoked; until then `consent_required` | `users:write`, `rooms:read`, `rooms:write`, `textchat:read`, `textchat:write`, `groups:read`, `groups:write`, `events:read`, `events:write`, `community:read`, `cbac:read`, `cms:read`, `cms:write`, `commerce:read`, `commerce:write`, `commerce:sell` |
+| `forbidden` | never, whatever the user says, and never asked about | `cbac:write`, `veruswallet:read` (its one function, `VerusWallet.get-balance`, needs state only Valu Social holds and answers `501`), `veruswallet:write`, `developer:read`, `developer:write` |
+| `local` | runs in the page with its own `fetch`; never reaches the host | `http:read`, `http:write` (`Http.*`; the `Time.*` and resource-URL functions also run in the page, under basic scopes) |
+
+A scope the table does not have is refused, not allowed. The Commerce intents and
+their scopes:
+
+| scope | tier | `Commerce` intents |
+|---|---|---|
+| `commerce:read` | consent | `check-entitlements`, `get-cart`, `get-display`, `get-order`, `get-product`, `get-purchase-contents`, `list-categories`, `list-orders`, `list-products`, `list-purchases`, `preview-promo`, and the two subscriptions `subscribe-events`, `unsubscribe-events` |
+| `commerce:write` | consent | `add-to-cart`, `clear-cart`, `remove-from-cart`, `update-cart-item` |
+| `commerce:sell` | consent | `create-product`, `create-store`, `delete-discount-code`, `end-sale`, `get-analytics`, `get-my-product`, `get-my-store`, `list-my-products`, `list-network-access`, `list-promotions`, `list-seller-products`, `quote-bundle`, `remove-volume-tier`, `request-network-access`, `update-product` |
+
+**Commerce events need the `subscribe-events` intent.** `valu.onCommerceEvent(handler)`
+only listens; nothing arrives until the app subscribes:
+`await valu.callService(new Intent('Commerce', 'subscribe-events', { events: ['order-updated'] }))`
+(`commerce:read`, so the consent above). Each call replaces the set. The host holds
+the subscription for the signed-in session, so it ends with a sign-out, a reload
+and a revoked `commerce:read`: subscribe after every start and every sign-in. The
+events and their data are in the README, "Commerce Events".
+
+**Your CSP.** The client puts `<iframe src="<hostOrigin><hostPath>">` in the page, so an
+app that sends its own `Content-Security-Policy` must allow the host origin in
+`frame-src` (or in `default-src`, when there is no `frame-src`):
+`frame-src https://valuguru.texpo.io`. The sign-in and consent windows are popups,
+not frames.
+
+### The two origins belong together
+
+The sign-in page hands the one-time token to the host iframe of its **own build**
+(its `host.origin`) and to no other origin, and the host takes a token only from
+the sign-in origins it was built with. So `hostOrigin` and `signInOrigin` are a
+pair: the default host with one of the published brands (`https://live.valuverse.io`,
+`https://texpo.io`, `https://valu-social.com`, `https://chabaduniverse.com`), or a
+local host (`http://localhost:3001`) with the local sign-in page
+(`http://localhost:3006`) that host build lists in `HOST_SIGN_IN_ORIGINS`. A
+mismatch fails quietly: the token goes nowhere, the popup closes, and `signIn()`
+rejects `cancelled` once the ten-second grace has passed.
+
+### Connection
+
+`valu.connection.state` is one of:
+
+| state | |
+|---|---|
+| `connecting` | the host is up, but the master has not confirmed the user yet: `api:ready` named it while a stored session was still being checked and the master opened. `auth.state` may already say signed in |
+| `ready` | signed in, link up |
+| `reconnecting` | the host's link to the platform dropped, or could not be made at the start, and the host is retrying; the user stays signed in and calls are held, not failed |
+| `offline` | the browser is offline (no `lastError`), or the host will never serve this page (`lastError.code` is `unknown_app`, `nested` or `protocol_unsupported`) |
+| `signed_out` | no user |
+
+`on('change', ({ state, reconnected, lastError }) => …)` fires for every push;
+`reconnected: true` is the notice that a dropped link is back, and what the app
+cached about the platform predates it (the SDK's own cache is already cleared).
+After the host iframe itself was replaced it comes with the first `ready`, which
+is later than the replacement when the new host is still `connecting`.
+
+**Start with a stored session.** The host checks a stored session and opens the
+master before it says `api:ready`, but waits at most five seconds for both.
+`valu.ready` and the factory do not wait for more than `api:ready`, so the app
+can start with the user **signed in from storage and the link `connecting`**:
+`auth.state` is `{signedIn: true, user: {id, name: null}, network: {id, name: null}}`
+(names are not known yet), `connection.state` is `connecting`. What follows:
+
+| the master | the host pushes |
+|---|---|
+| opens (late) | `auth` with the full identity, then `connection` `ready` |
+| cannot be reached | `auth` `{signedIn: true, reason: 'unavailable'}`, then `connection` `reconnecting` (`offline` when the browser is) |
+| refuses the session | `auth` `{signedIn: false, reason: 'session_expired'}`, then `connection` `signed_out`; the stored session is forgotten. (A refusal that comes before `api:ready` is in `api:ready` itself, signed out, and only the `auth` push follows.) |
+
+`unavailable` with `signedIn: true` is not a failed sign-in: the session is kept and
+the host retries, 1 s doubling to 30 s (each ±20 %), and at once when the browser
+comes `online`. When a retry opens the master the app gets `auth` (no `reason`) and
+`connection` `ready`; a retry the master refuses signs the user out as above.
+Calls made meanwhile are held, within their own timeouts.
+
+**A host that dies.** A host that stops answering is replaced silently; calls that
+were on the wire answer `503 host_restarted`, and a write among them is
+`retryable: false` (it may have been applied). A replacement that fails is tried
+again on a fresh iframe, 1 s doubling to 30 s (each ±20 %), and at once on `online`,
+for as long as the page lives; the state stays `reconnecting` and calls are held
+meanwhile, each within its own timeout: a service call answers `408` at its
+`timeoutMs`, and a request to the host (`signOut()`, a consent, an intent) that is
+still held after 30 s rejects `host_unreachable` with `retryable: true` (it never
+reached a host). Only a host that says this page will never be served (`unknown_app`,
+`nested`, `protocol_unsupported`) ends it: `offline` with that code as
+`lastError.code`, and the app should say so.
+
+### Inside Valu Social
+
+The same app, framed by Valu Social, is **embedded**, and its code does not
+change: `createValuApp()`, then `valu.Rooms.searchMyRooms()`, `valu.data.X.y()`,
+`valu.call(name)`. The same functions give the same answers: Valu Social answers
+each call with valu-api's own function over its own connection (the frame server
+below), not with its intents, so a room is ids and names here as at the app's own
+address, and a refusal is the same ack. What differs is what the host is there
+for:
+
+- **No permissions.** There are no tiers, no grants and no consent inside Valu
+  Social: it gives a framed app the trust it gives framed apps' intents. A
+  function the host refuses `forbidden` or `consent_required` runs.
+  `auth.requestConsent(scopes)` resolves `true` and asks nothing (a bad `scopes`
+  is still a `TypeError`), so an app that asks first works in both modes.
+- **The user is Valu Social's.** `auth.state` is `{signedIn, user, network}` as
+  Valu Social's `api:ready` names them (`{id, name}` each, or `null`; signed out
+  until it comes), and `valu.network` is that network. `auth.signIn()` has nothing
+  to do: once `api:ready` has come it resolves that state when there is a user, and
+  rejects `not_available` when there is none; it opens nothing. `auth.signOut()`
+  rejects `not_available`: an app cannot sign the user out of Valu Social. An
+  `api:ready` that names another user is an `auth` `change`.
+- **`local` functions run in the page**, as in dedicated mode, before `api:ready`
+  too.
+- **A call made before `api:ready` waits for it**, within its own timeout. When no
+  `api:ready` comes within `readyTimeoutMs` (10 s), `valu.ready` rejects
+  `host_unreachable`, the waiting calls (and every later one) answer
+  `{error: {status: true, code: 503, message: 'host_unreachable', retryable: true}}`, and
+  `connection` is `offline` with that `lastError`. One that comes later after all
+  serves calls from then on (`connection` `ready`); `valu.ready` stays rejected.
+- **An older Valu Social**, whose `api:ready` does not say it answers calls, leaves
+  every service function answering `501`, by name too; intents (`callService`)
+  work as they always did. So does a parent that is not trusted (below). Use
+  `valu.mode` to tell the modes apart.
+
+#### Whom an embedded app trusts
+
+Any page can frame an app and post it an `api:ready`. One that says `valuApi.calls`
+would be sent every call, params and all, and could answer them as it liked and
+name any user. So `valuApi`, the calls and the identity together, is taken only
+from a parent whose origin is trusted:
+
+- by default, the Valu origins the host trusts for sign-in (`DEFAULT_SIGN_IN_ORIGINS`):
+  `https://live.valuverse.io`, `https://valu-social.com`, `https://chabaduniverse.com`,
+  `https://texpo.io`;
+- when the app passes `hostOrigins`, that list and nothing else (it also decides
+  which parent the bridge binds to at all).
+
+A parent that is not trusted gets exactly the embedded mode of before: the bridge
+binds to it (`valu.ready` resolves, intents by name work), the service tree answers
+`501`, and `auth.state` is signed out, whatever its `api:ready` says. Nothing is
+posted to it as `api:call`.
+
+For local development against a Valu Social on your machine, name it:
+
+```javascript
+const valu = await createValuApp({ hostOrigins: ['http://localhost:3005'] });
+```
+
+Do not ship that list: in production either leave `hostOrigins` out or list the
+Valu origins your app runs in.
+
+On the wire, the call is the one the host gets: `api:call` with `{service, action,
+params, requestId, timeoutMs}`, answered by `api:call-completed` whose `message`
+is the ack. Valu Social says it answers them in `api:ready`, next to the launch
+intent: `message.valuApi = {protocol: 1, calls: true, user, network}`.
+
+The bridge is also as it was, with the hardening of the transport: the peer is the
+embedding window (`window.parent`) only, bound once by its first `api:ready`, and
+every later message is taken only from that window and origin. `hostOrigins`
+narrows it further, and is the trust list above.
+
+**Valu Social's side** is `createFrameServer`, **one per framed app**, each over
+services of its own on the connection Valu Social already has:
+
+```javascript
+import { connectValuServices, createFrameServer } from '@arkeytyp/valu-api';
+// or: import { createFrameServer } from '@arkeytyp/valu-api/src/embed/FrameServer.js';
+
+// For each framed app: its slug as the host resolver names it (`ResolvedApp.slug`).
+const services = await connectValuServices({ socket: webSocketService, userId, applicationId: app.slug, cache: null });
+const frames = createFrameServer({ services });
+
+// the api:ready posted to a frame carries one more key
+post(frame, 'api:ready', { ...launchIntent, valuApi: frames.readyInfo({ user, network }) });
+
+// an api:call, taken only from that frame (event.source === iframe.contentWindow, its origin)
+const ack = await frames.handle(event.data.message);
+post(frame, 'api:call-completed', ack, event.data.message.requestId);   // to the frame's origin, never '*'
+```
+
+`handle(message)` holds a call to the host's checks less the two that are the
+host's alone (sign-in and the permission tiers): an unknown function is `404`
+`unknown_function`; a `local` one is `501` `not_available` (the app runs those
+itself), and so is an `app-state` one (`Developer.*`, `VerusWallet.get-balance`)
+unless the server was given `{ appState }`, which every call then reads; params
+that do not fit are the validator's `400`. Then ONE attempt (`retries: 0`: the
+app's own client retries), uncached, bounded by the call's `timeoutMs` (at most
+30 s); one that runs out answers `408` `timeout`, `retryable: false` for a write.
+Every answer passes the host's leak guard: one that carries a credential is
+replaced by `{error: {code: 'internal', message: 'blocked outbound credential'}}`
+and logged by key path, never by value. It never rejects. `readyInfo({ user,
+network })` keeps only `{id, name}` of each. Rebuild the services (or
+`handleReconnect` them) on a reconnect, and both on a change of network or user,
+so no services outlive the connection they were made on.
+
+Per app is required, not a tuning. The functions that address the calling app's
+own shelf (`ApplicationStorage.*`, and the two `CMS` functions when no room,
+directory or community is named) read the services' `applicationId`, never the
+call's params, and the host stamps the app's slug there. So:
+
+- `applicationId` is the framed app's **slug**, as the host resolver names it (the
+  `slug` of its `ResolvedApp`, what the host stamps), and never the full
+  `<workspace>/<slug>` address. Only when the resolver does not know the frame's
+  origin (`404 unknown_app`, or a non-https origin such as a local dev server) is
+  the app's Valu Social application id the fallback: the host serves no calls for
+  such an origin, so there is no shelf of its own address to match. Services built
+  without one answer `ApplicationStorage.*` `403` and put the `CMS` default shelf at
+  `app:null:…`; services shared by two apps put both on one shelf.
+- `cache: null`, as the host's services have: the frame server reads nothing from
+  a cache (every call is `bypassCache`), and the default one would only fill with
+  entries nobody reads.
+
+The shelf is `app:{slug}:userSortingTable:{userId}`, keyed by the slug alone, so
+two workspaces whose apps have the same slug share a user's shelf. That is the
+host's behaviour too; embedded mode only matches it.
+
 See also: [socket-adapters.md](socket-adapters.md) for what a socket *is* here
 and how to write a third adapter, [socket-functions.md](socket-functions.md) for
 the functions themselves, and [authorization.md](authorization.md) for what is
