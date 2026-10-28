@@ -102,6 +102,7 @@ nothing about modes.
 - The valu-api pin moves to the commit that has `src/embed/`.
 - valusocial-web's CLAUDE.md forbids committing without Pavlo's word: the work is left
   uncommitted in its worktree.
+  - **Amended 2026-10-28 (review of the Valu Social half):** the fallback id. When the resolver answers `404 unknown_app`, or the frame's origin is not https (a local dev server; the production resolver answers those `400 bad_origin`, which is final), Valu Social uses the app's own Valu Social application id (`manifest.id`, the id its ApplicationStorage intents already use). A transient resolver failure never falls back: that call answers 503 and the lookup is retried. Valu Social bounds the lookup at the host's 4 s.
 
 ## 6. Done when
 

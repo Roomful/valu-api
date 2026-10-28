@@ -640,8 +640,11 @@ directory or community is named) read the services' `applicationId`, never the
 call's params, and the host stamps the app's slug there. So:
 
 - `applicationId` is the framed app's **slug**, as the host resolver names it (the
-  `slug` of its `ResolvedApp`, what the host stamps): never the launch intent's
-  `applicationId`, and never the full `<workspace>/<slug>` address. Services built
+  `slug` of its `ResolvedApp`, what the host stamps), and never the full
+  `<workspace>/<slug>` address. Only when the resolver does not know the frame's
+  origin (`404 unknown_app`, or a non-https origin such as a local dev server) is
+  the app's Valu Social application id the fallback: the host serves no calls for
+  such an origin, so there is no shelf of its own address to match. Services built
   without one answer `ApplicationStorage.*` `403` and put the `CMS` default shelf at
   `app:null:…`; services shared by two apps put both on one shelf.
 - `cache: null`, as the host's services have: the frame server reads nothing from
