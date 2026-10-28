@@ -357,6 +357,31 @@ test('the frame server\'s appState is the one used, not the one the services wer
   assert.deepEqual(await without.handle(callOf('Developer.list-applications', {})), { error: { status: true, code: 501, message: 'not_available' } });
 });
 
+test('a roomful function that reads app state (VerusWallet.transfer) reads the frame server\'s', async () => {
+  const appState = new FakeAppState({ getAgentWallet: async () => ({ identityName: 'alice@', iAddress: 'i-1', status: 'created' }) });
+  const script = { 'verus:sendCurrency': ok({ txid: 'tx-1' }) };
+  const params = { agentId: 'agent-1', destination: 'bob@', amount: 3 };
+
+  const withState = await valuSocial(script, { server: { appState } });
+  assert.equal((await withState.server.handle(callOf('VerusWallet.transfer', params))).data.txid, 'tx-1');
+
+  // Without one, the function reads what the services were built with: here, nothing.
+  const without = await valuSocial(script);
+  const answer = await without.server.handle(callOf('VerusWallet.transfer', params));
+  assert.equal(answer.error.code, 501);
+  assert.match(answer.error.message, /getAgentWallet/);
+  assert.equal(without.responder.calls.length, 0);
+});
+
+test('with an appState, every call carries it to the services; without one, none does', async () => {
+  const appState = new FakeAppState({});
+  const services = recordingServices();
+  await createFrameServer({ services, appState }).handle(callOf('Users.current', {}));
+  await createFrameServer({ services }).handle(callOf('Users.current', {}));
+  assert.equal(services.calls[0].options.appState, appState);
+  assert.deepEqual(services.calls[1].options, { retries: 0, timeoutMs: 30_000, bypassCache: true });
+});
+
 test('an app-state call is bounded by its timeout too', async () => {
   const appState = new FakeAppState({ listDeveloperApplications: () => new Promise(() => {}) });
   const { server } = await valuSocial({}, { server: { appState } });

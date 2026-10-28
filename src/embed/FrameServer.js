@@ -25,7 +25,10 @@
 //   1. the function is in the catalogue (404 `unknown_function`);
 //   2. its channel is served here (501 `not_available`): never `local` (the
 //      app runs those in its own page) and `app-state` only when the server
-//      was given an `appState`;
+//      was given an `appState`. Given one, every call carries it to the
+//      services (`ServiceClient.call`'s `appState`), so a function on either
+//      channel that reads app state (`VerusWallet.transfer`, TextChat's
+//      decryption) reads the frame server's; without one, the services' own;
 //   3. the params fit (400, the validation ack).
 //
 // No sign-in check and no permission gate: inside Valu Social the user is
@@ -45,9 +48,7 @@
 //
 // No DOM, no postMessage, no timer but the call's: Valu Social does the posting.
 // ===========================================================================
-import { ServiceClient } from '../services/ServiceClient.js';
 import { validationAck } from '../services/validate.js';
-import { SocketTransport } from '../transport/SocketTransport.js';
 import {
   CALL_REPLIES, CALL_TIMEOUT_MS, TIMED_OUT, attemptTimeoutMs, callDescriptor, callOnce, callRefusal, isPlainObject,
   orAfter,
@@ -55,8 +56,6 @@ import {
 import {
   HOST_ERRORS, MSG, PROTOCOL_VERSION, assertNoHostLeak, blockedOutbound, identityOf,
 } from '../host/protocol.js';
-// Registers the service functions: an `app-state` call runs on a transport of its own.
-import '../services/impl/index.js';
 
 /** The default log: warnings and errors to the console. Valu Social passes its own. */
 const consoleLog = (level, message) => {
@@ -68,35 +67,16 @@ const SHARED_REPLIES = new Set(Object.values(CALL_REPLIES));
 const own = (reply) => (SHARED_REPLIES.has(reply) ? { ...reply, error: { ...reply.error } } : reply);
 
 /**
- * One `app-state` call, over a transport of its own: Valu Social's socket and
- * settings, this server's app state. A `SocketTransport` takes its app state
- * when it is made, so one is made per call; the socket is read at the call, so
- * a socket the services were handed on a reconnect is the one used.
- */
-async function appStateCall(services, appState, descriptor, input, timeoutMs) {
-  const transport = new SocketTransport({
-    socket: services.socket ?? null,
-    appState,
-    config: services.transport?.config,
-    applicationId: services.transport?.applicationId ?? undefined,
-  });
-  try {
-    return await callOnce(new ServiceClient({ transport, cache: null }), descriptor, input, timeoutMs);
-  } finally {
-    await transport.close();
-  }
-}
-
-/**
  * Make the server Valu Social answers its framed apps' `api:call` with.
  *
  * @param {object} options
- * @param {{call: (name: string, params: object, options: object) => Promise<object>, socket?: object, transport?: object}} options.services
+ * @param {{call: (name: string, params: object, options: object) => Promise<object>}} options.services
  *   The service functions over Valu Social's connection: a `ValuServiceApi`, from
  *   `connectValuServices({ socket: webSocketService, userId })`.
  * @param {import('../app-state/AppState.js').AppState|null} [options.appState] State Valu Social
- *   holds, for the `app-state` functions (`Developer.*`, `VerusWallet.get-balance`). Without
- *   it they answer 501 `not_available`.
+ *   holds, for the `app-state` functions (`Developer.*`, `VerusWallet.get-balance`) and the others
+ *   that read it; every call carries it. Without it the `app-state` functions answer 501
+ *   `not_available`.
  * @param {(level: 'warn'|'error', message: string) => void} [options.log] Default: the console.
  * @returns {Readonly<{
  *   readyInfo: (identity?: {user?: {id: string, name?: string|null}|null, network?: {id: string, name?: string|null}|null}) => {protocol: number, calls: true, user: {id: string, name: string|null}|null, network: {id: string, name: string|null}|null},
@@ -122,6 +102,8 @@ export function createFrameServer({ services, appState = null, log = consoleLog 
   };
 
   const serves = (channel) => channel === 'roomful' || (channel === 'app-state' && state !== null);
+  // No cache: the app's own client caches, and a second layer here would only serve staler answers.
+  const callOptions = state === null ? { bypassCache: true } : { bypassCache: true, appState: state };
 
   /** One `api:call`, to its ack: the checks, then one bounded attempt. */
   async function answer(message) {
@@ -134,9 +116,7 @@ export function createFrameServer({ services, appState = null, log = consoleLog 
     if (invalid) return invalid;
 
     const bound = attemptTimeoutMs(timeoutMs, CALL_TIMEOUT_MS);
-    const attempt = descriptor.channel === 'app-state'
-      ? appStateCall(services, state, descriptor, input, bound)
-      : callOnce(services, descriptor, input, bound, { bypassCache: true });
+    const attempt = callOnce(services, descriptor, input, bound, callOptions);
     const answered = await orAfter(attempt, bound, TIMED_OUT);
     if (answered !== TIMED_OUT) return answered;
     return descriptor.mutates ? CALL_REPLIES.timeoutAfterWrite : CALL_REPLIES.timeout;

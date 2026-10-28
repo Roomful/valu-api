@@ -166,3 +166,28 @@ test('the SDK-declared read works exactly like a declared one', async () => {
   assert.deepEqual(users, [{ id: 'u-7', firstName: 'Ada' }]);
   assert.equal(hasMore, false);
 });
+
+test('a call may carry its own appState: the handler reads it in place of the transport\'s', async () => {
+  const own = { listDeveloperApplications: async () => [{ appId: 'transport-own' }] };
+  const given = { listDeveloperApplications: async () => [{ appId: 'this-call' }] };
+  const services = createValuServices({ socket: new NodeSocketAdapter({ connection: new FakeRoomfulConnection(new Responder()) }), appState: own, cache: null });
+
+  assert.equal((await services.call('Developer.list-applications', {}, { appState: given })).data.applications[0].appId, 'this-call');
+  assert.equal((await services.call('Developer.list-applications', {})).data.applications[0].appId, 'transport-own');
+
+  const bare = createValuServices({ socket: new NodeSocketAdapter({ connection: new FakeRoomfulConnection(new Responder()) }), cache: null });
+  assert.equal((await bare.call('Developer.list-applications', {})).error.code, ERROR_CODES.UNSUPPORTED);
+  assert.equal((await bare.call('Developer.list-applications', {}, { appState: given })).data.applications.length, 1);
+});
+
+test('a call\'s appState reaches the transport only when it is given', async () => {
+  const seen = [];
+  const transport = new SocketTransport({ socket: new NodeSocketAdapter({ connection: new FakeRoomfulConnection(new Responder()) }) });
+  transport.callService = async (descriptor, params, options) => { seen.push(options); return { data: {} }; };
+  const client = new ServiceClient({ transport, cache: null });
+  const state = { getAgentWallet: async () => null };
+  await client.call('Users.current', {}, { retries: 0 });
+  await client.call('Users.current', {}, { retries: 0, appState: state });
+  assert.deepEqual(seen[0], { timeoutMs: 30_000, attempt: 1 });
+  assert.deepEqual(seen[1], { timeoutMs: 30_000, attempt: 1, appState: state });
+});

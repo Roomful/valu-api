@@ -69,7 +69,9 @@ export class ServiceClient {
    * @param {string} name `Users.search-users`, `Users.searchUsers`,
    *   `Users.search_users` or `service__Users__search_users`.
    * @param {object} [params]
-   * @param {{timeoutMs?: number, retries?: number, bypassCache?: boolean}} [options]
+   * @param {{timeoutMs?: number, retries?: number, bypassCache?: boolean, appState?: import('../app-state/AppState.js').AppState|null}} [options]
+   *   `appState`: the application state this call's handler reads, in place of the transport's own (a
+   *   SocketTransport's): how the frame server gives the apps Valu Social frames the state Valu Social holds.
    * @returns {Promise<import('../socket/ValuSocket.js').ValuAck>}
    */
   async call(name, params = {}, options = {}) {
@@ -96,6 +98,7 @@ export class ServiceClient {
       (attempt) => this.#transport.callService(descriptor, params, {
         timeoutMs: policy.timeoutMs,
         attempt,
+        ...(options.appState !== undefined ? { appState: options.appState } : {}),
       }),
       policy,
       this.#hooks,

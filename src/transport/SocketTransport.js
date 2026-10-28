@@ -91,7 +91,13 @@ export class SocketTransport extends Transport {
   /** True when the socket can push `resource:updated`; false means poll. */
   get supportsPush() { return typeof this.#socket?.onResourceUpdated === 'function'; }
 
-  async callService(descriptor, params = {}, { timeoutMs = DEFAULT_TIMEOUT_MS, attempt = 1 } = {}) {
+  /**
+   * @param {import('../services/descriptors.js').ServiceDescriptor} descriptor
+   * @param {object} [params]
+   * @param {{timeoutMs?: number, attempt?: number, appState?: import('../app-state/AppState.js').AppState|null}} [options]
+   *   `appState`, when given, is the state this call's handler reads in place of this transport's.
+   */
+  async callService(descriptor, params = {}, { timeoutMs = DEFAULT_TIMEOUT_MS, attempt = 1, appState } = {}) {
     // `local` functions need no connection, so they run without a socket; every
     // other channel is the socket's and fails the way a dropped one does.
     if (!this.#socket && descriptor.channel !== 'local') {
@@ -105,7 +111,7 @@ export class SocketTransport extends Transport {
     try {
       const ack = await handler(params, {
         socket: this.#socket,
-        appState: this.#appState,
+        appState: appState === undefined ? this.#appState : appState,
         fetchImpl: this.#fetchImpl,
         config: this.#config,
         applicationId: this.#applicationId,
