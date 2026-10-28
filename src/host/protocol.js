@@ -41,6 +41,16 @@ import { FORBIDDEN_CREDENTIAL_KEYS } from '../auth/TokenStore.js';
 /** Bumped only for a change an older client or host cannot ignore. */
 export const PROTOCOL_VERSION = 1;
 
+/**
+ * The version of embedded mode's protocol: the `valuApi` key of Valu Social's
+ * `api:ready` and the `api:call` it answers (src/embed/FrameServer.js,
+ * src/transport/EmbeddedTransport.js). Its own number, apart from the host's
+ * {@link PROTOCOL_VERSION}: a bump of the host protocol must not turn a framed
+ * app's calls into 501s. Bumped only for a change an older app or Valu Social
+ * cannot ignore.
+ */
+export const EMBEDDED_PROTOCOL_VERSION = 1;
+
 /** Every message name that crosses the iframe boundary. */
 export const MSG = Object.freeze({
   // host: — what the host adds to valu-api's wire format

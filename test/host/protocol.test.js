@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  PROTOCOL_VERSION, MSG, HOST_ERRORS, POPUP_MSG, CONNECTION_STATE, toParent, parseAppMessage, assertNoHostLeak, identityOf,
+  PROTOCOL_VERSION, EMBEDDED_PROTOCOL_VERSION, MSG, HOST_ERRORS, POPUP_MSG, CONNECTION_STATE, toParent, parseAppMessage,
+  assertNoHostLeak, identityOf,
 } from '../../src/host/protocol.js';
 import {
   FakeStorage, FakeGuruSocket, fakeGuruWebSocket, FakeWindowPair, fakeResolveFetch, fakeAuthFetch,
@@ -443,4 +444,8 @@ test('identityOf: a user or a network as an app is told it, {id, name}, or null 
   for (const value of [undefined, null, 'u1', ['u1'], {}, { id: '' }, { id: 5 }, { name: 'Ada' }]) {
     assert.equal(identityOf(value), null, JSON.stringify(value));
   }
+});
+
+test('the embedded protocol has its own version, 1: a bump of the host protocol does not move it', () => {
+  assert.equal(EMBEDDED_PROTOCOL_VERSION, 1);
 });

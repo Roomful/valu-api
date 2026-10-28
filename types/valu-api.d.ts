@@ -1079,6 +1079,7 @@ declare module '@arkeytyp/valu-api' {
 
     /** The `valuApi` key of the `api:ready` Valu Social posts to a frame it serves. */
     export interface ValuApiReadyInfo {
+        /** The embedded protocol's own version, `1` (not the host protocol's): a client calls only on the one it speaks. */
         protocol: number;
         /** Valu Social answers `api:call`. */
         calls: true;

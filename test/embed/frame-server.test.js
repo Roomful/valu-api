@@ -15,6 +15,7 @@ import { SocketTransport } from '../../src/transport/SocketTransport.js';
 import { ServiceClient } from '../../src/services/ServiceClient.js';
 import * as Permissions from '../../src/host/Permissions.js';
 import { CALL_REPLIES, answerCall } from '../../src/host/HostDispatch.js';
+import { EMBEDDED_PROTOCOL_VERSION } from '../../src/host/protocol.js';
 import { findDescriptor } from '../../src/services/descriptors.js';
 import { validationAck } from '../../src/services/validate.js';
 import { FakeAppState, FakeWebSocketService, Responder } from '../helpers/fakes.js';
@@ -97,6 +98,12 @@ test('readyInfo is the api:ready key: protocol 1, calls, and the user and networ
     readyInfo({ user: { id: 'u1', name: 'Ada Lovelace', email: 'ada@example.test' }, network: { id: 'n1', name: 'Roomful', token: 'x' } }),
     { protocol: 1, calls: true, user: { id: 'u1', name: 'Ada Lovelace' }, network: { id: 'n1', name: 'Roomful' } },
   );
+});
+
+test('readyInfo says the embedded protocol\'s own version, not the host\'s', () => {
+  const { readyInfo } = createFrameServer({ services: recordingServices() });
+  assert.equal(readyInfo().protocol, EMBEDDED_PROTOCOL_VERSION);
+  assert.equal(readyInfo().protocol, 1);
 });
 
 test('readyInfo: a missing name is null, and a user or network without an id is null', () => {

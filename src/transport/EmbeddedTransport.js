@@ -36,7 +36,7 @@ import { unsafeToRepeat } from './HostTransport.js';
 import { nextId } from '../Utils.js';
 import { ERROR_CODES, errorAck } from '../Errors.js';
 import { DEFAULT_TIMEOUT_MS } from '../CallPolicy.js';
-import { HOST_ERRORS, MSG, PROTOCOL_VERSION, identityOf } from '../host/protocol.js';
+import { EMBEDDED_PROTOCOL_VERSION, HOST_ERRORS, MSG, identityOf } from '../host/protocol.js';
 // Registers the service functions: the `local` ones run on this page.
 import '../services/impl/index.js';
 
@@ -50,7 +50,7 @@ function valuApiOf(message) {
   const info = isPlainObject(message) ? message.valuApi : undefined;
   if (!isPlainObject(info)) return { calls: false, user: null, network: null };
   return {
-    calls: info.calls === true && info.protocol === PROTOCOL_VERSION,
+    calls: info.calls === true && info.protocol === EMBEDDED_PROTOCOL_VERSION,
     user: identityOf(info.user),
     network: identityOf(info.network),
   };

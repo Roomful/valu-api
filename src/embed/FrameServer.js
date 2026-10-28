@@ -54,7 +54,7 @@ import {
   orAfter,
 } from '../host/HostDispatch.js';
 import {
-  HOST_ERRORS, MSG, PROTOCOL_VERSION, assertNoHostLeak, blockedOutbound, identityOf,
+  EMBEDDED_PROTOCOL_VERSION, HOST_ERRORS, MSG, assertNoHostLeak, blockedOutbound, identityOf,
 } from '../host/protocol.js';
 
 /** The default log: warnings and errors to the console. Valu Social passes its own. */
@@ -141,7 +141,7 @@ export function createFrameServer({ services, appState = null, log = consoleLog 
      */
     readyInfo(identity) {
       const { user, network } = isPlainObject(identity) ? identity : {};
-      return { protocol: PROTOCOL_VERSION, calls: true, user: identityOf(user), network: identityOf(network) };
+      return { protocol: EMBEDDED_PROTOCOL_VERSION, calls: true, user: identityOf(user), network: identityOf(network) };
     },
 
     /**

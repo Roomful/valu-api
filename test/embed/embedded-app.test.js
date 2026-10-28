@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 
 import { createValuApp } from '../../src/ValuApi.js';
 import { HostTransport } from '../../src/transport/HostTransport.js';
-import { MSG, toParent } from '../../src/host/protocol.js';
+import { EMBEDDED_PROTOCOL_VERSION, MSG, toParent } from '../../src/host/protocol.js';
 import { findDescriptor } from '../../src/services/descriptors.js';
 import { FakeWindowPair, fakeClock, fakeDocumentFor } from '../helpers/hostFakes.js';
 
@@ -206,6 +206,13 @@ test('without valuApi.calls (an older Valu Social) the service tree answers 501 
     assert.equal((await h.valu.data.Users.current().catch((error) => error)).code, 501);
     assert.equal(h.calls().length, 0);
   }
+});
+
+test('the client takes the embedded protocol\'s own version (another one is 501, above)', async (t) => {
+  const h = await setup(t);
+  h.ready({ ...VALU_API, protocol: EMBEDDED_PROTOCOL_VERSION });
+  assert.deepEqual(await h.valu.Users.current(), { data: { ok: true } });
+  assert.equal(h.calls().length, 1);
 });
 
 test('local functions run in the page, before api:ready and without valuApi.calls, and never reach Valu Social', async (t) => {
