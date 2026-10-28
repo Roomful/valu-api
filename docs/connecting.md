@@ -262,9 +262,13 @@ Social](#inside-valu-social)).
 
 A framed page waits for the parent's `api:ready`: `valu.ready` resolves on it, and
 rejects `host_unreachable` when none comes within `readyTimeoutMs` (10 s), so a
-frame that is not Valu Social (a preview, a third-party page) fails fast instead of
-waiting forever. There is no switch to dedicated, because a framed page could not
-use the host anyway (the host refuses to run nested).
+parent that never answers (a preview, say) fails fast instead of waiting forever. A
+parent that does answer but is not Valu Social is the other case: any page can frame
+an app and send `api:ready`, so the bridge binds to it as it always did, but what it
+says of the service functions and the user is taken only from a trusted origin
+([whom an embedded app trusts](#whom-an-embedded-app-trusts)). There is no switch to
+dedicated, because a framed page could not use the host anyway (the host refuses
+to run nested).
 
 ### Options
 
@@ -273,7 +277,7 @@ use the host anyway (the host refuses to run nested).
 | `hostOrigin` | `https://valuguru.texpo.io` | Where the host is served: a bare origin. The iframe's origin, and the only origin it is heard from. |
 | `signInOrigin` | `https://live.valuverse.io` | The Valu brand users sign in through. A Chabad-network app passes `https://chabaduniverse.com`. The host accepts a sign-in only from its four known brand origins. It belongs with `hostOrigin`: see [The two origins](#the-two-origins-belong-together). |
 | `app` | none | The app's address `<workspace>/<slug>`, sent in `host:hello` (dedicated only). A dev host serves a localhost page under it; a production host ignores it. |
-| `hostOrigins` | none | Embedded only: the origins the embedding application's `api:ready` may come from, an array such as `['https://live.valuverse.io']`. The sender must be `window.parent` regardless; the origin of the first `api:ready` is then the only one replies go to and messages are taken from. Omitted, any origin is accepted (there is no default list: the package cannot know every Valu brand and dev host). Dedicated mode ignores it. |
+| `hostOrigins` | none | Embedded only: the origins the embedding application's `api:ready` may come from, an array such as `['https://live.valuverse.io']`, and the only ones trusted with its `valuApi` (the service calls and the user). The sender must be `window.parent` regardless; the origin of the first `api:ready` is then the only one replies go to and messages are taken from. Omitted, any origin binds the bridge, and only the Valu origins the host trusts for sign-in are trusted with `valuApi` ([whom an embedded app trusts](#whom-an-embedded-app-trusts)). A local Valu Social needs it: `['http://localhost:3005']`. Dedicated mode ignores it. |
 | `mode` | from the page | `'dedicated'` or `'embedded'`. |
 | `readyTimeoutMs` | `10000` | How long to wait for `api:ready`. Dedicated: from the host, and `createValuApp` rejects `host_unreachable` after it. Embedded: from Valu Social, and `valu.ready` rejects `host_unreachable` after it (see [Inside Valu Social](#inside-valu-social)). A positive number of milliseconds, or a `TypeError`. |
 | `window`, `document` | the globals | Where messages arrive, and where the iframe goes. |
@@ -556,7 +560,35 @@ for:
   serves calls from then on (`connection` `ready`); `valu.ready` stays rejected.
 - **An older Valu Social**, whose `api:ready` does not say it answers calls, leaves
   every service function answering `501`, by name too; intents (`callService`)
-  work as they always did. Use `valu.mode` to tell the modes apart.
+  work as they always did. So does a parent that is not trusted (below). Use
+  `valu.mode` to tell the modes apart.
+
+#### Whom an embedded app trusts
+
+Any page can frame an app and post it an `api:ready`. One that says `valuApi.calls`
+would be sent every call, params and all, and could answer them as it liked and
+name any user. So `valuApi`, the calls and the identity together, is taken only
+from a parent whose origin is trusted:
+
+- by default, the Valu origins the host trusts for sign-in (`DEFAULT_SIGN_IN_ORIGINS`):
+  `https://live.valuverse.io`, `https://valu-social.com`, `https://chabaduniverse.com`,
+  `https://texpo.io`;
+- when the app passes `hostOrigins`, that list and nothing else (it also decides
+  which parent the bridge binds to at all).
+
+A parent that is not trusted gets exactly the embedded mode of before: the bridge
+binds to it (`valu.ready` resolves, intents by name work), the service tree answers
+`501`, and `auth.state` is signed out, whatever its `api:ready` says. Nothing is
+posted to it as `api:call`.
+
+For local development against a Valu Social on your machine, name it:
+
+```javascript
+const valu = await createValuApp({ hostOrigins: ['http://localhost:3005'] });
+```
+
+Do not ship that list: in production either leave `hostOrigins` out or list the
+Valu origins your app runs in.
 
 On the wire, the call is the one the host gets: `api:call` with `{service, action,
 params, requestId, timeoutMs}`, answered by `api:call-completed` whose `message`
@@ -566,7 +598,7 @@ intent: `message.valuApi = {protocol: 1, calls: true, user, network}`.
 The bridge is also as it was, with the hardening of the transport: the peer is the
 embedding window (`window.parent`) only, bound once by its first `api:ready`, and
 every later message is taken only from that window and origin. `hostOrigins`
-narrows it further.
+narrows it further, and is the trust list above.
 
 **Valu Social's side** is `createFrameServer`, one per session, over the
 connection it already has:

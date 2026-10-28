@@ -35,15 +35,10 @@ import { HostAuth } from './HostAuth.js';
 import { GuruClient } from './GuruClient.js';
 import { HostBridge, defaultMakeGrants, defaultMakeServices } from './HostBridge.js';
 import { SESSION_KEY, SessionStore } from './SessionStore.js';
-import { isOrigin } from './origins.js';
+import { DEFAULT_SIGN_IN_ORIGINS, isOrigin } from './origins.js';
 
-/** The Valu origins a sign-in popup may report from. */
-export const DEFAULT_SIGN_IN_ORIGINS = Object.freeze([
-  'https://live.valuverse.io',
-  'https://valu-social.com',
-  'https://chabaduniverse.com',
-  'https://texpo.io',
-]);
+/** The Valu origins a sign-in popup may report from (defined in origins.js, which the app page reads too). */
+export { DEFAULT_SIGN_IN_ORIGINS };
 
 /** What a config key left out becomes. `hostOrigin` has none: a host must know where it is served. */
 export const DEFAULT_CONFIG = Object.freeze({

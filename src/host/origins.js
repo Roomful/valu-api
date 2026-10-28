@@ -18,6 +18,21 @@
 // No DOM, no I/O.
 // ===========================================================================
 
+/**
+ * The Valu origins a sign-in popup may report from: the host's default
+ * `signInOrigins` (src/host/Host.js). The same list is whom an embedded app
+ * trusts to say, in `api:ready`, that it answers `api:call` and who the user is
+ * (src/transport/EmbeddedTransport.js), unless the app names its own
+ * (`createValuApp({ hostOrigins })`). Defined here, with no imports, so an app
+ * page that reads it does not load the host.
+ */
+export const DEFAULT_SIGN_IN_ORIGINS = Object.freeze([
+  'https://live.valuverse.io',
+  'https://valu-social.com',
+  'https://chabaduniverse.com',
+  'https://texpo.io',
+]);
+
 /** `http(s)://host[:port]`, lower case: what a browser reports as an origin. */
 const ORIGIN_RE = /^(https?):\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)*)(?::(\d{1,5}))?$/;
 /** An origin pattern: `*.` stands for one or more labels, `:*` for any port or none. */

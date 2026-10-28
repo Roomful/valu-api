@@ -16,8 +16,15 @@
 //   before api:ready  held for it, within the call's own timeout
 //   no valuApi.calls  an older Valu Social, which serves intents only: 501, as
 //                     embedded mode always answered
-//   no api:ready      within `readyTimeoutMs`: the frame is not Valu Social (a
-//                     preview, a third-party page). The held calls answer 503
+//   untrusted parent  the same 501, and no user: `valuApi` (the calls AND the
+//                     identity) is taken only from a parent whose origin is
+//                     trusted, `trustedOrigins` (the app's `hostOrigins`, or the
+//                     Valu origins the host trusts for sign-in). Any page can
+//                     frame an app and send `api:ready`; one that is not Valu
+//                     Social must not read the calls' params, forge their
+//                     answers, or name a user. The bridge itself binds as before
+//   no api:ready      within `readyTimeoutMs`: a parent that never answers (a
+//                     preview, a page that is no Valu app host). The held calls answer 503
 //                     `host_unreachable` (`retryable`: nothing was sent), and so
 //                     does every call until an `api:ready` comes after all; one
 //                     that does is taken like the first
@@ -37,6 +44,7 @@ import { nextId } from '../Utils.js';
 import { ERROR_CODES, errorAck } from '../Errors.js';
 import { DEFAULT_TIMEOUT_MS } from '../CallPolicy.js';
 import { EMBEDDED_PROTOCOL_VERSION, HOST_ERRORS, MSG, identityOf } from '../host/protocol.js';
+import { DEFAULT_SIGN_IN_ORIGINS } from '../host/origins.js';
 // Registers the service functions: the `local` ones run on this page.
 import '../services/impl/index.js';
 
@@ -45,10 +53,13 @@ export const EMBEDDED_READY_TIMEOUT_MS = 10_000;
 
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
+/** What a parent that says nothing of valu-api (or is not trusted to) leaves: no calls, no user. */
+const NOTHING = Object.freeze({ calls: false, user: null, network: null });
+
 /** What `api:ready` says of valu-api: whether `api:call` is answered, and who the user and the network are. */
 function valuApiOf(message) {
   const info = isPlainObject(message) ? message.valuApi : undefined;
-  if (!isPlainObject(info)) return { calls: false, user: null, network: null };
+  if (!isPlainObject(info)) return NOTHING;
   return {
     calls: info.calls === true && info.protocol === EMBEDDED_PROTOCOL_VERSION,
     user: identityOf(info.user),
@@ -79,7 +90,8 @@ export class EmbeddedTransport extends Transport {
   #clearTimer;
   /** waiting | ready | unreachable | closed */
   #phase = 'waiting';
-  #info = { calls: false, user: null, network: null };
+  #info = NOTHING;
+  #trustedOrigins;
   #readyTimer = null;
   #offReady;
   /** Every call not answered yet: `{posted, send, answer}`. */
@@ -90,6 +102,8 @@ export class EmbeddedTransport extends Transport {
   /**
    * @param {object} options
    * @param {import('./PostMessageTransport.js').PostMessageTransport} options.bridge The page's bridge to Valu Social.
+   * @param {string[]} [options.trustedOrigins] The parent origins whose `api:ready` is taken at its word on
+   *   `valuApi`. Default: the Valu origins the host trusts for sign-in (`DEFAULT_SIGN_IN_ORIGINS`).
    * @param {number} [options.readyTimeoutMs] How long to wait for `api:ready`. Default 10 s.
    * @param {Transport} [options.localTransport] Runs the `local` functions. Default: a SocketTransport with
    *   no socket, built from `fetchImpl` and `config`.
@@ -100,6 +114,7 @@ export class EmbeddedTransport extends Transport {
    */
   constructor({
     bridge,
+    trustedOrigins = DEFAULT_SIGN_IN_ORIGINS,
     readyTimeoutMs = EMBEDDED_READY_TIMEOUT_MS,
     localTransport,
     fetchImpl,
@@ -111,6 +126,8 @@ export class EmbeddedTransport extends Transport {
     if (typeof bridge?.request !== 'function' || typeof bridge?.subscribe !== 'function') {
       throw new TypeError('EmbeddedTransport needs the bridge to Valu Social (a PostMessageTransport)');
     }
+    if (!Array.isArray(trustedOrigins)) throw new TypeError('EmbeddedTransport trustedOrigins must be an array of origins');
+    this.#trustedOrigins = Object.freeze([...trustedOrigins]);
     this.#bridge = bridge;
     this.#setTimer = setTimer;
     this.#clearTimer = clearTimer;
@@ -202,10 +219,17 @@ export class EmbeddedTransport extends Transport {
     );
   }
 
-  /** An `api:ready` the bridge took: what it says of valu-api, then what was held for it. */
+  /** Whether the parent the bridge is bound to may say that it answers calls, and who the user is. */
+  get trusted() { return this.#trustedOrigins.includes(this.#bridge.peerOrigin); }
+
+  /**
+   * An `api:ready` the bridge took: what it says of valu-api, when the parent is
+   * trusted to say it, then what was held for it. An untrusted parent is served
+   * as an older Valu Social: no calls (501), no user.
+   */
   #onReady(message) {
     if (this.#phase === 'closed') return;
-    this.#info = valuApiOf(message);
+    this.#info = this.trusted ? valuApiOf(message) : NOTHING;
     this.#phase = 'ready';
     this.#clearTimer(this.#readyTimer);
     this.#readyTimer = null;

@@ -94,6 +94,9 @@ export class PostMessageTransport extends Transport {
   /** Id the Valu Social application gave this app on `api:ready`. */
   get applicationId() { return this.#peer.id; }
 
+  /** The origin the bridge is bound to (its first accepted `api:ready`'s), or `undefined` before it. */
+  get peerOrigin() { return this.#peer.origin; }
+
   /** @param {string} name @param {object} message @param {number} [requestId] */
   async request(name, message, requestId = nextId()) {
     const deferred = this.#defer(requestId);

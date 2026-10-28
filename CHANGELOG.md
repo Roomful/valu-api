@@ -11,8 +11,13 @@
   answers it with valu-api's own function over its own connection. It does so once
   its `api:ready` says `valuApi: {protocol: 1, calls: true, user, network}`; a call
   made before then waits for it, and without that key (an older Valu Social) the
-  tree answers `501` as before. No permissions inside Valu Social: no tiers, no
-  grants, no consent. See
+  tree answers `501` as before. `valuApi` (the calls and the user) is taken only
+  from a trusted parent origin: `hostOrigins` when the app gives it, otherwise the
+  Valu origins the host trusts for sign-in (`DEFAULT_SIGN_IN_ORIGINS`, now defined
+  in `src/host/origins.js` and re-exported by `src/host/Host.js`). Any other parent
+  still binds the bridge for intents, but gets the `501` tree and a signed-out
+  `auth.state`. A local Valu Social needs `hostOrigins: ['http://localhost:3005']`.
+  No permissions inside Valu Social: no tiers, no grants, no consent. See
   [docs/connecting.md](docs/connecting.md#inside-valu-social).
 - `createFrameServer({ services, appState?, log? })`, from the package root and
   `@arkeytyp/valu-api/src/embed/FrameServer.js`: what Valu Social mounts over

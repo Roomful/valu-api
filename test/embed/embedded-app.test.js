@@ -14,6 +14,8 @@ import assert from 'node:assert/strict';
 
 import { createValuApp } from '../../src/ValuApi.js';
 import { HostTransport } from '../../src/transport/HostTransport.js';
+import { DEFAULT_SIGN_IN_ORIGINS } from '../../src/host/Host.js';
+import { Intent } from '../../src/Intent.js';
 import { EMBEDDED_PROTOCOL_VERSION, MSG, toParent } from '../../src/host/protocol.js';
 import { findDescriptor } from '../../src/services/descriptors.js';
 import { FakeWindowPair, fakeClock, fakeDocumentFor } from '../helpers/hostFakes.js';
@@ -51,8 +53,8 @@ function fakePopups() {
  * A page framed by Valu Social. `answer(message)` is what Valu Social answers an
  * `api:call` with (`null`: it does not answer, the test does with `reply`).
  */
-function framed(t, { answer = () => ({ data: { ok: true } }), activation = false, ...options } = {}) {
-  const { app: valuSocial, host: frame } = FakeWindowPair({ appOrigin: VALU_SOCIAL, hostOrigin: FRAME });
+function framed(t, { answer = () => ({ data: { ok: true } }), activation = false, parentOrigin = VALU_SOCIAL, ...options } = {}) {
+  const { app: valuSocial, host: frame } = FakeWindowPair({ appOrigin: parentOrigin, hostOrigin: FRAME });
   frame.location = { search: '' };
   frame.navigator = { userActivation: { isActive: activation } };
   const clock = fakeClock();
@@ -295,6 +297,84 @@ test('a consent_required answer is retried once from a user gesture (requestCons
   outside.ready();
   assert.equal((await outside.valu.Rooms.searchMyRooms({ filter: 'all' })).error.message, 'consent_required');
   assert.equal(outside.calls().length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// Whom the app trusts with valuApi
+// ---------------------------------------------------------------------------
+
+test('valuApi is honoured from each origin the host trusts for sign-in: calls and identity', async (t) => {
+  assert.deepEqual([...DEFAULT_SIGN_IN_ORIGINS], [
+    'https://live.valuverse.io', 'https://valu-social.com', 'https://chabaduniverse.com', 'https://texpo.io',
+  ]);
+  for (const parentOrigin of DEFAULT_SIGN_IN_ORIGINS) {
+    const h = await setup(t, { parentOrigin });
+    h.ready();
+    assert.deepEqual(h.valu.auth.state, { signedIn: true, user: USER, network: NETWORK }, parentOrigin);
+    assert.deepEqual(await h.valu.Users.current(), { data: { ok: true } }, parentOrigin);
+    assert.equal(h.calls()[0].targetOrigin, parentOrigin);
+  }
+});
+
+test('an untrusted parent keeps today\'s embedded mode: the bridge binds, the tree is 501, the user is signed out', async (t) => {
+  const h = await setup(t, { parentOrigin: 'https://evil.example', answer: () => ({ data: 'forged' }) });
+  const ready = track(h.valu.ready);
+  const authChanges = [];
+  h.valu.auth.on('change', (state) => authChanges.push(state));
+  h.ready();
+  await settle();
+
+  // The bridge is bound as before: ready, the connection, the intents.
+  assert.equal(ready.settled, true);
+  assert.equal(ready.error, undefined);
+  assert.equal(h.valu.connection.state, 'ready');
+  const intent = track(h.valu.callService(new Intent('Weather', 'forecast-tomorrow', { city: 'Kyiv' })));
+  const posted = h.posts().at(-1);
+  assert.equal(posted.name, 'api:service-intent');
+  h.send('api:run-console-completed', { c: 21 }, posted.message.requestId);
+  await settle();
+  assert.deepEqual(intent.value, { c: 21 });
+
+  // What it says of valu-api is not taken: no calls, no user.
+  assert.deepEqual(h.valu.auth.state, { signedIn: false, user: null, network: null });
+  assert.equal(h.valu.network, null);
+  assert.deepEqual(authChanges, []);
+  const ack = await h.valu.Users.current();
+  assert.equal(ack.error.code, 501);
+  assert.match(ack.error.message, /is not available in embedded mode/);
+  await assert.rejects(h.valu.auth.signIn(), { code: 'not_available' });
+  assert.equal(h.calls().length, 0, 'nothing is posted as api:call');
+});
+
+test('a local Valu Social is not trusted by default', async (t) => {
+  const h = await setup(t, { parentOrigin: 'http://localhost:3005' });
+  h.ready();
+  assert.equal(h.valu.auth.state.signedIn, false);
+  assert.equal((await h.valu.Users.current()).error.code, 501);
+  assert.equal(h.calls().length, 0);
+});
+
+test('hostOrigins, when given, is the whole list: a local Valu Social works, a default origin no longer counts', async (t) => {
+  const local = await setup(t, { parentOrigin: 'http://localhost:3005', hostOrigins: ['http://localhost:3005'] });
+  local.ready();
+  assert.deepEqual(local.valu.auth.state, { signedIn: true, user: USER, network: NETWORK });
+  assert.deepEqual(await local.valu.Users.current(), { data: { ok: true } });
+  assert.equal(local.calls().length, 1);
+
+  // A default origin that is not on the list does not even bind the bridge.
+  const listedOut = await setup(t, { parentOrigin: 'https://live.valuverse.io', hostOrigins: ['http://localhost:3005'] });
+  const ready = track(listedOut.valu.ready);
+  listedOut.ready();
+  await settle();
+  assert.equal(ready.settled, false);
+  assert.equal(listedOut.valu.auth.state.signedIn, false);
+  listedOut.clock.tick(READY_TIMEOUT_MS);
+  await settle();
+  assert.equal(ready.error.code, 'host_unreachable');
+
+  const both = await setup(t, { parentOrigin: 'https://live.valuverse.io', hostOrigins: ['http://localhost:3005', 'https://live.valuverse.io'] });
+  both.ready();
+  assert.equal(both.valu.auth.state.signedIn, true);
 });
 
 // ---------------------------------------------------------------------------

@@ -971,8 +971,14 @@ declare module '@arkeytyp/valu-api' {
         app?: string;
         /**
          * Embedded only: the origins the embedding application's `api:ready` may
-         * come from (the sender must be `window.parent` regardless). Omitted: any
-         * origin. Dedicated mode ignores it; its host is the one at `hostOrigin`.
+         * come from (the sender must be `window.parent` regardless), and the ones it
+         * is trusted from on `valuApi`: whether it answers the service calls, and who
+         * the user is. Omitted: any origin binds the bridge, and only the Valu origins
+         * the host trusts for sign-in (`https://live.valuverse.io`,
+         * `https://valu-social.com`, `https://chabaduniverse.com`, `https://texpo.io`)
+         * are trusted; from any other the tree answers 501 and the user is signed out.
+         * A local Valu Social needs it: `hostOrigins: ['http://localhost:3005']`.
+         * Dedicated mode ignores it; its host is the one at `hostOrigin`.
          */
         hostOrigins?: string[];
         /** Default: `dedicated` for a top-level page or one loaded with `?valu-mode=dedicated`,

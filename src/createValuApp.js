@@ -18,9 +18,12 @@
 // Social answers with valu-api's own functions (src/embed/FrameServer.js) once
 // its `api:ready` says `valuApi.calls`: the same answers, no permissions, the
 // user Valu Social's. `valu.ready` follows that `api:ready`, and rejects
-// `host_unreachable` when none comes within `readyTimeoutMs` (a frame that is
-// not Valu Social); an older Valu Social, which does not say `valuApi.calls`,
-// leaves the service tree answering 501 as before. `auth.state` is the user and
+// `host_unreachable` when none comes within `readyTimeoutMs` (a parent that
+// never answers); an older Valu Social, which does not say `valuApi.calls`,
+// leaves the service tree answering 501 as before, and so does a parent whose
+// origin is not trusted with `valuApi` (`hostOrigins`, or the Valu origins the
+// host trusts for sign-in): any page can frame an app, and only Valu Social may
+// read its calls or name its user. `auth.state` is the user and
 // network the `api:ready` names; `signIn()` resolves it when there is a user
 // (the user signs in to Valu Social, not to the app) and rejects
 // `not_available` when there is none; `requestConsent()` resolves `true`
@@ -55,7 +58,7 @@ import { EMBEDDED_READY_TIMEOUT_MS, EmbeddedTransport } from './transport/Embedd
 import { createValuServices } from './services/api.js';
 import { ERROR_CODES } from './Errors.js';
 import { CONNECTION_STATE, HOST_ERRORS, MSG } from './host/protocol.js';
-import { isHostPath, isOrigin } from './host/origins.js';
+import { DEFAULT_SIGN_IN_ORIGINS, isHostPath, isOrigin } from './host/origins.js';
 
 const DEFAULT_HOST_ORIGIN = 'https://valuguru.texpo.io';
 /** Where on the host origin the host page is; the consent page is `consent.html` beside it. */
@@ -649,8 +652,11 @@ class ValuApp {
  * @param {string} [options.app] The app's address (`<workspace>/<slug>`), told to the host in
  *   `host:hello` (dedicated). A dev host serves a localhost page under it; a production host ignores it.
  * @param {string[]} [options.hostOrigins] Embedded: the origins the embedding application's `api:ready`
- *   may come from (spec §4.8's optional pin; the sender is `window.parent` regardless). Omitted: any.
- *   Dedicated mode ignores it: the host is the one at `hostOrigin`.
+ *   may come from (spec §4.8's optional pin; the sender is `window.parent` regardless), and the ones
+ *   trusted with `valuApi` (the calls and the user). Omitted: any origin binds the bridge, and only the
+ *   Valu origins the host trusts for sign-in (`DEFAULT_SIGN_IN_ORIGINS`) are trusted with `valuApi`; a
+ *   local Valu Social (`http://localhost:3005`) needs it. Dedicated mode ignores it: the host is the one
+ *   at `hostOrigin`.
  * @param {'dedicated'|'embedded'} [options.mode] Default: dedicated for a top-level page or `?valu-mode=dedicated`,
  *   embedded for a framed one.
  * @param {number} [options.readyTimeoutMs] How long to wait for `api:ready`: from the host (dedicated:
@@ -714,8 +720,15 @@ export async function createValuApp({
       clearTimeout: clearTimer,
     })
     : new PostMessageTransport({ target: win, ...(hostOrigins !== undefined ? { hostOrigins } : {}) });
+  // Whom the page takes at its word on `valuApi`: the app's own list when it gave one, else the Valu origins.
   const embedded = dedicated ? undefined : new EmbeddedTransport({
-    bridge: transport, readyTimeoutMs: readyWithin, fetchImpl, localTransport, setTimeout: setTimer, clearTimeout: clearTimer,
+    bridge: transport,
+    trustedOrigins: hostOrigins ?? DEFAULT_SIGN_IN_ORIGINS,
+    readyTimeoutMs: readyWithin,
+    fetchImpl,
+    localTransport,
+    setTimeout: setTimer,
+    clearTimeout: clearTimer,
   });
 
   const app = new ValuApp({
