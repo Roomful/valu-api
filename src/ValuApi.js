@@ -17,6 +17,9 @@ export { PostMessageTransport } from "./transport/PostMessageTransport.js";
 // (docs/connecting.md, "Dedicated mode").
 export { HostTransport } from "./transport/HostTransport.js";
 export { createValuApp } from "./createValuApp.js";
+// Embedded mode, Valu Social's half: what answers a framed app's `api:call`
+// (docs/connecting.md, "Inside Valu Social").
+export { createFrameServer } from "./embed/FrameServer.js";
 export { SocketTransport } from "./transport/SocketTransport.js";
 export { BrowserSocketAdapter } from "./socket/BrowserSocketAdapter.js";
 export { NodeSocketAdapter } from "./socket/NodeSocketAdapter.js";

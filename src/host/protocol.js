@@ -166,6 +166,12 @@ const HOST_LEAK_KEYS = Object.freeze([
 ]);
 
 /**
+ * What answers in place of a message the leak guard stopped: the host posts it
+ * (and logs the key path), and so does the frame server. A new object each time.
+ */
+export const blockedOutbound = () => ({ error: { code: 'internal', message: 'blocked outbound credential' } });
+
+/**
  * Throw if a payload bound for an app carries a host credential.
  *
  * Applied to every message the host posts to an app: a leak there is a bug

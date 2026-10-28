@@ -47,6 +47,7 @@ const EXPORTED = [
   [PACKAGE, 'src/ValuApi.js'],
   [`${PACKAGE}/src/host/Host.js`, 'src/host/Host.js'],
   [`${PACKAGE}/src/host/consentPage.js`, 'src/host/consentPage.js'],
+  [`${PACKAGE}/src/embed/FrameServer.js`, 'src/embed/FrameServer.js'],
   [`${PACKAGE}/manifests/service-manifests.snapshot.json`, 'manifests/service-manifests.snapshot.json'],
   [`${PACKAGE}/types/valu-api.d.ts`, 'types/valu-api.d.ts'],
   [`${PACKAGE}/types/valu-services.d.ts`, 'types/valu-services.d.ts'],

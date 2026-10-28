@@ -13,7 +13,12 @@
 //   api:call            a ValuAck: `{error:{status:true, code, message, …}}`
 //   api:service-intent  Valu Social's: `{success:false, code, error, …}`
 //
-// No DOM, no state of its own; the I/O is whatever the seams do.
+// The frame server (src/embed/FrameServer.js) answers the same `api:call` for
+// the apps Valu Social frames, with the same pieces: `callDescriptor`,
+// `callRefusal`, `callOnce`, the cap, the replies.
+//
+// No DOM, no state of its own; the I/O is whatever the seams do, and the one
+// timer is `orAfter`'s.
 // ===========================================================================
 import { ERROR_CODES } from '../Errors.js';
 import { findDescriptor } from '../services/descriptors.js';
@@ -57,6 +62,13 @@ export const ACK = Object.freeze({ UNAUTHENTICATED: 401, BUSY: 429, INTERNAL: 50
 /** The longest nonce a consent request may carry, and the most scopes it may name. */
 export const NONCE_MAX = 128;
 export const SCOPES_MAX = 64;
+
+/**
+ * The longest one attempt of a call may run, and what it runs for when the
+ * client asked for nothing usable: the host's `config.callTimeoutMs` default,
+ * and the frame server's cap. The same 30 s as the client's own default.
+ */
+export const CALL_TIMEOUT_MS = 30_000;
 
 const isPositiveNumber = (value) => typeof value === 'number' && Number.isFinite(value) && value > 0;
 
@@ -141,6 +153,28 @@ export const INTENT_REPLIES = Object.freeze({
 export const label = (value) => (typeof value === 'string' ? value.slice(0, 60) : '?');
 
 export const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * `promise`, or `fallback` once `ms` have passed. The timer never outlives the
+ * race; one that is passed `timers` is also listed there while it runs, so a
+ * stop can clear it.
+ * @param {Promise<any>} promise
+ * @param {number} ms
+ * @param {any} [fallback]
+ * @param {Set<any>|null} [timers]
+ */
+export function orAfter(promise, ms, fallback = null, timers = null) {
+  let timer;
+  const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(fallback), ms); });
+  timers?.add(timer);
+  return Promise.race([promise, timeout]).finally(() => {
+    clearTimeout(timer);
+    timers?.delete(timer);
+  });
+}
+
+/** What a wait that ran out of time answers, apart from `null` (a resolve the server answered "no such app"). */
+export const TIMED_OUT = Symbol('timed out');
 
 /**
  * The ack of a function that WRITES, when its call was cut off (503, the socket
@@ -255,6 +289,35 @@ export async function permit(host, scope) {
 }
 
 /**
+ * The function an `api:call` names by `service` and `action`, or `undefined`
+ * when it names none (either is not a string, or there is no such function).
+ * @param {{service?: unknown, action?: unknown}} [message]
+ */
+export function callDescriptor({ service, action } = {}) {
+  return typeof service === 'string' && typeof action === 'string'
+    ? findDescriptor(`${service}.${action}`)
+    : undefined;
+}
+
+/**
+ * Hand one call that passed its checks to the services: ONE attempt
+ * (`retries: 0`: retrying a read is the client's policy, and a retry under it
+ * would only multiply the wire attempts and sleep past the client's timer),
+ * bounded by `timeoutMs`. The ack is returned unchanged, except that a write
+ * cut off by a drop or a timeout is marked `retryable: false`; anything that
+ * is not an ack is `failed`.
+ * @param {{call: Function}} services
+ * @param {import('../services/descriptors.js').ServiceDescriptor} descriptor
+ * @param {unknown} input The params, validated.
+ * @param {number} timeoutMs This attempt's bound, capped already ({@link attemptTimeoutMs}).
+ * @param {object} [options] Further call options (the frame server's `bypassCache`).
+ */
+export async function callOnce(services, descriptor, input, timeoutMs, options) {
+  const ack = await services.call(descriptor.key, input, { retries: 0, timeoutMs, ...options });
+  return isPlainObject(ack) ? markUnretryable(descriptor, ack) : CALL_REPLIES.failed;
+}
+
+/**
  * The channels the host does not serve: `local` (the client runs those in the
  * app page itself) and `app-state` (`Developer.*`, `VerusWallet.get-balance`:
  * they read state a Valu Social runtime holds, and the host holds none).
@@ -286,9 +349,7 @@ const UNSERVED_CHANNELS = new Set(['local', 'app-state']);
  * @param {Track} [track]
  */
 export async function answerCall(host, { service, action, params, timeoutMs }, track) {
-  const descriptor = typeof service === 'string' && typeof action === 'string'
-    ? findDescriptor(`${service}.${action}`)
-    : undefined;
+  const descriptor = callDescriptor({ service, action });
   if (!descriptor) return callRefusal({ code: HOST_ERRORS.UNKNOWN_FUNCTION });
   if (!host.signedIn()) return callRefusal({ code: signedOutCode(host) });
   if (UNSERVED_CHANNELS.has(descriptor.channel)) return callRefusal({ code: HOST_ERRORS.NOT_AVAILABLE });
@@ -302,12 +363,7 @@ export async function answerCall(host, { service, action, params, timeoutMs }, t
   if (track?.abandoned) return CALL_REPLIES.timeout;
   const services = host.services();
   if (track) track.wrote = descriptor.mutates;
-  // One attempt: the retries belong to the client (its own policy retries a read, and the host
-  // retrying under it would multiply the wire attempts and sleep past the client's timer).
-  const ack = await services.call(descriptor.key, input, {
-    retries: 0, timeoutMs: attemptTimeoutMs(timeoutMs, host.callTimeoutMs),
-  });
-  return isPlainObject(ack) ? markUnretryable(descriptor, ack) : CALL_REPLIES.failed;
+  return callOnce(services, descriptor, input, attemptTimeoutMs(timeoutMs, host.callTimeoutMs));
 }
 
 /**

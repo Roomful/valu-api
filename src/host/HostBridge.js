@@ -134,14 +134,15 @@ import * as CommerceIntents from './CommerceIntents.js';
 import { GrantsStore } from './GrantsStore.js';
 import { GuruClient } from './GuruClient.js';
 import {
-  CALL_REPLIES, INTENT_REPLIES, NONCE_MAX, answerCall, answerIntent, cartCount, isIdentityReply, isPlainObject,
-  notAvailable, permit, validConsentScopes,
+  CALL_REPLIES, CALL_TIMEOUT_MS, INTENT_REPLIES, NONCE_MAX, TIMED_OUT, answerCall, answerIntent, cartCount,
+  isIdentityReply, isPlainObject, notAvailable, orAfter, permit, validConsentScopes,
 } from './HostDispatch.js';
 import { HostSession, SUPERSEDED } from './HostSession.js';
 import * as Permissions from './Permissions.js';
 import { isLocalOrigin, isOrigin, matchesOrigin } from './origins.js';
 import {
-  CONNECTION_STATE, HOST_ERRORS, MSG, POPUP_MSG, PROTOCOL_VERSION, assertNoHostLeak, parseAppMessage, toParent,
+  CONNECTION_STATE, HOST_ERRORS, MSG, POPUP_MSG, PROTOCOL_VERSION, assertNoHostLeak, blockedOutbound, parseAppMessage,
+  toParent,
 } from './protocol.js';
 
 /**
@@ -178,7 +179,7 @@ const DEFAULT_CONFIG = Object.freeze({
   allowedAncestors: Object.freeze(['https://*.valuguru.app']),
   devAncestors: Object.freeze(['http://localhost:*', 'http://127.0.0.1:*']),
   maxInFlight: 16,
-  callTimeoutMs: 30_000,
+  callTimeoutMs: CALL_TIMEOUT_MS,
   consentTimeoutMs: 600_000,
   restoreTimeoutMs: 5_000,
   readyWaitMs: 5_000,
@@ -259,25 +260,6 @@ const withoutToken = (message) => Object.fromEntries(Object.entries(message).fil
 const consoleLog = (level, message) => {
   globalThis.console?.[level === 'error' ? 'error' : 'warn']?.(`[valu-host] ${message}`);
 };
-
-/**
- * `promise`, or `fallback` once `ms` have passed. The timer never outlives the
- * race; one that is passed `timers` is also listed there while it runs, so a
- * stop can clear it.
- * @param {Set<any>} [timers]
- */
-function orAfter(promise, ms, fallback = null, timers = null) {
-  let timer;
-  const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(fallback), ms); });
-  timers?.add(timer);
-  return Promise.race([promise, timeout]).finally(() => {
-    clearTimeout(timer);
-    timers?.delete(timer);
-  });
-}
-
-/** What a wait that ran out of time answers, apart from `null` (a resolve the server answered "no such app"). */
-const TIMED_OUT = Symbol('timed out');
 
 /**
  * The default `makeServices`: the 65 functions over the master socket, for
@@ -1444,7 +1426,7 @@ export class HostBridge {
       assertNoHostLeak(exempt ? toParent(name, withoutToken(message), requestId) : payload, `outbound ${name}`);
     } catch (error) {
       this.#log('error', `blocked an outbound ${name}: ${error.message}`);
-      payload = toParent(name, { error: { code: 'internal', message: 'blocked outbound credential' } }, requestId);
+      payload = toParent(name, blockedOutbound(), requestId);
     }
     try {
       parent.postMessage(payload, targetOrigin);

@@ -10,10 +10,12 @@ import assert from 'node:assert/strict';
 
 import * as Permissions from '../../src/host/Permissions.js';
 import {
-  ACK, CALL_REPLIES, INTENT_REPLIES, answerCall, answerIntent, attemptTimeoutMs, callRefusal, cartCount, intentRefusal, isIdentityReply,
-  isPlainObject, label, markIdentityReply, markUnretryable, notAvailable, permit, readEventNames, validConsentScopes,
+  ACK, CALL_REPLIES, CALL_TIMEOUT_MS, INTENT_REPLIES, TIMED_OUT, answerCall, answerIntent, attemptTimeoutMs, callDescriptor, callOnce,
+  callRefusal, cartCount, intentRefusal, isIdentityReply, isPlainObject, label, markIdentityReply, markUnretryable, notAvailable, orAfter,
+  permit, readEventNames, validConsentScopes,
 } from '../../src/host/HostDispatch.js';
-import { MSG } from '../../src/host/protocol.js';
+import { MSG, blockedOutbound } from '../../src/host/protocol.js';
+import { findDescriptor } from '../../src/services/descriptors.js';
 
 /** A host seam over plain values; `grants` and `guru` throw like a bridge that cannot make the client. */
 function fakeHost(overrides = {}) {
@@ -245,6 +247,48 @@ test('attemptTimeoutMs is what the client asked for, capped at the host\'s ceili
   for (const unusable of [undefined, null, 0, -1, NaN, Infinity, -Infinity, '5000', {}, [], true, () => 5]) {
     assert.equal(attemptTimeoutMs(unusable, 30_000), 30_000, String(unusable));
   }
+});
+
+test('the host\'s cap on one attempt is 30 s, the same number as the client\'s default', () => {
+  assert.equal(CALL_TIMEOUT_MS, 30_000);
+});
+
+test('callDescriptor: the function an api:call names by service and action, else undefined', () => {
+  assert.equal(callDescriptor({ service: 'Users', action: 'current' }), findDescriptor('Users.current'));
+  assert.equal(callDescriptor({ service: 'Users', action: 'searchUsers' }), findDescriptor('Users.search-users'));
+  for (const message of [{}, undefined, { service: 'Users' }, { service: 'Users', action: 5 }, { service: 'Nope', action: 'x' }]) {
+    assert.equal(callDescriptor(message), undefined, JSON.stringify(message));
+  }
+});
+
+test('callOnce: one attempt with the bound it is given and any further options; the ack marked, a non-ack failed', async () => {
+  const seen = [];
+  const services = (answer) => ({ call: async (name, params, options) => { seen.push({ name, params, options }); return answer; } });
+  const write = findDescriptor('Users.send-connection-request');
+  const cut = { error: { status: true, code: 503, message: 'gone' } };
+
+  assert.deepEqual(await callOnce(services({ data: 1 }), findDescriptor('Users.current'), {}, 5000), { data: 1 });
+  assert.deepEqual(await callOnce(services(cut), write, { userId: 'u' }, 9000, { bypassCache: true }), { error: { ...cut.error, retryable: false } });
+  assert.equal(await callOnce(services('nope'), write, { userId: 'u' }, 9000), CALL_REPLIES.failed);
+  assert.deepEqual(seen.map((s) => s.options), [
+    { retries: 0, timeoutMs: 5000 },
+    { retries: 0, timeoutMs: 9000, bypassCache: true },
+    { retries: 0, timeoutMs: 9000 },
+  ]);
+});
+
+test('orAfter: the promise, or the fallback once the time is up, and no timer is left either way', async () => {
+  const timers = new Set();
+  assert.equal(await orAfter(Promise.resolve('fast'), 1000, TIMED_OUT, timers), 'fast');
+  assert.equal(timers.size, 0);
+  assert.equal(await orAfter(new Promise(() => {}), 5, TIMED_OUT, timers), TIMED_OUT);
+  assert.equal(timers.size, 0);
+  assert.equal(await orAfter(new Promise(() => {}), 5), null);
+});
+
+test('blockedOutbound is the answer in place of a message the leak guard stopped, a new object each time', () => {
+  assert.deepEqual(blockedOutbound(), { error: { code: 'internal', message: 'blocked outbound credential' } });
+  assert.notEqual(blockedOutbound(), blockedOutbound());
 });
 
 test('answerCall asks the services once, with no retries and the client\'s timeout (capped at the host\'s)', async () => {
