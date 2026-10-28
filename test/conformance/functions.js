@@ -1050,6 +1050,25 @@ export const CASES = [
  */
 
 /**
+ * A case's environment, fresh: its app state (`null` when the case says so), a
+ * recording `fetch`, the config, the clock, the application id (`null` when the
+ * case says so) and a registry of every handler.
+ * @param {object} testCase One of {@link CASES}.
+ * @returns {CaseEnvironment}
+ */
+export function caseEnvironment(testCase) {
+  return {
+    appState: testCase.appState === null ? null : new FakeAppState(testCase.appState ?? {}),
+    fetchImpl: fakeFetch(),
+    config: CONFIG,
+    now: NOW,
+    applicationId: testCase.applicationId === null ? null : (testCase.applicationId ?? APPLICATION_ID),
+    registry: registerAll(new ServiceRegistry()),
+    cache: null,
+  };
+}
+
+/**
  * @typedef {object} MadeServices
  * @property {import('../../src/services/api.js').ValuServiceApi} services
  * @property {() => unknown} [close] Shuts down what the adapter opened; runs when the case ends, pass or fail.
@@ -1081,16 +1100,12 @@ export function runFunctionSuite({ name, makeSocket, makeServices, expectRefused
       assert.ok(descriptor, `${testCase.key} is not a declared function`);
 
       const responder = new Responder(testCase.rpc ?? {});
-      const appState = testCase.appState === null ? null : new FakeAppState(testCase.appState ?? {});
-      const fetch = fakeFetch();
-      const applicationId = testCase.applicationId === null ? null : (testCase.applicationId ?? APPLICATION_ID);
-      const registry = registerAll(new ServiceRegistry());
+      const environment = caseEnvironment(testCase);
+      const { appState, fetchImpl: fetch, applicationId, registry } = environment;
 
       let client;
       if (makeServices) {
-        const made = await makeServices(responder, {
-          appState, fetchImpl: fetch, config: CONFIG, now: NOW, applicationId, registry, cache: null,
-        });
+        const made = await makeServices(responder, environment);
         if (made.close) t.after(() => made.close());
         client = made.services;
       } else {

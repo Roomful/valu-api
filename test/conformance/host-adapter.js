@@ -39,18 +39,20 @@
 // adapter. When the host forwards it, the transport below translates it the
 // way it does `reconnected` and a push entry is added.
 // ===========================================================================
+import { createValuApp } from '../../src/createValuApp.js';
 import { ERROR_CODES, errorAck } from '../../src/Errors.js';
 import { HostAuth } from '../../src/host/HostAuth.js';
 import { MasterConnection } from '../../src/host/MasterConnection.js';
 import { MSG, PROTOCOL_VERSION } from '../../src/host/protocol.js';
 import { SessionStore } from '../../src/host/SessionStore.js';
 import { createValuServices } from '../../src/services/api.js';
+import { SocketTransport } from '../../src/transport/SocketTransport.js';
 import { Transport } from '../../src/transport/Transport.js';
 import { fakeBootstrapFetch, readyIo } from '../helpers/fakes.js';
 import {
   APP, APP_ORIGIN, HOST_ORIGIN, fakeResolver, settle, setup,
 } from '../helpers/hostBridgeFakes.js';
-import { FakeStorage, fakeAuthFetch } from '../helpers/hostFakes.js';
+import { FakeStorage, fakeAuthFetch, fakeDocumentFor } from '../helpers/hostFakes.js';
 
 /** Who `user_info` says the user is: what the cases' payloads (`forUser`, `app:app-1:...:user-1`) expect. */
 const USER = Object.freeze({ userId: 'user-1', networkId: 'roomful' });
@@ -258,14 +260,13 @@ async function until(done, what) {
 }
 
 /**
+ * A `HostBridge` on a window pair, started, for a signed-in user whose session
+ * the master on `readyIo(responder)` accepts: the host's half of every adapter
+ * here. `master()` is the connection it opened.
  * @param {import('../helpers/fakes.js').Responder} responder
- * @param {object} options What the suite configures: the app-side `cache`, `auth`
- *   and `hooks`; the host-side `registry`, `fetchImpl`, `config`, `now`,
- *   `applicationId`.
- * @param {{dropping: boolean}} mode `dropping`: the master's socket goes down
- *   before the case and comes back once its first call is waiting.
+ * @param {object} options The host-side `registry`, `fetchImpl`, `config`, `now`, `applicationId`.
  */
-async function startHost(responder, options, { dropping }) {
+export function startBridge(responder, options) {
   const io = readyIo(responder, USER);
   let master = null;
   const makeConnection = (sessionId) => {
@@ -287,7 +288,19 @@ async function startHost(responder, options, { dropping }) {
     makeGuru: fakeGuru,
     makeGrants: fakeGrants,
   });
-  const { pair, bridge, logs } = harness;
+  return { ...harness, io, master: () => master };
+}
+
+/**
+ * @param {import('../helpers/fakes.js').Responder} responder
+ * @param {object} options What the suite configures: the app-side `cache`, `auth`
+ *   and `hooks`; the host-side `registry`, `fetchImpl`, `config`, `now`,
+ *   `applicationId`.
+ * @param {{dropping: boolean}} mode `dropping`: the master's socket goes down
+ *   before the case and comes back once its first call is waiting.
+ */
+async function startHost(responder, options, { dropping }) {
+  const { pair, bridge, logs, io, master: masterOf } = startBridge(responder, options);
 
   const transport = new PairCallTransport(pair, HOST_ORIGIN);
   const services = createValuServices({
@@ -327,7 +340,7 @@ async function startHost(responder, options, { dropping }) {
     io.last.drop('transport close');
     recovery = setImmediate(() => {
       recovery = null;
-      outage.atRecovery = { master: master.state, calls: transport.pending, wire: responder.calls.length };
+      outage.atRecovery = { master: masterOf().state, calls: transport.pending, wire: responder.calls.length };
       io.last.reopen();
       io.last.ready(USER);
     });
@@ -336,7 +349,7 @@ async function startHost(responder, options, { dropping }) {
   return {
     services,
     /** The master's socket: what the identity clause reads. */
-    socket: master.socket,
+    socket: masterOf().socket,
     outage,
     /** The connection drops and comes back; resolves once the host has told the app. */
     reconnect: async () => {
@@ -359,3 +372,38 @@ export const makeHostServices = (responder, options) => startHost(responder, opt
  * outage and answered after it.
  */
 export const makeDroppingHostServices = (responder, options) => startHost(responder, options, { dropping: true });
+
+/**
+ * The same host, with the client an app really builds in front of it:
+ * `createValuApp()` in dedicated mode, its `HostTransport` injecting the host
+ * iframe into a fake document on the pair. `local` functions run in the page
+ * with what the case gives (`fetchImpl`, `config`, `now`, `registry`), as they do
+ * over a socket; the host's own refusals (`hostRefuses`, less `local`) stand.
+ * No outage and no reconnect: the parity with embedded mode is about answers.
+ */
+export async function makeHostAppServices(responder, options = {}) {
+  const { pair, bridge, logs } = startBridge(responder, options);
+  pair.app.location = { search: '' };
+  pair.app.navigator = {};
+  let valu = null;
+  const close = async () => {
+    await valu?.close();
+    await bridge.stop();
+    if (logs.length > 0) throw new Error(`the host logged: ${JSON.stringify(logs)}`);
+  };
+  try {
+    valu = await createValuApp({
+      hostOrigin: HOST_ORIGIN,
+      window: pair.app,
+      document: fakeDocumentFor(pair),
+      localTransport: new SocketTransport({
+        socket: null, fetchImpl: options.fetchImpl, config: options.config, now: options.now, registry: options.registry,
+      }),
+    });
+    if (valu.auth.state.signedIn !== true) throw new Error('the host came up signed out');
+  } catch (error) {
+    await close().catch(() => {});
+    throw error;
+  }
+  return { services: valu, close };
+}

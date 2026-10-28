@@ -18,6 +18,7 @@ import { FakeWebSocketService, FakeRoomfulConnection, FakeIoSocket, Responder } 
 import { runConformanceSuite, runPushSuite } from './conformance/suite.js';
 import { CASES, runFunctionSuite } from './conformance/functions.js';
 import { hostRefuses, makeDroppingHostServices, makeHostServices } from './conformance/host-adapter.js';
+import { makeEmbeddedServices } from './conformance/embedded-adapter.js';
 
 runConformanceSuite({
   name: 'browser adapter',
@@ -157,6 +158,15 @@ runFunctionSuite({
   makeServices: makeDroppingHostServices,
   expectRefused: hostRefuses,
 });
+
+// --- Embedded: the same table through Valu Social's frame server ------------
+//
+// An app built with createValuApp() inside a Valu Social frame: every function
+// answers exactly as it does over a socket of its own, with nothing refused
+// (no permission tiers inside Valu Social; `local` runs in the page; Valu Social
+// hands its frame server the app state). See embedded-adapter.js.
+
+runFunctionSuite({ name: 'embedded adapter', makeServices: makeEmbeddedServices });
 
 // Two things the entries above cannot say about themselves.
 
