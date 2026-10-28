@@ -536,16 +536,17 @@ Pass `io`: socket.io-client is deliberately **not** a dependency of this package
 your bundle is a second connection pool.
 
 The `sessionId` door is for runtimes that already hold the user's session: the
-Valu Social application, and a process the user ran. A framed third-party
-application asks the Valu Social application for its intents through the bridge
-(its service functions answer `501` there), and gets a socket of its own when it
-can be handed a scoped, revocable token
-([docs/authorization.md](docs/authorization.md)). A top-level app runs the
-functions through the **host** instead, with `createValuApp()`: the host keeps the
-session and checks the app's grants before every call
-([docs/connecting.md](docs/connecting.md#dedicated-mode--createvaluapp)). Service
-functions run over a connection or over the host bridge; the bare postMessage
-bridge serves none.
+Valu Social application, and a process the user ran. An app calls
+`createValuApp()`, and the same code runs in both places an app lives. A top-level
+app runs the functions through the **host**: the host keeps the session and checks
+the app's grants before every call
+([docs/connecting.md](docs/connecting.md#dedicated-mode--createvaluapp)). A framed
+one runs them through Valu Social, which answers them with valu-api's own
+functions over its connection, with no permissions to ask for
+([docs/connecting.md](docs/connecting.md#inside-valu-social)); a socket of its own
+waits on a scoped, revocable token ([docs/authorization.md](docs/authorization.md)). Service
+functions always run over a connection (yours, the host's or Valu Social's); the
+intents bridge (`ValuApi.callService`) runs intents by name, not functions.
 
 **Anything the Valu Social application serves itself is not a function here** —
 opening a dock, expanding a pane, showing a picker, and anything a *different*

@@ -4,6 +4,33 @@
 
 ### Added
 
+- **Service functions inside Valu Social (embedded mode).** An app framed by Valu
+  Social calls `valu.Rooms.searchMyRooms()` exactly as at its own address and gets
+  the same answer: `createValuApp()` sends every function but the `local` ones
+  (which run in the page) as the same `api:call` the host gets, and Valu Social
+  answers it with valu-api's own function over its own connection. It does so once
+  its `api:ready` says `valuApi: {protocol: 1, calls: true, user, network}`; a call
+  made before then waits for it, and without that key (an older Valu Social) the
+  tree answers `501` as before. No permissions inside Valu Social: no tiers, no
+  grants, no consent. See
+  [docs/connecting.md](docs/connecting.md#inside-valu-social).
+- `createFrameServer({ services, appState?, log? })`, from the package root and
+  `@arkeytyp/valu-api/src/embed/FrameServer.js`: what Valu Social mounts over
+  `connectValuServices({ socket, userId })` to answer its framed apps.
+  `readyInfo({ user, network })` is the `valuApi` key of `api:ready`;
+  `handle(message)` is the ack of one `api:call`: the host's checks less sign-in
+  and the permission gate (`404`; `501` for `local`, and `app-state` without an
+  app state; `400`), ONE attempt bounded by the call's `timeoutMs` (at most 30 s),
+  the host's leak guard. Never rejects; no DOM.
+- `createValuApp({ readyTimeoutMs })`, default 10 000: how long to wait for
+  `api:ready`. Embedded: `valu.ready` rejects `host_unreachable` after it, the
+  calls held for it (and later ones) answer `503 host_unreachable` with
+  `retryable: true`, and `connection` is `offline`; a late `api:ready` still
+  serves calls. Dedicated: the host handshake's bound, as before.
+- `ServiceClient.call(name, params, { appState })` (and `ValuServiceApi.call`): the
+  application state one call's handler reads, in place of the transport's. The
+  frame server gives its app state to every call this way.
+
 - `hostPath` on `createValuApp` and `HostTransport`: where on `hostOrigin` the host
   page is, `/host/` by default. The consent page is `consent.html` beside it.
   valusocial-web's web host is served from the root of its own origin:
@@ -17,13 +44,13 @@
   hidden host iframe, signs the user in through a popup (`valu.auth.signIn()`,
   from a click) and has its calls checked against the app's grants, with the
   consent dialog opened on `consent_required` when the call came from a click. A
-  framed page stays **embedded**, as it always was. See
+  framed page is **embedded**: the bridge as it always was, and the service
+  functions answered by Valu Social (above). See
   [docs/connecting.md](docs/connecting.md#dedicated-mode--createvaluapp).
 - `valu.call(name, params, options)`, `valu.invoke(name, params, options)` and
   `valu.toolDefinitions(filter)` on the object `createValuApp` returns: the
   by-name surface of the services tree, over the same client and transport as
-  `valu.Users.current()` (so the consent retry applies), in both modes (embedded
-  answers `501`).
+  `valu.Users.current()` (so the consent retry applies), in both modes.
 - `createValuApp({ hostOrigins })`: embedded mode's optional pin on the origins
   the embedding application's `api:ready` may come from.
 - `HostTransport`, exported from the package entry: the page's side of the host
@@ -49,10 +76,19 @@
   node16/nodenext) and `package.json`. Anything else, `scripts/*` say, is no
   longer importable by package path. `test/package-exports.test.js` runs the map
   against a symlinked install.
-- The rule on service functions: they run over a connection (`SocketTransport`)
-  or over the host bridge (`HostTransport`), which checks the app's grants before
-  every call. `PostMessageTransport` still serves none; `HostTransport` is the one
-  other transport that does ([docs/authorization.md](docs/authorization.md)).
+- The rule on service functions: they run over a connection (`SocketTransport`),
+  over the host bridge (`HostTransport`), which checks the app's grants before
+  every call, or, inside Valu Social, over Valu Social's connection
+  (`EmbeddedTransport` posting `api:call` to the frame server).
+  `PostMessageTransport` itself still serves none
+  ([docs/authorization.md](docs/authorization.md)).
+- Embedded `auth`: `auth.state` is Valu Social's user and network from
+  `api:ready` (`{signedIn: user !== null, user, network}`, the dedicated shape), not
+  always signed out; `signIn()` resolves it when there is a user (it used to reject
+  `not_available` always) and still rejects `not_available` when there is none;
+  `requestConsent()` resolves `true` without asking (it used to reject
+  `not_available`); `signOut()` still rejects `not_available`. `fetchImpl` and
+  `localTransport` apply in embedded mode too.
 - Client follows the host: an `auth` push with `reason: 'timeout'` (the host gave
   up redeeming the sign-in token) rejects a waiting `signIn()` with `timeout` at
   once, not after its own five minutes. `createValuApp`'s `auth.state` and

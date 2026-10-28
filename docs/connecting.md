@@ -248,7 +248,8 @@ functions as LLM tool definitions (by default the ones an AI caller may reach). 
 name resolves in any spelling the tree's methods accept (`Rooms.searchMyRooms`,
 `Rooms.search-my-rooms`). They run through the same client and transport as
 `valu.Rooms.searchMyRooms()`, so the consent retry below is under them too, and in
-embedded mode they answer `501` like the tree.
+embedded mode they go to Valu Social like the tree ([Inside Valu
+Social](#inside-valu-social)).
 
 ### Which mode
 
@@ -259,10 +260,11 @@ embedded mode they answer `501` like the tree.
 | framed | `embedded` |
 | given `mode` in the options | whatever it says |
 
-A framed page waits for the parent's `api:ready` as it always did, with no
-timeout and no fallback: `valu.ready` resolves on it. There is no timed switch
-to dedicated, because a framed page could not use the host anyway (the host
-refuses to run nested).
+A framed page waits for the parent's `api:ready`: `valu.ready` resolves on it, and
+rejects `host_unreachable` when none comes within `readyTimeoutMs` (10 s), so a
+frame that is not Valu Social (a preview, a third-party page) fails fast instead of
+waiting forever. There is no switch to dedicated, because a framed page could not
+use the host anyway (the host refuses to run nested).
 
 ### Options
 
@@ -273,10 +275,11 @@ refuses to run nested).
 | `app` | none | The app's address `<workspace>/<slug>`, sent in `host:hello` (dedicated only). A dev host serves a localhost page under it; a production host ignores it. |
 | `hostOrigins` | none | Embedded only: the origins the embedding application's `api:ready` may come from, an array such as `['https://live.valuverse.io']`. The sender must be `window.parent` regardless; the origin of the first `api:ready` is then the only one replies go to and messages are taken from. Omitted, any origin is accepted (there is no default list: the package cannot know every Valu brand and dev host). Dedicated mode ignores it. |
 | `mode` | from the page | `'dedicated'` or `'embedded'`. |
+| `readyTimeoutMs` | `10000` | How long to wait for `api:ready`. Dedicated: from the host, and `createValuApp` rejects `host_unreachable` after it. Embedded: from Valu Social, and `valu.ready` rejects `host_unreachable` after it (see [Inside Valu Social](#inside-valu-social)). A positive number of milliseconds, or a `TypeError`. |
 | `window`, `document` | the globals | Where messages arrive, and where the iframe goes. |
 | `popup` | `window.open` | `(url, name, features)`, returning the window or `null`: for a page that opens windows its own way. |
-| `setTimeout`, `clearTimeout` | the globals | The timers the client uses: the popup poll, the five-minute sign-in deadline, and the host handshake and ping. For a test that turns the clock itself. |
-| `fetchImpl`, `localTransport` | | Dedicated only. The functions on the `local` channel (`Http.*`, `Time.*`, the resource-URL builders) run in the page, not through the host; these are what they run with. |
+| `setTimeout`, `clearTimeout` | the globals | The timers the client uses: the popup poll, the five-minute sign-in deadline, the host handshake and ping, and (embedded) the wait for `api:ready` and the calls' timeouts. For a test that turns the clock itself. |
+| `fetchImpl`, `localTransport` | | The functions on the `local` channel (`Http.*`, `Time.*`, the resource-URL builders) run in the page, in either mode, never through the host or Valu Social; these are what they run with. |
 
 The popup URLs are built from the two origins and a random nonce, and from nothing
 the host says.
@@ -285,7 +288,7 @@ the host says.
 wait for the link to the platform: see [Connection](#connection) for a user who
 is signed in from storage while the link is still `connecting`. When the host
 cannot answer, it rejects with an `Error` whose `code` says why: `host_unreachable`
-(no answer in 10 s, or the iframe failed), or the host's own `unknown_app`,
+(no answer within `readyTimeoutMs`, 10 s, or the iframe failed), or the host's own `unknown_app`,
 `nested`, `protocol_unsupported`, `resolve_unavailable`. Nothing is left behind:
 no iframe, no listener, no timer.
 
@@ -317,7 +320,7 @@ would route the token through the app page.
 | `invalid_token` | the one-time token was refused |
 | `unavailable` | the host could not reach the platform |
 | `session_expired` | the session the host held ended while the window was open |
-| `not_available` | the page is embedded |
+| `not_available` | embedded, and Valu Social has no user ([Inside Valu Social](#inside-valu-social)) |
 | `closed` | `valu.close()` ran meanwhile |
 
 It resolves with the new `auth.state`. A second call while one is waiting shares
@@ -337,7 +340,7 @@ and the host then takes a few seconds to redeem it.
 
 | `signOut()` rejects | when |
 |---|---|
-| `not_available` | the page is embedded |
+| `not_available` | the page is embedded: an app cannot sign the user out of Valu Social |
 | `closed` | `valu.close()` ran before the call or while it waited |
 | `host_restarted`, `host_unreachable` | the host went away meanwhile |
 
@@ -369,13 +372,14 @@ called from a click.
 | `requestConsent(scopes)` rejects | when |
 |---|---|
 | `popup_blocked` | the browser refused the window |
-| `not_available` | the page is embedded |
 | `closed` | `valu.close()` ran before the call or while it waited |
 | `host_restarted`, `host_unreachable` | the host went away meanwhile |
 
 `scopes` that are not a non-empty array of scope names reject with a `TypeError`
 before anything opens. Only the consent tier is asked about: a basic scope needs
-no asking, and a `forbidden` one is never asked about (below).
+no asking, and a `forbidden` one is never asked about (below). Embedded, it
+resolves `true` and asks nothing ([Inside Valu Social](#inside-valu-social)); the
+`TypeError` is the same.
 
 An intent refusal is not retried: `callService` for a Commerce intent resolves
 `{success: false, code: 'consent_required', scope}` as it is, and the app calls
@@ -520,18 +524,90 @@ reached a host). Only a host that says this page will never be served (`unknown_
 `nested`, `protocol_unsupported`) ends it: `offline` with that code as
 `lastError.code`, and the app should say so.
 
-### Embedded mode
+### Inside Valu Social
 
-Inside Valu Social nothing changes: the bridge is `ValuApi` as it was, `valu.ready`
-follows `api:ready`, `auth.signIn()`, `signOut()` and `requestConsent()` reject
-`not_available`, `auth.state` is always signed out (the embedding application owns
-the session), and every service function answers `501`, by name too. Use
-`valu.mode` to tell.
+The same app, framed by Valu Social, is **embedded**, and its code does not
+change: `createValuApp()`, then `valu.Rooms.searchMyRooms()`, `valu.data.X.y()`,
+`valu.call(name)`. The same functions give the same answers: Valu Social answers
+each call with valu-api's own function over its own connection (the frame server
+below), not with its intents, so a room is ids and names here as at the app's own
+address, and a refusal is the same ack. What differs is what the host is there
+for:
 
-The bridge there is also as it was, with the hardening of the transport: the
-peer is the embedding window (`window.parent`) only, bound once by its first
-`api:ready`, and every later message is taken only from that window and origin.
-`hostOrigins` narrows it further.
+- **No permissions.** There are no tiers, no grants and no consent inside Valu
+  Social: it gives a framed app the trust it gives framed apps' intents. A
+  function the host refuses `forbidden` or `consent_required` runs.
+  `auth.requestConsent(scopes)` resolves `true` and asks nothing (a bad `scopes`
+  is still a `TypeError`), so an app that asks first works in both modes.
+- **The user is Valu Social's.** `auth.state` is `{signedIn, user, network}` as
+  Valu Social's `api:ready` names them (`{id, name}` each, or `null`; signed out
+  until it comes), and `valu.network` is that network. `auth.signIn()` has nothing
+  to do: once `api:ready` has come it resolves that state when there is a user, and
+  rejects `not_available` when there is none; it opens nothing. `auth.signOut()`
+  rejects `not_available`: an app cannot sign the user out of Valu Social. An
+  `api:ready` that names another user is an `auth` `change`.
+- **`local` functions run in the page**, as in dedicated mode, before `api:ready`
+  too.
+- **A call made before `api:ready` waits for it**, within its own timeout. When no
+  `api:ready` comes within `readyTimeoutMs` (10 s), `valu.ready` rejects
+  `host_unreachable`, the waiting calls (and every later one) answer
+  `{error: {status: true, code: 503, message: 'host_unreachable', retryable: true}}`, and
+  `connection` is `offline` with that `lastError`. One that comes later after all
+  serves calls from then on (`connection` `ready`); `valu.ready` stays rejected.
+- **An older Valu Social**, whose `api:ready` does not say it answers calls, leaves
+  every service function answering `501`, by name too; intents (`callService`)
+  work as they always did. Use `valu.mode` to tell the modes apart.
+
+On the wire, the call is the one the host gets: `api:call` with `{service, action,
+params, requestId, timeoutMs}`, answered by `api:call-completed` whose `message`
+is the ack. Valu Social says it answers them in `api:ready`, next to the launch
+intent: `message.valuApi = {protocol: 1, calls: true, user, network}`.
+
+The bridge is also as it was, with the hardening of the transport: the peer is the
+embedding window (`window.parent`) only, bound once by its first `api:ready`, and
+every later message is taken only from that window and origin. `hostOrigins`
+narrows it further.
+
+**Valu Social's side** is `createFrameServer`, one per session, over the
+connection it already has:
+
+```javascript
+import { connectValuServices, createFrameServer } from '@arkeytyp/valu-api';
+// or: import { createFrameServer } from '@arkeytyp/valu-api/src/embed/FrameServer.js';
+
+const services = await connectValuServices({ socket: webSocketService, userId });
+const frames = createFrameServer({ services });
+
+// the api:ready posted to a frame carries one more key
+post(frame, 'api:ready', { ...launchIntent, valuApi: frames.readyInfo({ user, network }) });
+
+// an api:call, taken only from that frame (event.source === iframe.contentWindow, its origin)
+const ack = await frames.handle(event.data.message);
+post(frame, 'api:call-completed', ack, event.data.message.requestId);   // to the frame's origin, never '*'
+```
+
+`handle(message)` holds a call to the host's checks less the two that are the
+host's alone (sign-in and the permission tiers): an unknown function is `404`
+`unknown_function`; a `local` one is `501` `not_available` (the app runs those
+itself), and so is an `app-state` one (`Developer.*`, `VerusWallet.get-balance`)
+unless the server was given `{ appState }`, which every call then reads; params
+that do not fit are the validator's `400`. Then ONE attempt (`retries: 0`: the
+app's own client retries), uncached, bounded by the call's `timeoutMs` (at most
+30 s); one that runs out answers `408` `timeout`, `retryable: false` for a write.
+Every answer passes the host's leak guard: one that carries a credential is
+replaced by `{error: {code: 'internal', message: 'blocked outbound credential'}}`
+and logged by key path, never by value. It never rejects. `readyInfo({ user,
+network })` keeps only `{id, name}` of each. Rebuild the services (or
+`handleReconnect` them) on a reconnect, and both on a change of network or user,
+so nothing cached outlives the connection it came from.
+
+The functions that address the calling app's own shelf (`ApplicationStorage.*`,
+and the two `CMS` functions when no room, directory or community is named) read
+the services' `applicationId`, never the call's params. Services built without one
+answer `ApplicationStorage.*` `403` (and the `CMS` default shelf is `app:null:…`);
+services built with one put every framed app on that one shelf. Where the shelf
+must be the app's, build the services (and a frame server) per framed app:
+`connectValuServices({ socket, userId, applicationId })`.
 
 See also: [socket-adapters.md](socket-adapters.md) for what a socket *is* here
 and how to write a third adapter, [socket-functions.md](socket-functions.md) for
