@@ -6,7 +6,11 @@
 // `@ts-expect-error` is how "this is not `any`" is said: a type that had
 // collapsed would accept the line, and the unused directive is the error.
 import {
+  connectValuServices,
+  createFrameServer,
   createValuApp,
+  type FrameServer,
+  type ValuApiReadyInfo,
   type ValuAck,
   type ValuApp,
   type ValuAppConnectionState,
@@ -14,6 +18,8 @@ import {
   type ValuAuthReason,
   type ValuConnectionChange,
 } from '@arkeytyp/valu-api';
+// The frame server by path is the same function, typed.
+import { createFrameServer as frameServerByPath } from '@arkeytyp/valu-api/src/embed/FrameServer.js';
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 type Expect<T extends true> = T;
@@ -83,5 +89,24 @@ export async function run(): Promise<void> {
   void retryable;
 }
 
-// The embedded app pins where the parent speaks from.
-export const embedded = createValuApp({ mode: 'embedded', hostOrigins: ['https://live.valuverse.io'] });
+// The embedded app pins where the parent speaks from, and how long it waits for it.
+export const embedded = createValuApp({ mode: 'embedded', hostOrigins: ['https://live.valuverse.io'], readyTimeoutMs: 5_000 });
+// @ts-expect-error a duration is a number
+export const badTimeout = createValuApp({ readyTimeoutMs: '5s' });
+
+// Valu Social's half: the frame server over its own connection.
+export async function valuSocial(webSocketService: { emitAsync(endpoint: string, data?: object, timeout?: number): Promise<any> }): Promise<void> {
+  const services = await connectValuServices({ socket: webSocketService, userId: 'u1' });
+  const frames: FrameServer = createFrameServer({ services, log: (level, message) => { void level; void message; } });
+  const info: ValuApiReadyInfo = frames.readyInfo({ user: { id: 'u1', name: 'Ada' }, network: null });
+  const calls: true = info.calls;
+  const userId: string | undefined = info.user?.id;
+  const ack: ValuAck = await frames.handle({ service: 'Users', action: 'current', params: {}, requestId: 1, timeoutMs: 30_000 });
+  void calls; void userId; void ack.error?.code;
+  // @ts-expect-error the services need a call()
+  createFrameServer({ services: {} });
+  // @ts-expect-error an app state is an object of capabilities
+  createFrameServer({ services, appState: 'state' });
+  const samePath: typeof createFrameServer = frameServerByPath;
+  void samePath;
+}
