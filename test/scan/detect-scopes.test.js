@@ -46,17 +46,20 @@ test('an unrelated .call with a string is not a valu call', () => {
   assert.deepEqual(scan("fn.call(this, 1);").unresolved, []);
 });
 
-test('intents: Commerce, the identity token, and one with no scope', () => {
+test('intents: Commerce, the identity token, the older bridge\'s, and one with no scope', () => {
   assert.deepEqual(only(scan("valu.callService(new Intent('Commerce', 'get-cart'))")), {
     scope: 'commerce:read', call: 'Commerce.get-cart', kind: 'intent', file: 'src/app.ts', line: 1,
   });
   assert.equal(only(scan("new Intent('Application','get-identity-token')")).scope, 'application:identity');
   assert.equal(only(scan("new Intent('commerce', 'get-cart')")).scope, 'commerce:read');
-  const result = scan("new Intent('textchat', 'open-channel', {userId})");
+  // Valu Social checks the older bridge's intents too, so they need their scopes (BridgeScopes.js).
+  assert.deepEqual(only(scan("new Intent('textchat', 'open-channel', {userId})")), {
+    scope: 'ui:open', call: 'textchat.open-channel', kind: 'bridge', file: 'src/app.ts', line: 1,
+  });
+  assert.equal(only(scan("new Intent('RoomZones', 'claim-zone')")).scope, 'rooms:write');
+  const result = scan("new Intent('auth', 'logout')");
   assert.deepEqual(result.findings, []);
-  assert.deepEqual(result.bridge, [{
-    scope: null, call: 'textchat.open-channel', kind: 'bridge', file: 'src/app.ts', line: 1,
-  }]);
+  assert.deepEqual(result.bridge, [{ scope: null, call: 'auth.logout', kind: 'bridge', file: 'src/app.ts', line: 1 }]);
 });
 
 test('an intent that names a catalogue function needs that function\'s scope', () => {
@@ -65,7 +68,9 @@ test('an intent that names a catalogue function needs that function\'s scope', (
 
 test('bridge calls: an API pointer and a console command', () => {
   const result = scan("const id = await valuApi.getApi('network').run('id');\nvaluApi.runConsoleCommand('room open 1');");
-  assert.deepEqual(result.bridge.map((f) => [f.call, f.line]), [['network.id', 1], ['console:room open 1', 2]]);
+  assert.deepEqual(result.findings.map((f) => [f.call, f.scope, f.kind, f.line]), [['network.id', 'networks:read', 'bridge', 1]]);
+  assert.deepEqual(result.bridge.map((f) => [f.call, f.line]), [['console:room open 1', 2]]);
+  assert.deepEqual(scan("valuApi.getApi('crypto').run('setSeed')").bridge.map((f) => f.call), ['crypto.setSeed']);
   assert.deepEqual(scan("const net = await valuApi.getApi('network');").bridge.map((f) => f.call), ['network']);
 });
 

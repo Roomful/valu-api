@@ -42,6 +42,12 @@ export const SCOPE_WORDING = Object.freeze({
   'cms:write': 'Add files to your content library and delete files from it.',
   'commerce:read': 'See products, your cart, your orders and your purchases, and be told when they change.',
   'commerce:write': 'Add things to your cart, and change, remove or clear the items in your cart.',
+  'networks:write': 'Move you to another network.',
+  'videochat:read': 'See whether a video call is running in a room, group or meeting.',
+  'videochat:write': 'Join and leave video calls for you.',
+  'hubs:read': 'See who is in your hubs and where they are.',
+  'hubs:write': 'Enter hubs for you, and have its agent walk and speak there.',
+  'valuguru:write': 'Start conversations with Valu Guru for you.',
   'commerce:sell': 'Sell in your name: set up your store, create and change your products and their prices, read your sales and analytics, end sales, delete unused discount codes and remove volume discounts, and ask to sell in a network.',
 });
 
@@ -60,6 +66,8 @@ const OTHER_TIERS = {
   'applicationstorage:read': 'Read the files this app has stored for itself.',
   'applicationstorage:write': 'Store files for itself, and delete the files it stored.',
   'application:identity': 'Get a signed token that proves to its own server who you are.',
+  'ui:open': 'Open screens of Valu Social, such as a chat, a profile or a room, and switch its theme.',
+  'apps:intent': 'Send requests to other apps open in Valu Social.',
   'http:read': 'Fetch web pages and data from other sites through Valu Social.',
   'http:write': 'Send data to other sites through Valu Social.',
   'veruswallet:read': 'See the balance of your Verus wallet.',

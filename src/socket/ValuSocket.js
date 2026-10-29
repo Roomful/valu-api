@@ -10,7 +10,9 @@
 // Deliberately minimal — an emit, an optional push hook, three identity
 // fields. Anything richer would tie the tools to a transport.
 // ===========================================================================
-import { ERROR_CODES, ValuServiceError, errorAck } from '../Errors.js';
+import {
+  ERROR_CODES, PermissionNotDeclaredError, ValuServiceError, errorAck, isPermissionNotDeclared,
+} from '../Errors.js';
 
 /**
  * @typedef {object} ValuAckError
@@ -109,13 +111,19 @@ export function ackErrorMessage(ack, fallback = 'call failed') {
  */
 export function unwrapAck(ack, context = {}) {
   if (isAckError(ack)) {
-    throw new ValuServiceError(ackErrorMessage(ack, context.fallback), {
+    const detail = {
       code: ack.error.code,
       description: ack.error.description,
       service: context.service,
       fn: context.fn,
       ack,
-    });
+    };
+    if (isPermissionNotDeclared(ack)) {
+      throw new PermissionNotDeclaredError(ack.error.description || ackErrorMessage(ack, context.fallback), {
+        ...detail, scope: typeof ack.error.scope === 'string' ? ack.error.scope : undefined,
+      });
+    }
+    throw new ValuServiceError(ackErrorMessage(ack, context.fallback), detail);
   }
   return ack?.data;
 }

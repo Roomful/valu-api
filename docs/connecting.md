@@ -485,10 +485,32 @@ approves it, each scope with the same sentence the consent window uses.
 - `scope` is a scope from the table above (`<service>:<access>`, lower case). `why`
   is one plain sentence a reviewer can check against what the app does, at most
   200 characters. List every scope the code uses and no other.
+- **The file is binding.** An app may call only the scopes it declares, at its own
+  address and inside Valu Social, every tier included (`basic` too). A call to
+  any other scope is refused with `permission_not_declared` (an ack with
+  `error.message === 'permission_not_declared'` and `error.scope`; the unwrapping
+  paths throw `PermissionNotDeclaredError`, and `isPermissionNotDeclared(x)` tells
+  it apart). The fix is a line in the file, never a retry.
+- **The reason is required.** An entry without a `why` is shown but declares
+  nothing.
+- **Valu enforces its own copy.** For the app's workspace members it is the newest
+  publish's file; for everyone else, the released version's. A new permission
+  works for other people only once its version is approved.
+- Declaring is not granting: a consent scope still asks the person, and a
+  forbidden one is never allowed.
+- **Inside Valu Social the older bridge is checked too.** `callService(new
+  Intent(…))`, `run(new Intent(…))` and `getApi(…).run(…)` each need a scope
+  (`scopeOfServiceIntent`, `scopeOfAppIntent`, `scopeOfApiCommand`); opening Valu
+  Social's own screens is `ui:open`, a request to another framed app
+  `apps:intent`. What has no scope there (the console, sign-out, the session,
+  any modal by name) is refused.
+- The rule is switched on in steps: `off`, then `report` (calls run and misses
+  are counted), then `enforce`.
 - **A Workspaces app** keeps the file at its repository root. Every publish reads
-  the source (not the build) for valu-api calls and compares them with the file:
-  a scope the code uses is needed whether or not the file lists it, and the
-  reviewer is told about every difference. A publish is never refused over it.
+  the source (not the build) for valu-api calls and compares them with the file;
+  a scope the code uses that the file does not declare is a call that will be
+  refused, and the reviewer and the AI worker are told about every difference.
+  A publish is never refused over it.
 - **Any other app** serves the file at
   `https://<its origin>/.well-known/valu-permissions.json`, with
   `Access-Control-Allow-Origin: *` so the portal can read it.

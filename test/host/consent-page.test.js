@@ -306,6 +306,7 @@ const CONSENT_SCOPES = [
   'users:write', 'rooms:read', 'rooms:write', 'textchat:read', 'textchat:write', 'groups:read', 'groups:write',
   'events:read', 'events:write', 'community:read', 'cbac:read', 'cms:read', 'cms:write',
   'commerce:read', 'commerce:write', 'commerce:sell',
+  'networks:write', 'videochat:read', 'videochat:write', 'hubs:read', 'hubs:write', 'valuguru:write',
 ];
 
 test('every consent-tier scope has wording', () => {

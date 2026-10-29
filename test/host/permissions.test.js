@@ -11,8 +11,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  TIER_OF, tierOf, scopeOfDescriptor, scopeOfIntent, decide,
+  TIER_OF, tierOf, scopeOfDescriptor, scopeOfIntent, decide, checkDeclared, readDeclaration,
 } from '../../src/host/Permissions.js';
+import { BRIDGE_SCOPES } from '../../src/host/BridgeScopes.js';
 import {
   SERVICE_DESCRIPTORS, APPLICATION_ONLY_INTENTS, APPLICATION_INTENT_REASON,
 } from '../../src/services/catalog.generated.js';
@@ -24,12 +25,16 @@ const SPEC = {
   basic: [
     'users:read', 'networks:read', 'time:read', 'resources:read', 'profile:read',
     'applicationstorage:read', 'applicationstorage:write', 'application:identity',
+    // the older Valu Social bridge (BridgeScopes.js, 2026-10-29)
+    'ui:open', 'apps:intent',
   ],
   consent: [
     'users:write', 'rooms:read', 'rooms:write', 'textchat:read', 'textchat:write',
     'groups:read', 'groups:write', 'events:read', 'events:write', 'community:read',
     'cbac:read', 'cms:read', 'cms:write',
     'commerce:read', 'commerce:write', 'commerce:sell',
+    // the older Valu Social bridge (BridgeScopes.js, 2026-10-29)
+    'networks:write', 'videochat:read', 'videochat:write', 'hubs:read', 'hubs:write', 'valuguru:write',
   ],
   local: ['http:read', 'http:write'],
   // veruswallet:read (ruling 2026-10-21): its one function is on the app-state channel and answers 501,
@@ -65,7 +70,7 @@ test('TIER_OF is the table of spec 4.6, and is frozen', () => {
     const actual = Object.entries(TIER_OF).filter(([, t]) => t === tier).map(([scope]) => scope);
     assert.deepEqual(actual.sort(), [...scopes].sort(), `tier ${tier}`);
   }
-  assert.equal(Object.keys(TIER_OF).length, 8 + 17 + 2 + 4);
+  assert.equal(Object.keys(TIER_OF).length, 10 + 22 + 2 + 5);
 });
 
 test('every one of the 27 descriptor scopes has a tier', () => {
@@ -85,8 +90,8 @@ test('every descriptor on the local channel is basic or local, never asked about
   assert.equal(tierOf('http:write'), 'local');
 });
 
-test('no scope in the table is unused: it belongs to a descriptor or an intent', () => {
-  const used = new Set(SERVICE_DESCRIPTORS.map((d) => d.scopes[0]));
+test('no scope in the table is unused: it belongs to a descriptor, an intent or the older bridge', () => {
+  const used = new Set([...SERVICE_DESCRIPTORS.map((d) => d.scopes[0]), ...BRIDGE_SCOPES]);
   for (const key of APPLICATION_ONLY_INTENTS) {
     const scope = scopeOfIntent(...split(key));
     if (scope) used.add(scope);
@@ -276,4 +281,24 @@ test('every catalogue function gets an answer that is not unknown_function', () 
     const decision = decide({ scope: scopeOfDescriptor(descriptor), hasGrant: false });
     assert.ok(decision.ok === true || answers.has(decision.code), `${descriptor.key}: ${JSON.stringify(decision)}`);
   }
+});
+
+test('checkDeclared: only basic and consent scopes are asked about; modes off, report, enforce', () => {
+  const enforce = { mode: 'enforce', scopes: ['rooms:read'] };
+  assert.deepEqual(checkDeclared({ scope: 'rooms:read', declaration: enforce }), { ok: true });
+  assert.deepEqual(checkDeclared({ scope: 'rooms:write', declaration: enforce }),
+    { ok: false, code: 'permission_not_declared', miss: true });
+  assert.deepEqual(checkDeclared({ scope: 'cbac:write', declaration: enforce }), { ok: true });
+  assert.deepEqual(checkDeclared({ scope: 'http:read', declaration: enforce }), { ok: true });
+  assert.deepEqual(checkDeclared({ scope: 'rooms:write', declaration: { mode: 'report', scopes: [] } }),
+    { ok: true, miss: true });
+  assert.deepEqual(checkDeclared({ scope: 'rooms:write', declaration: { mode: 'off', scopes: [] } }), { ok: true });
+});
+
+test('readDeclaration: anything that is not a declaration is off, so a server that does not know the rule never switches it on', () => {
+  for (const value of [undefined, null, 'enforce', { mode: 'ENFORCE' }, { mode: 'on', scopes: [] }]) {
+    assert.equal(readDeclaration(value).mode, 'off');
+  }
+  assert.deepEqual(readDeclaration({ mode: 'enforce', scopes: ['a:b', 3, null] }), { mode: 'enforce', scopes: ['a:b'] });
+  assert.deepEqual(readDeclaration({ mode: 'enforce' }), { mode: 'enforce', scopes: null });
 });

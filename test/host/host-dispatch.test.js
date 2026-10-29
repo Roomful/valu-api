@@ -403,3 +403,81 @@ test('answerIntent: the identity token marks its reply, and only that reply', as
   const bare = fakeHost({ emit: async () => ({ error: { status: true, code: 500 } }) }).host;
   assert.equal((await answerIntent(bare, { applicationId: 'Application', action: 'get-identity-token' })).error, 'the identity token could not be issued');
 });
+
+// ---------------------------------------------------------------------------
+// The declaration (the owner's decision, 2026-10-29): an app may call only
+// what its valu-permissions.json declares.
+// ---------------------------------------------------------------------------
+
+test('permit: under enforce, an undeclared scope is refused before the tier, and never reads the grants', async () => {
+  let reads = 0;
+  const misses = [];
+  const { host } = fakeHost({
+    declaration: async () => ({ mode: 'enforce', scopes: ['users:read'] }),
+    reportMiss: (scope, mode) => misses.push([scope, mode]),
+    grants: () => { reads += 1; return { has: async () => true }; },
+  });
+  assert.deepEqual(await permit(host, 'users:read'), { ok: true });
+  assert.deepEqual(await permit(host, 'groups:read'), { ok: false, code: 'permission_not_declared', scope: 'groups:read' });
+  assert.deepEqual(await permit(host, 'networks:read'), { ok: false, code: 'permission_not_declared', scope: 'networks:read' });
+  assert.equal(reads, 0);
+  assert.deepEqual(misses, [['groups:read', 'enforce'], ['networks:read', 'enforce']]);
+});
+
+test('permit: a declared consent scope still needs the grant: declaring is not granting', async () => {
+  const { host } = fakeHost({ declaration: async () => ({ mode: 'enforce', scopes: ['groups:read'] }) });
+  assert.deepEqual(await permit(host, 'groups:read'), { ok: false, code: 'consent_required', scope: 'groups:read' });
+});
+
+test('permit: forbidden, local and unknown scopes keep their own answer whatever is declared', async () => {
+  const { host } = fakeHost({ declaration: async () => ({ mode: 'enforce', scopes: ['cbac:write'] }) });
+  assert.deepEqual(await permit(host, 'cbac:write'), { ok: false, code: 'forbidden', scope: 'cbac:write' });
+  assert.deepEqual(await permit(host, 'http:read'), { ok: false, code: 'not_available', scope: 'http:read' });
+  assert.deepEqual(await permit(host, 'nonsense'), { ok: false, code: 'unknown_function', scope: 'nonsense' });
+});
+
+test('permit: report mode runs the call and counts the miss; off and no declaration seam check nothing', async () => {
+  const misses = [];
+  const report = fakeHost({
+    declaration: async () => ({ mode: 'report', scopes: [] }),
+    reportMiss: (scope, mode) => misses.push([scope, mode]),
+  }).host;
+  assert.deepEqual(await permit(report, 'users:read'), { ok: true });
+  assert.deepEqual(misses, [['users:read', 'report']]);
+
+  const off = fakeHost({ declaration: async () => ({ mode: 'off', scopes: null }) }).host;
+  assert.deepEqual(await permit(off, 'users:read'), { ok: true });
+  assert.deepEqual(await permit(fakeHost().host, 'users:read'), { ok: true });
+});
+
+test('permit: no file (scopes null) under enforce declares nothing', async () => {
+  const { host } = fakeHost({ declaration: async () => ({ mode: 'enforce', scopes: null }) });
+  assert.deepEqual(await permit(host, 'users:read'), { ok: false, code: 'permission_not_declared', scope: 'users:read' });
+});
+
+test('permit: a declaration that cannot be read is unavailable, never a pass', async () => {
+  const { host, log } = fakeHost({ declaration: async () => { throw Object.assign(new Error('x'), { code: 'timeout' }); } });
+  assert.deepEqual(await permit(host, 'users:read'), { ok: false, code: 'unavailable', scope: 'users:read' });
+  assert.equal(log[0].level, 'warn');
+});
+
+test('permit: a reportMiss that throws does not decide the call', async () => {
+  const { host } = fakeHost({
+    declaration: async () => ({ mode: 'report', scopes: [] }),
+    reportMiss: () => { throw new Error('boom'); },
+  });
+  assert.deepEqual(await permit(host, 'users:read'), { ok: true });
+});
+
+test('callRefusal and intentRefusal: permission_not_declared names the scope and the file, nothing else', () => {
+  assert.deepEqual(callRefusal({ code: 'permission_not_declared', scope: 'rooms:write' }), {
+    error: {
+      status: true, code: 403, message: 'permission_not_declared', scope: 'rooms:write',
+      description: 'This app does not declare rooms:write in valu-permissions.json.',
+    },
+  });
+  assert.deepEqual(intentRefusal({ code: 'permission_not_declared', scope: 'commerce:read' }), {
+    success: false, code: 'permission_not_declared', scope: 'commerce:read',
+    error: 'This app does not declare commerce:read in valu-permissions.json.',
+  });
+});

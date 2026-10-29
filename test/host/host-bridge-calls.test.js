@@ -26,7 +26,7 @@ import { createValuServices } from '../../src/services/api.js';
 import { defaultMakeGrants, defaultMakeGuru } from '../../src/host/HostBridge.js';
 import { MSG, POPUP_MSG } from '../../src/host/protocol.js';
 import {
-  APP, APP_ORIGIN, HOST_ORIGIN, OTHER_ORIGIN, SESSION, codedError, deferred, fakeAuth, settle, setup,
+  APP, APP_ORIGIN, HOST_ORIGIN, OTHER_ORIGIN, SESSION, codedError, deferred, fakeAuth, fakeResolver, settle, setup,
 } from '../helpers/hostBridgeFakes.js';
 
 // ---------------------------------------------------------------------------
@@ -1794,4 +1794,63 @@ test('a hello from the bound origin after calls still re-sends api:ready and ser
   ask(env, 'Users', 'current', {}, 2);
   await settle();
   assert.equal(env.last().data.name, MSG.CALL_COMPLETED);
+});
+
+// ---------------------------------------------------------------------------
+// The declaration (the owner's decision, 2026-10-29)
+// ---------------------------------------------------------------------------
+
+const DECLARED = 'valuguru.apps.permissions.declared';
+const MISS = 'valuguru.apps.permissions.miss';
+
+/** A bridge for an app whose resolve answer switches the rule on, and a Guru that declares `scopes`. */
+async function declaring({ mode = 'enforce', scopes = ['users:read'], granted = [] } = {}) {
+  const guru = guruWithGrants(granted, { [DECLARED]: () => ({ mode, scopes }), [MISS]: () => ({ ok: true }) });
+  return ready({ guru, resolver: fakeResolver({ [APP_ORIGIN]: { ...APP, permissionMode: mode } }) });
+}
+
+test('enforce: a declared call runs; an undeclared one is refused permission_not_declared and the miss is reported', async () => {
+  const env = await declaring();
+  ask(env, 'Users', 'current', {}, 1);
+  ask(env, 'Networks', 'get-current-network', {}, 2);
+  await until(() => replyTo(env, 2));
+  assert.equal(replyTo(env, 1).message.error, undefined);
+  assert.deepEqual(replyTo(env, 2).message.error, {
+    status: true, code: 403, message: 'permission_not_declared', scope: 'networks:read',
+    description: 'This app does not declare networks:read in valu-permissions.json.',
+  });
+  assert.deepEqual(env.guru.ops(DECLARED).map((r) => r.params), [{ appId: APP.address, devAppId: APP.devAppId }]);
+  assert.deepEqual(env.guru.ops(MISS).map((r) => r.params), [
+    { appId: APP.address, devAppId: APP.devAppId, scope: 'networks:read', mode: 'enforce', path: 'host' },
+  ]);
+});
+
+test('report: the undeclared call runs, and is counted', async () => {
+  const env = await declaring({ mode: 'report', scopes: [] });
+  ask(env, 'Users', 'current', {}, 1);
+  await until(() => replyTo(env, 1));
+  assert.equal(replyTo(env, 1).message.error, undefined);
+  assert.equal(env.guru.ops(MISS).length, 1);
+});
+
+test('an app whose resolve answer does not switch the rule on never asks Valu Guru for its declaration', async () => {
+  const env = await ready();
+  ask(env, 'Users', 'current', {}, 1);
+  await settle();
+  assert.equal(env.made.guru.length, 0);
+});
+
+test('enforce: a consent request for an undeclared scope is refused, and the consent page is never offered it', async () => {
+  const env = await declaring({ scopes: ['users:read'] });
+  env.call(MSG.CONSENT, { scopes: ['groups:read'], nonce: 'n1', requestId: 3 });
+  await until(() => replyTo(env, 3));
+  assert.deepEqual(replyTo(env, 3).message, { approved: false, reason: 'permission_not_declared' });
+  assert.equal(env.bridge.pendingConsent('n1'), null);
+});
+
+test('enforce: a declared consent scope is still asked for', async () => {
+  const env = await declaring({ scopes: ['groups:read'] });
+  env.call(MSG.CONSENT, { scopes: ['groups:read'], nonce: 'n2', requestId: 4 });
+  await until(() => env.bridge.pendingConsent('n2') !== null);
+  assert.deepEqual(env.bridge.pendingConsent('n2').scopes, ['groups:read']);
 });

@@ -13,6 +13,11 @@
 // is said in `error`: a publish is never refused over this file (the owner's
 // decision, 2026-10-28), so the useful answer is what CAN be read, plus why the
 // rest could not.
+//
+// The file is binding (the owner's decision, 2026-10-29): an app may call only
+// the scopes it DECLARES, and an entry declares its scope only when it gives a
+// reason. An entry without one is still read and shown, so the gap is visible,
+// but `declared` leaves it out.
 // ===========================================================================
 import { TIER_OF } from '../host/Permissions.js';
 
@@ -78,7 +83,11 @@ const sorted = (values) => [...new Set(values)].sort();
  * @param {{permissions?: DeclaredPermission[]}|null} file
  * @param {string[]} detectedScopes
  * @param {Iterable<string>} [knownScopes] defaults to every scope this valu-api knows
- * @returns {{required: string[], missingFromFile: string[], unusedInFile: string[], unknown: string[], noReason: string[]}}
+ * `declared` is the file alone: its scopes that have a reason. That is the
+ * list the host and Valu Social enforce; the scan only predicts which calls it
+ * will refuse (`missingFromFile`), it never widens it.
+ *
+ * @returns {{required: string[], declared: string[], missingFromFile: string[], unusedInFile: string[], unknown: string[], noReason: string[]}}
  */
 export function comparePermissions(file, detectedScopes, knownScopes = Object.keys(TIER_OF)) {
   const declared = Array.isArray(file?.permissions) ? file.permissions : [];
@@ -88,9 +97,23 @@ export function comparePermissions(file, detectedScopes, knownScopes = Object.ke
   const required = sorted([...listed, ...used]);
   return {
     required,
+    declared: declaredScopes(file),
     missingFromFile: sorted([...used].filter((scope) => !listed.has(scope))),
     unusedInFile: sorted([...listed].filter((scope) => !used.has(scope))),
     unknown: required.filter((scope) => !known.has(scope)),
     noReason: sorted(declared.filter((p) => !p.why).map((p) => p.scope)),
   };
+}
+
+/**
+ * The scopes a file declares: the ones listed WITH a reason, sorted. An entry
+ * without a reason declares nothing (the owner's decision, 2026-10-29).
+ * @param {{permissions?: DeclaredPermission[]}|null} file
+ * @returns {string[]}
+ */
+export function declaredScopes(file) {
+  const permissions = Array.isArray(file?.permissions) ? file.permissions : [];
+  return sorted(permissions
+    .filter((p) => typeof p?.scope === 'string' && typeof p.why === 'string' && p.why.trim() !== '')
+    .map((p) => p.scope));
 }
