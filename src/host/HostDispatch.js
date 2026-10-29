@@ -24,6 +24,7 @@ import { ERROR_CODES } from '../Errors.js';
 import { findDescriptor } from '../services/descriptors.js';
 import { validationAck } from '../services/validate.js';
 import { cartCount as countCartRows } from './commerceShapes.js';
+import { checkDeclared, readDeclaration } from './Permissions.js';
 import { HOST_ERRORS, MSG } from './protocol.js';
 
 /**
@@ -46,6 +47,10 @@ import { HOST_ERRORS, MSG } from './protocol.js';
  * @property {() => {slug: string}} app the bound app: its slug is the only id stamped on anything.
  * @property {() => {call: Function}} services the SDK's service functions over the master.
  * @property {() => {has: (scope: string) => Promise<boolean>}} grants may throw when the Guru client cannot be made.
+ * @property {() => Promise<{mode: string, scopes: string[]|null}>} [declaration] the scopes the app declares and
+ *   how the rule applies (`Permissions.readDeclaration`); may reject when it cannot be read. Missing: the rule is off.
+ * @property {(scope: string, mode: string) => void} [reportMiss] a call to a scope the app does not declare (counted,
+ *   never awaited, never throws).
  * @property {() => object} guru the Guru client; may throw the same way.
  * @property {() => object|null} user the master's `user_info.user`.
  * @property {number} callTimeoutMs the longest one attempt of a call may take (`config.callTimeoutMs`).
@@ -106,11 +111,21 @@ export function callRefusal({ code, scope }) {
     case HOST_ERRORS.NOT_A_MEMBER: return ackError(ACK.UNAUTHENTICATED, HOST_ERRORS.NOT_A_MEMBER);
     case HOST_ERRORS.FORBIDDEN: return ackError(ERROR_CODES.FORBIDDEN, HOST_ERRORS.FORBIDDEN);
     case HOST_ERRORS.CONSENT_REQUIRED: return ackError(ERROR_CODES.FORBIDDEN, HOST_ERRORS.CONSENT_REQUIRED, { scope });
+    case HOST_ERRORS.PERMISSION_NOT_DECLARED:
+      return ackError(ERROR_CODES.FORBIDDEN, HOST_ERRORS.PERMISSION_NOT_DECLARED, { scope, description: notDeclaredMessage(scope) });
     case HOST_ERRORS.NOT_AVAILABLE: return ackError(ERROR_CODES.UNSUPPORTED, HOST_ERRORS.NOT_AVAILABLE);
     case HOST_ERRORS.UNAVAILABLE: return ackError(ACK.UNAVAILABLE, HOST_ERRORS.UNAVAILABLE);
     default: return ackError(ERROR_CODES.UNKNOWN_FUNCTION, HOST_ERRORS.UNKNOWN_FUNCTION);
   }
 }
+
+/**
+ * What an app is told when it calls a scope it does not declare: fixed words
+ * and the scope's name, nothing else from the call.
+ * @param {string} scope
+ */
+export const notDeclaredMessage = (scope) =>
+  `This app does not declare ${typeof scope === 'string' ? scope : 'that permission'} in valu-permissions.json.`;
 
 const INTENT_REFUSALS = Object.freeze({
   [HOST_ERRORS.SIGN_IN_REQUIRED]: 'sign in to use this',
@@ -119,12 +134,15 @@ const INTENT_REFUSALS = Object.freeze({
   [HOST_ERRORS.CONSENT_REQUIRED]: 'the user has not allowed this app to do that yet',
   [HOST_ERRORS.NOT_AVAILABLE]: 'that is not available through the valu-api host',
   [HOST_ERRORS.UNAVAILABLE]: 'the permission check could not be made; try again',
+  [HOST_ERRORS.PERMISSION_NOT_DECLARED]: 'this app does not declare that permission in valu-permissions.json',
 });
 
 /** What a refused intent answers, from the same verdict. A code that is none of these is `not_available`. */
 export function intentRefusal({ code, scope }) {
   const known = Object.hasOwn(INTENT_REFUSALS, code) ? code : HOST_ERRORS.NOT_AVAILABLE;
-  return intentError(known, INTENT_REFUSALS[known], known === HOST_ERRORS.CONSENT_REQUIRED ? { scope } : undefined);
+  const withScope = known === HOST_ERRORS.CONSENT_REQUIRED || known === HOST_ERRORS.PERMISSION_NOT_DECLARED;
+  const error = known === HOST_ERRORS.PERMISSION_NOT_DECLARED ? notDeclaredMessage(scope) : INTENT_REFUSALS[known];
+  return intentError(known, error, withScope ? { scope } : undefined);
 }
 
 /**
@@ -261,8 +279,37 @@ export const notAvailable = (what) => ({
 });
 
 /**
+ * The declaration's verdict for `scope` (`Permissions.checkDeclared`), with a
+ * miss reported. The declaration is read only for a tier that can run; when it
+ * cannot be read the request is refused as `unavailable`, never let through:
+ * a rule that is on must not switch itself off when a server is slow.
+ * @param {DispatchHost} host
+ * @param {string|null} scope
+ */
+async function declarationVerdict(host, scope) {
+  if (typeof host.declaration !== 'function') return { ok: true };
+  const tier = host.permissions.tierOf?.(scope);
+  if (tier !== 'basic' && tier !== 'consent') return { ok: true };
+  let declaration;
+  try {
+    declaration = await host.declaration();
+  } catch (error) {
+    host.log('warn', `the app's declared permissions could not be read (${error?.code ?? error?.name ?? 'error'})`);
+    return { ok: false, code: HOST_ERRORS.UNAVAILABLE };
+  }
+  const verdict = (host.permissions.checkDeclared ?? checkDeclared)({ scope, declaration });
+  if (verdict.miss) {
+    try {
+      host.reportMiss?.(scope, readDeclaration(declaration).mode);
+    } catch { /* counting a miss never decides a call */ }
+  }
+  return verdict.ok ? { ok: true } : { ok: false, code: verdict.code };
+}
+
+/**
  * May a request that needs `scope` run? `{ok:true}`, or `{ok:false, code,
- * scope}`: the code of `Permissions.decide` (`forbidden`, `consent_required`,
+ * scope}`: `permission_not_declared` when the app does not declare the scope
+ * (`Permissions.checkDeclared`, before anything else), the code of `Permissions.decide` (`forbidden`, `consent_required`,
  * `not_available`, `unknown_function`), the signed-out code (`sign_in_required`,
  * or `not_a_member` after a sign-in the home network refused; also when the
  * session went while the grants were being read), or `unavailable` (the grants
@@ -273,6 +320,8 @@ export const notAvailable = (what) => ({
  */
 export async function permit(host, scope) {
   if (!host.signedIn()) return { ok: false, code: signedOutCode(host) };
+  const declared = await declarationVerdict(host, scope);
+  if (!declared.ok) return { ...declared, scope };
   let verdict = host.permissions.decide({ scope });
   if (!verdict.ok && verdict.code === HOST_ERRORS.CONSENT_REQUIRED) {
     let hasGrant;

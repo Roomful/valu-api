@@ -138,7 +138,9 @@ import {
   isIdentityReply, isPlainObject, notAvailable, orAfter, permit, validConsentScopes,
 } from './HostDispatch.js';
 import { HostSession, SUPERSEDED } from './HostSession.js';
+import { DeclarationStore } from './DeclarationStore.js';
 import * as Permissions from './Permissions.js';
+import { PERMISSION_MODES } from './Permissions.js';
 import { isLocalOrigin, isOrigin, matchesOrigin } from './origins.js';
 import {
   CONNECTION_STATE, HOST_ERRORS, MSG, POPUP_MSG, PROTOCOL_VERSION, assertNoHostLeak, blockedOutbound, parseAppMessage,
@@ -289,6 +291,19 @@ export const defaultMakeGuru = (session) => new GuruClient({
 /** The default `makeGrants`: this app's grants, by its canonical address. */
 export const defaultMakeGrants = (guru, app) => new GrantsStore({ guru, appAddress: app.address });
 
+/** The default `makeDeclarations`: what this app declares, by its address and its Developer Portal id. */
+export const defaultMakeDeclarations = (guru, app) => new DeclarationStore({
+  guru, app: { appId: app.address, devAppId: app.devAppId ?? null }, path: 'host',
+});
+
+/**
+ * Is the declaration checked for this app? The resolve answer says
+ * (`permissionMode`); an answer without it is a server from before the rule, so
+ * no Guru round trip is made for it at all.
+ */
+const declarationChecked = (app) => app?.permissionMode === PERMISSION_MODES.REPORT
+  || app?.permissionMode === PERMISSION_MODES.ENFORCE;
+
 export class HostBridge {
   #win;
   #resolver;
@@ -298,6 +313,7 @@ export class HostBridge {
   #makeServices;
   #makeGuru;
   #makeGrants;
+  #makeDeclarations;
   #commerce;
   #permissions;
   #fetch;
@@ -340,6 +356,7 @@ export class HostBridge {
   /** The Valu Guru client and the grants over it, built on first need. */
   #guru = null;
   #grants = null;
+  #declarations = null;
   /** The Commerce events the app subscribed to. */
   #subscribed = new Set();
   /** Which cart read is the latest: an older one that finishes late is not pushed. */
@@ -379,6 +396,8 @@ export class HostBridge {
    *   {@link defaultMakeGuru}.
    * @param {(guru: object, app: object) => object} [options.makeGrants] A `GrantsStore` over that client.
    *   Default: {@link defaultMakeGrants}.
+   * @param {(guru: object, app: object) => object} [options.makeDeclarations] A `DeclarationStore` over that
+   *   client, made only for an app whose resolve answer switches the rule on. Default: {@link defaultMakeDeclarations}.
    * @param {object} [options.commerce] The Commerce intent table (default: the module).
    * @param {object} [options.permissions] The permission tiers (default: the module).
    * @param {HostConfig} options.config
@@ -386,7 +405,7 @@ export class HostBridge {
    * @param {Function} [options.fetchImpl] A bound `fetch`: the default `makeServices` and the Guru mint use it.
    */
   constructor({
-    win, resolver, auth, sessionStore, makeConnection, makeServices, makeGuru, makeGrants,
+    win, resolver, auth, sessionStore, makeConnection, makeServices, makeGuru, makeGrants, makeDeclarations,
     commerce = CommerceIntents, permissions = Permissions, config, log = consoleLog, fetchImpl,
   } = {}) {
     if (!win || typeof win.addEventListener !== 'function') throw new TypeError('HostBridge needs a window.');
@@ -403,6 +422,7 @@ export class HostBridge {
     this.#makeServices = makeServices ?? defaultMakeServices(this.#fetch);
     this.#makeGuru = makeGuru ?? defaultMakeGuru;
     this.#makeGrants = makeGrants ?? defaultMakeGrants;
+    this.#makeDeclarations = makeDeclarations ?? defaultMakeDeclarations;
     this.#commerce = commerce;
     this.#permissions = permissions;
     this.#config = normalizeConfig(config);
@@ -428,6 +448,8 @@ export class HostBridge {
       app: () => this.#bound.app,
       services: () => this.#servicesFor(),
       grants: () => this.#grantsFor(),
+      declaration: () => this.#declarationFor(),
+      reportMiss: (scope, mode) => this.#declarationsFor()?.reportMiss(scope, mode),
       guru: () => this.#guruFor(),
       user: () => this.#session.masterUser,
       networkId: () => this.#session.networkId(),
@@ -637,7 +659,10 @@ export class HostBridge {
         void this.#serve(INTENT_REPLIES, id, (track) => answerIntent(this.#seams, message, track));
         return;
       case MSG.CONSENT:
-        this.#requestConsent(message, id);
+        void this.#requestConsent(message, id).catch((error) => {
+          this.#log('warn', `a consent request failed (${error?.code ?? error?.name ?? 'error'})`);
+          this.#post(MSG.CONSENT_COMPLETED, { approved: false, reason: HOST_ERRORS.UNAVAILABLE }, id);
+        });
         return;
       default:
         // `api:run-command` and anything unknown: in dedicated mode the app owns
@@ -737,6 +762,20 @@ export class HostBridge {
     return this.#grants;
   }
 
+  /** What the app declares, made over the Guru client on first need; `null` when the rule is off for it. */
+  #declarationsFor() {
+    const app = this.#bound?.app;
+    if (!declarationChecked(app)) return null;
+    if (!this.#declarations) this.#declarations = this.#makeDeclarations(this.#guruFor(), app);
+    return this.#declarations;
+  }
+
+  /** The declaration a call is checked against: the rule switched off without a round trip when it is off. */
+  async #declarationFor() {
+    const store = this.#declarationsFor();
+    return store ? store.get() : { mode: PERMISSION_MODES.OFF, scopes: null };
+  }
+
   /** The network the master is in now; what a Guru request is addressed to. */
   #networkId() {
     return this.#session.networkId();
@@ -828,14 +867,32 @@ export class HostBridge {
 
   // --- consent -------------------------------------------------------------
 
-  /** `host:consent`: register what the consent page will show, and wait for its decision. */
-  #requestConsent({ scopes, nonce }, id) {
+  /**
+   * `host:consent`: register what the consent page will show, and wait for its
+   * decision. Under `enforce`, a scope the app does not declare is never offered:
+   * the whole request is refused `permission_not_declared`, as a call would be.
+   */
+  async #requestConsent({ scopes, nonce }, id) {
     const refuse = (reason) => this.#post(MSG.CONSENT_COMPLETED, { approved: false, reason }, id);
     if (!this.#session.signedIn) return refuse(this.#signedOutCode());
     const wanted = validConsentScopes(scopes, (scope) => this.#permissions.tierOf(scope));
     // The nonce names a request, so one that is already waiting is not rewritten.
     if (!wanted || typeof nonce !== 'string' || nonce === '' || nonce.length > NONCE_MAX || this.#consents.has(nonce)) {
       return refuse(HOST_ERRORS.INVALID_REQUEST);
+    }
+    if (this.#declarationsFor()) {
+      const epoch = this.#epoch;
+      let declaration;
+      try {
+        declaration = await this.#declarationFor();
+      } catch (error) {
+        this.#log('warn', `the app's declared permissions could not be read (${error?.code ?? error?.name ?? 'error'})`);
+        return refuse(HOST_ERRORS.UNAVAILABLE);
+      }
+      if (epoch !== this.#epoch || !this.#session.signedIn) return refuse(this.#signedOutCode());
+      const undeclared = wanted.filter((scope) => !Permissions.checkDeclared({ scope, declaration }).ok);
+      if (undeclared.length > 0) return refuse(HOST_ERRORS.PERMISSION_NOT_DECLARED);
+      if (this.#consents.has(nonce)) return refuse(HOST_ERRORS.INVALID_REQUEST);
     }
     if (this.#consents.size >= this.#config.maxInFlight) return refuse(HOST_ERRORS.BUSY);
     const { name, address } = this.#bound.app;
@@ -1152,6 +1209,7 @@ export class HostBridge {
     const closing = this.#session.drop(why);
     this.#guru = null;
     this.#grants = null;
+    this.#declarations = null;
     this.#services = null;
     this.#subscribed = new Set();
     this.#cartSeq += 1;
@@ -1199,6 +1257,7 @@ export class HostBridge {
   #onReconnected(changed) {
     try {
       this.#grants?.invalidate?.();
+      this.#declarations?.invalidate?.();
     } catch (error) {
       this.#log('warn', `the grants cache could not be dropped (${error?.name ?? 'error'})`);
     }

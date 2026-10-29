@@ -44,3 +44,37 @@ export class ValuServiceError extends Error {
 export const errorAck = (code, message, description) => ({
   error: { status: true, code, message, ...(description ? { description } : {}) },
 });
+
+/**
+ * The `message` of an ack the host or Valu Social refuses because the app's
+ * valu-permissions.json does not declare the scope (`error.scope` names it).
+ * The same string as `HOST_ERRORS.PERMISSION_NOT_DECLARED`.
+ */
+export const PERMISSION_NOT_DECLARED = 'permission_not_declared';
+
+/**
+ * Thrown by the unwrapping call paths for a call the app's
+ * valu-permissions.json does not allow: the fix is a line in that file (the
+ * scope, and a reason), not a retry and not a question to the user.
+ */
+export class PermissionNotDeclaredError extends ValuServiceError {
+  /**
+   * @param {string} message
+   * @param {{code?: number, description?: string, service?: string, fn?: string, ack?: object, scope?: string}} [detail]
+   */
+  constructor(message, detail = {}) {
+    super(message, detail);
+    this.name = 'PermissionNotDeclaredError';
+    this.scope = detail.scope ?? null;
+  }
+}
+
+/**
+ * Is this ack (or a thrown error carrying one) a refusal for a scope the app
+ * does not declare?
+ * @param {unknown} ackOrError
+ */
+export function isPermissionNotDeclared(ackOrError) {
+  const ack = ackOrError instanceof ValuServiceError ? ackOrError.ack : ackOrError;
+  return ack?.error?.message === PERMISSION_NOT_DECLARED;
+}

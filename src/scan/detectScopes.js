@@ -25,6 +25,7 @@
 // ===========================================================================
 import { SERVICE_DESCRIPTORS, findDescriptor } from '../services/descriptors.js';
 import { scopeOfIntent } from '../host/Permissions.js';
+import { scopeOfApiCommand, scopeOfAppIntent, scopeOfServiceIntent } from '../host/BridgeScopes.js';
 import { SCOPE_PATTERN } from './permissionsFile.js';
 
 /** At most this many findings are kept for one call name, and this many in all. */
@@ -325,7 +326,14 @@ function scanFile(path, original) {
     const scope = descriptor
       ? descriptor.scopes[0]
       : scopeOfIntent(INTENT_SERVICES[service.toLowerCase()] ?? service, action);
-    if (scope) findings.push({ scope, call: `${service}.${action}`, kind: 'intent', file: path, line: at(m.index) });
+    if (scope) {
+      findings.push({ scope, call: `${service}.${action}`, kind: 'intent', file: path, line: at(m.index) });
+      continue;
+    }
+    // Not the host's: an intent of Valu Social's older bridge, a service's or
+    // an application's. Its scope is what Valu Social will check it against.
+    const bridged = scopeOfServiceIntent(service, action) ?? scopeOfAppIntent(service, action);
+    if (bridged) findings.push({ scope: bridged, call: `${service}.${action}`, kind: 'bridge', file: path, line: at(m.index) });
     else bridge.push({ scope: null, call: `${service}.${action}`, kind: 'bridge', file: path, line: at(m.index) });
   }
   for (const m of matches(CODE_PATTERNS.intentAny, code)) {
@@ -336,7 +344,11 @@ function scanFile(path, original) {
   for (const m of literalMatches(LITERAL_PATTERNS.getApi)) {
     const api = m[2];
     if (!m[3]) bridge.push({ scope: null, call: api, kind: 'bridge', file: path, line: at(m.index) });
-    else if (m[4]) bridge.push({ scope: null, call: `${api}.${m[5]}`, kind: 'bridge', file: path, line: at(m.index) });
+    else if (m[4]) {
+      const scope = scopeOfApiCommand(api, m[5]);
+      const finding = { scope, call: `${api}.${m[5]}`, kind: 'bridge', file: path, line: at(m.index) };
+      (scope ? findings : bridge).push(finding);
+    }
     else unread(m.index);
   }
   for (const m of matches(CODE_PATTERNS.getApiDynamic, code)) unread(m.index);

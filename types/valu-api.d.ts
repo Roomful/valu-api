@@ -270,6 +270,15 @@ declare module '@arkeytyp/valu-api' {
         ack?: ValuAck;
     }
 
+    /** `'permission_not_declared'`: the ack `message` of a call to a scope the app's valu-permissions.json does not declare. */
+    export const PERMISSION_NOT_DECLARED: 'permission_not_declared';
+    /** Thrown for a call the app's valu-permissions.json does not declare. Fix: declare `scope`, with a reason. */
+    export class PermissionNotDeclaredError extends ValuServiceError {
+        scope: string | null;
+    }
+    /** Is this ack, or a thrown `ValuServiceError`, a refusal for an undeclared scope? */
+    export function isPermissionNotDeclared(ackOrError: unknown): boolean;
+
     export function isAckError(ack?: ValuAck): boolean;
     export function ackErrorMessage(ack?: ValuAck, fallback?: string): string;
     export function unwrapAck<T = any>(ack: ValuAck<T>, context?: { service?: string; fn?: string; fallback?: string }): T;
@@ -1105,7 +1114,56 @@ declare module '@arkeytyp/valu-api' {
         appState?: AppState | null;
         /** Default: the console. A blocked credential is logged by key path, never by value. */
         log?: (level: 'warn' | 'error', message: string) => void;
+        /** The app's permission gate (`createFrameGate(...).permit`); a refusal is answered as the host
+         * answers it. Without one nothing is gated (Valu Social's own apps). */
+        gate?: (scope: string) => Promise<PermissionVerdict>;
     }
+
+    export type PermissionMode = 'off' | 'report' | 'enforce';
+    export interface PermissionDeclaration { mode: PermissionMode; scopes: string[] | null; }
+    export type PermissionVerdict = { ok: true } | { ok: false; code: string; scope: string | null };
+    export const PERMISSION_MODES: Readonly<{ OFF: 'off'; REPORT: 'report'; ENFORCE: 'enforce' }>;
+    /** An app may call only the scopes it declares; asked only for the basic and consent tiers. */
+    export function checkDeclared(call: { scope: string | null | undefined; declaration: unknown }):
+        { ok: true; miss?: true } | { ok: false; code: 'permission_not_declared'; miss: true };
+    export function readDeclaration(value: unknown): PermissionDeclaration;
+    export function tierOf(scope: string): 'basic' | 'consent' | 'forbidden' | 'local' | null;
+    export function scopeOfIntent(service: string, action: string): string | null;
+    /** The scopes of Valu Social's older bridge. `null` is a refusal: not served to a Developer Portal app. */
+    export const BRIDGE_SCOPES: readonly string[];
+    export function scopeOfServiceIntent(service: string, action: string): string | null;
+    export function scopeOfAppIntent(appId: string, action?: string | null, target?: { toFrame?: boolean }): string | null;
+    export function scopeOfApiCommand(api: string, command: string): string | null;
+
+    /** What an app declares, as Valu recorded it, read over Valu Guru and kept for a minute. */
+    export class DeclarationStore {
+        constructor(options: {
+            guru: { request(op: string, params?: object): Promise<any> };
+            app: { appId?: string | null; devAppId?: string | null };
+            path?: 'host' | 'embedded';
+            now?: () => number;
+            ttlMs?: number;
+        });
+        get(): Promise<PermissionDeclaration>;
+        reportMiss(scope: string, mode: string): void;
+        invalidate(): void;
+    }
+
+    /** The user's grants for one app, read over Valu Guru and kept for a minute. */
+    export class GrantsStore {
+        constructor(options: { guru: { request(op: string, params?: object): Promise<any> }; appAddress: string; now?: () => number; ttlMs?: number });
+        has(scope: string): Promise<boolean>;
+        grant(scopes: string[]): Promise<void>;
+        invalidate(): void;
+    }
+
+    /** The permission gate for a framed app: off, report or enforce, by the app's declaration. Never rejects. */
+    export function createFrameGate(options: {
+        declarations: { get(): Promise<unknown>; reportMiss?(scope: string, mode: string): void };
+        grants: { has(scope: string): Promise<boolean>; grant(scopes: string[]): Promise<void> };
+        ask: (scopes: string[]) => Promise<boolean>;
+        log?: (level: 'warn' | 'error', message: string) => void;
+    }): Readonly<{ permit(scope: string | null | undefined): Promise<PermissionVerdict> }>;
 
     export interface FrameServer {
         /** The `valuApi` key for a frame's `api:ready`: who the user and the network are,
@@ -1321,7 +1379,7 @@ declare module '@arkeytyp/valu-api' {
     export interface DeclaredPermission { scope: string; why: string; }
     export interface PermissionsFile { present: boolean; error: string | null; permissions: DeclaredPermission[]; }
     export interface PermissionsComparison {
-        required: string[]; missingFromFile: string[]; unusedInFile: string[]; unknown: string[]; noReason: string[];
+        required: string[]; declared: string[]; missingFromFile: string[]; unusedInFile: string[]; unknown: string[]; noReason: string[];
     }
     export function detectScopes(files: ReadonlyArray<{ path: string; text: string }>): ScopeScan;
     export function parsePermissionsFile(text: string | null | undefined): PermissionsFile;
@@ -1330,6 +1388,8 @@ declare module '@arkeytyp/valu-api' {
         detectedScopes: readonly string[],
         knownScopes?: Iterable<string>,
     ): PermissionsComparison;
+    /** The scopes the file declares: listed WITH a reason. The only list Valu enforces. */
+    export function declaredScopes(file: { permissions?: DeclaredPermission[] } | null): string[];
     export const SCOPE_PATTERN: RegExp;
     export const WHY_MAX: number;
     export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>>;

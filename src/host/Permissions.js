@@ -13,7 +13,14 @@
 //   local      runs in the app page, not through the host (`Http.*`), so it
 //              never passes this gate (`not_available`).
 //
-// `decide` is the whole rule, a pure function of the scope and of whether the
+// Before the tier, the DECLARATION (the owner's decision, 2026-10-29): an app
+// may call only the scopes its valu-permissions.json declares, as Valu
+// recorded it. `checkDeclared` is that rule, for the two tiers that can run
+// (basic, consent); the others are refused by their tier anyway. The rule is
+// rolled out in three modes: `off` (not checked), `report` (checked, counted,
+// not refused) and `enforce`.
+//
+// `decide` is the whole tier rule, a pure function of the scope and of whether the
 // grant is held. WHERE the grant is read from (Valu Guru, cached 60 s) and the
 // consent flow that creates one are the host's business, not this module's.
 //
@@ -47,6 +54,10 @@ export const TIER_OF = Object.freeze({
   'applicationstorage:read': 'basic',
   'applicationstorage:write': 'basic',
   'application:identity': 'basic',
+  // basic, the older Valu Social bridge only (BridgeScopes.js): open Valu Social's own screens, and send a
+  // request to another framed app, which decides for itself what it does with it
+  'ui:open': 'basic',
+  'apps:intent': 'basic',
   // consent: reaches other people, or the user's data, or money
   'users:write': 'consent',
   'rooms:read': 'consent',
@@ -64,6 +75,13 @@ export const TIER_OF = Object.freeze({
   'commerce:read': 'consent',
   'commerce:write': 'consent',
   'commerce:sell': 'consent',
+  // consent, the older Valu Social bridge only (BridgeScopes.js)
+  'networks:write': 'consent',
+  'videochat:read': 'consent',
+  'videochat:write': 'consent',
+  'hubs:read': 'consent',
+  'hubs:write': 'consent',
+  'valuguru:write': 'consent',
   // local: runs in the app page
   'http:read': 'local',
   'http:write': 'local',
@@ -170,4 +188,46 @@ export function decide({ scope, hasGrant = false } = {}) {
     default:
       return { ok: false, code: HOST_ERRORS.UNKNOWN_FUNCTION };
   }
+}
+
+/** How the declaration is applied: not at all, counted only, or refused. */
+export const PERMISSION_MODES = Object.freeze({ OFF: 'off', REPORT: 'report', ENFORCE: 'enforce' });
+
+const MODES = new Set(Object.values(PERMISSION_MODES));
+
+/**
+ * A declaration as the host and Valu Social hold it: `{mode, scopes}`, read
+ * back into shape. Anything that is not one is `off` with no list: a server
+ * that does not know the rule yet must not switch it on by accident.
+ * @param {unknown} value
+ * @returns {{mode: 'off'|'report'|'enforce', scopes: string[]|null}}
+ */
+export function readDeclaration(value) {
+  const mode = MODES.has(value?.mode) ? value.mode : PERMISSION_MODES.OFF;
+  const scopes = Array.isArray(value?.scopes) ? value.scopes.filter((scope) => typeof scope === 'string') : null;
+  return { mode, scopes };
+}
+
+/**
+ * Does the app declare `scope`? Asked only for the tiers that can run
+ * (`basic`, `consent`): a forbidden, local or unknown scope keeps its own answer.
+ *
+ * - `ok: true` and no `miss`: declared, or the rule is off, or the tier is not asked about.
+ * - `ok: true, miss: true`: not declared, and the rule is only being reported.
+ * - `ok: false, code: 'permission_not_declared', miss: true`: refused.
+ *
+ * A list of `null` (no file, no record) declares nothing.
+ *
+ * @param {{scope: string|null|undefined, declaration: unknown}} call
+ * @returns {{ok: true, miss?: true}|{ok: false, code: string, miss: true}}
+ */
+export function checkDeclared({ scope, declaration } = {}) {
+  const tier = tierOf(scope);
+  if (tier !== 'basic' && tier !== 'consent') return { ok: true };
+  const { mode, scopes } = readDeclaration(declaration);
+  if (mode === PERMISSION_MODES.OFF) return { ok: true };
+  if (scopes?.includes(scope)) return { ok: true };
+  return mode === PERMISSION_MODES.ENFORCE
+    ? { ok: false, code: HOST_ERRORS.PERMISSION_NOT_DECLARED, miss: true }
+    : { ok: true, miss: true };
 }

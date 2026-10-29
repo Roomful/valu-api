@@ -127,6 +127,9 @@ export const HOST_ERRORS = Object.freeze({
   NOT_A_MEMBER: 'not_a_member',
   SESSION_EXPIRED: 'session_expired',
   UNKNOWN_FUNCTION: 'unknown_function',
+  // The app's valu-permissions.json does not declare the scope (the owner's
+  // decision, 2026-10-29: an app may call only what it declares).
+  PERMISSION_NOT_DECLARED: 'permission_not_declared',
   // Why a sign-in token was not taken, or a session ended: the `reason` of an
   // `auth` push.
   INVALID_TOKEN: 'invalid_token',

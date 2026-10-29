@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  parsePermissionsFile, comparePermissions, SCOPE_PATTERN, WHY_MAX,
+  parsePermissionsFile, comparePermissions, declaredScopes, SCOPE_PATTERN, WHY_MAX,
 } from '../../src/scan/permissionsFile.js';
 
 test('no file is nothing declared, and not an error', () => {
@@ -71,6 +71,7 @@ test('comparing the file with the code', () => {
   const file = { permissions: [{ scope: 'rooms:read', why: 'x' }, { scope: 'events:read', why: '' }] };
   assert.deepEqual(comparePermissions(file, ['rooms:read', 'textchat:write']), {
     required: ['events:read', 'rooms:read', 'textchat:write'],
+    declared: ['rooms:read'],
     missingFromFile: ['textchat:write'],
     unusedInFile: ['events:read'],
     unknown: [],
@@ -87,6 +88,25 @@ test('an unknown scope is flagged wherever it came from', () => {
 
 test('no file and no calls is nothing at all', () => {
   assert.deepEqual(comparePermissions(parsePermissionsFile(null), []), {
-    required: [], missingFromFile: [], unusedInFile: [], unknown: [], noReason: [],
+    required: [], declared: [], missingFromFile: [], unusedInFile: [], unknown: [], noReason: [],
   });
+});
+
+test('only an entry with a reason declares its scope', () => {
+  const file = parsePermissionsFile(JSON.stringify({ permissions: [
+    { scope: 'rooms:read', why: 'Lists your rooms.' },
+    { scope: 'events:read', why: '   ' },
+    { scope: 'textchat:write' },
+  ] }));
+  assert.deepEqual(declaredScopes(file), ['rooms:read']);
+});
+
+test('the scan never widens what is declared', () => {
+  const file = { permissions: [{ scope: 'rooms:read', why: 'x' }] };
+  assert.deepEqual(comparePermissions(file, ['rooms:read', 'rooms:write']).declared, ['rooms:read']);
+});
+
+test('no file declares nothing', () => {
+  assert.deepEqual(declaredScopes(null), []);
+  assert.deepEqual(declaredScopes(parsePermissionsFile('not json')), []);
 });

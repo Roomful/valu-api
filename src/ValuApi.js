@@ -20,6 +20,13 @@ export { createValuApp } from "./createValuApp.js";
 // Embedded mode, Valu Social's half: what answers a framed app's `api:call`
 // (docs/connecting.md, "Inside Valu Social").
 export { createFrameServer } from "./embed/FrameServer.js";
+// The permission gate Valu Social holds a framed app to, and what it reads:
+// the app's declared scopes and the user's grants, over Valu Guru.
+export { createFrameGate } from "./embed/FrameGate.js";
+export { DeclarationStore } from "./host/DeclarationStore.js";
+export { GrantsStore } from "./host/GrantsStore.js";
+export { PERMISSION_MODES, checkDeclared, readDeclaration, tierOf, scopeOfIntent } from "./host/Permissions.js";
+export { BRIDGE_SCOPES, scopeOfApiCommand, scopeOfAppIntent, scopeOfServiceIntent } from "./host/BridgeScopes.js";
 export { SocketTransport } from "./transport/SocketTransport.js";
 export { BrowserSocketAdapter } from "./socket/BrowserSocketAdapter.js";
 export { NodeSocketAdapter } from "./socket/NodeSocketAdapter.js";
@@ -38,7 +45,9 @@ export {
   ROOMFUL_SOCKET_PATH, SOCKET_IO_OPTIONS, emitOverSocketIo, isSocketIoSocket, loadSocketIo,
 } from "./socket/socketio.js";
 export { readUserInfo, displayNameOf } from "./socket/user-info.js";
-export { ValuServiceError, ERROR_CODES, errorAck } from "./Errors.js";
+export {
+  ValuServiceError, ERROR_CODES, errorAck, PermissionNotDeclaredError, PERMISSION_NOT_DECLARED, isPermissionNotDeclared,
+} from "./Errors.js";
 export { ServiceClient } from "./services/ServiceClient.js";
 // The function surface: `valu.Users.current()` rather than
 // `client.call('Users.current')`. See src/services/api.js.
@@ -75,7 +84,7 @@ export {
 // that in (`valu-permissions.json`). See docs/connecting.md, "Declaring
 // permissions". Also importable alone: `@arkeytyp/valu-api/src/scan/index.js`.
 export {
-  detectScopes, parsePermissionsFile, comparePermissions, SCOPE_PATTERN, WHY_MAX,
+  detectScopes, parsePermissionsFile, comparePermissions, declaredScopes, SCOPE_PATTERN, WHY_MAX,
   SCOPE_DESCRIPTIONS, describeScope,
 } from "./scan/index.js";
 

@@ -32,9 +32,12 @@
 //      decryption) reads the frame server's; without one, the services' own;
 //   3. the params fit (400, the validation ack).
 //
-// No sign-in check and no permission gate: inside Valu Social the user is
-// Valu Social's, and a framed app has the trust Valu Social gives framed
-// apps' intents (spec §2).
+// No sign-in check: inside Valu Social the user is Valu Social's. The
+// permission gate is Valu Social's to pass in (`gate`, from
+// `createFrameGate`): an app may call only what its valu-permissions.json
+// declares (the owner's decision, 2026-10-29), checked after the params, as
+// the host checks it. Without one, nothing is gated (Valu Social's own apps,
+// and a Valu Social from before the rule).
 //
 // ONE attempt per call (`retries: 0`: the app's own client owns retries, the
 // host-core rule), bounded by the call's `timeoutMs` capped at the host's
@@ -50,6 +53,7 @@
 // No DOM, no postMessage, no timer but the call's: Valu Social does the posting.
 // ===========================================================================
 import { validationAck } from '../services/validate.js';
+import { scopeOfDescriptor } from '../host/Permissions.js';
 import {
   CALL_REPLIES, CALL_TIMEOUT_MS, TIMED_OUT, attemptTimeoutMs, callDescriptor, callOnce, callRefusal, isPlainObject,
   orAfter,
@@ -81,12 +85,14 @@ const own = (reply) => (SHARED_REPLIES.has(reply) ? { ...reply, error: { ...repl
  *   that read it; every call carries it. Without it the `app-state` functions answer 501
  *   `not_available`.
  * @param {(level: 'warn'|'error', message: string) => void} [options.log] Default: the console.
+ * @param {(scope: string) => Promise<{ok: boolean, code?: string, scope?: string|null}>} [options.gate] The app's
+ *   permission gate (`createFrameGate(...).permit`). A refusal is answered as the host answers it. Default: none.
  * @returns {Readonly<{
  *   readyInfo: (identity?: {user?: {id: string, name?: string|null}|null, network?: {id: string, name?: string|null}|null}) => {protocol: number, calls: true, user: {id: string, name: string|null}|null, network: {id: string, name: string|null}|null},
  *   handle: (message: unknown) => Promise<object>,
  * }>}
  */
-export function createFrameServer({ services, appState = null, log = consoleLog } = {}) {
+export function createFrameServer({ services, appState = null, log = consoleLog, gate = null } = {}) {
   if (typeof services?.call !== 'function') {
     throw new TypeError(
       'createFrameServer needs services with call(): a ValuServiceApi, from connectValuServices({ socket, userId })',
@@ -96,6 +102,9 @@ export function createFrameServer({ services, appState = null, log = consoleLog 
     throw new TypeError('createFrameServer appState must be an object (the AppState capabilities) or null');
   }
   if (typeof log !== 'function') throw new TypeError('createFrameServer log must be a function (level, message)');
+  if (gate !== null && gate !== undefined && typeof gate !== 'function') {
+    throw new TypeError('createFrameServer gate must be a function (scope) => verdict, from createFrameGate');
+  }
   const state = appState ?? null;
 
   const say = (level, message) => {
@@ -117,6 +126,10 @@ export function createFrameServer({ services, appState = null, log = consoleLog 
     const input = params === undefined ? {} : params;
     const invalid = validationAck(descriptor, input);
     if (invalid) return invalid;
+    if (gate) {
+      const verdict = await gate(scopeOfDescriptor(descriptor));
+      if (!verdict?.ok) return callRefusal({ code: verdict?.code ?? HOST_ERRORS.UNAVAILABLE, scope: verdict?.scope });
+    }
 
     const bound = attemptTimeoutMs(timeoutMs, CALL_TIMEOUT_MS);
     const attempt = callOnce(services, descriptor, input, bound, callOptions);

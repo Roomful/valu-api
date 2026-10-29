@@ -43,6 +43,8 @@ export interface PermissionsFile {
 
 export interface PermissionsComparison {
   required: string[];
+  /** The file alone: its scopes that have a reason. The only list Valu enforces. */
+  declared: string[];
   missingFromFile: string[];
   unusedInFile: string[];
   unknown: string[];
@@ -60,6 +62,7 @@ export function comparePermissions(
   detectedScopes: readonly string[],
   knownScopes?: Iterable<string>,
 ): PermissionsComparison;
+export function declaredScopes(file: { permissions?: DeclaredPermission[] } | null): string[];
 export const SCOPE_PATTERN: RegExp;
 export const WHY_MAX: number;
 
