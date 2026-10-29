@@ -36,39 +36,10 @@
 // ===========================================================================
 import { isOrigin } from './origins.js';
 import { POPUP_MSG } from './protocol.js';
+import { SCOPE_WORDING } from './scopeWording.js';
 
-/**
- * What the dialog says for each scope that needs the user's consent: one plain
- * sentence, completing "This app is asking to be allowed to:". There is one for
- * every consent-tier scope in `Permissions.TIER_OF` (a test holds them to it).
- * Each says the strongest thing its scope allows, as the catalogue's functions
- * for it do (the agent's own messages, access levels the app chooses, invitations
- * to other people), and promises nothing beyond that.
- *
- * The Commerce sentences use the words Valu Social's own Commerce dialogs use
- * for the same things (`intents/consent.js` and `sellerConsent.js` there say
- * what a write WILL do, but have no per-scope sentence to copy): the cart,
- * orders and purchases on the buying side; the store, products, sales,
- * volume discounts and discount codes on the selling side.
- */
-export const SCOPE_WORDING = Object.freeze({
-  'users:write': 'Send, accept, decline and cancel connection requests for you.',
-  'rooms:read': 'See your rooms and what is in them, and search for other rooms.',
-  'rooms:write': 'Create rooms from templates, invite people to your props with whatever access level the app chooses, remove them again, and add or change content in your props.',
-  'textchat:read': 'Read the message history of your chat channels.',
-  'textchat:write': 'Send chat messages to any user as you, and have this app\'s agent message you directly.',
-  'groups:read': 'See your groups and who is in them, and find groups you could join.',
-  'groups:write': 'Join groups for you.',
-  'events:read': 'See your events and meetings.',
-  'events:write': 'Create and change meetings in your calendar, and invite other people to them.',
-  'community:read': 'Read communities, their channels and their posts.',
-  'cbac:read': 'See badges and the access rules built on them, and find people who hold a badge.',
-  'cms:read': 'Search the files in your content library.',
-  'cms:write': 'Add files to your content library and delete files from it.',
-  'commerce:read': 'See products, your cart, your orders and your purchases, and be told when they change.',
-  'commerce:write': 'Add things to your cart, and change, remove or clear the items in your cart.',
-  'commerce:sell': 'Sell in your name: set up your store, create and change your products and their prices, read your sales and analytics, end sales, delete unused discount codes and remove volume discounts, and ask to sell in a network.',
-});
+/** One plain sentence per consent-tier scope — moved to scopeWording.js, where every tier has one. */
+export { SCOPE_WORDING };
 
 /**
  * How long the decision buttons stay disabled after the window becomes visible

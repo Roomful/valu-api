@@ -71,6 +71,13 @@ export { createAppApiClient, AppApiError, normalizeAddress, NETWORK_HEADER, SCOP
 export {
   uploadResource, uploadResources, createUploadSession, MAX_UPLOAD_BYTES,
 } from "./upload/ResourceUpload.js";
+// What an app's code needs, read from its source, and the file it declares
+// that in (`valu-permissions.json`). See docs/connecting.md, "Declaring
+// permissions". Also importable alone: `@arkeytyp/valu-api/src/scan/index.js`.
+export {
+  detectScopes, parsePermissionsFile, comparePermissions, SCOPE_PATTERN, WHY_MAX,
+  SCOPE_DESCRIPTIONS, describeScope,
+} from "./scan/index.js";
 
 
 /**
