@@ -1300,6 +1300,41 @@ declare module '@arkeytyp/valu-api' {
     }): Promise<{ resolved: Array<{ id: string; fileName: string }>; failed: Array<{ fileName: string; error: string }> }>;
     export function createUploadSession(socket: ValuSocket, userId: string): Promise<string>;
 
+    // ---- Declaring permissions (src/scan/, docs/connecting.md "Declaring permissions") ----
+    export type ScopeTier = 'basic' | 'consent' | 'local' | 'forbidden';
+    export interface ScopeFinding {
+        /** The scope the call needs; null for a Valu Social bridge call, which has none. */
+        scope: string | null;
+        call: string;
+        kind: 'function' | 'intent' | 'asked' | 'bridge';
+        file: string;
+        line: number;
+    }
+    export interface UnresolvedCall { file: string; line: number; text: string; }
+    export interface ScopeScan {
+        scopes: string[];
+        findings: ScopeFinding[];
+        bridge: ScopeFinding[];
+        unresolved: UnresolvedCall[];
+        truncated: boolean;
+    }
+    export interface DeclaredPermission { scope: string; why: string; }
+    export interface PermissionsFile { present: boolean; error: string | null; permissions: DeclaredPermission[]; }
+    export interface PermissionsComparison {
+        required: string[]; missingFromFile: string[]; unusedInFile: string[]; unknown: string[]; noReason: string[];
+    }
+    export function detectScopes(files: ReadonlyArray<{ path: string; text: string }>): ScopeScan;
+    export function parsePermissionsFile(text: string | null | undefined): PermissionsFile;
+    export function comparePermissions(
+        file: { permissions?: DeclaredPermission[] } | null,
+        detectedScopes: readonly string[],
+        knownScopes?: Iterable<string>,
+    ): PermissionsComparison;
+    export const SCOPE_PATTERN: RegExp;
+    export const WHY_MAX: number;
+    export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>>;
+    export function describeScope(scope: string): string | null;
+
 }
 
 /** The frame server by path (`package.json` maps `./src/*`), for a bundle that imports only what it mounts. */

@@ -467,6 +467,41 @@ app that sends its own `Content-Security-Policy` must allow the host origin in
 `frame-src https://valuguru.texpo.io`. The sign-in and consent windows are popups,
 not frames.
 
+### Declaring permissions
+
+An app says which scopes it needs, and why, in `valu-permissions.json`. The
+Developer Portal shows the list to the app's developer and to the reviewer who
+approves it, each scope with the same sentence the consent window uses.
+
+```json
+{
+  "permissions": [
+    { "scope": "rooms:read", "why": "Lists your rooms on the home screen." },
+    { "scope": "commerce:read", "why": "Shows the products in your shop." }
+  ]
+}
+```
+
+- `scope` is a scope from the table above (`<service>:<access>`, lower case). `why`
+  is one plain sentence a reviewer can check against what the app does, at most
+  200 characters. List every scope the code uses and no other.
+- **A Workspaces app** keeps the file at its repository root. Every publish reads
+  the source (not the build) for valu-api calls and compares them with the file:
+  a scope the code uses is needed whether or not the file lists it, and the
+  reviewer is told about every difference. A publish is never refused over it.
+- **Any other app** serves the file at
+  `https://<its origin>/.well-known/valu-permissions.json`, with
+  `Access-Control-Allow-Origin: *` so the portal can read it.
+- **Name calls with literals** so they can be read: `valu.Rooms.searchMyRooms(…)`,
+  `valu.data.Users.current()`, `valu.call('Rooms.search-my-rooms', …)`,
+  `new Intent('Commerce', 'get-cart')`. A name built at run time
+  (`valu.call(name)`, `valu[service][fn]()`) is listed as a call that cannot be
+  read, and the reviewer will ask what it does.
+
+The same reader is in the package: `detectScopes(files)`,
+`parsePermissionsFile(text)` and `comparePermissions(file, scopes)`, from the
+root or from `@arkeytyp/valu-api/src/scan/index.js` (no side effects at import).
+
 ### The two origins belong together
 
 The sign-in page hands the one-time token to the host iframe of its **own build**
