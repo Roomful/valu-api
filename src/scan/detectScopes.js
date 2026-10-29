@@ -49,14 +49,21 @@ const lit = (n) => "(['\"`])([^'\"`\\n]*)\\" + n;
 /** `.` or `?.` between two names. */
 const DOT = String.raw`\s*(?:\?\.|\.)\s*`;
 
+/**
+ * The valu-api object by its usual names — `valu`, `valuApp`, `valuApi`,
+ * `valu_app` — and never an ordinary word that starts the same way: `value`,
+ * `values`, `valuation` are form fields and arrays, not the platform.
+ */
+const VALU = String.raw`\bvalu(?![a-z])[\w$]*`;
+
 // Patterns over the CODE text (comments and the insides of strings, templates
 // and regex literals blanked), so text in a string is never a call:
 const CODE_PATTERNS = {
   member: new RegExp(String.raw`(?<![\w$])(${SERVICES})${DOT}([A-Za-z_$][\w$]*)\s*(?:\?\.\s*)?\(`, 'g'),
-  byNameDynamic: new RegExp(String.raw`\bvalu\w*${DOT}(?:call|invoke)\s*\(\s*(?!['"\x60)])`, 'g'),
+  byNameDynamic: new RegExp(String.raw`${VALU}${DOT}(?:call|invoke)\s*\(\s*(?!['"\x60)])`, 'g'),
   intentAny: /\bnew\s+Intent\s*\(/g,
   getApiDynamic: /\bgetApi\s*\(\s*(?!['"`])/g,
-  computed: new RegExp(String.raw`\bvalu\w*(?:${DOT}[\w$]+)*\s*(?:\?\.)?\[`, 'g'),
+  computed: new RegExp(String.raw`${VALU}(?:${DOT}[\w$]+)*\s*(?:\?\.)?\[`, 'g'),
   askedDynamic: /(?:\brequestConsent\s*\(\s*(?![[\s)])|\bsignIn\s*\(\s*\{[^}]*?\bscopes\s*:\s*(?![[\s]))/g,
 };
 

@@ -144,6 +144,21 @@ test('more names decided at run time are listed as unreadable', () => {
   assert.deepEqual(result.unresolved.map((u) => u.line), [1, 2, 3]);
 });
 
+test('value, values and valuation are not the valu-api object', () => {
+  const text = [
+    'const first = e.target.value[0];',
+    'const total = values[i] + 1;',
+    "setValue(form.values['title']);",
+    'valuation.call(this);',
+  ].join('\n');
+  assert.deepEqual(scan(text).unresolved, []);
+});
+
+test('the valu-api object under its usual names still counts', () => {
+  const result = scan('valu.call(name);\nvaluApp.Rooms[method]();\nvaluApi.invoke(fn);\nvalu_app.call(x);');
+  assert.deepEqual(result.unresolved.map((u) => u.line), [1, 2, 3, 4]);
+});
+
 test('each finding keeps its own file and line', () => {
   const result = detectScopes([
     { path: 'a.js', text: '\n\nvalu.Rooms.getRoom({})' },
