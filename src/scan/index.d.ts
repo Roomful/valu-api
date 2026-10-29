@@ -69,3 +69,42 @@ export function describeScope(scope: string): string | null;
 
 export const TIER_OF: Readonly<Record<string, ScopeTier>>;
 export function tierOf(scope: string): ScopeTier | null;
+
+// --- the privacy audit's deterministic scan (docs/privacy-audit.md) ---------
+
+export interface EgressFinding {
+  rule: string;
+  result: 'fail' | 'concern' | 'info';
+  file: string;
+  /** 0 for a finding about a whole file (a package in package.json). */
+  line: number;
+  detail: string;
+  host?: string;
+  /** The source line, trimmed, at most 160 characters. Never published. */
+  snippet?: string;
+}
+
+export interface EgressScan {
+  rulesVersion: string;
+  findings: EgressFinding[];
+  inventory: { storage: EgressFinding[]; sends: EgressFinding[]; deps: string[]; tables: string[] };
+}
+
+export interface EgressInput {
+  source?: ReadonlyArray<{ path: string; text: string | null | undefined }>;
+  built?: ReadonlyArray<{ path: string; text: string | null | undefined }>;
+  packageJson?: string | null;
+  lockfile?: string | null;
+  migrations?: ReadonlyArray<{ path: string; text: string | null | undefined }>;
+}
+
+export function detectEgress(input: EgressInput, opts?: { siteOrigin?: string; extraOrigins?: readonly string[] }): EgressScan;
+export const EGRESS_RULES: ReadonlyArray<{ id: string; result: 'fail' | 'concern' | 'info'; title: string }>;
+export const EGRESS_RULES_VERSION: string;
+export const TELEMETRY_PACKAGES: readonly string[];
+export const ONWARD_PATHS: readonly string[];
+export const SENDS_TO_OTHERS: readonly string[];
+
+export const VALU_ORIGINS: ReadonlyArray<{ origin: string; path?: string; why: string }>;
+export function isValuUrl(url: string, opts?: { siteOrigin?: string }): boolean;
+export function hostOf(url: string): string | null;
