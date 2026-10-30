@@ -116,7 +116,7 @@ test('every manifest intent is either a function here or explicitly excluded', a
       assert.ok(findDescriptor(key) || excluded.has(key), `${key} is neither implemented nor excluded`);
     }
   }
-  assert.equal(declared, 133, "the app's manifest declares 133 intents");
+  assert.equal(declared, 142, "the app's manifest declares 142 intents");
 });
 
 test('an SDK-declared function is a service function with its provenance on it', () => {
