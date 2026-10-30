@@ -720,9 +720,9 @@ export async function createValuApp({
       // A `window` intent at the app's own address: Valu Social in ONE named tab
       // (reused by the next one), on the brand origin the app signs in on. Null
       // when the browser blocked it: call it from a click.
-      openIntentWindow: (descriptor, params) => {
+      openIntentWindow: (descriptor, params, from) => {
         try {
-          return popup(intentWindowUrl(signInOrigin, descriptor, params), 'valu-social', POPUP_FEATURES) ?? null;
+          return popup(intentWindowUrl(signInOrigin, descriptor, params, from), 'valu-social', POPUP_FEATURES) ?? null;
         } catch {
           return null;
         }

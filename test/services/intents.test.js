@@ -40,6 +40,9 @@ test('the window url is the intent route on the sign-in origin, popup forced off
   });
   assert.equal(url, 'https://live.valuverse.io/-i/Commerce/open-order?orderId=ord_1&count=2&flag=false&nested=%7B%22a%22%3A1%7D&popup=false');
   assert.equal(intentWindowUrl('https://x.test', { service: 'Commerce', action: 'open-cart' }), 'https://x.test/-i/Commerce/open-cart?popup=false');
+  // The app the window is opened from, by its slug: Valu Social shows that app's corner.
+  assert.equal(intentWindowUrl('https://x.test', { service: 'Commerce', action: 'open-cart' }, { app: 'forged' }, { app: 'ws_1/notes' }),
+    'https://x.test/-i/Commerce/open-cart?app=notes&popup=false');
 });
 
 test('the fixed answers', () => {

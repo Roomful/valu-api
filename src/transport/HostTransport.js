@@ -389,7 +389,7 @@ export class HostTransport extends Transport {
     }
     if (descriptor.mode === 'window' && this.#openIntentWindow) {
       try {
-        const opened = await this.#openIntentWindow(descriptor, input);
+        const opened = await this.#openIntentWindow(descriptor, input, { app: this.applicationId ?? null });
         return opened ? openedIntentAck() : popupBlockedAck(descriptor.key);
       } catch (error) {
         return errorAck(ERROR_CODES.UNSUPPORTED, error?.code ?? 'error', error?.message);

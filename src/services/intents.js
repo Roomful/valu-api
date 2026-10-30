@@ -75,13 +75,18 @@ export const openedIntentAck = () => ({ data: { success: true, opened: 'tab' } }
  * @param {string} origin the sign-in origin (`https://live.valuverse.io`)
  * @param {{service: string, action: string}} descriptor
  * @param {object} [params] strings, numbers and booleans as they are; anything else as JSON
+ * @param {{app?: string|null}} [from] the app the window is opened from: its address as the host
+ *   named it (`<workspace>/<slug>`) or its slug. Sent as `app`, so Valu Social shows that app's
+ *   corner (its cart, its orders); it decides nothing else, since only `ui:open` intents run from a URL.
  */
-export function intentWindowUrl(origin, { service, action }, params = {}) {
+export function intentWindowUrl(origin, { service, action }, params = {}, { app = null } = {}) {
   const query = new URLSearchParams();
   for (const [name, value] of Object.entries(isObject(params) ? params : {})) {
-    if (name === 'popup' || value === undefined || value === null) continue;
+    if (name === 'popup' || name === 'app' || value === undefined || value === null) continue;
     query.set(name, typeof value === 'object' ? JSON.stringify(value) : String(value));
   }
+  const slug = typeof app === 'string' ? app.slice(app.lastIndexOf('/') + 1) : '';
+  if (slug) query.set('app', slug);
   query.set('popup', 'false');
   return `${origin}/-i/${encodeURIComponent(service)}/${encodeURIComponent(action)}?${query}`;
 }

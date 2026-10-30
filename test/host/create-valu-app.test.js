@@ -1548,7 +1548,7 @@ test('a window intent opens Valu Social in a tab named valu-social, on the inten
   const ack = await h.valu.Commerce.openOrder({ orderId: 'ord_1', popup: true });
   assert.deepEqual(ack, { data: { success: true, opened: 'tab' } });
   assert.deepEqual(h.popups.calls, [{
-    url: 'https://live.valuverse.io/-i/Commerce/open-order?orderId=ord_1&popup=false',
+    url: 'https://live.valuverse.io/-i/Commerce/open-order?orderId=ord_1&app=demo&popup=false',
     name: 'valu-social',
     features: 'popup,width=480,height=640',
   }]);
@@ -1560,7 +1560,7 @@ test('a blocked window answers popup_blocked; checkout is a window too', async (
   h.popups.blocked = true;
   const ack = await h.valu.Commerce.checkout();
   assert.equal(ack.error.message, 'popup_blocked');
-  assert.equal(h.popups.calls[0].url, `${h.popups.calls[0].url.split('/-i/')[0]}/-i/Commerce/checkout?popup=false`);
+  assert.equal(h.popups.calls[0].url, `${h.popups.calls[0].url.split('/-i/')[0]}/-i/Commerce/checkout?app=demo&popup=false`);
 });
 
 test('an embedded-only intent is skipped at the app\'s own address; a served one goes to the host as api:service-intent', async (t) => {
