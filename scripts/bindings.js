@@ -116,6 +116,17 @@ export const APPLICATION_ONLY_GROUPS = [
       // the user saves or cancels, as the DataProvider pickers do.
       'RoomPoints.create-room-point',
       'RoomPoints.edit-room-point',
+      // Added to the application's manifest since the previous snapshot
+      // (synced 2026-10-30): Valu Social's own screens and state, served by it alone.
+      'CMS.pick-resource',
+      'Commerce.mark-purchase-file-seen',
+      'Developer.list-application-apis',
+      'Developer.list-my-application-apis',
+      'RoomZones.list-room-zones',
+      'RoomZones.zone-occupancy',
+      'RoomZones.claim-zone',
+      'RoomZones.release-zone',
+      'RoomZones.assign-zone',
     ],
   },
   {
@@ -308,3 +319,35 @@ export const SERVER_ONLY_TOOLS = [
   'service__TextChat__send_card',
   'system__get_user_timezone',
 ];
+
+/**
+ * The application-served intents that ARE functions on the tree (the owner's
+ * decision, 2026-10-30, docs/superpowers/specs/2026-10-30-typed-intents-mode-
+ * parity-design.md in valusocial-web): `valu.Commerce.getCart()`,
+ * `valu.Application.expandApplication()`. They stay out of the service
+ * catalogue — nothing here runs them; the transport sends them to whoever
+ * frames or hosts the app as the intent they always were — and get their own
+ * descriptors (`INTENT_DESCRIPTORS`, channel `intent`), each with its scope
+ * and a MODE that says what the SDK does at the app's own address:
+ *
+ *   both             the host serves it (Commerce over Valu Guru, the identity token)
+ *   window           it opens a Valu Social window: a Valu Social tab there
+ *   embedded-only    it means nothing outside Valu Social: skipped, with a warning
+ *   embedded-served  only Valu Social runs it today: `not_available` there (phase 2)
+ *
+ * The mode is derived (scripts/generate.mjs) from what the host serves and the
+ * scope tables; these are the two lists the derivation reads.
+ */
+export const INTENT_FUNCTION_SERVICES = ['Commerce', 'Application', 'DataProvider', 'RoomPoints'];
+
+/** Overrides of the derived mode: what opens no window and has no meaning at the app's own address. */
+export const INTENT_MODE_OVERRIDES = {
+  // Paying happens in Valu Social's own cart, on Valu's origin: a window, never a host-served flow.
+  'Commerce.checkout': 'window',
+  'Application.expand-application': 'embedded-only',
+  'Application.close-application': 'embedded-only',
+  'Application.close_all': 'embedded-only',
+  // The pickers return the user's choice; a window with no way back is not a picker. Until one exists: embedded only.
+  'DataProvider.pick-single': 'embedded-only',
+  'DataProvider.pick-multiple': 'embedded-only',
+};

@@ -242,9 +242,17 @@ export function runConformanceSuite({ name, makeSocket, makeServices }) {
     // only by it. This package does not declare it, so it does not resolve —
     // the same answer a typo gets, which is the point of taking it out: there
     // is no half-state where a function exists but cannot run.
+    // Since 2026-10-30 it is a TYPED INTENT: on the tree, sent to whoever frames
+    // or hosts the app. A socket to the platform cannot send it and says so; the
+    // host transport can — and this one means nothing at the app's own address,
+    // so it is skipped there. Either way nothing reaches the platform.
     const ack = await client.call('DataProvider.pick-single', { providers: ['contacts'] });
-    assert.equal(ack.error.code, ERROR_CODES.UNKNOWN_FUNCTION);
-    assert.match(ack.error.message, /unknown service function/);
+    if (client.transport.servesIntents) {
+      assert.deepEqual(ack, { data: { success: true, skipped: true, reason: 'embedded_only' } });
+    } else {
+      assert.equal(ack.error.code, ERROR_CODES.UNSUPPORTED);
+      assert.match(ack.error.message, /is an intent of Valu Social/);
+    }
     assert.equal(responder.calls.length, 0);
   });
 

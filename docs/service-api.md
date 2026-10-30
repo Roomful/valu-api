@@ -2,7 +2,7 @@
 # The service API
 
 Every service function this package offers, as the call you would write. There
-are **65** of them, on **16** services, and the same
+are **65** of them, on **20** services, and the same
 65 are available from a Valu Social build, from a Node script, from a
 server-side agent and from an iframe application that has a socket — that is
 what makes them service functions.
@@ -376,6 +376,211 @@ Executes on-chain transfers from an AI agent's attached Verus wallet identity. E
 - `valu.VerusWallet.transfer({ agentId, destination, amount, currency?, memo? })` → `{txid: string}`
   Send currency from the agent's attached Verus wallet to a destination address or identity. Call this when the user or agent needs to move funds out of an agent wallet. Fails if the agent has no wallet attached, or if the wallet is still pending creation.
   <sub>Roomful socket</sub>
+
+## Application
+
+Issues short-lived signed identity JWTs for iFrame (mini-app) applications. Allows an embedded application to obtain a signed token proving the current user's identity to the mini-app's own backend.
+
+**Reads**
+
+- `valu.Application.closeAll()` → `void`
+  Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed.
+  <sub></sub>
+- `valu.Application.closeApplication()` → `void`
+  Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Close Application" default header action for iframe apps that render their own context menu (header: false).
+  <sub></sub>
+- `valu.Application.expandApplication()` → `void`
+  Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Expand Application" default header action for iframe apps that render their own context menu (header: false).
+  <sub></sub>
+- `valu.Application.getIdentityToken()` → `{token: string}`
+  Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.
+  <sub></sub>
+
+## Commerce
+
+Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.
+
+**Reads**
+
+- `valu.Commerce.archiveProduct({ productId })` → `?`
+  Withdraw a product from sale for good. OPENS A PLATFORM DIALOG over your app saying it leaves every shelf and cannot be undone, and naming the products that include it — they stop selling too until each is published again without it. Archives only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Anyone who bought it keeps it. Returns `{success: true, product, brokeBundles}` — `brokeBundles` the ids of the products that stopped selling.
+  <sub></sub>
+- `valu.Commerce.checkEntitlements({ productIds })` → `{entitlements: object[]}`
+  Which of these products the current user owns. This is how an app unlocks a ticket, a seat or an in-app good it sold through the shared cart.
+  <sub></sub>
+- `valu.Commerce.checkout({ promoCode?, popup? }?)` → `?`
+  Your app's Pay button. Your app never takes a payment: this opens My Cart's own cart over your app, showing your items with `promoCode` typed in and applied, and the BUYER presses Pay and scans the code there — only My Cart creates the order. It answers when the buyer closes it: `{success: true, outcome, orderId?, status?}`. `outcome` is `paid` (a free order too: unlock it), `pending` (an order was made but is not paid yet — follow it with get-order or the order-updated event), `cancelled` (the order will not be paid: the buyer cancelled it, or it expired or failed — `status` says which — and its items are back in the cart) or `dismissed` (closed without making an order). Refused with code `empty`, and nothing opens, when none of your items is selected in the cart (add them first). With `popup: false` My Cart docks instead and it answers at once with `outcome: "opened"`, as it does where there is no popup to draw. A second checkout while one is open replaces it; the first answers at once — `dismissed`, unless an order was already made in it.
+  <sub></sub>
+- `valu.Commerce.clearCart()` → `?`
+  Remove every row YOUR app added to the user's cart, saved-for-later ones included. Other apps' rows are never touched. No dialog: they are your own rows. Returns what is left — `{success: true, items, count}` — so an empty `items` means the cart held only your rows.
+  <sub></sub>
+- `valu.Commerce.endSale({ saleId })` → `?`
+  End a sale now. Direct — stopping a discount needs no dialog. Returns `{success: true, sale}` with `status: "ended"`.
+  <sub></sub>
+- `valu.Commerce.getAnalytics({ from?, to?, testOnly? }?)` → `?`
+  The store's own numbers over a range — the Merchant Console's Analytics — exactly as the server sends them: `{range, totals: {revenueVrsc, orders, units, curatorFeeVrsc, revenueApproximate}, series: [{day, revenueVrsc, orders, suppressed}], topProducts: [{productId, title, revenueVrsc, units, suppressed}], byNetwork: [{networkId, revenueVrsc, orders, suppressed}], suppressedCells}`. A row with `suppressed: true` was built from too few orders and is WITHHELD: its numbers are not figures — show it as withheld, never as 0. `orders` counts order lines touched, an upper bound, not distinct orders. Read-only.
+  <sub></sub>
+- `valu.Commerce.getCart()` → `{items: object[], count: number}`
+  Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Each item's `appId` says which app added it. An app changes only its own rows: `add-to-cart` adds one, `update-cart-item` changes one, `remove-from-cart` and `clear-cart` take them out. Every other app's items are the buyer's to change in My Cart: send them there with `open-cart`.
+  <sub></sub>
+- `valu.Commerce.getDisplay()` → `?`
+  How this network SHOWS prices: `{currency, vrscUsd}`, where `currency` is `USD` or `VRSC` (the network admins' choice) and `vrscUsd` is the server's VRSC→USD rate, null when it is unknown. Every amount Commerce answers with stays in VRSC (`…Vrsc`); multiply by `vrscUsd` to show dollars, and show VRSC when the rate is null.
+  <sub></sub>
+- `valu.Commerce.getMyProduct({ productId })` → `{product: object, items: object[]}`
+  One of the seller's own products with its content, in exactly the shape update-product takes: `{product, items}`. Read it before changing the content — `items` in update-product REPLACES the whole tree, so edit this list and send it back rather than sending only the new files. `product.editable` is true for a draft, whose fields and content may change; a `broken` product (needs attention: something it included was archived) takes new content only.
+  <sub></sub>
+- `valu.Commerce.getMyStore()` → `?`
+  The signed-in user's own store and where they stand to sell — with list-seller-products, enough to draw the Merchant Console's setup checklist (verified identity → store → donation set → a product → one published). Returns `{hasStore, identityVerified, sellerName, sellerUserId, store, network}`. Buyers see a PERSON as the seller, not a store: show `sellerName` (the owner's profile name) and draw their avatar from `sellerUserId` with the users API's getIcon. `store` is `{id, name, description, status, payoutIdentityName, donationTiers: [{minMembers, percent}], donationUpdatedAt}`, or null — its `name` is kept for older callers and is not what buyers see; an empty `donationTiers` means no donation is set, and such a store sells nowhere. `identityVerified` says whether the user can open a store (a Verified Verus identity; when false, send them to their Profile). `network` is the network the user is in now: `{id, memberCount, mode, allowedRatings, displayCurrency, donationTierIndex}` — `mode` is `open | approval_required | closed`, `donationTierIndex` which of the store's four donation tiers this network takes (null without a store or a known size). Read-only.
+  <sub></sub>
+- `valu.Commerce.getOrder({ orderId })` → `?`
+  One of the user's orders, in the shape list-orders answers: `{order}`. Use it to follow an order `checkout` answered with. An order that is not the user's is refused `not_found`, exactly like one that does not exist. `imageResourceId` is null here; list-orders resolves the pictures.
+  <sub></sub>
+- `valu.Commerce.getProduct({ productId })` → `{product: object}`
+  One product with its price, its parts when it is a bundle, its seller, its reviews and whether the current user already owns it. The seller is a PERSON, as in list-products: `sellerName`, `sellerUserId` (their avatar through the users API's getIcon) and `sellerIdentityName`; the store record's name is that person too. `contents` is what the product holds, as a tree to draw: `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize}` and `{type: "product", productId, title}`. `children` is NOT the content: it is only the products a bundle includes, empty for anything else. `items` is the same content as flat database rows, kept for older callers. A file's `resourceId` (and `resource_id` in items) is null unless the user owns the product or sells it: titles and types are the shop window, the ids open the paid files. For something the user bought, use get-purchase-contents.
+  <sub></sub>
+- `valu.Commerce.getPurchaseContents({ productId })` → `?`
+  One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is "folder" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.
+  <sub></sub>
+- `valu.Commerce.listCategories()` → `{categories: object[]}`
+  The platform's product categories as `{categories: [{id, label}]}`. Every product is filed under exactly one; pass an `id` to list-products as `category`, and show the `label`.
+  <sub></sub>
+- `valu.Commerce.listMyProducts({ status?, limit? }?)` → `{hasStore: boolean, products: object[]}`
+  List the SELLER's own products in their store — drafts, unlisted, live and archived — unlike list-products, which is the buyer's shelf and never shows drafts. Use it to find the productId to edit. Each product carries `editable`: true only for a draft (never published, or unlisted by the seller). Returns `{hasStore, products}`.
+  <sub></sub>
+- `valu.Commerce.listNetworkAccess()` → `?`
+  Where the store stands in each network it asked to sell in: `{networks: [{networkId, status, requestedAt, decidedAt, note, message}]}`. `status` is `pending | approved | rejected | suspended`; `note` is the admins' word on their decision, `message` the seller's on the request. The network the user is in now may be missing: in an `open` one (get-my-store `network.mode`) a store sells without asking. Read-only.
+  <sub></sub>
+- `valu.Commerce.listOrders({ status?, limit?, thisAppOnly? }?)` → `?`
+  The user's orders, newest first, with their whole receipt as frozen at checkout. Returns `{orders: [{id, status, createdAt, paidAt, expiresAt, isTest, subtotalVrsc, totalVrsc, rateVrscUsd, items: [{productId, appId, title, qty, unitPriceVrsc, lineTotalVrsc, imageResourceId, deletedBySeller, parts: [{productId, title}], bundleFeeVrsc}], discounts: [{kind, label, amountVrsc}], notCharged: [{productId, title, amountVrsc}], payouts: [{kind, identityName, storeId, amountVrsc, status, donationPercent, donationMemberCount}], payment: {method, transactionId, failureReason} | null}]}`. `status` is `pending_payment`, `paid`, `expired`, `cancelled` or `failed`; without `status` you get pending and paid orders (a cancelled order is deleted). `notCharged` are parts of a bundle the user already owned. An order never carries a way to pay it: send the buyer to it with open-order.
+  <sub></sub>
+- `valu.Commerce.listProducts({ query?, storeId?, category?, tag?, attributes?, sort?, limit?, offset? }?)` → `{products: object[], total: number}`
+  Search the live products available in the user's current network — the buyer's shelf, every seller's goods, not only yours. Products the network or its admins have refused are simply absent from the answer. Each product names its seller, who is a PERSON, not a store: `sellerName` (their profile name), `sellerUserId` (draw their avatar with the users API's getIcon({userId: sellerUserId})) and `sellerIdentityName` (the Verus ID payments go to). `storeName` carries the same person's name, for older callers; show the person, never a store. For the signed-in seller's OWN products, drafts included, use list-seller-products.
+  <sub></sub>
+- `valu.Commerce.listPromotions()` → `?`
+  Every sale, volume discount and discount code of the store: `{sales: [{id, productId, salePriceAmount, salePriceCurrency, startsAt, endsAt, status}], tiers: [{id, minItems, percentOff, status}], codes: [{id, code, kind, value, currency, minSubtotalVrsc, maxRedemptions, redeemedCount, reservedCount, perBuyerLimit, startsAt, endsAt, status}]}`. `status` is `active | ended` for a sale and `active | disabled` for a tier or a code. A buyer's price takes a sale first, then at most one volume discount, then at most one code — they never stack beyond that. Read-only.
+  <sub></sub>
+- `valu.Commerce.listPurchases({ thisAppOnly? }?)` → `?`
+  What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.
+  <sub></sub>
+- `valu.Commerce.listSellerProducts({ status?, limit? }?)` → `?`
+  Every product the SIGNED-IN user sells, from their own store, so an app can show a seller their own products: live, draft (unlisted ones included), archived and broken, in every network, including ones a network blocked. Unlike list-products, the buyer's shelf of live products allowed here. The store is always the current user's; there is no way to name another. Read-only, newest change first. Returns `{hasStore, products}`; `hasStore` is false (and products empty) when the user has no store. Each product: id, title, description, status, category, tags, priceAmount, priceCurrency, totalPriceAmount, isBundle, coverResourceId, stock (null = unlimited), soldCount, contentCount. Show totalPriceAmount as the price: on a bundle priceAmount is only the seller's part on top of what it includes, and totalPriceAmount is null when the server could not price the bundle.
+  <sub></sub>
+- `valu.Commerce.markPurchaseFileSeen({ productId, resourceId })` → `?`
+  Mark one of the user's purchased files as OPENED, for an app that shows a purchase's files itself (preview-purchase marks the files it shows by itself). The file must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents) and not a folder. Returns `{success: true, resourceId, progress}` — `progress` as in get-purchase-contents — or `{success: false, code}` with `not_owned` or `not_in_purchase`.
+  <sub></sub>
+- `valu.Commerce.openCart({ popup? }?)` → `void`
+  Open My Cart for the user, scoped to your app's items. With `popup` it is drawn over your own app instead of docking My Cart — mid-purchase, that keeps the user where they were. It answers as soon as the cart is open; for a Pay button use `checkout`, which opens the same cart and answers with what the buyer did there.
+  <sub></sub>
+- `valu.Commerce.openOrder({ orderId, popup? })` → `?`
+  Open one of the user's orders in My Cart, expanded: where the buyer resumes a pending payment ("Show code"), cancels or deletes an unpaid order, or reads a receipt. Those are the buyer's own actions in My Cart; your app cannot take them. With `popup` it is drawn over your own app instead of docking My Cart. Returns `{success: true, popup}`.
+  <sub></sub>
+- `valu.Commerce.openProducts({ popup? }?)` → `void`
+  Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it for a "My products" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's. With `popup` it is drawn over your own app instead of docking the console.
+  <sub></sub>
+- `valu.Commerce.openPurchaseInMedia({ productId? }?)` → `?`
+  Open a purchase where it lives, in Media's Purchased section — the Orders tab's "Show in Media". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Media docks beside your app. Returns `{success: true}`, or `{success: false, code: "not_owned"}` without opening anything.
+  <sub></sub>
+- `valu.Commerce.openPurchases({ productId?, popup? }?)` → `void`
+  Open what the user OWNS in My Cart's Purchased tab — each product with its files, how far through them they are, and their rating; with `productId`, that product opened and shown. Receipts are `open-order`. With `popup` it is drawn over your own app instead of docking My Cart.
+  <sub></sub>
+- `valu.Commerce.previewPromo({ code })` → `?`
+  What a discount code would do to the items YOUR app has selected in the cart — exactly what `checkout` will charge for them. Returns `{valid, reason, discounts: [{kind, label, amountVrsc}], subtotalVrsc, totalVrsc}`. `reason` is null when valid, else `promo_invalid`, `promo_expired`, `promo_exhausted` or `not_applicable` (a real code that takes nothing off this selection, e.g. under its minimum). `discounts` lists everything that takes money off, the code and any volume discount or sale alike. Read-only: nothing is reserved, and My Cart prices the code again when the buyer pays. With nothing of yours selected the server refuses `validation_failed`.
+  <sub></sub>
+- `valu.Commerce.previewPurchase({ productId, resourceId? })` → `?`
+  Open the platform's previewer on what the user bought — the Orders tab's click on a file. It holds every file of the purchase in tree order, with previous / next arrows between them, and opens on `resourceId` when given (it must be in the purchase: its `resourceId` or `deliveredResourceId` from get-purchase-contents), on the first file otherwise. Every file the user lands on is marked as opened (`seen` in get-purchase-contents). A folder resource is shown on its own. Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.
+  <sub></sub>
+- `valu.Commerce.publishProduct({ productId, networkIds? })` → `?`
+  Put one of the seller's products on sale. OPENS THE MERCHANT CONSOLE'S PUBLISH DIALOG over your app: the user picks the networks to sell in — `networkIds` start ticked where the store may sell, by default this network — and confirms. Only then is the product listed (in My Cart and in YOUR app) and published, freezing this version for buyers. `{success: false, code: "cancelled"}` is a normal answer: the user did not publish — do not ask again yourself. Only a draft or a `broken` product (its content fixed with update-product) can be published; no content, no category, or a store with no donation set is refused `validation_failed` before any dialog, saying which. Returns `{success: true, product, version: {id, version, status, vaultStatus, publishedAt}}`. Refused `busy` while another dialog from your app is open, `unsupported` where the platform cannot show one.
+  <sub></sub>
+- `valu.Commerce.quoteBundle({ productIds, priceCurrency?, ownPrice? })` → `?`
+  What a product made of these products would cost a buyer, priced by the server exactly as checkout prices it (sales, bundles inside bundles, a part reached twice). Returns `{currency, parts: [{productId, amount}], included, own, total, duplicates, unavailable}`: `included` is the parts' sum, `own` the seller's price on top, `total` what a buyer pays; `duplicates` are parts reached twice, `unavailable` ids that are neither on sale nor the seller's own. Read-only — show it while the seller assembles a bundle; create-product with `{productId}` items makes one.
+  <sub></sub>
+- `valu.Commerce.rateProduct({ productId, score?, text? })` → `?`
+  Rate a product the user owns, one to five stars with an optional review. A rating is public (it shows on the product's page), so the platform asks the user first in its own dialog over your app: `score` and `text` only pre-fill it, the user can change both, and what they confirm is what is saved. Returns `{success: true, review: {score, text}}` — what was saved. Refused with `cancelled` when the user closes the dialog (nothing is saved; do not ask again on your own), `not_owned` when they do not own the product (no dialog), `busy` while another platform dialog is waiting, and `unsupported` where there is no dialog to ask with.
+  <sub></sub>
+- `valu.Commerce.requestNetworkAccess({ networkId, message? })` → `?`
+  Ask a network's admins to let the store sell there, with an optional message; they decide, and list-network-access shows the outcome. Returns `{success: true, request}` in list-network-access's shape (`status: "pending"`). No dialog.
+  <sub></sub>
+- `valu.Commerce.subscribeEvents({ events })` → `?`
+  Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: "commerce", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Media; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.
+  <sub></sub>
+- `valu.Commerce.unlistProduct({ productId })` → `?`
+  Take a product that is on sale off every shelf: it becomes a draft again, its published version intact — buyers keep what they bought, and publishing again puts it back. OPENS THE MERCHANT CONSOLE'S UNLIST DIALOG over your app and unlists only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Only an `active` product can be unlisted. Returns `{success: true, product}`. Unlist a live product before editing it with update-product.
+  <sub></sub>
+- `valu.Commerce.unsubscribeEvents({ events? }?)` → `?`
+  Stop receiving commerce events. Without `events`, every one your app subscribed to; with it, only those. Answers `{success: true, events}`: what your app still receives (empty when nothing). An unknown name is refused with `validation_failed` and nothing changes. There is no need to call it before your app closes: a subscription ends with the frame that made it.
+  <sub></sub>
+
+**Writes**
+
+- `valu.Commerce.addToCart({ productId, qty? })` → `{items: object[]}`
+  Put a product in the user's cart, credited to your app. The server re-checks that it can be bought here before accepting it, so a refusal comes back with a code to show.
+  <sub></sub>
+- `valu.Commerce.createDiscountCode({ code, kind, value, currency?, minSubtotalVrsc?, maxRedemptions?, perBuyerLimit?, startsAt?, endsAt? })` → `?`
+  A discount code buyers type at checkout — on the seller's own products only. OPENS A PLATFORM DIALOG over your app with the code, its value, limits and dates, and creates it only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. The code is stored upper-case; one the store already has is refused `conflict`. Returns `{success: true, discountCode}` in list-promotions' code shape — named `discountCode` because `code` is the refusal field.
+  <sub></sub>
+- `valu.Commerce.createProduct({ title?, description?, priceAmount?, priceCurrency?, category?, tags?, imageResourceId?, items?, stock? }?)` → `{product: object}`
+  Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, so the seller confirms it separately — in the publish dialog an app opens with publish-product, or in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
+  <sub></sub>
+- `valu.Commerce.createStore({ name?, description? }?)` → `?`
+  Open the signed-in user's store — what lets them sell; buyers see the user themselves as the seller, so it needs no name. It needs a Verified Verus identity: without one it is refused with code `not_eligible_kyc` — send the user to their Profile. A user who already has a store gets it back unchanged. Returns `{success: true, store}` in get-my-store's shape. No dialog. Next steps: set-donation-tiers (a store with no donation sells nowhere), then create-product.
+  <sub></sub>
+- `valu.Commerce.deleteDiscountCode({ codeId })` → `?`
+  Delete a code nothing ever used. Direct — no dialog. A code that was used is part of the record and is refused `conflict`: turn it off instead (update-discount-code with `status: "disabled"`). Returns `{success: true}`.
+  <sub></sub>
+- `valu.Commerce.deleteProduct({ productId })` → `?`
+  Delete a product for good. OPENS THE MERCHANT CONSOLE'S DELETE DIALOG over your app, where the user types the product's name to confirm; deletes only then. `{success: false, code: "cancelled"}` is a normal answer. A product that is part of another product cannot be deleted: the dialog names those products and the answer is `{success: false, code: "conflict"}` — take it out of them first (update-product on each). Buyers keep what they bought. Returns `{success: true}`.
+  <sub></sub>
+- `valu.Commerce.removeFromCart({ itemId })` → `?`
+  Take one of YOUR app's rows out of the user's cart. Another app's row is refused with code `not_yours` (the buyer removes those in My Cart), a row the cart does not hold with `not_found`. Returns the whole cart: `{success: true, items, count}`.
+  <sub></sub>
+- `valu.Commerce.removeVolumeTier({ tierId })` → `?`
+  Remove a volume discount. Direct — no dialog. Returns `{success: true}`.
+  <sub></sub>
+- `valu.Commerce.setDonationTiers({ tiers })` → `?`
+  Set the store's network donation — the share of every sale that goes to the network it is sold in, one percentage per network size; a store with none sells nowhere. OPENS A PLATFORM DIALOG over your app showing each tier old → new (this network's marked) and saves only if the user confirms. `{success: false, code: "cancelled"}` is a normal answer: the user said no — do not ask again yourself. Lowering any tier sends the store back for approval in every network that approved it (its products hide there until an admin approves again), and the dialog says so. Sending what is already saved asks nothing and changes nothing. Returns `{success: true, store, reopenedNetworks}` — the networks that must approve the store again. Refused `busy` while another dialog from your app is open, `unsupported` where the platform cannot show one.
+  <sub></sub>
+- `valu.Commerce.setSale({ productId, salePriceAmount, salePriceCurrency?, startsAt?, endsAt? })` → `?`
+  Put one product on sale at a lower price. OPENS A PLATFORM DIALOG over your app showing the sale price against the usual one and when it runs; starts it only if the user confirms. `{success: false, code: "cancelled"}` is a normal answer. The sale price must be below the product's own and in its currency, and a bundle (priced by its parts) cannot go on sale — each refused `validation_failed` before any dialog. A product with a sale running gets this one instead. Returns `{success: true, sale}` in list-promotions' shape.
+  <sub></sub>
+- `valu.Commerce.setVolumeTier({ minItems, percentOff, tierId? })` → `?`
+  A store-wide volume discount: every order with at least `minItems` of the seller's items gets `percentOff` off, in every app and network the store sells in. OPENS A PLATFORM DIALOG over your app ("N or more items → P% off, every order in your store") and saves only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. With `tierId` it edits that discount (the dialog shows what it was); without, it adds one — or replaces the one at the same `minItems`. Returns `{success: true, tier}` in list-promotions' shape.
+  <sub></sub>
+- `valu.Commerce.updateCartItem({ itemId, qty?, selected?, savedForLater? })` → `?`
+  Change one of YOUR app's rows in the user's cart: its quantity, whether it is selected for checkout, or whether it is saved for later. Give at least one of them; only the fields given change. A row added by another app is refused with code `not_yours` — the buyer changes those in My Cart (`open-cart`) — and a row the cart does not hold with `not_found`. Returns the whole cart as get-cart reads it: `{success: true, items, count}`, `count` excluding what is saved for later. The server re-checks stock and availability and refuses with its own code.
+  <sub></sub>
+- `valu.Commerce.updateDiscountCode({ codeId, status?, endsAt?, maxRedemptions?, perBuyerLimit? })` → `?`
+  Change a discount code. DIRECT when it only stops the discount: `status: "disabled"`, or an `endsAt` sooner than the one it has (any end, for a code that has none). Anything that gives more — `status: "active"` again, a later end or none (`endsAt: null`), more uses, more per buyer — OPENS A PLATFORM DIALOG over your app with each change before → after, and saves only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Returns `{success: true, discountCode}`.
+  <sub></sub>
+- `valu.Commerce.updateProduct({ productId, title?, description?, priceAmount?, priceCurrency?, stock?, unlimitedStock?, category?, tags?, imageResourceId?, items? })` → `{product: object}`
+  Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted first: unlist-product, or the seller in the Merchant Console). A `broken` product (needs attention: something it included was archived) accepts `items` only — its other fields are `not_editable` — and goes back on sale when it is published again (publish-product). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`.
+  <sub></sub>
+
+## DataProvider
+
+Picker service for selecting items from data providers (rooms, contacts, etc.) via modal or inline overlay.
+
+**Reads**
+
+- `valu.DataProvider.pickMultiple({ providers, title?, confirmLabel?, confirmIcon?, width?, height? })` → `{picked: object[]}`
+  Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"].
+  <sub></sub>
+- `valu.DataProvider.pickSingle({ providers, title?, width?, height? })` → `{picked: object|null}`
+  Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that.
+  <sub></sub>
+
+## RoomPoints
+
+GoTo points of a room (server name "cameraPosition"): list them, save or delete one directly, or open the point editor and let the user do it. Editing points requires the room's edit permission. Position and rotation are metres and EULER DEGREES in the room's own space — they cannot be computed from outside the 3D scene, so prefer create-point / edit-point (which receive the live camera pose from Unity) over save-point unless you are re-using a pose you already read.
+
+**Writes**
+
+- `valu.RoomPoints.createRoomPoint({ roomId, camera?, point?, name?, cameraMode?, savePreview?, persist?, networkId? })` → `?`
+  Opens the point editor for a NEW point and BLOCKS until the user saves or cancels. Needs a pose to save the point at: pass camera (the live 3D camera pose) or a point to copy the pose from — the web layer cannot read the camera itself. Resolves {status: "ok", point, persisted, savePreview} once the point is written, or {status: "cancelled"} / {status: "error", message}.
+  <sub></sub>
+- `valu.RoomPoints.editRoomPoint({ roomId, point, camera?, deletable?, name?, cameraMode?, savePreview?, persist?, networkId? })` → `?`
+  Opens the point editor for an EXISTING point and BLOCKS until the user saves, deletes or cancels. Resolves {status: "ok", point, persisted, savePreview}, {status: "deleted", point: {id}, persisted}, {status: "cancelled"} or {status: "error", message}. A point whose id is empty is treated as a create.
+  <sub></sub>
 
 ## Names
 

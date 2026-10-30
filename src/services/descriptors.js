@@ -16,7 +16,7 @@
 // which (scripts/bindings.js APPLICATION_ONLY, docs/api-pointers.md).
 // ===========================================================================
 import {
-  SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, APPLICATION_ONLY_INTENTS,
+  SERVICE_DESCRIPTORS, INTENT_DESCRIPTORS, SERVER_ONLY_TOOLS, APPLICATION_ONLY_INTENTS,
   APPLICATION_INTENT_REASON,
 } from './catalog.generated.js';
 
@@ -53,7 +53,10 @@ import {
 const byKey = new Map();
 const byAlias = new Map();
 
-for (const descriptor of SERVICE_DESCRIPTORS) {
+// The typed intents (`INTENT_DESCRIPTORS`, channel `intent`) resolve by name
+// like any function, so `valu.call('Commerce.get-cart')` and the scanner find
+// them; they are not service functions, and `SERVICE_FUNCTIONS` leaves them out.
+for (const descriptor of [...SERVICE_DESCRIPTORS, ...INTENT_DESCRIPTORS]) {
   Object.freeze(descriptor);
   byKey.set(descriptor.key, descriptor);
   // A caller may name a function any of the four ways the platform already
@@ -65,6 +68,7 @@ for (const descriptor of SERVICE_DESCRIPTORS) {
 }
 
 Object.freeze(SERVICE_DESCRIPTORS);
+Object.freeze(INTENT_DESCRIPTORS);
 
 /**
  * Resolve a function name to its descriptor.
@@ -87,9 +91,18 @@ export function findDescriptor(name) {
  */
 export const SERVICE_FUNCTIONS = SERVICE_DESCRIPTORS;
 
-/** Is this name a function this package can run? */
+/** The typed intents: functions on the tree the transport sends as intents (channel `intent`). */
+export const INTENT_FUNCTIONS = INTENT_DESCRIPTORS;
+
+/** Is this name a function this package can run? (A typed intent is not: whoever frames or hosts the app runs it.) */
 export function isServiceFunction(name) {
-  return Boolean(findDescriptor(name));
+  const descriptor = findDescriptor(name);
+  return Boolean(descriptor) && descriptor.channel !== 'intent';
+}
+
+/** Is this name a typed intent? */
+export function isIntentFunction(name) {
+  return findDescriptor(name)?.channel === 'intent';
 }
 
 /** Service functions, optionally filtered — the same filters `listDescriptors` takes. */
@@ -138,6 +151,6 @@ export function catalogSummary() {
 }
 
 export {
-  SERVICE_DESCRIPTORS, SERVER_ONLY_TOOLS, APPLICATION_ONLY_INTENTS,
+  SERVICE_DESCRIPTORS, INTENT_DESCRIPTORS, SERVER_ONLY_TOOLS, APPLICATION_ONLY_INTENTS,
   APPLICATION_INTENT_REASON,
 };

@@ -59,6 +59,7 @@ import { createValuServices } from './services/api.js';
 import { ERROR_CODES } from './Errors.js';
 import { CONNECTION_STATE, HOST_ERRORS, MSG } from './host/protocol.js';
 import { DEFAULT_SIGN_IN_ORIGINS, isHostPath, isOrigin } from './host/origins.js';
+import { intentWindowUrl } from './services/intents.js';
 
 const DEFAULT_HOST_ORIGIN = 'https://valuguru.texpo.io';
 /** Where on the host origin the host page is; the consent page is `consent.html` beside it. */
@@ -175,6 +176,7 @@ class ConsentRetryTransport extends Transport {
 
   get connected() { return this.#inner.connected; }
   get servesServiceFunctions() { return true; }
+  get servesIntents() { return this.#inner.servesIntents; }
   get applicationId() { return this.#inner.applicationId; }
   subscribe(event, handler) { return this.#inner.subscribe(event, handler); }
   close() { return this.#inner.close(); }
@@ -715,6 +717,16 @@ export async function createValuApp({
       document: doc,
       fetchImpl,
       localTransport,
+      // A `window` intent at the app's own address: Valu Social in ONE named tab
+      // (reused by the next one), on the brand origin the app signs in on. Null
+      // when the browser blocked it: call it from a click.
+      openIntentWindow: (descriptor, params, from) => {
+        try {
+          return popup(intentWindowUrl(signInOrigin, descriptor, params, from), 'valu-social', POPUP_FEATURES) ?? null;
+        } catch {
+          return null;
+        }
+      },
       readyTimeoutMs: readyWithin,
       setTimeout: setTimer,
       clearTimeout: clearTimer,

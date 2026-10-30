@@ -217,10 +217,10 @@ const APP = [
 test('a helper around new Intent(service, action) is read at its call sites, through the levels', () => {
   const result = detectScopes(APP);
   assert.deepEqual(result.findings.map((f) => [f.call, f.scope, f.kind, f.file, f.line, f.via]), [
-    ['Application.expand-application', 'ui:open', 'bridge', 'src/components/AppHeader.jsx', 4, 'm'],
+    ['Application.expand-application', 'ui:open', 'intent', 'src/components/AppHeader.jsx', 4, 'm'],
     ['Commerce.list-products', 'commerce:read', 'intent', 'src/state/store.jsx', 3, 'commerce'],
     ['Commerce.add-to-cart', 'commerce:write', 'intent', 'src/state/store.jsx', 4, 'commerce'],
-    ['Commerce.open-cart', 'ui:open', 'bridge', 'src/state/store.jsx', 5, 'commerce'],
+    ['Commerce.open-cart', 'ui:open', 'intent', 'src/state/store.jsx', 5, 'commerce'],
   ]);
   assert.deepEqual(result.scopes, ['commerce:read', 'commerce:write', 'ui:open']);
   assert.deepEqual(result.unresolved, [], 'the helpers themselves are no longer unreadable');
@@ -266,4 +266,13 @@ test('a class method and a plain function are helpers too; a call with the name 
   ].join('\n') }]);
   assert.deepEqual(result.findings.map((f) => [f.call, f.line, f.via]), [['Commerce.get-cart', 3, 'commerce']]);
   assert.deepEqual(result.unresolved.map((u) => u.line), [5]);
+});
+
+test('a typed intent on the tree is read like any function', () => {
+  const result = scan("await valu.Commerce.getCart();\nvalu.Commerce.openCart({ popup: true });\nvalu.Application.expandApplication();");
+  assert.deepEqual(result.findings.map((f) => [f.call, f.scope, f.kind, f.line]), [
+    ['Commerce.get-cart', 'commerce:read', 'function', 1],
+    ['Commerce.open-cart', 'ui:open', 'function', 2],
+    ['Application.expand-application', 'ui:open', 'function', 3],
+  ]);
 });

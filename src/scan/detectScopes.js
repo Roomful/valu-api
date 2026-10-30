@@ -33,7 +33,7 @@
 // hold), so text in a string is never a call; in an HTML, Vue or Svelte file
 // only the `<script>` blocks are read. No parser: TS, JSX, Vue and Svelte read alike.
 // ===========================================================================
-import { SERVICE_DESCRIPTORS, findDescriptor } from '../services/descriptors.js';
+import { SERVICE_DESCRIPTORS, INTENT_DESCRIPTORS, findDescriptor } from '../services/descriptors.js';
 import { scopeOfIntent } from '../host/Permissions.js';
 import { scopeOfApiCommand, scopeOfAppIntent, scopeOfServiceIntent } from '../host/BridgeScopes.js';
 import { SCOPE_PATTERN } from './permissionsFile.js';
@@ -47,7 +47,7 @@ export const HELPER_DEPTH = 4;
 
 /** `Service` → `method` → descriptor, exactly as the JS surface spells them. */
 const BY_MEMBER = new Map();
-for (const descriptor of SERVICE_DESCRIPTORS) {
+for (const descriptor of [...SERVICE_DESCRIPTORS, ...INTENT_DESCRIPTORS]) {
   if (!BY_MEMBER.has(descriptor.service)) BY_MEMBER.set(descriptor.service, new Map());
   BY_MEMBER.get(descriptor.service).set(descriptor.method, descriptor);
 }

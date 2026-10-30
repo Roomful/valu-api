@@ -374,7 +374,8 @@ export async function callOnce(services, descriptor, input, timeoutMs, options) 
  * app page itself) and `app-state` (`Developer.*`, `VerusWallet.get-balance`:
  * they read state a Valu Social runtime holds, and the host holds none).
  */
-const UNSERVED_CHANNELS = new Set(['local', 'app-state']);
+// A typed intent (`intent`) is sent as the intent it is (`api:service-intent`), never as an `api:call`.
+const UNSERVED_CHANNELS = new Set(['local', 'app-state', 'intent']);
 
 /**
  * One `api:call`, to its ValuAck. In this order, each refusing before the next
@@ -437,7 +438,7 @@ export async function answerIntent(host, { applicationId, action, params }, trac
   const descriptor = typeof applicationId === 'string' && typeof action === 'string'
     ? findDescriptor(`${applicationId}.${action}`)
     : undefined;
-  if (descriptor) {
+  if (descriptor && descriptor.channel !== 'intent') {
     const { service, method } = descriptor;
     return {
       error: {

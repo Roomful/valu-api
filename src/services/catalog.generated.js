@@ -3515,6 +3515,2907 @@ export const SERVICE_DESCRIPTORS = [
   }
 ];
 
+/** The typed intents (scripts/bindings.js INTENT_FUNCTION_SERVICES): functions
+ * on the tree that the transport sends, as intents, to whoever frames or hosts
+ * the app. Channel `intent`; `mode` says what happens at the app's own
+ * address (`both`, `window`, `embedded-only`, `embedded-served`). */
+export const INTENT_DESCRIPTORS = [
+  {
+    "key": "Application.close_all",
+    "service": "Application",
+    "action": "close_all",
+    "fn": "close_all",
+    "method": "closeAll",
+    "toolName": "service__Application__close_all",
+    "serviceTitle": "Application Service",
+    "serviceDescription": "Issues short-lived signed identity JWTs for iFrame (mini-app) applications. Allows an embedded application to obtain a signed token proving the current user's identity to the mini-app's own backend.",
+    "source": "src/Services/Application/ApplicationService.js",
+    "description": "Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "void",
+      "description": "Every open application was closed."
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-only"
+  },
+  {
+    "key": "Application.close-application",
+    "service": "Application",
+    "action": "close-application",
+    "fn": "close_application",
+    "method": "closeApplication",
+    "toolName": "service__Application__close_application",
+    "serviceTitle": "Application Service",
+    "serviceDescription": "Issues short-lived signed identity JWTs for iFrame (mini-app) applications. Allows an embedded application to obtain a signed token proving the current user's identity to the mini-app's own backend.",
+    "source": "src/Services/Application/ApplicationService.js",
+    "description": "Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the \"Close Application\" default header action for iframe apps that render their own context menu (header: false).",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "void",
+      "description": "The calling application was closed."
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-only"
+  },
+  {
+    "key": "Application.expand-application",
+    "service": "Application",
+    "action": "expand-application",
+    "fn": "expand_application",
+    "method": "expandApplication",
+    "toolName": "service__Application__expand_application",
+    "serviceTitle": "Application Service",
+    "serviceDescription": "Issues short-lived signed identity JWTs for iFrame (mini-app) applications. Allows an embedded application to obtain a signed token proving the current user's identity to the mini-app's own backend.",
+    "source": "src/Services/Application/ApplicationService.js",
+    "description": "Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the \"Expand Application\" default header action for iframe apps that render their own context menu (header: false).",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "void",
+      "description": "The calling application was expanded."
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-only"
+  },
+  {
+    "key": "Application.get-identity-token",
+    "service": "Application",
+    "action": "get-identity-token",
+    "fn": "get_identity_token",
+    "method": "getIdentityToken",
+    "toolName": "service__Application__get_identity_token",
+    "serviceTitle": "Application Service",
+    "serviceDescription": "Issues short-lived signed identity JWTs for iFrame (mini-app) applications. Allows an embedded application to obtain a signed token proving the current user's identity to the mini-app's own backend.",
+    "source": "src/Services/Application/ApplicationService.js",
+    "description": "Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "application:identity"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{token: string}",
+      "description": "A short-lived identity token for the calling application."
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.add-to-cart",
+    "service": "Commerce",
+    "action": "add-to-cart",
+    "fn": "add_to_cart",
+    "method": "addToCart",
+    "toolName": "service__Commerce__add_to_cart",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Put a product in the user's cart, credited to your app. The server re-checks that it can be bought here before accepting it, so a refusal comes back with a code to show.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:write"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{items: object[]}",
+      "description": "The cart after the addition."
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "the product to add"
+        }
+      ],
+      "optional": [
+        {
+          "name": "qty",
+          "type": "number",
+          "description": "how many, at least 1 (default 1)"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.archive-product",
+    "service": "Commerce",
+    "action": "archive-product",
+    "fn": "archive_product",
+    "method": "archiveProduct",
+    "toolName": "service__Commerce__archive_product",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Withdraw a product from sale for good. OPENS A PLATFORM DIALOG over your app saying it leaves every shelf and cannot be undone, and naming the products that include it — they stop selling too until each is published again without it. Archives only if the user confirms; `{success: false, code: \"cancelled\"}` is a normal answer. Anyone who bought it keeps it. Returns `{success: true, product, brokeBundles}` — `brokeBundles` the ids of the products that stopped selling.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "the product, from list-seller-products"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Commerce.check-entitlements",
+    "service": "Commerce",
+    "action": "check-entitlements",
+    "fn": "check_entitlements",
+    "method": "checkEntitlements",
+    "toolName": "service__Commerce__check_entitlements",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Which of these products the current user owns. This is how an app unlocks a ticket, a seat or an in-app good it sold through the shared cart.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{entitlements: object[]}",
+      "description": "What the buyer owns of the products asked about."
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productIds",
+          "type": "array",
+          "description": "the product ids to check"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.checkout",
+    "service": "Commerce",
+    "action": "checkout",
+    "fn": "checkout",
+    "method": "checkout",
+    "toolName": "service__Commerce__checkout",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Your app's Pay button. Your app never takes a payment: this opens My Cart's own cart over your app, showing your items with `promoCode` typed in and applied, and the BUYER presses Pay and scans the code there — only My Cart creates the order. It answers when the buyer closes it: `{success: true, outcome, orderId?, status?}`. `outcome` is `paid` (a free order too: unlock it), `pending` (an order was made but is not paid yet — follow it with get-order or the order-updated event), `cancelled` (the order will not be paid: the buyer cancelled it, or it expired or failed — `status` says which — and its items are back in the cart) or `dismissed` (closed without making an order). Refused with code `empty`, and nothing opens, when none of your items is selected in the cart (add them first). With `popup: false` My Cart docks instead and it answers at once with `outcome: \"opened\"`, as it does where there is no popup to draw. A second checkout while one is open replaces it; the first answers at once — `dismissed`, unless an order was already made in it.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:write"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "promoCode",
+          "type": "string",
+          "description": "a discount code to type in and apply for the buyer; check it first with preview-promo"
+        },
+        {
+          "name": "popup",
+          "type": "boolean",
+          "description": "false docks My Cart instead of drawing its cart over your app (default true)"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "window"
+  },
+  {
+    "key": "Commerce.clear-cart",
+    "service": "Commerce",
+    "action": "clear-cart",
+    "fn": "clear_cart",
+    "method": "clearCart",
+    "toolName": "service__Commerce__clear_cart",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Remove every row YOUR app added to the user's cart, saved-for-later ones included. Other apps' rows are never touched. No dialog: they are your own rows. Returns what is left — `{success: true, items, count}` — so an empty `items` means the cart held only your rows.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:write"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.create-discount-code",
+    "service": "Commerce",
+    "action": "create-discount-code",
+    "fn": "create_discount_code",
+    "method": "createDiscountCode",
+    "toolName": "service__Commerce__create_discount_code",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "A discount code buyers type at checkout — on the seller's own products only. OPENS A PLATFORM DIALOG over your app with the code, its value, limits and dates, and creates it only if the user confirms; `{success: false, code: \"cancelled\"}` is a normal answer. The code is stored upper-case; one the store already has is refused `conflict`. Returns `{success: true, discountCode}` in list-promotions' code shape — named `discountCode` because `code` is the refusal field.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "code",
+          "type": "string",
+          "description": "3 to 32 letters, digits and hyphens"
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "description": "percent off, or a fixed amount off",
+          "options": [
+            "percent",
+            "fixed"
+          ]
+        },
+        {
+          "name": "value",
+          "type": "number",
+          "description": "the percent (at most 100) or the amount, more than 0"
+        }
+      ],
+      "optional": [
+        {
+          "name": "currency",
+          "type": "string",
+          "description": "a fixed amount's currency (default VRSC)",
+          "options": [
+            "VRSC",
+            "USD"
+          ]
+        },
+        {
+          "name": "minSubtotalVrsc",
+          "type": "number",
+          "description": "the smallest order it applies to, in VRSC"
+        },
+        {
+          "name": "maxRedemptions",
+          "type": "number",
+          "description": "how many times it can be used in all; omit for unlimited"
+        },
+        {
+          "name": "perBuyerLimit",
+          "type": "number",
+          "description": "how many times one buyer can use it; omit for unlimited"
+        },
+        {
+          "name": "startsAt",
+          "type": "string",
+          "description": "ISO date it starts; omit for now"
+        },
+        {
+          "name": "endsAt",
+          "type": "string",
+          "description": "ISO date it ends; omit for no end"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Commerce.create-product",
+    "service": "Commerce",
+    "action": "create-product",
+    "fn": "create_product",
+    "method": "createProduct",
+    "toolName": "service__Commerce__create_product",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, so the seller confirms it separately — in the publish dialog an app opens with publish-product, or in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{product: object}",
+      "description": "The DRAFT product that was created. Publishing stays with the seller."
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "title",
+          "type": "string",
+          "description": "the product's name; giving one creates the draft directly instead of opening the form"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "what a buyer reads before paying"
+        },
+        {
+          "name": "priceAmount",
+          "type": "number",
+          "description": "the price; 0 or omitted is a free product. When items include other products, this is the price ON TOP of theirs"
+        },
+        {
+          "name": "priceCurrency",
+          "type": "string",
+          "description": "VRSC (default) or USD",
+          "options": [
+            "VRSC",
+            "USD"
+          ]
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "description": "one of the platform's category ids — see list-categories; required before the seller can publish"
+        },
+        {
+          "name": "tags",
+          "type": "array",
+          "description": "up to 10 tags of up to 24 characters; normalised (lowercase, trimmed)"
+        },
+        {
+          "name": "imageResourceId",
+          "type": "string",
+          "description": "the cover: a resource id in the seller's own Media, e.g. one you generated"
+        },
+        {
+          "name": "items",
+          "type": "array",
+          "description": "the content a buyer receives: resource ids (\"res_1\"), named files ({resourceId, title}), folders ({folder: \"Unit 1\", items: […]}) or other products ({productId}) for a bundle"
+        },
+        {
+          "name": "stock",
+          "type": "number",
+          "description": "how many may be sold; omit for unlimited"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.create-store",
+    "service": "Commerce",
+    "action": "create-store",
+    "fn": "create_store",
+    "method": "createStore",
+    "toolName": "service__Commerce__create_store",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Open the signed-in user's store — what lets them sell; buyers see the user themselves as the seller, so it needs no name. It needs a Verified Verus identity: without one it is refused with code `not_eligible_kyc` — send the user to their Profile. A user who already has a store gets it back unchanged. Returns `{success: true, store}` in get-my-store's shape. No dialog. Next steps: set-donation-tiers (a store with no donation sells nowhere), then create-product.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "name",
+          "type": "string",
+          "description": "rarely needed — the user's own profile name is used without it; at most 120 characters"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "what they sell, at most 2000 characters"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.delete-discount-code",
+    "service": "Commerce",
+    "action": "delete-discount-code",
+    "fn": "delete_discount_code",
+    "method": "deleteDiscountCode",
+    "toolName": "service__Commerce__delete_discount_code",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Delete a code nothing ever used. Direct — no dialog. A code that was used is part of the record and is refused `conflict`: turn it off instead (update-discount-code with `status: \"disabled\"`). Returns `{success: true}`.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "codeId",
+          "type": "string",
+          "description": "the code's id, from list-promotions"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.delete-product",
+    "service": "Commerce",
+    "action": "delete-product",
+    "fn": "delete_product",
+    "method": "deleteProduct",
+    "toolName": "service__Commerce__delete_product",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Delete a product for good. OPENS THE MERCHANT CONSOLE'S DELETE DIALOG over your app, where the user types the product's name to confirm; deletes only then. `{success: false, code: \"cancelled\"}` is a normal answer. A product that is part of another product cannot be deleted: the dialog names those products and the answer is `{success: false, code: \"conflict\"}` — take it out of them first (update-product on each). Buyers keep what they bought. Returns `{success: true}`.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "the product, from list-seller-products"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Commerce.end-sale",
+    "service": "Commerce",
+    "action": "end-sale",
+    "fn": "end_sale",
+    "method": "endSale",
+    "toolName": "service__Commerce__end_sale",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "End a sale now. Direct — stopping a discount needs no dialog. Returns `{success: true, sale}` with `status: \"ended\"`.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "saleId",
+          "type": "string",
+          "description": "the sale's id (not the product's), from list-promotions"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.get-analytics",
+    "service": "Commerce",
+    "action": "get-analytics",
+    "fn": "get_analytics",
+    "method": "getAnalytics",
+    "toolName": "service__Commerce__get_analytics",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "The store's own numbers over a range — the Merchant Console's Analytics — exactly as the server sends them: `{range, totals: {revenueVrsc, orders, units, curatorFeeVrsc, revenueApproximate}, series: [{day, revenueVrsc, orders, suppressed}], topProducts: [{productId, title, revenueVrsc, units, suppressed}], byNetwork: [{networkId, revenueVrsc, orders, suppressed}], suppressedCells}`. A row with `suppressed: true` was built from too few orders and is WITHHELD: its numbers are not figures — show it as withheld, never as 0. `orders` counts order lines touched, an upper bound, not distinct orders. Read-only.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "from",
+          "type": "string",
+          "description": "ISO date the range starts"
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "description": "ISO date the range ends"
+        },
+        {
+          "name": "testOnly",
+          "type": "boolean",
+          "description": "true reads the test orders' figures instead of the real ones (never mixed)"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.get-cart",
+    "service": "Commerce",
+    "action": "get-cart",
+    "fn": "get_cart",
+    "method": "getCart",
+    "toolName": "service__Commerce__get_cart",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Each item's `appId` says which app added it. An app changes only its own rows: `add-to-cart` adds one, `update-cart-item` changes one, `remove-from-cart` and `clear-cart` take them out. Every other app's items are the buyer's to change in My Cart: send them there with `open-cart`.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{items: object[], count: number}",
+      "description": "The whole cart; count excludes saved-for-later rows."
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.get-display",
+    "service": "Commerce",
+    "action": "get-display",
+    "fn": "get_display",
+    "method": "getDisplay",
+    "toolName": "service__Commerce__get_display",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "How this network SHOWS prices: `{currency, vrscUsd}`, where `currency` is `USD` or `VRSC` (the network admins' choice) and `vrscUsd` is the server's VRSC→USD rate, null when it is unknown. Every amount Commerce answers with stays in VRSC (`…Vrsc`); multiply by `vrscUsd` to show dollars, and show VRSC when the rate is null.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.get-my-product",
+    "service": "Commerce",
+    "action": "get-my-product",
+    "fn": "get_my_product",
+    "method": "getMyProduct",
+    "toolName": "service__Commerce__get_my_product",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "One of the seller's own products with its content, in exactly the shape update-product takes: `{product, items}`. Read it before changing the content — `items` in update-product REPLACES the whole tree, so edit this list and send it back rather than sending only the new files. `product.editable` is true for a draft, whose fields and content may change; a `broken` product (needs attention: something it included was archived) takes new content only.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{product: object, items: object[]}",
+      "description": "One of the seller's products with its content tree."
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "the product, from list-seller-products (an app) or list-my-products (the AI)"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.get-my-store",
+    "service": "Commerce",
+    "action": "get-my-store",
+    "fn": "get_my_store",
+    "method": "getMyStore",
+    "toolName": "service__Commerce__get_my_store",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "The signed-in user's own store and where they stand to sell — with list-seller-products, enough to draw the Merchant Console's setup checklist (verified identity → store → donation set → a product → one published). Returns `{hasStore, identityVerified, sellerName, sellerUserId, store, network}`. Buyers see a PERSON as the seller, not a store: show `sellerName` (the owner's profile name) and draw their avatar from `sellerUserId` with the users API's getIcon. `store` is `{id, name, description, status, payoutIdentityName, donationTiers: [{minMembers, percent}], donationUpdatedAt}`, or null — its `name` is kept for older callers and is not what buyers see; an empty `donationTiers` means no donation is set, and such a store sells nowhere. `identityVerified` says whether the user can open a store (a Verified Verus identity; when false, send them to their Profile). `network` is the network the user is in now: `{id, memberCount, mode, allowedRatings, displayCurrency, donationTierIndex}` — `mode` is `open | approval_required | closed`, `donationTierIndex` which of the store's four donation tiers this network takes (null without a store or a known size). Read-only.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.get-order",
+    "service": "Commerce",
+    "action": "get-order",
+    "fn": "get_order",
+    "method": "getOrder",
+    "toolName": "service__Commerce__get_order",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "One of the user's orders, in the shape list-orders answers: `{order}`. Use it to follow an order `checkout` answered with. An order that is not the user's is refused `not_found`, exactly like one that does not exist. `imageResourceId` is null here; list-orders resolves the pictures.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "orderId",
+          "type": "string",
+          "description": "the order to read"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.get-product",
+    "service": "Commerce",
+    "action": "get-product",
+    "fn": "get_product",
+    "method": "getProduct",
+    "toolName": "service__Commerce__get_product",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "One product with its price, its parts when it is a bundle, its seller, its reviews and whether the current user already owns it. The seller is a PERSON, as in list-products: `sellerName`, `sellerUserId` (their avatar through the users API's getIcon) and `sellerIdentityName`; the store record's name is that person too. `contents` is what the product holds, as a tree to draw: `{type: \"folder\", title, items}`, `{type: \"file\", resourceId, title, kind, contentType, fileSize}` and `{type: \"product\", productId, title}`. `children` is NOT the content: it is only the products a bundle includes, empty for anything else. `items` is the same content as flat database rows, kept for older callers. A file's `resourceId` (and `resource_id` in items) is null unless the user owns the product or sells it: titles and types are the shop window, the ids open the paid files. For something the user bought, use get-purchase-contents.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{product: object}",
+      "description": "One catalogue product."
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "the product to read"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.get-purchase-contents",
+    "service": "Commerce",
+    "action": "get-purchase-contents",
+    "fn": "get_purchase_contents",
+    "method": "getPurchaseContents",
+    "toolName": "service__Commerce__get_purchase_contents",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: \"folder\", title, items}`, `{type: \"file\", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: \"product\", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is \"folder\" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "a product the user owns, from list-purchases"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.list-categories",
+    "service": "Commerce",
+    "action": "list-categories",
+    "fn": "list_categories",
+    "method": "listCategories",
+    "toolName": "service__Commerce__list_categories",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "The platform's product categories as `{categories: [{id, label}]}`. Every product is filed under exactly one; pass an `id` to list-products as `category`, and show the `label`.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{categories: object[]}",
+      "description": "The platform category list."
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.list-my-products",
+    "service": "Commerce",
+    "action": "list-my-products",
+    "fn": "list_my_products",
+    "method": "listMyProducts",
+    "toolName": "service__Commerce__list_my_products",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "List the SELLER's own products in their store — drafts, unlisted, live and archived — unlike list-products, which is the buyer's shelf and never shows drafts. Use it to find the productId to edit. Each product carries `editable`: true only for a draft (never published, or unlisted by the seller). Returns `{hasStore, products}`.",
+    "availability": [
+      "ai"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{hasStore: boolean, products: object[]}",
+      "description": "The seller's own catalogue, drafts included."
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "status",
+          "type": "string",
+          "description": "only products in this state",
+          "options": [
+            "draft",
+            "active",
+            "archived",
+            "broken"
+          ]
+        },
+        {
+          "name": "limit",
+          "type": "number",
+          "description": "how many to return"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.list-network-access",
+    "service": "Commerce",
+    "action": "list-network-access",
+    "fn": "list_network_access",
+    "method": "listNetworkAccess",
+    "toolName": "service__Commerce__list_network_access",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Where the store stands in each network it asked to sell in: `{networks: [{networkId, status, requestedAt, decidedAt, note, message}]}`. `status` is `pending | approved | rejected | suspended`; `note` is the admins' word on their decision, `message` the seller's on the request. The network the user is in now may be missing: in an `open` one (get-my-store `network.mode`) a store sells without asking. Read-only.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.list-orders",
+    "service": "Commerce",
+    "action": "list-orders",
+    "fn": "list_orders",
+    "method": "listOrders",
+    "toolName": "service__Commerce__list_orders",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "The user's orders, newest first, with their whole receipt as frozen at checkout. Returns `{orders: [{id, status, createdAt, paidAt, expiresAt, isTest, subtotalVrsc, totalVrsc, rateVrscUsd, items: [{productId, appId, title, qty, unitPriceVrsc, lineTotalVrsc, imageResourceId, deletedBySeller, parts: [{productId, title}], bundleFeeVrsc}], discounts: [{kind, label, amountVrsc}], notCharged: [{productId, title, amountVrsc}], payouts: [{kind, identityName, storeId, amountVrsc, status, donationPercent, donationMemberCount}], payment: {method, transactionId, failureReason} | null}]}`. `status` is `pending_payment`, `paid`, `expired`, `cancelled` or `failed`; without `status` you get pending and paid orders (a cancelled order is deleted). `notCharged` are parts of a bundle the user already owned. An order never carries a way to pay it: send the buyer to it with open-order.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "status",
+          "type": "string",
+          "description": "only orders in this state",
+          "options": [
+            "pending_payment",
+            "paid",
+            "expired",
+            "cancelled",
+            "failed"
+          ]
+        },
+        {
+          "name": "limit",
+          "type": "number",
+          "description": "how many orders to read, newest first; counted before thisAppOnly narrows them"
+        },
+        {
+          "name": "thisAppOnly",
+          "type": "boolean",
+          "description": "true keeps only orders with at least one item bought in YOUR app"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.list-products",
+    "service": "Commerce",
+    "action": "list-products",
+    "fn": "list_products",
+    "method": "listProducts",
+    "toolName": "service__Commerce__list_products",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Search the live products available in the user's current network — the buyer's shelf, every seller's goods, not only yours. Products the network or its admins have refused are simply absent from the answer. Each product names its seller, who is a PERSON, not a store: `sellerName` (their profile name), `sellerUserId` (draw their avatar with the users API's getIcon({userId: sellerUserId})) and `sellerIdentityName` (the Verus ID payments go to). `storeName` carries the same person's name, for older callers; show the person, never a store. For the signed-in seller's OWN products, drafts included, use list-seller-products.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{products: object[], total: number}",
+      "description": "A page of the buyer's shelf in the user's network — every seller's live goods, not only the calling application's."
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "query",
+          "type": "string",
+          "description": "free-text search over the product title, or a whole tag"
+        },
+        {
+          "name": "storeId",
+          "type": "string",
+          "description": "only this seller's products: a product's `storeId`, from list-products or get-product. Every user has one store, so this is everything one person sells (My Cart's \"Everything from this store\")"
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "description": "one of the platform's category ids — see list-categories"
+        },
+        {
+          "name": "tag",
+          "type": "string",
+          "description": "one tag, matched exactly (case and spacing do not matter)"
+        },
+        {
+          "name": "attributes",
+          "type": "object",
+          "description": "app-defined facets to filter by, e.g. {\"subject\": \"Mathematics\"}"
+        },
+        {
+          "name": "sort",
+          "type": "string",
+          "description": "newest | popular | priceAsc | priceDesc | rating",
+          "options": [
+            "newest",
+            "popular",
+            "priceAsc",
+            "priceDesc",
+            "rating"
+          ]
+        },
+        {
+          "name": "limit",
+          "type": "number",
+          "description": "page size, up to 100 (default 24)"
+        },
+        {
+          "name": "offset",
+          "type": "number",
+          "description": "where the page starts"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.list-promotions",
+    "service": "Commerce",
+    "action": "list-promotions",
+    "fn": "list_promotions",
+    "method": "listPromotions",
+    "toolName": "service__Commerce__list_promotions",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Every sale, volume discount and discount code of the store: `{sales: [{id, productId, salePriceAmount, salePriceCurrency, startsAt, endsAt, status}], tiers: [{id, minItems, percentOff, status}], codes: [{id, code, kind, value, currency, minSubtotalVrsc, maxRedemptions, redeemedCount, reservedCount, perBuyerLimit, startsAt, endsAt, status}]}`. `status` is `active | ended` for a sale and `active | disabled` for a tier or a code. A buyer's price takes a sale first, then at most one volume discount, then at most one code — they never stack beyond that. Read-only.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.list-purchases",
+    "service": "Commerce",
+    "action": "list-purchases",
+    "fn": "list_purchases",
+    "method": "listPurchases",
+    "toolName": "service__Commerce__list_purchases",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "thisAppOnly",
+          "type": "boolean",
+          "description": "true lists only what was bought in YOUR app"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.list-seller-products",
+    "service": "Commerce",
+    "action": "list-seller-products",
+    "fn": "list_seller_products",
+    "method": "listSellerProducts",
+    "toolName": "service__Commerce__list_seller_products",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Every product the SIGNED-IN user sells, from their own store, so an app can show a seller their own products: live, draft (unlisted ones included), archived and broken, in every network, including ones a network blocked. Unlike list-products, the buyer's shelf of live products allowed here. The store is always the current user's; there is no way to name another. Read-only, newest change first. Returns `{hasStore, products}`; `hasStore` is false (and products empty) when the user has no store. Each product: id, title, description, status, category, tags, priceAmount, priceCurrency, totalPriceAmount, isBundle, coverResourceId, stock (null = unlimited), soldCount, contentCount. Show totalPriceAmount as the price: on a bundle priceAmount is only the seller's part on top of what it includes, and totalPriceAmount is null when the server could not price the bundle.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "status",
+          "type": "string",
+          "description": "only products in this state",
+          "options": [
+            "draft",
+            "active",
+            "archived",
+            "broken"
+          ]
+        },
+        {
+          "name": "limit",
+          "type": "number",
+          "description": "how many to return: 100 by default, up to 500"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.mark-purchase-file-seen",
+    "service": "Commerce",
+    "action": "mark-purchase-file-seen",
+    "fn": "mark_purchase_file_seen",
+    "method": "markPurchaseFileSeen",
+    "toolName": "service__Commerce__mark_purchase_file_seen",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Mark one of the user's purchased files as OPENED, for an app that shows a purchase's files itself (preview-purchase marks the files it shows by itself). The file must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents) and not a folder. Returns `{success: true, resourceId, progress}` — `progress` as in get-purchase-contents — or `{success: false, code}` with `not_owned` or `not_in_purchase`.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:write"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "a product the user owns"
+        },
+        {
+          "name": "resourceId",
+          "type": "string",
+          "description": "the file of that purchase the user opened"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Commerce.open-cart",
+    "service": "Commerce",
+    "action": "open-cart",
+    "fn": "open_cart",
+    "method": "openCart",
+    "toolName": "service__Commerce__open_cart",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Open My Cart for the user, scoped to your app's items. With `popup` it is drawn over your own app instead of docking My Cart — mid-purchase, that keeps the user where they were. It answers as soon as the cart is open; for a Pay button use `checkout`, which opens the same cart and answers with what the buyer did there.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "void",
+      "description": "The cart surface was opened."
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "popup",
+          "type": "boolean",
+          "description": "true draws the surface over YOUR app's own pane instead of docking the application, so the page the user was on stays visible and usable behind it. Where your app is not on screen it falls back to a window over the whole page."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "window"
+  },
+  {
+    "key": "Commerce.open-order",
+    "service": "Commerce",
+    "action": "open-order",
+    "fn": "open_order",
+    "method": "openOrder",
+    "toolName": "service__Commerce__open_order",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Open one of the user's orders in My Cart, expanded: where the buyer resumes a pending payment (\"Show code\"), cancels or deletes an unpaid order, or reads a receipt. Those are the buyer's own actions in My Cart; your app cannot take them. With `popup` it is drawn over your own app instead of docking My Cart. Returns `{success: true, popup}`.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "orderId",
+          "type": "string",
+          "description": "the order to show, e.g. from list-orders or checkout"
+        }
+      ],
+      "optional": [
+        {
+          "name": "popup",
+          "type": "boolean",
+          "description": "true draws the surface over YOUR app's own pane instead of docking the application, so the page the user was on stays visible and usable behind it. Where your app is not on screen it falls back to a window over the whole page."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "window"
+  },
+  {
+    "key": "Commerce.open-products",
+    "service": "Commerce",
+    "action": "open-products",
+    "fn": "open_products",
+    "method": "openProducts",
+    "toolName": "service__Commerce__open_products",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it for a \"My products\" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's. With `popup` it is drawn over your own app instead of docking the console.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "void",
+      "description": "The merchant console was opened."
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "popup",
+          "type": "boolean",
+          "description": "true draws the surface over YOUR app's own pane instead of docking the application, so the page the user was on stays visible and usable behind it. Where your app is not on screen it falls back to a window over the whole page."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "window"
+  },
+  {
+    "key": "Commerce.open-purchase-in-media",
+    "service": "Commerce",
+    "action": "open-purchase-in-media",
+    "fn": "open_purchase_in_media",
+    "method": "openPurchaseInMedia",
+    "toolName": "service__Commerce__open_purchase_in_media",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Open a purchase where it lives, in Media's Purchased section — the Orders tab's \"Show in Media\". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Media docks beside your app. Returns `{success: true}`, or `{success: false, code: \"not_owned\"}` without opening anything.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "a product the user owns; omit for everything they bought"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "window"
+  },
+  {
+    "key": "Commerce.open-purchases",
+    "service": "Commerce",
+    "action": "open-purchases",
+    "fn": "open_purchases",
+    "method": "openPurchases",
+    "toolName": "service__Commerce__open_purchases",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Open what the user OWNS in My Cart's Purchased tab — each product with its files, how far through them they are, and their rating; with `productId`, that product opened and shown. Receipts are `open-order`. With `popup` it is drawn over your own app instead of docking My Cart.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "void",
+      "description": "The purchases surface was opened."
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "a product the user owns, to open and show"
+        },
+        {
+          "name": "popup",
+          "type": "boolean",
+          "description": "true draws the surface over YOUR app's own pane instead of docking the application, so the page the user was on stays visible and usable behind it. Where your app is not on screen it falls back to a window over the whole page."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "window"
+  },
+  {
+    "key": "Commerce.preview-promo",
+    "service": "Commerce",
+    "action": "preview-promo",
+    "fn": "preview_promo",
+    "method": "previewPromo",
+    "toolName": "service__Commerce__preview_promo",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "What a discount code would do to the items YOUR app has selected in the cart — exactly what `checkout` will charge for them. Returns `{valid, reason, discounts: [{kind, label, amountVrsc}], subtotalVrsc, totalVrsc}`. `reason` is null when valid, else `promo_invalid`, `promo_expired`, `promo_exhausted` or `not_applicable` (a real code that takes nothing off this selection, e.g. under its minimum). `discounts` lists everything that takes money off, the code and any volume discount or sale alike. Read-only: nothing is reserved, and My Cart prices the code again when the buyer pays. With nothing of yours selected the server refuses `validation_failed`.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "code",
+          "type": "string",
+          "description": "the code as the buyer typed it; case and surrounding spaces do not matter"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.preview-purchase",
+    "service": "Commerce",
+    "action": "preview-purchase",
+    "fn": "preview_purchase",
+    "method": "previewPurchase",
+    "toolName": "service__Commerce__preview_purchase",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Open the platform's previewer on what the user bought — the Orders tab's click on a file. It holds every file of the purchase in tree order, with previous / next arrows between them, and opens on `resourceId` when given (it must be in the purchase: its `resourceId` or `deliveredResourceId` from get-purchase-contents), on the first file otherwise. Every file the user lands on is marked as opened (`seen` in get-purchase-contents). A folder resource is shown on its own. Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "a product the user owns"
+        }
+      ],
+      "optional": [
+        {
+          "name": "resourceId",
+          "type": "string",
+          "description": "the file of that purchase to open on"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "window"
+  },
+  {
+    "key": "Commerce.publish-product",
+    "service": "Commerce",
+    "action": "publish-product",
+    "fn": "publish_product",
+    "method": "publishProduct",
+    "toolName": "service__Commerce__publish_product",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Put one of the seller's products on sale. OPENS THE MERCHANT CONSOLE'S PUBLISH DIALOG over your app: the user picks the networks to sell in — `networkIds` start ticked where the store may sell, by default this network — and confirms. Only then is the product listed (in My Cart and in YOUR app) and published, freezing this version for buyers. `{success: false, code: \"cancelled\"}` is a normal answer: the user did not publish — do not ask again yourself. Only a draft or a `broken` product (its content fixed with update-product) can be published; no content, no category, or a store with no donation set is refused `validation_failed` before any dialog, saying which. Returns `{success: true, product, version: {id, version, status, vaultStatus, publishedAt}}`. Refused `busy` while another dialog from your app is open, `unsupported` where the platform cannot show one.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "the product, from list-seller-products"
+        }
+      ],
+      "optional": [
+        {
+          "name": "networkIds",
+          "type": "array",
+          "description": "networks to start ticked in the dialog; the user decides"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Commerce.quote-bundle",
+    "service": "Commerce",
+    "action": "quote-bundle",
+    "fn": "quote_bundle",
+    "method": "quoteBundle",
+    "toolName": "service__Commerce__quote_bundle",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "What a product made of these products would cost a buyer, priced by the server exactly as checkout prices it (sales, bundles inside bundles, a part reached twice). Returns `{currency, parts: [{productId, amount}], included, own, total, duplicates, unavailable}`: `included` is the parts' sum, `own` the seller's price on top, `total` what a buyer pays; `duplicates` are parts reached twice, `unavailable` ids that are neither on sale nor the seller's own. Read-only — show it while the seller assembles a bundle; create-product with `{productId}` items makes one.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productIds",
+          "type": "array",
+          "description": "the products the bundle would include"
+        }
+      ],
+      "optional": [
+        {
+          "name": "priceCurrency",
+          "type": "string",
+          "description": "the currency to quote in (default VRSC)",
+          "options": [
+            "VRSC",
+            "USD"
+          ]
+        },
+        {
+          "name": "ownPrice",
+          "type": "number",
+          "description": "the seller's own price on top of the parts, zero or more"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.rate-product",
+    "service": "Commerce",
+    "action": "rate-product",
+    "fn": "rate_product",
+    "method": "rateProduct",
+    "toolName": "service__Commerce__rate_product",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Rate a product the user owns, one to five stars with an optional review. A rating is public (it shows on the product's page), so the platform asks the user first in its own dialog over your app: `score` and `text` only pre-fill it, the user can change both, and what they confirm is what is saved. Returns `{success: true, review: {score, text}}` — what was saved. Refused with `cancelled` when the user closes the dialog (nothing is saved; do not ask again on your own), `not_owned` when they do not own the product (no dialog), `busy` while another platform dialog is waiting, and `unsupported` where there is no dialog to ask with.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:write"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "a product the user owns, e.g. from list-purchases"
+        }
+      ],
+      "optional": [
+        {
+          "name": "score",
+          "type": "number",
+          "description": "the stars to propose, a whole number from 1 to 5"
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "description": "the review to propose, up to 4000 characters"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Commerce.remove-from-cart",
+    "service": "Commerce",
+    "action": "remove-from-cart",
+    "fn": "remove_from_cart",
+    "method": "removeFromCart",
+    "toolName": "service__Commerce__remove_from_cart",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Take one of YOUR app's rows out of the user's cart. Another app's row is refused with code `not_yours` (the buyer removes those in My Cart), a row the cart does not hold with `not_found`. Returns the whole cart: `{success: true, items, count}`.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:write"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "itemId",
+          "type": "string",
+          "description": "the cart row to remove: an item `id` from get-cart, one your app added"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.remove-volume-tier",
+    "service": "Commerce",
+    "action": "remove-volume-tier",
+    "fn": "remove_volume_tier",
+    "method": "removeVolumeTier",
+    "toolName": "service__Commerce__remove_volume_tier",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Remove a volume discount. Direct — no dialog. Returns `{success: true}`.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "tierId",
+          "type": "string",
+          "description": "the discount, from list-promotions"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.request-network-access",
+    "service": "Commerce",
+    "action": "request-network-access",
+    "fn": "request_network_access",
+    "method": "requestNetworkAccess",
+    "toolName": "service__Commerce__request_network_access",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Ask a network's admins to let the store sell there, with an optional message; they decide, and list-network-access shows the outcome. Returns `{success: true, request}` in list-network-access's shape (`status: \"pending\"`). No dialog.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "networkId",
+          "type": "string",
+          "description": "the network to sell in"
+        }
+      ],
+      "optional": [
+        {
+          "name": "message",
+          "type": "string",
+          "description": "a word to the admins, at most 2000 characters"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.set-donation-tiers",
+    "service": "Commerce",
+    "action": "set-donation-tiers",
+    "fn": "set_donation_tiers",
+    "method": "setDonationTiers",
+    "toolName": "service__Commerce__set_donation_tiers",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Set the store's network donation — the share of every sale that goes to the network it is sold in, one percentage per network size; a store with none sells nowhere. OPENS A PLATFORM DIALOG over your app showing each tier old → new (this network's marked) and saves only if the user confirms. `{success: false, code: \"cancelled\"}` is a normal answer: the user said no — do not ask again yourself. Lowering any tier sends the store back for approval in every network that approved it (its products hide there until an admin approves again), and the dialog says so. Sending what is already saved asks nothing and changes nothing. Returns `{success: true, store, reopenedNetworks}` — the networks that must approve the store again. Refused `busy` while another dialog from your app is open, `unsupported` where the platform cannot show one.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "tiers",
+          "type": "array",
+          "description": "exactly four {minMembers, percent}, one per network size — minMembers 0, 100, 1000 and 10000 — each percent 0 to 100 with at most two decimals"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Commerce.set-sale",
+    "service": "Commerce",
+    "action": "set-sale",
+    "fn": "set_sale",
+    "method": "setSale",
+    "toolName": "service__Commerce__set_sale",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Put one product on sale at a lower price. OPENS A PLATFORM DIALOG over your app showing the sale price against the usual one and when it runs; starts it only if the user confirms. `{success: false, code: \"cancelled\"}` is a normal answer. The sale price must be below the product's own and in its currency, and a bundle (priced by its parts) cannot go on sale — each refused `validation_failed` before any dialog. A product with a sale running gets this one instead. Returns `{success: true, sale}` in list-promotions' shape.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "the product, from list-seller-products"
+        },
+        {
+          "name": "salePriceAmount",
+          "type": "number",
+          "description": "the sale price, below the product's own"
+        }
+      ],
+      "optional": [
+        {
+          "name": "salePriceCurrency",
+          "type": "string",
+          "description": "must be the product's own price currency (the default)",
+          "options": [
+            "VRSC",
+            "USD"
+          ]
+        },
+        {
+          "name": "startsAt",
+          "type": "string",
+          "description": "ISO date it starts; omit for now"
+        },
+        {
+          "name": "endsAt",
+          "type": "string",
+          "description": "ISO date it ends; omit to run until end-sale"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Commerce.set-volume-tier",
+    "service": "Commerce",
+    "action": "set-volume-tier",
+    "fn": "set_volume_tier",
+    "method": "setVolumeTier",
+    "toolName": "service__Commerce__set_volume_tier",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "A store-wide volume discount: every order with at least `minItems` of the seller's items gets `percentOff` off, in every app and network the store sells in. OPENS A PLATFORM DIALOG over your app (\"N or more items → P% off, every order in your store\") and saves only if the user confirms; `{success: false, code: \"cancelled\"}` is a normal answer. With `tierId` it edits that discount (the dialog shows what it was); without, it adds one — or replaces the one at the same `minItems`. Returns `{success: true, tier}` in list-promotions' shape.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "minItems",
+          "type": "number",
+          "description": "how many items an order needs, a whole number of at least 2"
+        },
+        {
+          "name": "percentOff",
+          "type": "number",
+          "description": "the discount, more than 0 and at most 100"
+        }
+      ],
+      "optional": [
+        {
+          "name": "tierId",
+          "type": "string",
+          "description": "the discount to edit, from list-promotions"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Commerce.subscribe-events",
+    "service": "Commerce",
+    "action": "subscribe-events",
+    "fn": "subscribe_events",
+    "method": "subscribeEvents",
+    "toolName": "service__Commerce__subscribe_events",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: \"commerce\", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Media; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "events",
+          "type": "array",
+          "description": "the event names to receive, replacing any earlier subscription: cart-updated, order-updated, delivery-updated, catalogue-updated, seller-product-updated, seller-store-updated, seller-promotions-updated"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.unlist-product",
+    "service": "Commerce",
+    "action": "unlist-product",
+    "fn": "unlist_product",
+    "method": "unlistProduct",
+    "toolName": "service__Commerce__unlist_product",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Take a product that is on sale off every shelf: it becomes a draft again, its published version intact — buyers keep what they bought, and publishing again puts it back. OPENS THE MERCHANT CONSOLE'S UNLIST DIALOG over your app and unlists only if the user confirms; `{success: false, code: \"cancelled\"}` is a normal answer. Only an `active` product can be unlisted. Returns `{success: true, product}`. Unlist a live product before editing it with update-product.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "a product on sale, from list-seller-products"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Commerce.unsubscribe-events",
+    "service": "Commerce",
+    "action": "unsubscribe-events",
+    "fn": "unsubscribe_events",
+    "method": "unsubscribeEvents",
+    "toolName": "service__Commerce__unsubscribe_events",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Stop receiving commerce events. Without `events`, every one your app subscribed to; with it, only those. Answers `{success: true, events}`: what your app still receives (empty when nothing). An unknown name is refused with `validation_failed` and nothing changes. There is no need to call it before your app closes: a subscription ends with the frame that made it.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "events",
+          "type": "array",
+          "description": "the event names to stop receiving (see subscribe-events); omit to stop them all"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.update-cart-item",
+    "service": "Commerce",
+    "action": "update-cart-item",
+    "fn": "update_cart_item",
+    "method": "updateCartItem",
+    "toolName": "service__Commerce__update_cart_item",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Change one of YOUR app's rows in the user's cart: its quantity, whether it is selected for checkout, or whether it is saved for later. Give at least one of them; only the fields given change. A row added by another app is refused with code `not_yours` — the buyer changes those in My Cart (`open-cart`) — and a row the cart does not hold with `not_found`. Returns the whole cart as get-cart reads it: `{success: true, items, count}`, `count` excluding what is saved for later. The server re-checks stock and availability and refuses with its own code.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:write"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "itemId",
+          "type": "string",
+          "description": "the cart row to change: an item `id` from get-cart, one your app added"
+        }
+      ],
+      "optional": [
+        {
+          "name": "qty",
+          "type": "number",
+          "description": "the new quantity, a whole number of at least 1"
+        },
+        {
+          "name": "selected",
+          "type": "boolean",
+          "description": "true to include it in the next checkout, false to leave it out"
+        },
+        {
+          "name": "savedForLater",
+          "type": "boolean",
+          "description": "true moves it out of the cart into saved for later; false brings it back"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "Commerce.update-discount-code",
+    "service": "Commerce",
+    "action": "update-discount-code",
+    "fn": "update_discount_code",
+    "method": "updateDiscountCode",
+    "toolName": "service__Commerce__update_discount_code",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Change a discount code. DIRECT when it only stops the discount: `status: \"disabled\"`, or an `endsAt` sooner than the one it has (any end, for a code that has none). Anything that gives more — `status: \"active\"` again, a later end or none (`endsAt: null`), more uses, more per buyer — OPENS A PLATFORM DIALOG over your app with each change before → after, and saves only if the user confirms; `{success: false, code: \"cancelled\"}` is a normal answer. Returns `{success: true, discountCode}`.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "codeId",
+          "type": "string",
+          "description": "the code's id, from list-promotions"
+        }
+      ],
+      "optional": [
+        {
+          "name": "status",
+          "type": "string",
+          "description": "disabled turns it off; active turns it back on",
+          "options": [
+            "active",
+            "disabled"
+          ]
+        },
+        {
+          "name": "endsAt",
+          "type": "string",
+          "description": "ISO date it ends, or null for no end"
+        },
+        {
+          "name": "maxRedemptions",
+          "type": "number",
+          "description": "how many times it can be used in all, at least 1"
+        },
+        {
+          "name": "perBuyerLimit",
+          "type": "number",
+          "description": "how many times one buyer can use it, at least 1"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Commerce.update-product",
+    "service": "Commerce",
+    "action": "update-product",
+    "fn": "update_product",
+    "method": "updateProduct",
+    "toolName": "service__Commerce__update_product",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted first: unlist-product, or the seller in the Merchant Console). A `broken` product (needs attention: something it included was archived) accepts `items` only — its other fields are `not_editable` — and goes back on sale when it is published again (publish-product). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:sell"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{product: object}",
+      "description": "The updated draft."
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "the draft (or broken product) to edit, from list-seller-products (an app) or list-my-products (the AI)"
+        }
+      ],
+      "optional": [
+        {
+          "name": "title",
+          "type": "string",
+          "description": "the product's name"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "what a buyer reads before paying; an empty string clears it"
+        },
+        {
+          "name": "priceAmount",
+          "type": "number",
+          "description": "the price; 0 makes it free. On a product that includes other products this is the price ON TOP of theirs (a buyer pays the included products plus this)"
+        },
+        {
+          "name": "priceCurrency",
+          "type": "string",
+          "description": "VRSC or USD",
+          "options": [
+            "VRSC",
+            "USD"
+          ]
+        },
+        {
+          "name": "stock",
+          "type": "number",
+          "description": "how many may be sold (the quantity on sale)"
+        },
+        {
+          "name": "unlimitedStock",
+          "type": "boolean",
+          "description": "true removes the quantity limit"
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "description": "one of the platform's category ids — see list-categories; an empty string clears it"
+        },
+        {
+          "name": "tags",
+          "type": "array",
+          "description": "the full tag list (replaces the current one): up to 10 tags of up to 24 characters"
+        },
+        {
+          "name": "imageResourceId",
+          "type": "string",
+          "description": "the cover: a resource id in the seller's own Media"
+        },
+        {
+          "name": "items",
+          "type": "array",
+          "description": "the WHOLE new content: resource ids (\"res_1\"), named files ({resourceId, title}), folders ({folder: \"Unit 1\", items: […]}) or other products ({productId}) for a bundle"
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "both"
+  },
+  {
+    "key": "DataProvider.pick-multiple",
+    "service": "DataProvider",
+    "action": "pick-multiple",
+    "fn": "pick_multiple",
+    "method": "pickMultiple",
+    "toolName": "service__DataProvider__pick_multiple",
+    "serviceTitle": "Data Provider Service",
+    "serviceDescription": "Picker service for selecting items from data providers (rooms, contacts, etc.) via modal or inline overlay.",
+    "source": "src/Services/DataProvider/DataProviderService.js",
+    "description": "Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. \"invite some people to the room\" → call with providers: [\"contacts\"].",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{picked: object[]}",
+      "description": "What the user chose; empty when they cancelled."
+    },
+    "params": {
+      "required": [
+        {
+          "name": "providers",
+          "type": "string[]",
+          "description": "Provider IDs to show. Same set as pick-single."
+        }
+      ],
+      "optional": [
+        {
+          "name": "title",
+          "type": "string",
+          "description": "Dialog title."
+        },
+        {
+          "name": "confirmLabel",
+          "type": "string",
+          "description": "Confirm button label (e.g. \"Invite\", \"Share with\"). Defaults to \"Select\"."
+        },
+        {
+          "name": "confirmIcon",
+          "type": "string",
+          "description": "Confirm button icon class (Font Awesome, e.g. \"fa-light fa-paper-plane-top\")."
+        },
+        {
+          "name": "width",
+          "type": "string",
+          "description": "CSS width for the modal (desktop only)."
+        },
+        {
+          "name": "height",
+          "type": "string",
+          "description": "CSS height for the modal (desktop only)."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-only"
+  },
+  {
+    "key": "DataProvider.pick-single",
+    "service": "DataProvider",
+    "action": "pick-single",
+    "fn": "pick_single",
+    "method": "pickSingle",
+    "toolName": "service__DataProvider__pick_single",
+    "serviceTitle": "Data Provider Service",
+    "serviceDescription": "Picker service for selecting items from data providers (rooms, contacts, etc.) via modal or inline overlay.",
+    "source": "src/Services/DataProvider/DataProviderService.js",
+    "description": "Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. \"share this in a group\" without naming the group → call with providers: [\"groups\"]. Do not use to search programmatically; use the provider's own search/list service intent for that.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{picked: object|null}",
+      "description": "What the user chose, or null when they cancelled."
+    },
+    "params": {
+      "required": [
+        {
+          "name": "providers",
+          "type": "string[]",
+          "description": "Provider IDs to show as picker sources. Available IDs include: \"rooms\", \"contacts\", \"groups\", \"communities\", \"props\", \"events\". Pass one entry for a single-source picker, or multiple to let the user switch sources via tabs. Example: [\"rooms\"] or [\"contacts\", \"groups\"]."
+        }
+      ],
+      "optional": [
+        {
+          "name": "title",
+          "type": "string",
+          "description": "Dialog title shown above the picker. Defaults to the provider's built-in title."
+        },
+        {
+          "name": "width",
+          "type": "string",
+          "description": "CSS width for the modal (desktop only)."
+        },
+        {
+          "name": "height",
+          "type": "string",
+          "description": "CSS height for the modal (desktop only)."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-only"
+  },
+  {
+    "key": "RoomPoints.create-room-point",
+    "service": "RoomPoints",
+    "action": "create-room-point",
+    "fn": "create_room_point",
+    "method": "createRoomPoint",
+    "toolName": "service__RoomPoints__create_room_point",
+    "serviceTitle": "Room Points Service",
+    "serviceDescription": "GoTo points of a room (server name \"cameraPosition\"): list them, save or delete one directly, or open the point editor and let the user do it. Editing points requires the room's edit permission. Position and rotation are metres and EULER DEGREES in the room's own space — they cannot be computed from outside the 3D scene, so prefer create-point / edit-point (which receive the live camera pose from Unity) over save-point unless you are re-using a pose you already read.",
+    "source": "src/Services/RoomPoints/RoomPointsService.js",
+    "description": "Opens the point editor for a NEW point and BLOCKS until the user saves or cancels. Needs a pose to save the point at: pass camera (the live 3D camera pose) or a point to copy the pose from — the web layer cannot read the camera itself. Resolves {status: \"ok\", point, persisted, savePreview} once the point is written, or {status: \"cancelled\"} / {status: \"error\", message}.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "rooms:write"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The room the point belongs to."
+        }
+      ],
+      "optional": [
+        {
+          "name": "camera",
+          "type": "object",
+          "description": "The pose the point is saved at: {position: {x,y,z}, rotation: {x,y,z,w}} with the rotation in EULER DEGREES. Required unless point carries a pose."
+        },
+        {
+          "name": "point",
+          "type": "object",
+          "description": "A cameraPosition to pre-fill the form with (name, camera mode, pose). Its id is ignored for a create."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "Pre-fills the point name. Wins over the name the point carried."
+        },
+        {
+          "name": "cameraMode",
+          "type": "number",
+          "description": "Pre-fills the camera mode: 0 — do not change, 1 — free fly, 2 — third person."
+        },
+        {
+          "name": "savePreview",
+          "type": "boolean",
+          "description": "Pre-fills the \"Make preview\" toggle. Defaults to true. The screenshot and parallax capture themselves are done by the 3D scene, not here."
+        },
+        {
+          "name": "persist",
+          "type": "boolean",
+          "description": "Whether this service writes the point to the server. Defaults to true; pass false to use the editor as pure UI and save the returned point yourself."
+        },
+        {
+          "name": "networkId",
+          "type": "string",
+          "description": "Network the room belongs to. Defaults to the current network."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
+  },
+  {
+    "key": "RoomPoints.edit-room-point",
+    "service": "RoomPoints",
+    "action": "edit-room-point",
+    "fn": "edit_room_point",
+    "method": "editRoomPoint",
+    "toolName": "service__RoomPoints__edit_room_point",
+    "serviceTitle": "Room Points Service",
+    "serviceDescription": "GoTo points of a room (server name \"cameraPosition\"): list them, save or delete one directly, or open the point editor and let the user do it. Editing points requires the room's edit permission. Position and rotation are metres and EULER DEGREES in the room's own space — they cannot be computed from outside the 3D scene, so prefer create-point / edit-point (which receive the live camera pose from Unity) over save-point unless you are re-using a pose you already read.",
+    "source": "src/Services/RoomPoints/RoomPointsService.js",
+    "description": "Opens the point editor for an EXISTING point and BLOCKS until the user saves, deletes or cancels. Resolves {status: \"ok\", point, persisted, savePreview}, {status: \"deleted\", point: {id}, persisted}, {status: \"cancelled\"} or {status: \"error\", message}. A point whose id is empty is treated as a create.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "rooms:write"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The room the point belongs to."
+        },
+        {
+          "name": "point",
+          "type": "object",
+          "description": "The point being edited, in the cameraPosition shape list-points returns."
+        }
+      ],
+      "optional": [
+        {
+          "name": "camera",
+          "type": "object",
+          "description": "The live 3D camera pose, {position: {x,y,z}, rotation: {x,y,z,w}} in EULER DEGREES. When present the editor offers to move the point here, ticked by default."
+        },
+        {
+          "name": "deletable",
+          "type": "boolean",
+          "description": "Whether the editor may offer Delete. Defaults to false — a room should keep at least one point."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "Pre-fills the point name. Wins over the name the point carried."
+        },
+        {
+          "name": "cameraMode",
+          "type": "number",
+          "description": "Pre-fills the camera mode: 0 — do not change, 1 — free fly, 2 — third person."
+        },
+        {
+          "name": "savePreview",
+          "type": "boolean",
+          "description": "Pre-fills the \"Make preview\" toggle. Defaults to true."
+        },
+        {
+          "name": "persist",
+          "type": "boolean",
+          "description": "Whether this service writes the change to the server. Defaults to true."
+        },
+        {
+          "name": "networkId",
+          "type": "string",
+          "description": "Network the room belongs to. Defaults to the current network."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
+  }
+];
+
 /** Declared intents the Valu Social application serves and this package does
  * not — asked for by name over the postMessage bridge, never functions here.
  * `APPLICATION_INTENT_REASON` says why each one is out: `'no-rpc'` (nothing
@@ -3535,6 +6436,7 @@ export const APPLICATION_ONLY_INTENTS = [
   "Application.close-application",
   "Application.expand-application",
   "Application.get-identity-token",
+  "CMS.pick-resource",
   "Commerce.add-to-cart",
   "Commerce.archive-product",
   "Commerce.check-entitlements",
@@ -3562,6 +6464,7 @@ export const APPLICATION_ONLY_INTENTS = [
   "Commerce.list-promotions",
   "Commerce.list-purchases",
   "Commerce.list-seller-products",
+  "Commerce.mark-purchase-file-seen",
   "Commerce.open-cart",
   "Commerce.open-order",
   "Commerce.open-products",
@@ -3586,12 +6489,19 @@ export const APPLICATION_ONLY_INTENTS = [
   "Commerce.update-product",
   "DataProvider.pick-multiple",
   "DataProvider.pick-single",
+  "Developer.list-application-apis",
+  "Developer.list-my-application-apis",
   "Logging.get-logs",
   "RoomPoints.create-room-point",
   "RoomPoints.delete-room-point",
   "RoomPoints.edit-room-point",
   "RoomPoints.list-room-points",
-  "RoomPoints.save-room-point"
+  "RoomPoints.save-room-point",
+  "RoomZones.assign-zone",
+  "RoomZones.claim-zone",
+  "RoomZones.list-room-zones",
+  "RoomZones.release-zone",
+  "RoomZones.zone-occupancy"
 ];
 
 /** @type {Record<string, 'no-rpc'|'valu-guru'|'not-ported'>} */
@@ -3608,6 +6518,7 @@ export const APPLICATION_INTENT_REASON = {
   "Application.close-application": "no-rpc",
   "Application.expand-application": "no-rpc",
   "Application.get-identity-token": "no-rpc",
+  "CMS.pick-resource": "no-rpc",
   "Commerce.add-to-cart": "valu-guru",
   "Commerce.archive-product": "no-rpc",
   "Commerce.check-entitlements": "valu-guru",
@@ -3635,6 +6546,7 @@ export const APPLICATION_INTENT_REASON = {
   "Commerce.list-promotions": "valu-guru",
   "Commerce.list-purchases": "valu-guru",
   "Commerce.list-seller-products": "valu-guru",
+  "Commerce.mark-purchase-file-seen": "no-rpc",
   "Commerce.open-cart": "no-rpc",
   "Commerce.open-order": "no-rpc",
   "Commerce.open-products": "no-rpc",
@@ -3659,12 +6571,19 @@ export const APPLICATION_INTENT_REASON = {
   "Commerce.update-product": "valu-guru",
   "DataProvider.pick-multiple": "no-rpc",
   "DataProvider.pick-single": "no-rpc",
+  "Developer.list-application-apis": "no-rpc",
+  "Developer.list-my-application-apis": "no-rpc",
   "Logging.get-logs": "no-rpc",
   "RoomPoints.create-room-point": "no-rpc",
   "RoomPoints.delete-room-point": "not-ported",
   "RoomPoints.edit-room-point": "no-rpc",
   "RoomPoints.list-room-points": "not-ported",
-  "RoomPoints.save-room-point": "not-ported"
+  "RoomPoints.save-room-point": "not-ported",
+  "RoomZones.assign-zone": "no-rpc",
+  "RoomZones.claim-zone": "no-rpc",
+  "RoomZones.list-room-zones": "no-rpc",
+  "RoomZones.release-zone": "no-rpc",
+  "RoomZones.zone-occupancy": "no-rpc"
 };
 
 /** Server tools that implement no declared intent. */

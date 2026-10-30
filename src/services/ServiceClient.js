@@ -80,6 +80,13 @@ export class ServiceClient {
       return errorAck(ERROR_CODES.UNKNOWN_FUNCTION, `unknown service function: ${name}`);
     }
 
+    if (descriptor.channel === 'intent' && !this.#transport.servesIntents) {
+      return errorAck(
+        ERROR_CODES.UNSUPPORTED,
+        `${descriptor.key} is an intent of Valu Social: only an app it frames or hosts (createValuApp) can send it`,
+      );
+    }
+
     const invalid = validationAck(descriptor, params);
     if (invalid) return invalid;
 

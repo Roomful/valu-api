@@ -1536,3 +1536,38 @@ test('createValuApp refuses a hostPath that is not a slash-delimited path', asyn
     await assert.rejects(createValuApp({ hostPath, mode: 'dedicated' }), TypeError, String(hostPath));
   }
 });
+
+// ---------------------------------------------------------------------------
+// The typed intents at the app's own address (2026-10-30): a window one opens
+// Valu Social in one named tab on the sign-in origin; an embedded-only one is
+// skipped; a served one goes to the host as the intent it is.
+// ---------------------------------------------------------------------------
+
+test('a window intent opens Valu Social in a tab named valu-social, on the intent route of the sign-in origin', async (t) => {
+  const h = await setup(t, { signInOrigin: 'https://live.valuverse.io' });
+  const ack = await h.valu.Commerce.openOrder({ orderId: 'ord_1', popup: true });
+  assert.deepEqual(ack, { data: { success: true, opened: 'tab' } });
+  assert.deepEqual(h.popups.calls, [{
+    url: 'https://live.valuverse.io/-i/Commerce/open-order?orderId=ord_1&app=demo&popup=false',
+    name: 'valu-social',
+    features: 'popup,width=480,height=640',
+  }]);
+  assert.equal(h.sent(MSG.SERVICE_INTENT).length, 0, 'nothing is asked of the host');
+});
+
+test('a blocked window answers popup_blocked; checkout is a window too', async (t) => {
+  const h = await setup(t);
+  h.popups.blocked = true;
+  const ack = await h.valu.Commerce.checkout();
+  assert.equal(ack.error.message, 'popup_blocked');
+  assert.equal(h.popups.calls[0].url, `${h.popups.calls[0].url.split('/-i/')[0]}/-i/Commerce/checkout?app=demo&popup=false`);
+});
+
+test('an embedded-only intent is skipped at the app\'s own address; a served one goes to the host as api:service-intent', async (t) => {
+  const h = await setup(t);
+  h.host.intent = (message) => ({ success: true, got: [message.applicationId, message.action] });
+  assert.deepEqual(await h.valu.Application.expandApplication(), { data: { success: true, skipped: true, reason: 'embedded_only' } });
+  assert.deepEqual(await h.valu.Commerce.getCart(), { data: { success: true, got: ['Commerce', 'get-cart'] } });
+  assert.deepEqual(await h.valu.data.Commerce.getCart(), { success: true, got: ['Commerce', 'get-cart'] });
+  assert.equal(h.popups.calls.length, 0);
+});

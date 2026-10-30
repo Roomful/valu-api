@@ -200,8 +200,15 @@ test('scopeOfIntent answers null for what it does not know, and is exact about i
 });
 
 test('a socket function the catalogue serves is never an intent, so no key is in both', () => {
+  const served = new Set(SERVICE_DESCRIPTORS.map((d) => d.key));
   for (const key of APPLICATION_ONLY_INTENTS) {
-    assert.equal(findDescriptor(key), undefined, key);
+    assert.equal(served.has(key), false, key);
+    // A typed intent resolves by name — as an intent, with the scope the host's tables give it.
+    const typed = findDescriptor(key);
+    if (typed) {
+      assert.equal(typed.channel, 'intent', key);
+      assert.equal(typed.scopes[0], scopeOfIntent(...split(key)) ?? typed.scopes[0], key);
+    }
   }
 });
 

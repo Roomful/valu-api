@@ -46,7 +46,7 @@ holds no connection to it and declares none of those intents. They are the Valu
 Social application's to serve, asked for by name over the bridge
 ([api-pointers.md](api-pointers.md)).
 
-`AiGuru`, `Application`, `Commerce`, `DataProvider`, `Logging`, `RoomPoints` have no functions here at all: every
+`AiGuru`, `Application`, `Commerce`, `DataProvider`, `Logging`, `RoomPoints`, `RoomZones` have no functions here at all: every
 intent they declare is one the application serves itself — a Valu Guru server op
 like these, one only the application process can answer, or a socket call this
 package has not ported yet. [api-pointers.md](api-pointers.md) gives the reason
@@ -153,6 +153,8 @@ Source: `src/Services/UploadManager/ApplicationStorageService.js`
 Content management service for uploading, searching, and deleting resources scoped to rooms, props, communities, channels, and directories.
 
 Source: `src/Services/CMS/CMSService.js`
+
+*1 more `CMS` intent (`pick-resource`) is served by the Valu Social application, not here — ask for it by name over the bridge ([api-pointers.md](api-pointers.md)).*
 
 | function | params | returns | mode | requires | cache |
 |---|---|---|---|---|---|
@@ -351,6 +353,8 @@ Source: `src/Services/Community/CommunityService.js`
 Developer Portal service for creating and listing the current user's applications.
 
 Source: `src/Applications/DeveloperPortal/Services/DeveloperService.js`
+
+*2 more `Developer` intents (`list-application-apis`, `list-my-application-apis`) are served by the Valu Social application, not here — ask for them by name over the bridge ([api-pointers.md](api-pointers.md)).*
 
 | function | params | returns | mode | requires | cache |
 |---|---|---|---|---|---|

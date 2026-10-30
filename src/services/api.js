@@ -29,7 +29,7 @@
 // application code (the data).
 // ===========================================================================
 import { ServiceClient } from './ServiceClient.js';
-import { SERVICE_FUNCTIONS, catalogSummary, listServices } from './descriptors.js';
+import { SERVICE_FUNCTIONS, INTENT_FUNCTIONS, catalogSummary, listServices } from './descriptors.js';
 import { toolDefinitions } from './toolDefs.js';
 import { SocketTransport } from '../transport/SocketTransport.js';
 import { openValuSocket } from '../socket/open.js';
@@ -38,10 +38,15 @@ import { openValuSocket } from '../socket/open.js';
 // thing worse than no function at all.
 import './impl/index.js';
 
-/** Service functions grouped by service, in catalogue order. */
+/**
+ * Service functions grouped by service, in catalogue order — and after them
+ * the typed intents (`valu.Commerce.getCart()`, `valu.Application.expandApplication()`),
+ * which the transport sends as the intents they are to whoever frames or hosts
+ * the app (docs/connecting.md, "Typed intents").
+ */
 function groupByService() {
   const grouped = new Map();
-  for (const descriptor of SERVICE_FUNCTIONS) {
+  for (const descriptor of [...SERVICE_FUNCTIONS, ...INTENT_FUNCTIONS]) {
     if (!grouped.has(descriptor.service)) grouped.set(descriptor.service, []);
     grouped.get(descriptor.service).push(descriptor);
   }

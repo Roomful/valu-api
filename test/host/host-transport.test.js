@@ -1232,3 +1232,68 @@ test('hostPath must start and end with a slash and stay on the host origin', () 
   }
   assert.doesNotThrow(() => new HostTransport({ hostOrigin: 'https://api.valuguru.app', hostPath: '/', window: pair.app, document: fakeDocumentFor(pair) }));
 });
+
+// ---------------------------------------------------------------------------
+// The typed intents at the app's own address (2026-10-30)
+// ---------------------------------------------------------------------------
+
+const CART = findDescriptor('Commerce.get-cart');
+const OPEN_CART = findDescriptor('Commerce.open-cart');
+const EXPAND = findDescriptor('Application.expand-application');
+
+test('a served intent goes to the host as api:service-intent, and its reply is read into the ack', async (t) => {
+  const h = setup(t);
+  h.pair.host.addEventListener('message', ({ data }) => {
+    if (data.name === MSG.SERVICE_INTENT) {
+      assert.deepEqual(data.message, { applicationId: 'Commerce', action: 'get-cart', params: {}, requestId: data.message.requestId });
+      h.send(MSG.RUN_CONSOLE_COMPLETED, { success: true, items: [] }, data.message.requestId);
+    }
+  });
+  await h.transport.open();
+  assert.deepEqual(await h.transport.callService(CART, {}), { data: { success: true, items: [] } });
+  assert.equal(h.sent(MSG.CALL).length, 0, 'never an api:call');
+});
+
+test('a refused intent keeps the host\'s code and scope, so the consent retry can see it', async (t) => {
+  const h = setup(t);
+  h.pair.host.addEventListener('message', ({ data }) => {
+    if (data.name === MSG.SERVICE_INTENT) {
+      h.send(MSG.RUN_CONSOLE_COMPLETED, { success: false, code: 'consent_required', error: 'not yet', scope: 'commerce:read' }, data.message.requestId);
+    }
+  });
+  await h.transport.open();
+  assert.deepEqual(await h.transport.callService(CART, {}), {
+    error: { status: true, code: 403, message: 'consent_required', description: 'not yet', scope: 'commerce:read' },
+  });
+});
+
+test('a window intent opens Valu Social through openIntentWindow and posts nothing; a blocked popup says so', async (t) => {
+  const opened = [];
+  const h = setup(t, { openIntentWindow: (descriptor, params) => { opened.push([descriptor.key, params]); return opened.length === 1 ? { closed: false } : null; } });
+  await h.transport.open();
+  assert.deepEqual(await h.transport.callService(OPEN_CART, { popup: true }), { data: { success: true, opened: 'tab' } });
+  const blocked = await h.transport.callService(OPEN_CART, {});
+  assert.equal(blocked.error.message, 'popup_blocked');
+  assert.deepEqual(opened, [['Commerce.open-cart', { popup: true }], ['Commerce.open-cart', {}]]);
+  assert.equal(h.sent(MSG.SERVICE_INTENT).length, 0);
+});
+
+test('without a way to open a window, a window intent is sent to the host (which answers not_available)', async (t) => {
+  const h = setup(t);
+  h.pair.host.addEventListener('message', ({ data }) => {
+    if (data.name === MSG.SERVICE_INTENT) h.send(MSG.RUN_CONSOLE_COMPLETED, { error: { code: 'not_available', message: 'nope' } }, data.message.requestId);
+  });
+  await h.transport.open();
+  const ack = await h.transport.callService(OPEN_CART, {});
+  assert.deepEqual(ack, { error: { status: true, code: 501, message: 'not_available', description: 'nope' } });
+});
+
+test('an embedded-only intent is skipped, with one warning per page, and never posted', async (t) => {
+  const warnings = [];
+  const h = setup(t, { log: (level, message) => warnings.push([level, message]) });
+  await h.transport.open();
+  assert.deepEqual(await h.transport.callService(EXPAND, {}), { data: { success: true, skipped: true, reason: 'embedded_only' } });
+  assert.deepEqual(await h.transport.callService(EXPAND, {}), { data: { success: true, skipped: true, reason: 'embedded_only' } });
+  assert.deepEqual(warnings, [['warn', "Application.expand-application works only inside Valu Social; nothing to do at the app's own address."]]);
+  assert.equal(h.sent(MSG.SERVICE_INTENT).length, 0);
+});

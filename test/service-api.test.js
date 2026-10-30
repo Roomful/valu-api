@@ -15,7 +15,7 @@ import { ServiceClient } from '../src/services/ServiceClient.js';
 import { SocketTransport } from '../src/transport/SocketTransport.js';
 import { PostMessageTransport } from '../src/transport/PostMessageTransport.js';
 import { NodeSocketAdapter } from '../src/socket/NodeSocketAdapter.js';
-import { SERVICE_FUNCTIONS, APPLICATION_ONLY_INTENTS, findDescriptor } from '../src/services/descriptors.js';
+import { SERVICE_FUNCTIONS, INTENT_FUNCTIONS, APPLICATION_ONLY_INTENTS, findDescriptor } from '../src/services/descriptors.js';
 import { ValuServiceError, ERROR_CODES } from '../src/Errors.js';
 import { FakeRoomfulConnection, Responder, FakeWindow } from './helpers/fakes.js';
 
@@ -49,22 +49,29 @@ test('every service function is on the tree, under its service', () => {
   assert.equal(methods, 65);
 });
 
-test('no application-served intent is on the tree, by any of its names', () => {
+test('the typed intents are on the tree, as intents; the untyped application-served ones are not', () => {
   const { valu } = headless();
   const camel = (action) => action.replace(/[-_](\w)/g, (_, c) => c.toUpperCase());
   for (const key of APPLICATION_ONLY_INTENTS) {
     const [service, action] = [key.slice(0, key.indexOf('.')), key.slice(key.indexOf('.') + 1)];
-    assert.equal(valu[service]?.[camel(action)], undefined, key);
-    assert.equal(findDescriptor(key), undefined, key);
+    const typed = INTENT_FUNCTIONS.find((d) => d.key === key);
+    if (typed) {
+      assert.equal(typeof valu[service]?.[camel(action)], 'function', key);
+      assert.equal(valu[service][camel(action)].descriptor.channel, 'intent', key);
+    } else {
+      assert.equal(valu[service]?.[camel(action)], undefined, key);
+      assert.equal(findDescriptor(key), undefined, key);
+    }
   }
-  // Commerce is the case worth naming. It used to be half here: ten catalogue
-  // functions on the tree and three `open-*` intents off it. All thirteen are
-  // off it now — the catalogue ones run on the Valu Guru server's own socket,
-  // which this package does not hold — so the service has no namespace at all,
-  // and a caller is pointed at `api.callService` rather than at a method that
-  // could only work in one runtime.
-  assert.equal(valu.Commerce, undefined);
-  assert.equal(valu.AiGuru, undefined);
+  // Commerce is the case worth naming (2026-10-30): every one of its intents is
+  // a typed function, sent to whoever frames or hosts the app as the intent it
+  // is — never run here, so none is a service function.
+  assert.equal(typeof valu.Commerce.getCart, 'function');
+  assert.equal(typeof valu.Commerce.openCart, 'function');
+  assert.equal(valu.Commerce.openCart.descriptor.mode, 'window');
+  assert.equal(valu.Application.expandApplication.descriptor.mode, 'embedded-only');
+  assert.equal(valu.AiGuru, undefined, 'the AI chat history is not an app\'s');
+  assert.equal(INTENT_FUNCTIONS.length, 58);
 });
 
 test('a method is the string call with the name already resolved', async () => {

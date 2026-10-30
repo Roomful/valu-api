@@ -26,7 +26,7 @@ test('the catalogue matches the parity target', () => {
     declared: 64,
     sdkDeclared: 1,
     serviceFunctions: 65,
-    applicationOnly: 69,
+    applicationOnly: 78,
     remaining: 33,
     serverOnly: 7,
   });
@@ -42,14 +42,16 @@ test('every descriptor in the catalogue is a function this package can run', () 
   assert.equal(isServiceFunction('Users.teleport'), false);
 });
 
-test('the 69 application-served intents are declared by the app and absent here', () => {
-  assert.equal(APPLICATION_ONLY_INTENTS.length, 69);
+test('the 78 application-served intents are declared by the app and absent here', () => {
+  assert.equal(APPLICATION_ONLY_INTENTS.length, 78);
   assert.deepEqual([...APPLICATION_ONLY_INTENTS].sort(), [...APPLICATION_ONLY].sort());
   for (const key of APPLICATION_ONLY_INTENTS) {
-    // No descriptor, no method, no tool definition, no alias: a caller who
-    // asks for one by name gets "unknown", not a function that cannot work.
-    assert.equal(findDescriptor(key), undefined, `${key} must not be in the catalogue`);
+    // Not a service function: nothing here runs it. The typed ones
+    // (INTENT_DESCRIPTORS) resolve by name, as intents, and the rest not at all.
     assert.equal(isServiceFunction(key), false, key);
+    assert.ok(!SERVICE_DESCRIPTORS.some((d) => d.key === key), `${key} must not be in the service catalogue`);
+    const typed = findDescriptor(key);
+    if (typed) assert.equal(typed.channel, 'intent', key);
   }
   // They are still reachable — by name over the bridge, which needs no
   // declaration at all. api-pointers.md is where that is written down.
@@ -67,7 +69,10 @@ test('no trace of the Valu Guru server is left in the catalogue', () => {
     assert.ok(['roomful', 'app-state', 'local'].includes(d.channel), `${d.key}: ${d.channel}`);
   }
   assert.equal(listServices().includes('Commerce'), false, 'Commerce is the application\'s to serve');
-  assert.equal(findDescriptor('Commerce.get-cart'), undefined);
+  // Commerce.get-cart is a TYPED INTENT now (2026-10-30): on the tree, sent to
+  // whoever frames or hosts the app, never run here.
+  assert.equal(findDescriptor('Commerce.get-cart').channel, 'intent');
+  assert.equal(isServiceFunction('Commerce.get-cart'), false);
   assert.equal(findDescriptor('AiGuru.query-knowledge-base'), undefined);
   assert.equal(findDescriptor('AiGuru.get-chat-history'), undefined);
 
@@ -111,7 +116,7 @@ test('every manifest intent is either a function here or explicitly excluded', a
       assert.ok(findDescriptor(key) || excluded.has(key), `${key} is neither implemented nor excluded`);
     }
   }
-  assert.equal(declared, 133, "the app's manifest declares 133 intents");
+  assert.equal(declared, 142, "the app's manifest declares 142 intents");
 });
 
 test('an SDK-declared function is a service function with its provenance on it', () => {
