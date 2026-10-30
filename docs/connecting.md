@@ -455,7 +455,7 @@ their scopes:
 
 **Commerce events need the `subscribe-events` intent.** `valu.onCommerceEvent(handler)`
 only listens; nothing arrives until the app subscribes:
-`await valu.callService(new Intent('Commerce', 'subscribe-events', { events: ['order-updated'] }))`
+`await valu.Commerce.subscribeEvents({ events: ['order-updated'] })`
 (`commerce:read`, so the consent above). Each call replaces the set. The host holds
 the subscription for the signed-in session, so it ends with a sign-out, a reload
 and a revoked `commerce:read`: subscribe after every start and every sign-in. The
@@ -466,6 +466,38 @@ app that sends its own `Content-Security-Policy` must allow the host origin in
 `frame-src` (or in `default-src`, when there is no `frame-src`):
 `frame-src https://valuguru.texpo.io`. The sign-in and consent windows are popups,
 not frames.
+
+### Typed intents: `valu.Commerce.getCart()`, `valu.Commerce.openCart()`
+
+The intents Valu Social serves — the 49 of `Commerce`, `Application`'s four, the
+`DataProvider` pickers, the room-point editor — are functions on the tree too
+(2026-10-30), the same in both modes: `valu.Commerce.getCart()`,
+`valu.Commerce.addToCart({ productId })`, `valu.Commerce.openCart()`,
+`valu.Application.expandApplication()`. Each has its scope, so
+`valu-permissions.json` declares it like any function, and the publish check
+reads it. Write them this way; `valu.callService(new Intent('Commerce', 'get-cart'))`
+still works, but the check cannot read a name hidden in a helper, and the mode
+rule below is the typed function's.
+
+Underneath they are still the intents they always were: the transport sends
+`api:service-intent` to whoever frames or hosts the app. The reply comes back
+in the ack envelope, so a refused intent reads like a refused function
+(`{error: {status: true, code: 403, message: 'consent_required', scope}}`),
+and a `consent_required` from a click goes through the same consent window.
+An intent is never retried.
+
+**What happens at the app's own address** depends on the function's mode
+(`descriptor.mode`; the generated types say it):
+
+| mode | functions | at the app's own address |
+|---|---|---|
+| `both` | the Commerce data functions (reads, cart, seller) and `Application.getIdentityToken` | served by the host, as inside Valu Social |
+| `window` | `Commerce.openCart`, `openOrder`, `openProducts`, `openPurchases`, `openPurchaseInMedia`, `previewPurchase`, `checkout` | **opens Valu Social in a tab**, on the sign-in origin, showing that window; one named tab, reused. Call these from a click, or the browser blocks the tab and the answer is `501 popup_blocked`. The answer is `{data: {success: true, opened: 'tab'}}` at once; what the user does there reaches the app through the Commerce events it subscribed to. `popup` is forced off there (the window is the tab's main app); inside Valu Social it keeps its meaning |
+| `embedded-only` | `Application.expandApplication`, `closeApplication`, `closeAll`, `DataProvider.pickSingle`, `pickMultiple` | nothing to do: `{data: {success: true, skipped: true, reason: 'embedded_only'}}`, and one `console.warn` per page. Hide such a control when `valu.mode === 'dedicated'` |
+| `embedded-served` | the seller's publish and pricing functions (`publishProduct`, `setSale`, …), `rateProduct`, the room-point editor | only Valu Social runs them today: `501 not_available` there, as before |
+
+A socket client (`createValuServices({ socket })`) cannot send an intent at all
+and answers `501`: only an app Valu Social frames or hosts has somewhere to send it.
 
 ### Declaring permissions
 

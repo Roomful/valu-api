@@ -48,7 +48,8 @@ export const DEFAULT_POLICY = {
 export function forDescriptor(descriptor = {}, overrides = {}) {
   return {
     ...DEFAULT_POLICY,
-    retries: descriptor.mutates ? 0 : DEFAULT_POLICY.retries,
+    // A write is never repeated; nor is an intent: it may have opened a window or asked the user.
+    retries: descriptor.mutates || descriptor.channel === 'intent' ? 0 : DEFAULT_POLICY.retries,
     ...(descriptor.timeoutMs ? { timeoutMs: descriptor.timeoutMs } : {}),
     ...(typeof descriptor.retries === 'number' ? { retries: descriptor.retries } : {}),
     ...overrides,

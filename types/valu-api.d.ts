@@ -588,7 +588,9 @@ declare module '@arkeytyp/valu-api' {
      * has to satisfy. There is no 'postmessage': this package declares nothing
      * it cannot run itself over a connection.
      */
-    export type ServiceChannel = 'roomful' | 'app-state' | 'local';
+    export type ServiceChannel = 'roomful' | 'app-state' | 'local' | 'intent';
+    /** What a typed intent does at the app's own address (docs/connecting.md, "Typed intents"). */
+    export type IntentMode = 'both' | 'window' | 'embedded-only' | 'embedded-served';
     export type CacheMode = 'none' | 'read-through' | 'seeded';
 
     export interface DescriptorParam {
@@ -610,6 +612,8 @@ declare module '@arkeytyp/valu-api' {
         availability: string[];
         scopes: string[];
         channel: ServiceChannel;
+        /** Typed intents only: what happens at the app's own address. */
+        mode?: IntentMode;
         mutates: boolean;
         cache: { mode: CacheMode; ttlMs?: number; key?: string | null };
         returns: { type: string; description: string };

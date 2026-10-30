@@ -12,8 +12,13 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import {
   APPLICATION_ONLY, APPLICATION_ONLY_GROUPS, APPLICATION_ONLY_REASON,
+  INTENT_FUNCTION_SERVICES, INTENT_MODE_OVERRIDES,
   LOCAL, SERVER_TOOLS, SERVER_ONLY_TOOLS, mutates, defaultCache,
 } from './bindings.js';
+// The scope tables the typed intents take their scopes from: what the host
+// serves (Permissions) and the rest of the older bridge (BridgeScopes).
+import { scopeOfIntent } from '../src/host/Permissions.js';
+import { scopeOfServiceIntent } from '../src/host/BridgeScopes.js';
 import {
   APP_STATE_CHANNEL, RETURNS, SERVER_ONLY_RECONCILIATION, KNOWN_DELTAS,
   REQUIREMENTS,
@@ -168,6 +173,32 @@ for (const key of Object.keys(PARAM_EXTENSIONS)) {
 
 descriptors.sort((a, b) => a.key.localeCompare(b.key));
 
+// --- the typed intents ------------------------------------------------------
+// Functions on the tree for the application-served intents of a few services
+// (scripts/bindings.js INTENT_FUNCTION_SERVICES): the same descriptor shape,
+// channel `intent`, a scope from the host's tables, and a MODE for the app's
+// own address. Never in SERVICE_DESCRIPTORS: nothing here runs them.
+const intentServices = new Set(INTENT_FUNCTION_SERVICES);
+const intentDescriptors = [];
+for (const intent of applicationOnlyIntents) {
+  if (!intentServices.has(intent.service) || intent.reason === 'not-ported') continue;
+  const service = snapshot.services.find((s) => s.id === intent.service);
+  const served = scopeOfIntent(intent.service, intent.action);
+  const scope = served ?? scopeOfServiceIntent(intent.service, intent.action);
+  if (!scope) throw new Error(`${intent.key} is a typed intent with no scope: add it to BridgeScopes.js`);
+  const mode = INTENT_MODE_OVERRIDES[intent.key] ?? (served ? 'both' : scope === 'ui:open' ? 'window' : 'embedded-served');
+  const base = buildDescriptor(service, intent, 'manifest');
+  intentDescriptors.push({
+    ...base,
+    scopes: [scope],
+    channel: 'intent',
+    mode,
+    cache: { mode: 'none' },
+    implementedBy: null,
+  });
+}
+intentDescriptors.sort((a, b) => a.key.localeCompare(b.key));
+
 /** Counts that keep "what the app declares" and "what the SDK offers" apart. */
 const declaredCount = descriptors.filter((d) => d.declaredBy === 'manifest').length;
 const sdkDeclaredCount = descriptors.filter((d) => d.declaredBy === 'sdk').length;
@@ -185,6 +216,12 @@ const catalogJs = `${banner}
 
 /** @type {ServiceDescriptor[]} */
 export const SERVICE_DESCRIPTORS = ${JSON.stringify(descriptors, null, 2)};
+
+/** The typed intents (scripts/bindings.js INTENT_FUNCTION_SERVICES): functions
+ * on the tree that the transport sends, as intents, to whoever frames or hosts
+ * the app. Channel \`intent\`; \`mode\` says what happens at the app's own
+ * address (\`both\`, \`window\`, \`embedded-only\`, \`embedded-served\`). */
+export const INTENT_DESCRIPTORS = ${JSON.stringify(intentDescriptors, null, 2)};
 
 /** Declared intents the Valu Social application serves and this package does
  * not — asked for by name over the postMessage bridge, never functions here.
@@ -229,7 +266,7 @@ for (const d of descriptors) {
 // else — so this is the same map as `byService`, kept separate only because
 // the docs below still ask both questions.
 const serviceByService = new Map();
-for (const d of descriptors) {
+for (const d of [...descriptors, ...intentDescriptors]) {
   if (!serviceByService.has(d.service)) serviceByService.set(d.service, []);
   serviceByService.get(d.service).push(d);
 }
@@ -246,8 +283,10 @@ import type { ValuAck } from '@arkeytyp/valu-api';
 /** Which connection answers a function. There is no 'postmessage' and no
  * second socket: this package holds one connection and declares only what it
  * can run itself over it. */
-export type ServiceChannel = 'roomful' | 'app-state' | 'local';
+export type ServiceChannel = 'roomful' | 'app-state' | 'local' | 'intent';
 export type IntentAvailability = 'ai' | 'developer';
+/** What a typed intent does at the app's own address (valu-api docs/connecting.md, "Typed intents"). */
+export type IntentMode = 'both' | 'window' | 'embedded-only' | 'embedded-served';
 
 `;
 
@@ -280,7 +319,7 @@ for (const [service, fns] of serviceByService) {
     const hasParams = d.params.required.length + d.params.optional.length > 0;
     const required = d.params.required.length > 0;
     const paramsName = `${service}${d.method[0].toUpperCase()}${d.method.slice(1)}Params`;
-    dts += `${jsdoc('    ', [d.description, `@channel ${d.channel}`, `@scope ${d.scopes.join(' ')}`])}\n`;
+    dts += `${jsdoc('    ', [d.description, `@channel ${d.channel}`, `@scope ${d.scopes.join(' ')}`, d.mode ? `@mode ${d.mode}` : ''])}\n`;
     dts += `    ${d.method}(${hasParams ? `params${required ? '' : '?'}: ${paramsName}` : ''}): Promise<ValuAck<${resultName(d)}>>;\n`;
   }
   dts += `  };\n`;

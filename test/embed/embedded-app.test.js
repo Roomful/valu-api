@@ -691,3 +691,27 @@ test('readyTimeoutMs bounds the dedicated handshake too: createValuApp rejects h
   await settle();
   assert.equal(created.error.code, 'host_unreachable');
 });
+
+// ---------------------------------------------------------------------------
+// The typed intents inside Valu Social (2026-10-30): sent as the intents they are.
+// ---------------------------------------------------------------------------
+
+test('a typed intent goes to Valu Social as api:service-intent, whatever its mode, and the reply is the ack', async (t) => {
+  const h = await setup(t);
+  const intents = [];
+  h.valuSocial.addEventListener('message', ({ data, source }) => {
+    if (source !== h.frame || data?.name !== MSG.SERVICE_INTENT) return;
+    intents.push(data.message);
+    h.send(MSG.RUN_CONSOLE_COMPLETED, data.message.action === 'open-cart' ? { success: true, popup: true } : { success: true, items: [1] }, data.message.requestId);
+  });
+  h.ready();
+  await settle();
+  assert.deepEqual(await h.valu.Commerce.getCart(), { data: { success: true, items: [1] } });
+  assert.deepEqual(await h.valu.Commerce.openCart({ popup: true }), { data: { success: true, popup: true } });
+  assert.deepEqual(intents.map(({ applicationId, action, params }) => [applicationId, action, params]), [
+    ['Commerce', 'get-cart', {}],
+    ['Commerce', 'open-cart', { popup: true }],
+  ]);
+  assert.equal(h.calls().length, 0, 'never an api:call');
+  assert.equal(h.popups.calls.length, 0, 'no window inside Valu Social');
+});

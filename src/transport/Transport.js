@@ -66,6 +66,13 @@ export class Transport {
   }
 
   /**
+   * Whether this transport sends the typed intents (`valu.Commerce.getCart()`):
+   * only one that reaches Valu Social or the host does. A socket to the
+   * platform cannot, and the client says so instead of guessing.
+   */
+  get servesIntents() { return false; }
+
+  /**
    * Run one declared service function. ONE attempt: retry is the client's job
    * (src/CallPolicy.js), so both transports retry identically.
    * @param {import('../services/descriptors.js').ServiceDescriptor} descriptor

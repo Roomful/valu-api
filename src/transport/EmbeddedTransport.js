@@ -45,6 +45,7 @@ import { ERROR_CODES, errorAck } from '../Errors.js';
 import { DEFAULT_TIMEOUT_MS } from '../CallPolicy.js';
 import { EMBEDDED_PROTOCOL_VERSION, HOST_ERRORS, MSG, identityOf } from '../host/protocol.js';
 import { DEFAULT_SIGN_IN_ORIGINS } from '../host/origins.js';
+import { intentAck } from '../services/intents.js';
 // Registers the service functions: the `local` ones run on this page.
 import '../services/impl/index.js';
 
@@ -138,6 +139,7 @@ export class EmbeddedTransport extends Transport {
   }
 
   get servesServiceFunctions() { return true; }
+  get servesIntents() { return true; }
 
   /** True once an `api:ready` came (and until `close()`). */
   get connected() { return this.#phase === 'ready'; }
@@ -162,6 +164,7 @@ export class EmbeddedTransport extends Transport {
    */
   callService(descriptor, params, options = {}) {
     if (descriptor?.channel === 'local') return this.#local.callService(descriptor, params, options);
+    if (descriptor?.channel === 'intent') return this.#callIntent(descriptor, params);
     const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     return new Promise((resolve) => {
       let timer = null;
@@ -186,6 +189,22 @@ export class EmbeddedTransport extends Transport {
         default: this.#held.add(entry);
       }
     });
+  }
+
+  /**
+   * A typed intent inside Valu Social: sent to it as the intent it is
+   * (`api:service-intent`, the older bridge, which Valu Social gates by the
+   * app's declared permissions), whatever its mode. Never rejects.
+   */
+  async #callIntent(descriptor, params) {
+    try {
+      const reply = await this.#bridge.request(MSG.SERVICE_INTENT, {
+        applicationId: descriptor.service, action: descriptor.action, params: params && typeof params === 'object' ? params : {},
+      });
+      return intentAck(reply);
+    } catch (error) {
+      return errorAck(ERROR_CODES.DISCONNECTED, error?.code ?? error?.message ?? 'disconnected');
+    }
   }
 
   /** Answer what is waiting, stop the ready timer and the listener. Idempotent. */

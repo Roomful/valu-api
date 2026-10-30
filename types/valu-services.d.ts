@@ -15,8 +15,10 @@ import type { ValuAck } from '@arkeytyp/valu-api';
 /** Which connection answers a function. There is no 'postmessage' and no
  * second socket: this package holds one connection and declares only what it
  * can run itself over it. */
-export type ServiceChannel = 'roomful' | 'app-state' | 'local';
+export type ServiceChannel = 'roomful' | 'app-state' | 'local' | 'intent';
 export type IntentAvailability = 'ai' | 'developer';
+/** What a typed intent does at the app's own address (valu-api docs/connecting.md, "Typed intents"). */
+export type IntentMode = 'both' | 'window' | 'embedded-only' | 'embedded-served';
 
 /**
  * ApplicationStorage.resource-delete — The resource was deleted.
@@ -1545,6 +1547,1161 @@ export interface VerusWalletTransferParams {
   memo?: string;
 }
 
+/**
+ * Application.close_all — Every open application was closed.
+ */
+export type ApplicationCloseAllResult = void;
+
+/**
+ * Application.close_all — Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed.
+ */
+export interface ApplicationCloseAllParams {
+}
+
+/**
+ * Application.close-application — The calling application was closed.
+ */
+export type ApplicationCloseApplicationResult = void;
+
+/**
+ * Application.close-application — Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Close Application" default header action for iframe apps that render their own context menu (header: false).
+ */
+export interface ApplicationCloseApplicationParams {
+}
+
+/**
+ * Application.expand-application — The calling application was expanded.
+ */
+export type ApplicationExpandApplicationResult = void;
+
+/**
+ * Application.expand-application — Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Expand Application" default header action for iframe apps that render their own context menu (header: false).
+ */
+export interface ApplicationExpandApplicationParams {
+}
+
+/**
+ * Application.get-identity-token — A short-lived identity token for the calling application.
+ */
+export type ApplicationGetIdentityTokenResult = {token: string};
+
+/**
+ * Application.get-identity-token — Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.
+ */
+export interface ApplicationGetIdentityTokenParams {
+}
+
+/**
+ * Commerce.add-to-cart — The cart after the addition.
+ */
+export type CommerceAddToCartResult = {items: Record<string, any>[]};
+
+/**
+ * Commerce.add-to-cart — Put a product in the user's cart, credited to your app. The server re-checks that it can be bought here before accepting it, so a refusal comes back with a code to show.
+ */
+export interface CommerceAddToCartParams {
+  /**
+   * the product to add
+   */
+  productId: string;
+  /**
+   * how many, at least 1 (default 1)
+   */
+  qty?: number;
+}
+
+/**
+ * Commerce.archive-product — Withdraw a product from sale for good. OPENS A PLATFORM DIALOG over your app saying it leaves every shelf and cannot be undone, and naming the products that include it — they stop selling too until each is published again without it. Archives only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Anyone who bought it keeps it. Returns `{success: true, product, brokeBundles}` — `brokeBundles` the ids of the products that stopped selling.
+ */
+export type CommerceArchiveProductResult = any;
+
+/**
+ * Commerce.archive-product — Withdraw a product from sale for good. OPENS A PLATFORM DIALOG over your app saying it leaves every shelf and cannot be undone, and naming the products that include it — they stop selling too until each is published again without it. Archives only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Anyone who bought it keeps it. Returns `{success: true, product, brokeBundles}` — `brokeBundles` the ids of the products that stopped selling.
+ */
+export interface CommerceArchiveProductParams {
+  /**
+   * the product, from list-seller-products
+   */
+  productId: string;
+}
+
+/**
+ * Commerce.check-entitlements — What the buyer owns of the products asked about.
+ */
+export type CommerceCheckEntitlementsResult = {entitlements: Record<string, any>[]};
+
+/**
+ * Commerce.check-entitlements — Which of these products the current user owns. This is how an app unlocks a ticket, a seat or an in-app good it sold through the shared cart.
+ */
+export interface CommerceCheckEntitlementsParams {
+  /**
+   * the product ids to check
+   */
+  productIds: any[];
+}
+
+/**
+ * Commerce.checkout — Your app's Pay button. Your app never takes a payment: this opens My Cart's own cart over your app, showing your items with `promoCode` typed in and applied, and the BUYER presses Pay and scans the code there — only My Cart creates the order. It answers when the buyer closes it: `{success: true, outcome, orderId?, status?}`. `outcome` is `paid` (a free order too: unlock it), `pending` (an order was made but is not paid yet — follow it with get-order or the order-updated event), `cancelled` (the order will not be paid: the buyer cancelled it, or it expired or failed — `status` says which — and its items are back in the cart) or `dismissed` (closed without making an order). Refused with code `empty`, and nothing opens, when none of your items is selected in the cart (add them first). With `popup: false` My Cart docks instead and it answers at once with `outcome: "opened"`, as it does where there is no popup to draw. A second checkout while one is open replaces it; the first answers at once — `dismissed`, unless an order was already made in it.
+ */
+export type CommerceCheckoutResult = any;
+
+/**
+ * Commerce.checkout — Your app's Pay button. Your app never takes a payment: this opens My Cart's own cart over your app, showing your items with `promoCode` typed in and applied, and the BUYER presses Pay and scans the code there — only My Cart creates the order. It answers when the buyer closes it: `{success: true, outcome, orderId?, status?}`. `outcome` is `paid` (a free order too: unlock it), `pending` (an order was made but is not paid yet — follow it with get-order or the order-updated event), `cancelled` (the order will not be paid: the buyer cancelled it, or it expired or failed — `status` says which — and its items are back in the cart) or `dismissed` (closed without making an order). Refused with code `empty`, and nothing opens, when none of your items is selected in the cart (add them first). With `popup: false` My Cart docks instead and it answers at once with `outcome: "opened"`, as it does where there is no popup to draw. A second checkout while one is open replaces it; the first answers at once — `dismissed`, unless an order was already made in it.
+ */
+export interface CommerceCheckoutParams {
+  /**
+   * a discount code to type in and apply for the buyer; check it first with preview-promo
+   */
+  promoCode?: string;
+  /**
+   * false docks My Cart instead of drawing its cart over your app (default true)
+   */
+  popup?: boolean;
+}
+
+/**
+ * Commerce.clear-cart — Remove every row YOUR app added to the user's cart, saved-for-later ones included. Other apps' rows are never touched. No dialog: they are your own rows. Returns what is left — `{success: true, items, count}` — so an empty `items` means the cart held only your rows.
+ */
+export type CommerceClearCartResult = any;
+
+/**
+ * Commerce.clear-cart — Remove every row YOUR app added to the user's cart, saved-for-later ones included. Other apps' rows are never touched. No dialog: they are your own rows. Returns what is left — `{success: true, items, count}` — so an empty `items` means the cart held only your rows.
+ */
+export interface CommerceClearCartParams {
+}
+
+/**
+ * Commerce.create-discount-code — A discount code buyers type at checkout — on the seller's own products only. OPENS A PLATFORM DIALOG over your app with the code, its value, limits and dates, and creates it only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. The code is stored upper-case; one the store already has is refused `conflict`. Returns `{success: true, discountCode}` in list-promotions' code shape — named `discountCode` because `code` is the refusal field.
+ */
+export type CommerceCreateDiscountCodeResult = any;
+
+/**
+ * Commerce.create-discount-code — A discount code buyers type at checkout — on the seller's own products only. OPENS A PLATFORM DIALOG over your app with the code, its value, limits and dates, and creates it only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. The code is stored upper-case; one the store already has is refused `conflict`. Returns `{success: true, discountCode}` in list-promotions' code shape — named `discountCode` because `code` is the refusal field.
+ */
+export interface CommerceCreateDiscountCodeParams {
+  /**
+   * 3 to 32 letters, digits and hyphens
+   */
+  code: string;
+  /**
+   * percent off, or a fixed amount off
+   */
+  kind: "percent" | "fixed";
+  /**
+   * the percent (at most 100) or the amount, more than 0
+   */
+  value: number;
+  /**
+   * a fixed amount's currency (default VRSC)
+   */
+  currency?: "VRSC" | "USD";
+  /**
+   * the smallest order it applies to, in VRSC
+   */
+  minSubtotalVrsc?: number;
+  /**
+   * how many times it can be used in all; omit for unlimited
+   */
+  maxRedemptions?: number;
+  /**
+   * how many times one buyer can use it; omit for unlimited
+   */
+  perBuyerLimit?: number;
+  /**
+   * ISO date it starts; omit for now
+   */
+  startsAt?: string;
+  /**
+   * ISO date it ends; omit for no end
+   */
+  endsAt?: string;
+}
+
+/**
+ * Commerce.create-product — The DRAFT product that was created. Publishing stays with the seller.
+ */
+export type CommerceCreateProductResult = {product: Record<string, any>};
+
+/**
+ * Commerce.create-product — Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, so the seller confirms it separately — in the publish dialog an app opens with publish-product, or in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
+ */
+export interface CommerceCreateProductParams {
+  /**
+   * the product's name; giving one creates the draft directly instead of opening the form
+   */
+  title?: string;
+  /**
+   * what a buyer reads before paying
+   */
+  description?: string;
+  /**
+   * the price; 0 or omitted is a free product. When items include other products, this is the price ON TOP of theirs
+   */
+  priceAmount?: number;
+  /**
+   * VRSC (default) or USD
+   */
+  priceCurrency?: "VRSC" | "USD";
+  /**
+   * one of the platform's category ids — see list-categories; required before the seller can publish
+   */
+  category?: string;
+  /**
+   * up to 10 tags of up to 24 characters; normalised (lowercase, trimmed)
+   */
+  tags?: any[];
+  /**
+   * the cover: a resource id in the seller's own Media, e.g. one you generated
+   */
+  imageResourceId?: string;
+  /**
+   * the content a buyer receives: resource ids ("res_1"), named files ({resourceId, title}), folders ({folder: "Unit 1", items: […]}) or other products ({productId}) for a bundle
+   */
+  items?: any[];
+  /**
+   * how many may be sold; omit for unlimited
+   */
+  stock?: number;
+}
+
+/**
+ * Commerce.create-store — Open the signed-in user's store — what lets them sell; buyers see the user themselves as the seller, so it needs no name. It needs a Verified Verus identity: without one it is refused with code `not_eligible_kyc` — send the user to their Profile. A user who already has a store gets it back unchanged. Returns `{success: true, store}` in get-my-store's shape. No dialog. Next steps: set-donation-tiers (a store with no donation sells nowhere), then create-product.
+ */
+export type CommerceCreateStoreResult = any;
+
+/**
+ * Commerce.create-store — Open the signed-in user's store — what lets them sell; buyers see the user themselves as the seller, so it needs no name. It needs a Verified Verus identity: without one it is refused with code `not_eligible_kyc` — send the user to their Profile. A user who already has a store gets it back unchanged. Returns `{success: true, store}` in get-my-store's shape. No dialog. Next steps: set-donation-tiers (a store with no donation sells nowhere), then create-product.
+ */
+export interface CommerceCreateStoreParams {
+  /**
+   * rarely needed — the user's own profile name is used without it; at most 120 characters
+   */
+  name?: string;
+  /**
+   * what they sell, at most 2000 characters
+   */
+  description?: string;
+}
+
+/**
+ * Commerce.delete-discount-code — Delete a code nothing ever used. Direct — no dialog. A code that was used is part of the record and is refused `conflict`: turn it off instead (update-discount-code with `status: "disabled"`). Returns `{success: true}`.
+ */
+export type CommerceDeleteDiscountCodeResult = any;
+
+/**
+ * Commerce.delete-discount-code — Delete a code nothing ever used. Direct — no dialog. A code that was used is part of the record and is refused `conflict`: turn it off instead (update-discount-code with `status: "disabled"`). Returns `{success: true}`.
+ */
+export interface CommerceDeleteDiscountCodeParams {
+  /**
+   * the code's id, from list-promotions
+   */
+  codeId: string;
+}
+
+/**
+ * Commerce.delete-product — Delete a product for good. OPENS THE MERCHANT CONSOLE'S DELETE DIALOG over your app, where the user types the product's name to confirm; deletes only then. `{success: false, code: "cancelled"}` is a normal answer. A product that is part of another product cannot be deleted: the dialog names those products and the answer is `{success: false, code: "conflict"}` — take it out of them first (update-product on each). Buyers keep what they bought. Returns `{success: true}`.
+ */
+export type CommerceDeleteProductResult = any;
+
+/**
+ * Commerce.delete-product — Delete a product for good. OPENS THE MERCHANT CONSOLE'S DELETE DIALOG over your app, where the user types the product's name to confirm; deletes only then. `{success: false, code: "cancelled"}` is a normal answer. A product that is part of another product cannot be deleted: the dialog names those products and the answer is `{success: false, code: "conflict"}` — take it out of them first (update-product on each). Buyers keep what they bought. Returns `{success: true}`.
+ */
+export interface CommerceDeleteProductParams {
+  /**
+   * the product, from list-seller-products
+   */
+  productId: string;
+}
+
+/**
+ * Commerce.end-sale — End a sale now. Direct — stopping a discount needs no dialog. Returns `{success: true, sale}` with `status: "ended"`.
+ */
+export type CommerceEndSaleResult = any;
+
+/**
+ * Commerce.end-sale — End a sale now. Direct — stopping a discount needs no dialog. Returns `{success: true, sale}` with `status: "ended"`.
+ */
+export interface CommerceEndSaleParams {
+  /**
+   * the sale's id (not the product's), from list-promotions
+   */
+  saleId: string;
+}
+
+/**
+ * Commerce.get-analytics — The store's own numbers over a range — the Merchant Console's Analytics — exactly as the server sends them: `{range, totals: {revenueVrsc, orders, units, curatorFeeVrsc, revenueApproximate}, series: [{day, revenueVrsc, orders, suppressed}], topProducts: [{productId, title, revenueVrsc, units, suppressed}], byNetwork: [{networkId, revenueVrsc, orders, suppressed}], suppressedCells}`. A row with `suppressed: true` was built from too few orders and is WITHHELD: its numbers are not figures — show it as withheld, never as 0. `orders` counts order lines touched, an upper bound, not distinct orders. Read-only.
+ */
+export type CommerceGetAnalyticsResult = any;
+
+/**
+ * Commerce.get-analytics — The store's own numbers over a range — the Merchant Console's Analytics — exactly as the server sends them: `{range, totals: {revenueVrsc, orders, units, curatorFeeVrsc, revenueApproximate}, series: [{day, revenueVrsc, orders, suppressed}], topProducts: [{productId, title, revenueVrsc, units, suppressed}], byNetwork: [{networkId, revenueVrsc, orders, suppressed}], suppressedCells}`. A row with `suppressed: true` was built from too few orders and is WITHHELD: its numbers are not figures — show it as withheld, never as 0. `orders` counts order lines touched, an upper bound, not distinct orders. Read-only.
+ */
+export interface CommerceGetAnalyticsParams {
+  /**
+   * ISO date the range starts
+   */
+  from?: string;
+  /**
+   * ISO date the range ends
+   */
+  to?: string;
+  /**
+   * true reads the test orders' figures instead of the real ones (never mixed)
+   */
+  testOnly?: boolean;
+}
+
+/**
+ * Commerce.get-cart — The whole cart; count excludes saved-for-later rows.
+ */
+export type CommerceGetCartResult = {items: Record<string, any>[], count: number};
+
+/**
+ * Commerce.get-cart — Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Each item's `appId` says which app added it. An app changes only its own rows: `add-to-cart` adds one, `update-cart-item` changes one, `remove-from-cart` and `clear-cart` take them out. Every other app's items are the buyer's to change in My Cart: send them there with `open-cart`.
+ */
+export interface CommerceGetCartParams {
+}
+
+/**
+ * Commerce.get-display — How this network SHOWS prices: `{currency, vrscUsd}`, where `currency` is `USD` or `VRSC` (the network admins' choice) and `vrscUsd` is the server's VRSC→USD rate, null when it is unknown. Every amount Commerce answers with stays in VRSC (`…Vrsc`); multiply by `vrscUsd` to show dollars, and show VRSC when the rate is null.
+ */
+export type CommerceGetDisplayResult = any;
+
+/**
+ * Commerce.get-display — How this network SHOWS prices: `{currency, vrscUsd}`, where `currency` is `USD` or `VRSC` (the network admins' choice) and `vrscUsd` is the server's VRSC→USD rate, null when it is unknown. Every amount Commerce answers with stays in VRSC (`…Vrsc`); multiply by `vrscUsd` to show dollars, and show VRSC when the rate is null.
+ */
+export interface CommerceGetDisplayParams {
+}
+
+/**
+ * Commerce.get-my-product — One of the seller's products with its content tree.
+ */
+export type CommerceGetMyProductResult = {product: Record<string, any>, items: Record<string, any>[]};
+
+/**
+ * Commerce.get-my-product — One of the seller's own products with its content, in exactly the shape update-product takes: `{product, items}`. Read it before changing the content — `items` in update-product REPLACES the whole tree, so edit this list and send it back rather than sending only the new files. `product.editable` is true for a draft, whose fields and content may change; a `broken` product (needs attention: something it included was archived) takes new content only.
+ */
+export interface CommerceGetMyProductParams {
+  /**
+   * the product, from list-seller-products (an app) or list-my-products (the AI)
+   */
+  productId: string;
+}
+
+/**
+ * Commerce.get-my-store — The signed-in user's own store and where they stand to sell — with list-seller-products, enough to draw the Merchant Console's setup checklist (verified identity → store → donation set → a product → one published). Returns `{hasStore, identityVerified, sellerName, sellerUserId, store, network}`. Buyers see a PERSON as the seller, not a store: show `sellerName` (the owner's profile name) and draw their avatar from `sellerUserId` with the users API's getIcon. `store` is `{id, name, description, status, payoutIdentityName, donationTiers: [{minMembers, percent}], donationUpdatedAt}`, or null — its `name` is kept for older callers and is not what buyers see; an empty `donationTiers` means no donation is set, and such a store sells nowhere. `identityVerified` says whether the user can open a store (a Verified Verus identity; when false, send them to their Profile). `network` is the network the user is in now: `{id, memberCount, mode, allowedRatings, displayCurrency, donationTierIndex}` — `mode` is `open | approval_required | closed`, `donationTierIndex` which of the store's four donation tiers this network takes (null without a store or a known size). Read-only.
+ */
+export type CommerceGetMyStoreResult = any;
+
+/**
+ * Commerce.get-my-store — The signed-in user's own store and where they stand to sell — with list-seller-products, enough to draw the Merchant Console's setup checklist (verified identity → store → donation set → a product → one published). Returns `{hasStore, identityVerified, sellerName, sellerUserId, store, network}`. Buyers see a PERSON as the seller, not a store: show `sellerName` (the owner's profile name) and draw their avatar from `sellerUserId` with the users API's getIcon. `store` is `{id, name, description, status, payoutIdentityName, donationTiers: [{minMembers, percent}], donationUpdatedAt}`, or null — its `name` is kept for older callers and is not what buyers see; an empty `donationTiers` means no donation is set, and such a store sells nowhere. `identityVerified` says whether the user can open a store (a Verified Verus identity; when false, send them to their Profile). `network` is the network the user is in now: `{id, memberCount, mode, allowedRatings, displayCurrency, donationTierIndex}` — `mode` is `open | approval_required | closed`, `donationTierIndex` which of the store's four donation tiers this network takes (null without a store or a known size). Read-only.
+ */
+export interface CommerceGetMyStoreParams {
+}
+
+/**
+ * Commerce.get-order — One of the user's orders, in the shape list-orders answers: `{order}`. Use it to follow an order `checkout` answered with. An order that is not the user's is refused `not_found`, exactly like one that does not exist. `imageResourceId` is null here; list-orders resolves the pictures.
+ */
+export type CommerceGetOrderResult = any;
+
+/**
+ * Commerce.get-order — One of the user's orders, in the shape list-orders answers: `{order}`. Use it to follow an order `checkout` answered with. An order that is not the user's is refused `not_found`, exactly like one that does not exist. `imageResourceId` is null here; list-orders resolves the pictures.
+ */
+export interface CommerceGetOrderParams {
+  /**
+   * the order to read
+   */
+  orderId: string;
+}
+
+/**
+ * Commerce.get-product — One catalogue product.
+ */
+export type CommerceGetProductResult = {product: Record<string, any>};
+
+/**
+ * Commerce.get-product — One product with its price, its parts when it is a bundle, its seller, its reviews and whether the current user already owns it. The seller is a PERSON, as in list-products: `sellerName`, `sellerUserId` (their avatar through the users API's getIcon) and `sellerIdentityName`; the store record's name is that person too. `contents` is what the product holds, as a tree to draw: `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize}` and `{type: "product", productId, title}`. `children` is NOT the content: it is only the products a bundle includes, empty for anything else. `items` is the same content as flat database rows, kept for older callers. A file's `resourceId` (and `resource_id` in items) is null unless the user owns the product or sells it: titles and types are the shop window, the ids open the paid files. For something the user bought, use get-purchase-contents.
+ */
+export interface CommerceGetProductParams {
+  /**
+   * the product to read
+   */
+  productId: string;
+}
+
+/**
+ * Commerce.get-purchase-contents — One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. Refused with code `not_owned` when the user does not own the product — the server decides.
+ */
+export type CommerceGetPurchaseContentsResult = any;
+
+/**
+ * Commerce.get-purchase-contents — One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. Refused with code `not_owned` when the user does not own the product — the server decides.
+ */
+export interface CommerceGetPurchaseContentsParams {
+  /**
+   * a product the user owns, from list-purchases
+   */
+  productId: string;
+}
+
+/**
+ * Commerce.list-categories — The platform category list.
+ */
+export type CommerceListCategoriesResult = {categories: Record<string, any>[]};
+
+/**
+ * Commerce.list-categories — The platform's product categories as `{categories: [{id, label}]}`. Every product is filed under exactly one; pass an `id` to list-products as `category`, and show the `label`.
+ */
+export interface CommerceListCategoriesParams {
+}
+
+/**
+ * Commerce.list-my-products — The seller's own catalogue, drafts included.
+ */
+export type CommerceListMyProductsResult = {hasStore: boolean, products: Record<string, any>[]};
+
+/**
+ * Commerce.list-my-products — List the SELLER's own products in their store — drafts, unlisted, live and archived — unlike list-products, which is the buyer's shelf and never shows drafts. Use it to find the productId to edit. Each product carries `editable`: true only for a draft (never published, or unlisted by the seller). Returns `{hasStore, products}`.
+ */
+export interface CommerceListMyProductsParams {
+  /**
+   * only products in this state
+   */
+  status?: "draft" | "active" | "archived" | "broken";
+  /**
+   * how many to return
+   */
+  limit?: number;
+}
+
+/**
+ * Commerce.list-network-access — Where the store stands in each network it asked to sell in: `{networks: [{networkId, status, requestedAt, decidedAt, note, message}]}`. `status` is `pending | approved | rejected | suspended`; `note` is the admins' word on their decision, `message` the seller's on the request. The network the user is in now may be missing: in an `open` one (get-my-store `network.mode`) a store sells without asking. Read-only.
+ */
+export type CommerceListNetworkAccessResult = any;
+
+/**
+ * Commerce.list-network-access — Where the store stands in each network it asked to sell in: `{networks: [{networkId, status, requestedAt, decidedAt, note, message}]}`. `status` is `pending | approved | rejected | suspended`; `note` is the admins' word on their decision, `message` the seller's on the request. The network the user is in now may be missing: in an `open` one (get-my-store `network.mode`) a store sells without asking. Read-only.
+ */
+export interface CommerceListNetworkAccessParams {
+}
+
+/**
+ * Commerce.list-orders — The user's orders, newest first, with their whole receipt as frozen at checkout. Returns `{orders: [{id, status, createdAt, paidAt, expiresAt, isTest, subtotalVrsc, totalVrsc, rateVrscUsd, items: [{productId, appId, title, qty, unitPriceVrsc, lineTotalVrsc, imageResourceId, deletedBySeller, parts: [{productId, title}], bundleFeeVrsc}], discounts: [{kind, label, amountVrsc}], notCharged: [{productId, title, amountVrsc}], payouts: [{kind, identityName, storeId, amountVrsc, status, donationPercent, donationMemberCount}], payment: {method, transactionId, failureReason} | null}]}`. `status` is `pending_payment`, `paid`, `expired`, `cancelled` or `failed`; without `status` you get pending and paid orders (a cancelled order is deleted). `notCharged` are parts of a bundle the user already owned. An order never carries a way to pay it: send the buyer to it with open-order.
+ */
+export type CommerceListOrdersResult = any;
+
+/**
+ * Commerce.list-orders — The user's orders, newest first, with their whole receipt as frozen at checkout. Returns `{orders: [{id, status, createdAt, paidAt, expiresAt, isTest, subtotalVrsc, totalVrsc, rateVrscUsd, items: [{productId, appId, title, qty, unitPriceVrsc, lineTotalVrsc, imageResourceId, deletedBySeller, parts: [{productId, title}], bundleFeeVrsc}], discounts: [{kind, label, amountVrsc}], notCharged: [{productId, title, amountVrsc}], payouts: [{kind, identityName, storeId, amountVrsc, status, donationPercent, donationMemberCount}], payment: {method, transactionId, failureReason} | null}]}`. `status` is `pending_payment`, `paid`, `expired`, `cancelled` or `failed`; without `status` you get pending and paid orders (a cancelled order is deleted). `notCharged` are parts of a bundle the user already owned. An order never carries a way to pay it: send the buyer to it with open-order.
+ */
+export interface CommerceListOrdersParams {
+  /**
+   * only orders in this state
+   */
+  status?: "pending_payment" | "paid" | "expired" | "cancelled" | "failed";
+  /**
+   * how many orders to read, newest first; counted before thisAppOnly narrows them
+   */
+  limit?: number;
+  /**
+   * true keeps only orders with at least one item bought in YOUR app
+   */
+  thisAppOnly?: boolean;
+}
+
+/**
+ * Commerce.list-products — A page of the buyer's shelf in the user's network — every seller's live goods, not only the calling application's.
+ */
+export type CommerceListProductsResult = {products: Record<string, any>[], total: number};
+
+/**
+ * Commerce.list-products — Search the live products available in the user's current network — the buyer's shelf, every seller's goods, not only yours. Products the network or its admins have refused are simply absent from the answer. Each product names its seller, who is a PERSON, not a store: `sellerName` (their profile name), `sellerUserId` (draw their avatar with the users API's getIcon({userId: sellerUserId})) and `sellerIdentityName` (the Verus ID payments go to). `storeName` carries the same person's name, for older callers; show the person, never a store. For the signed-in seller's OWN products, drafts included, use list-seller-products.
+ */
+export interface CommerceListProductsParams {
+  /**
+   * free-text search over the product title, or a whole tag
+   */
+  query?: string;
+  /**
+   * only this seller's products: a product's `storeId`, from list-products or get-product. Every user has one store, so this is everything one person sells (My Cart's "Everything from this store")
+   */
+  storeId?: string;
+  /**
+   * one of the platform's category ids — see list-categories
+   */
+  category?: string;
+  /**
+   * one tag, matched exactly (case and spacing do not matter)
+   */
+  tag?: string;
+  /**
+   * app-defined facets to filter by, e.g. {"subject": "Mathematics"}
+   */
+  attributes?: Record<string, any>;
+  /**
+   * newest | popular | priceAsc | priceDesc | rating
+   */
+  sort?: "newest" | "popular" | "priceAsc" | "priceDesc" | "rating";
+  /**
+   * page size, up to 100 (default 24)
+   */
+  limit?: number;
+  /**
+   * where the page starts
+   */
+  offset?: number;
+}
+
+/**
+ * Commerce.list-promotions — Every sale, volume discount and discount code of the store: `{sales: [{id, productId, salePriceAmount, salePriceCurrency, startsAt, endsAt, status}], tiers: [{id, minItems, percentOff, status}], codes: [{id, code, kind, value, currency, minSubtotalVrsc, maxRedemptions, redeemedCount, reservedCount, perBuyerLimit, startsAt, endsAt, status}]}`. `status` is `active | ended` for a sale and `active | disabled` for a tier or a code. A buyer's price takes a sale first, then at most one volume discount, then at most one code — they never stack beyond that. Read-only.
+ */
+export type CommerceListPromotionsResult = any;
+
+/**
+ * Commerce.list-promotions — Every sale, volume discount and discount code of the store: `{sales: [{id, productId, salePriceAmount, salePriceCurrency, startsAt, endsAt, status}], tiers: [{id, minItems, percentOff, status}], codes: [{id, code, kind, value, currency, minSubtotalVrsc, maxRedemptions, redeemedCount, reservedCount, perBuyerLimit, startsAt, endsAt, status}]}`. `status` is `active | ended` for a sale and `active | disabled` for a tier or a code. A buyer's price takes a sale first, then at most one volume discount, then at most one code — they never stack beyond that. Read-only.
+ */
+export interface CommerceListPromotionsParams {
+}
+
+/**
+ * Commerce.list-purchases — What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs.
+ */
+export type CommerceListPurchasesResult = any;
+
+/**
+ * Commerce.list-purchases — What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs.
+ */
+export interface CommerceListPurchasesParams {
+  /**
+   * true lists only what was bought in YOUR app
+   */
+  thisAppOnly?: boolean;
+}
+
+/**
+ * Commerce.list-seller-products — Every product the SIGNED-IN user sells, from their own store, so an app can show a seller their own products: live, draft (unlisted ones included), archived and broken, in every network, including ones a network blocked. Unlike list-products, the buyer's shelf of live products allowed here. The store is always the current user's; there is no way to name another. Read-only, newest change first. Returns `{hasStore, products}`; `hasStore` is false (and products empty) when the user has no store. Each product: id, title, description, status, category, tags, priceAmount, priceCurrency, totalPriceAmount, isBundle, coverResourceId, stock (null = unlimited), soldCount, contentCount. Show totalPriceAmount as the price: on a bundle priceAmount is only the seller's part on top of what it includes, and totalPriceAmount is null when the server could not price the bundle.
+ */
+export type CommerceListSellerProductsResult = any;
+
+/**
+ * Commerce.list-seller-products — Every product the SIGNED-IN user sells, from their own store, so an app can show a seller their own products: live, draft (unlisted ones included), archived and broken, in every network, including ones a network blocked. Unlike list-products, the buyer's shelf of live products allowed here. The store is always the current user's; there is no way to name another. Read-only, newest change first. Returns `{hasStore, products}`; `hasStore` is false (and products empty) when the user has no store. Each product: id, title, description, status, category, tags, priceAmount, priceCurrency, totalPriceAmount, isBundle, coverResourceId, stock (null = unlimited), soldCount, contentCount. Show totalPriceAmount as the price: on a bundle priceAmount is only the seller's part on top of what it includes, and totalPriceAmount is null when the server could not price the bundle.
+ */
+export interface CommerceListSellerProductsParams {
+  /**
+   * only products in this state
+   */
+  status?: "draft" | "active" | "archived" | "broken";
+  /**
+   * how many to return: 100 by default, up to 500
+   */
+  limit?: number;
+}
+
+/**
+ * Commerce.open-cart — The cart surface was opened.
+ */
+export type CommerceOpenCartResult = void;
+
+/**
+ * Commerce.open-cart — Open My Cart for the user, scoped to your app's items. With `popup` it is drawn over your own app instead of docking My Cart — mid-purchase, that keeps the user where they were. It answers as soon as the cart is open; for a Pay button use `checkout`, which opens the same cart and answers with what the buyer did there.
+ */
+export interface CommerceOpenCartParams {
+  /**
+   * true draws the surface over YOUR app's own pane instead of docking the application, so the page the user was on stays visible and usable behind it. Where your app is not on screen it falls back to a window over the whole page.
+   */
+  popup?: boolean;
+}
+
+/**
+ * Commerce.open-order — Open one of the user's orders in My Cart, expanded: where the buyer resumes a pending payment ("Show code"), cancels or deletes an unpaid order, or reads a receipt. Those are the buyer's own actions in My Cart; your app cannot take them. With `popup` it is drawn over your own app instead of docking My Cart. Returns `{success: true, popup}`.
+ */
+export type CommerceOpenOrderResult = any;
+
+/**
+ * Commerce.open-order — Open one of the user's orders in My Cart, expanded: where the buyer resumes a pending payment ("Show code"), cancels or deletes an unpaid order, or reads a receipt. Those are the buyer's own actions in My Cart; your app cannot take them. With `popup` it is drawn over your own app instead of docking My Cart. Returns `{success: true, popup}`.
+ */
+export interface CommerceOpenOrderParams {
+  /**
+   * the order to show, e.g. from list-orders or checkout
+   */
+  orderId: string;
+  /**
+   * true draws the surface over YOUR app's own pane instead of docking the application, so the page the user was on stays visible and usable behind it. Where your app is not on screen it falls back to a window over the whole page.
+   */
+  popup?: boolean;
+}
+
+/**
+ * Commerce.open-products — The merchant console was opened.
+ */
+export type CommerceOpenProductsResult = void;
+
+/**
+ * Commerce.open-products — Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it for a "My products" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's. With `popup` it is drawn over your own app instead of docking the console.
+ */
+export interface CommerceOpenProductsParams {
+  /**
+   * true draws the surface over YOUR app's own pane instead of docking the application, so the page the user was on stays visible and usable behind it. Where your app is not on screen it falls back to a window over the whole page.
+   */
+  popup?: boolean;
+}
+
+/**
+ * Commerce.open-purchase-in-media — Open a purchase where it lives, in Media's Purchased section — the Orders tab's "Show in Media". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Media docks beside your app. Returns `{success: true}`, or `{success: false, code: "not_owned"}` without opening anything.
+ */
+export type CommerceOpenPurchaseInMediaResult = any;
+
+/**
+ * Commerce.open-purchase-in-media — Open a purchase where it lives, in Media's Purchased section — the Orders tab's "Show in Media". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Media docks beside your app. Returns `{success: true}`, or `{success: false, code: "not_owned"}` without opening anything.
+ */
+export interface CommerceOpenPurchaseInMediaParams {
+  /**
+   * a product the user owns; omit for everything they bought
+   */
+  productId?: string;
+}
+
+/**
+ * Commerce.open-purchases — The purchases surface was opened.
+ */
+export type CommerceOpenPurchasesResult = void;
+
+/**
+ * Commerce.open-purchases — Open the user's order history in My Cart (one order, expanded: `open-order`). With `popup` it is drawn over your own app instead of docking My Cart.
+ */
+export interface CommerceOpenPurchasesParams {
+  /**
+   * true draws the surface over YOUR app's own pane instead of docking the application, so the page the user was on stays visible and usable behind it. Where your app is not on screen it falls back to a window over the whole page.
+   */
+  popup?: boolean;
+}
+
+/**
+ * Commerce.preview-promo — What a discount code would do to the items YOUR app has selected in the cart — exactly what `checkout` will charge for them. Returns `{valid, reason, discounts: [{kind, label, amountVrsc}], subtotalVrsc, totalVrsc}`. `reason` is null when valid, else `promo_invalid`, `promo_expired`, `promo_exhausted` or `not_applicable` (a real code that takes nothing off this selection, e.g. under its minimum). `discounts` lists everything that takes money off, the code and any volume discount or sale alike. Read-only: nothing is reserved, and My Cart prices the code again when the buyer pays. With nothing of yours selected the server refuses `validation_failed`.
+ */
+export type CommercePreviewPromoResult = any;
+
+/**
+ * Commerce.preview-promo — What a discount code would do to the items YOUR app has selected in the cart — exactly what `checkout` will charge for them. Returns `{valid, reason, discounts: [{kind, label, amountVrsc}], subtotalVrsc, totalVrsc}`. `reason` is null when valid, else `promo_invalid`, `promo_expired`, `promo_exhausted` or `not_applicable` (a real code that takes nothing off this selection, e.g. under its minimum). `discounts` lists everything that takes money off, the code and any volume discount or sale alike. Read-only: nothing is reserved, and My Cart prices the code again when the buyer pays. With nothing of yours selected the server refuses `validation_failed`.
+ */
+export interface CommercePreviewPromoParams {
+  /**
+   * the code as the buyer typed it; case and surrounding spaces do not matter
+   */
+  code: string;
+}
+
+/**
+ * Commerce.preview-purchase — Open the platform's previewer on what the user bought — the Orders tab's click on a file. Without `resourceId` it shows every file of the purchase in tree order; with one, just that file, which must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents). Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.
+ */
+export type CommercePreviewPurchaseResult = any;
+
+/**
+ * Commerce.preview-purchase — Open the platform's previewer on what the user bought — the Orders tab's click on a file. Without `resourceId` it shows every file of the purchase in tree order; with one, just that file, which must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents). Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.
+ */
+export interface CommercePreviewPurchaseParams {
+  /**
+   * a product the user owns
+   */
+  productId: string;
+  /**
+   * one file of that purchase to show
+   */
+  resourceId?: string;
+}
+
+/**
+ * Commerce.publish-product — Put one of the seller's products on sale. OPENS THE MERCHANT CONSOLE'S PUBLISH DIALOG over your app: the user picks the networks to sell in — `networkIds` start ticked where the store may sell, by default this network — and confirms. Only then is the product listed (in My Cart and in YOUR app) and published, freezing this version for buyers. `{success: false, code: "cancelled"}` is a normal answer: the user did not publish — do not ask again yourself. Only a draft or a `broken` product (its content fixed with update-product) can be published; no content, no category, or a store with no donation set is refused `validation_failed` before any dialog, saying which. Returns `{success: true, product, version: {id, version, status, vaultStatus, publishedAt}}`. Refused `busy` while another dialog from your app is open, `unsupported` where the platform cannot show one.
+ */
+export type CommercePublishProductResult = any;
+
+/**
+ * Commerce.publish-product — Put one of the seller's products on sale. OPENS THE MERCHANT CONSOLE'S PUBLISH DIALOG over your app: the user picks the networks to sell in — `networkIds` start ticked where the store may sell, by default this network — and confirms. Only then is the product listed (in My Cart and in YOUR app) and published, freezing this version for buyers. `{success: false, code: "cancelled"}` is a normal answer: the user did not publish — do not ask again yourself. Only a draft or a `broken` product (its content fixed with update-product) can be published; no content, no category, or a store with no donation set is refused `validation_failed` before any dialog, saying which. Returns `{success: true, product, version: {id, version, status, vaultStatus, publishedAt}}`. Refused `busy` while another dialog from your app is open, `unsupported` where the platform cannot show one.
+ */
+export interface CommercePublishProductParams {
+  /**
+   * the product, from list-seller-products
+   */
+  productId: string;
+  /**
+   * networks to start ticked in the dialog; the user decides
+   */
+  networkIds?: any[];
+}
+
+/**
+ * Commerce.quote-bundle — What a product made of these products would cost a buyer, priced by the server exactly as checkout prices it (sales, bundles inside bundles, a part reached twice). Returns `{currency, parts: [{productId, amount}], included, own, total, duplicates, unavailable}`: `included` is the parts' sum, `own` the seller's price on top, `total` what a buyer pays; `duplicates` are parts reached twice, `unavailable` ids that are neither on sale nor the seller's own. Read-only — show it while the seller assembles a bundle; create-product with `{productId}` items makes one.
+ */
+export type CommerceQuoteBundleResult = any;
+
+/**
+ * Commerce.quote-bundle — What a product made of these products would cost a buyer, priced by the server exactly as checkout prices it (sales, bundles inside bundles, a part reached twice). Returns `{currency, parts: [{productId, amount}], included, own, total, duplicates, unavailable}`: `included` is the parts' sum, `own` the seller's price on top, `total` what a buyer pays; `duplicates` are parts reached twice, `unavailable` ids that are neither on sale nor the seller's own. Read-only — show it while the seller assembles a bundle; create-product with `{productId}` items makes one.
+ */
+export interface CommerceQuoteBundleParams {
+  /**
+   * the products the bundle would include
+   */
+  productIds: any[];
+  /**
+   * the currency to quote in (default VRSC)
+   */
+  priceCurrency?: "VRSC" | "USD";
+  /**
+   * the seller's own price on top of the parts, zero or more
+   */
+  ownPrice?: number;
+}
+
+/**
+ * Commerce.rate-product — Rate a product the user owns, one to five stars with an optional review. A rating is public (it shows on the product's page), so the platform asks the user first in its own dialog over your app: `score` and `text` only pre-fill it, the user can change both, and what they confirm is what is saved. Returns `{success: true, review: {score, text}}` — what was saved. Refused with `cancelled` when the user closes the dialog (nothing is saved; do not ask again on your own), `not_owned` when they do not own the product (no dialog), `busy` while another platform dialog is waiting, and `unsupported` where there is no dialog to ask with.
+ */
+export type CommerceRateProductResult = any;
+
+/**
+ * Commerce.rate-product — Rate a product the user owns, one to five stars with an optional review. A rating is public (it shows on the product's page), so the platform asks the user first in its own dialog over your app: `score` and `text` only pre-fill it, the user can change both, and what they confirm is what is saved. Returns `{success: true, review: {score, text}}` — what was saved. Refused with `cancelled` when the user closes the dialog (nothing is saved; do not ask again on your own), `not_owned` when they do not own the product (no dialog), `busy` while another platform dialog is waiting, and `unsupported` where there is no dialog to ask with.
+ */
+export interface CommerceRateProductParams {
+  /**
+   * a product the user owns, e.g. from list-purchases
+   */
+  productId: string;
+  /**
+   * the stars to propose, a whole number from 1 to 5
+   */
+  score?: number;
+  /**
+   * the review to propose, up to 4000 characters
+   */
+  text?: string;
+}
+
+/**
+ * Commerce.remove-from-cart — Take one of YOUR app's rows out of the user's cart. Another app's row is refused with code `not_yours` (the buyer removes those in My Cart), a row the cart does not hold with `not_found`. Returns the whole cart: `{success: true, items, count}`.
+ */
+export type CommerceRemoveFromCartResult = any;
+
+/**
+ * Commerce.remove-from-cart — Take one of YOUR app's rows out of the user's cart. Another app's row is refused with code `not_yours` (the buyer removes those in My Cart), a row the cart does not hold with `not_found`. Returns the whole cart: `{success: true, items, count}`.
+ */
+export interface CommerceRemoveFromCartParams {
+  /**
+   * the cart row to remove: an item `id` from get-cart, one your app added
+   */
+  itemId: string;
+}
+
+/**
+ * Commerce.remove-volume-tier — Remove a volume discount. Direct — no dialog. Returns `{success: true}`.
+ */
+export type CommerceRemoveVolumeTierResult = any;
+
+/**
+ * Commerce.remove-volume-tier — Remove a volume discount. Direct — no dialog. Returns `{success: true}`.
+ */
+export interface CommerceRemoveVolumeTierParams {
+  /**
+   * the discount, from list-promotions
+   */
+  tierId: string;
+}
+
+/**
+ * Commerce.request-network-access — Ask a network's admins to let the store sell there, with an optional message; they decide, and list-network-access shows the outcome. Returns `{success: true, request}` in list-network-access's shape (`status: "pending"`). No dialog.
+ */
+export type CommerceRequestNetworkAccessResult = any;
+
+/**
+ * Commerce.request-network-access — Ask a network's admins to let the store sell there, with an optional message; they decide, and list-network-access shows the outcome. Returns `{success: true, request}` in list-network-access's shape (`status: "pending"`). No dialog.
+ */
+export interface CommerceRequestNetworkAccessParams {
+  /**
+   * the network to sell in
+   */
+  networkId: string;
+  /**
+   * a word to the admins, at most 2000 characters
+   */
+  message?: string;
+}
+
+/**
+ * Commerce.set-donation-tiers — Set the store's network donation — the share of every sale that goes to the network it is sold in, one percentage per network size; a store with none sells nowhere. OPENS A PLATFORM DIALOG over your app showing each tier old → new (this network's marked) and saves only if the user confirms. `{success: false, code: "cancelled"}` is a normal answer: the user said no — do not ask again yourself. Lowering any tier sends the store back for approval in every network that approved it (its products hide there until an admin approves again), and the dialog says so. Sending what is already saved asks nothing and changes nothing. Returns `{success: true, store, reopenedNetworks}` — the networks that must approve the store again. Refused `busy` while another dialog from your app is open, `unsupported` where the platform cannot show one.
+ */
+export type CommerceSetDonationTiersResult = any;
+
+/**
+ * Commerce.set-donation-tiers — Set the store's network donation — the share of every sale that goes to the network it is sold in, one percentage per network size; a store with none sells nowhere. OPENS A PLATFORM DIALOG over your app showing each tier old → new (this network's marked) and saves only if the user confirms. `{success: false, code: "cancelled"}` is a normal answer: the user said no — do not ask again yourself. Lowering any tier sends the store back for approval in every network that approved it (its products hide there until an admin approves again), and the dialog says so. Sending what is already saved asks nothing and changes nothing. Returns `{success: true, store, reopenedNetworks}` — the networks that must approve the store again. Refused `busy` while another dialog from your app is open, `unsupported` where the platform cannot show one.
+ */
+export interface CommerceSetDonationTiersParams {
+  /**
+   * exactly four {minMembers, percent}, one per network size — minMembers 0, 100, 1000 and 10000 — each percent 0 to 100 with at most two decimals
+   */
+  tiers: any[];
+}
+
+/**
+ * Commerce.set-sale — Put one product on sale at a lower price. OPENS A PLATFORM DIALOG over your app showing the sale price against the usual one and when it runs; starts it only if the user confirms. `{success: false, code: "cancelled"}` is a normal answer. The sale price must be below the product's own and in its currency, and a bundle (priced by its parts) cannot go on sale — each refused `validation_failed` before any dialog. A product with a sale running gets this one instead. Returns `{success: true, sale}` in list-promotions' shape.
+ */
+export type CommerceSetSaleResult = any;
+
+/**
+ * Commerce.set-sale — Put one product on sale at a lower price. OPENS A PLATFORM DIALOG over your app showing the sale price against the usual one and when it runs; starts it only if the user confirms. `{success: false, code: "cancelled"}` is a normal answer. The sale price must be below the product's own and in its currency, and a bundle (priced by its parts) cannot go on sale — each refused `validation_failed` before any dialog. A product with a sale running gets this one instead. Returns `{success: true, sale}` in list-promotions' shape.
+ */
+export interface CommerceSetSaleParams {
+  /**
+   * the product, from list-seller-products
+   */
+  productId: string;
+  /**
+   * the sale price, below the product's own
+   */
+  salePriceAmount: number;
+  /**
+   * must be the product's own price currency (the default)
+   */
+  salePriceCurrency?: "VRSC" | "USD";
+  /**
+   * ISO date it starts; omit for now
+   */
+  startsAt?: string;
+  /**
+   * ISO date it ends; omit to run until end-sale
+   */
+  endsAt?: string;
+}
+
+/**
+ * Commerce.set-volume-tier — A store-wide volume discount: every order with at least `minItems` of the seller's items gets `percentOff` off, in every app and network the store sells in. OPENS A PLATFORM DIALOG over your app ("N or more items → P% off, every order in your store") and saves only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. With `tierId` it edits that discount (the dialog shows what it was); without, it adds one — or replaces the one at the same `minItems`. Returns `{success: true, tier}` in list-promotions' shape.
+ */
+export type CommerceSetVolumeTierResult = any;
+
+/**
+ * Commerce.set-volume-tier — A store-wide volume discount: every order with at least `minItems` of the seller's items gets `percentOff` off, in every app and network the store sells in. OPENS A PLATFORM DIALOG over your app ("N or more items → P% off, every order in your store") and saves only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. With `tierId` it edits that discount (the dialog shows what it was); without, it adds one — or replaces the one at the same `minItems`. Returns `{success: true, tier}` in list-promotions' shape.
+ */
+export interface CommerceSetVolumeTierParams {
+  /**
+   * how many items an order needs, a whole number of at least 2
+   */
+  minItems: number;
+  /**
+   * the discount, more than 0 and at most 100
+   */
+  percentOff: number;
+  /**
+   * the discount to edit, from list-promotions
+   */
+  tierId?: string;
+}
+
+/**
+ * Commerce.subscribe-events — Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: "commerce", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Media; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.
+ */
+export type CommerceSubscribeEventsResult = any;
+
+/**
+ * Commerce.subscribe-events — Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: "commerce", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Media; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.
+ */
+export interface CommerceSubscribeEventsParams {
+  /**
+   * the event names to receive, replacing any earlier subscription: cart-updated, order-updated, delivery-updated, catalogue-updated, seller-product-updated, seller-store-updated, seller-promotions-updated
+   */
+  events: any[];
+}
+
+/**
+ * Commerce.unlist-product — Take a product that is on sale off every shelf: it becomes a draft again, its published version intact — buyers keep what they bought, and publishing again puts it back. OPENS THE MERCHANT CONSOLE'S UNLIST DIALOG over your app and unlists only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Only an `active` product can be unlisted. Returns `{success: true, product}`. Unlist a live product before editing it with update-product.
+ */
+export type CommerceUnlistProductResult = any;
+
+/**
+ * Commerce.unlist-product — Take a product that is on sale off every shelf: it becomes a draft again, its published version intact — buyers keep what they bought, and publishing again puts it back. OPENS THE MERCHANT CONSOLE'S UNLIST DIALOG over your app and unlists only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Only an `active` product can be unlisted. Returns `{success: true, product}`. Unlist a live product before editing it with update-product.
+ */
+export interface CommerceUnlistProductParams {
+  /**
+   * a product on sale, from list-seller-products
+   */
+  productId: string;
+}
+
+/**
+ * Commerce.unsubscribe-events — Stop receiving commerce events. Without `events`, every one your app subscribed to; with it, only those. Answers `{success: true, events}`: what your app still receives (empty when nothing). An unknown name is refused with `validation_failed` and nothing changes. There is no need to call it before your app closes: a subscription ends with the frame that made it.
+ */
+export type CommerceUnsubscribeEventsResult = any;
+
+/**
+ * Commerce.unsubscribe-events — Stop receiving commerce events. Without `events`, every one your app subscribed to; with it, only those. Answers `{success: true, events}`: what your app still receives (empty when nothing). An unknown name is refused with `validation_failed` and nothing changes. There is no need to call it before your app closes: a subscription ends with the frame that made it.
+ */
+export interface CommerceUnsubscribeEventsParams {
+  /**
+   * the event names to stop receiving (see subscribe-events); omit to stop them all
+   */
+  events?: any[];
+}
+
+/**
+ * Commerce.update-cart-item — Change one of YOUR app's rows in the user's cart: its quantity, whether it is selected for checkout, or whether it is saved for later. Give at least one of them; only the fields given change. A row added by another app is refused with code `not_yours` — the buyer changes those in My Cart (`open-cart`) — and a row the cart does not hold with `not_found`. Returns the whole cart as get-cart reads it: `{success: true, items, count}`, `count` excluding what is saved for later. The server re-checks stock and availability and refuses with its own code.
+ */
+export type CommerceUpdateCartItemResult = any;
+
+/**
+ * Commerce.update-cart-item — Change one of YOUR app's rows in the user's cart: its quantity, whether it is selected for checkout, or whether it is saved for later. Give at least one of them; only the fields given change. A row added by another app is refused with code `not_yours` — the buyer changes those in My Cart (`open-cart`) — and a row the cart does not hold with `not_found`. Returns the whole cart as get-cart reads it: `{success: true, items, count}`, `count` excluding what is saved for later. The server re-checks stock and availability and refuses with its own code.
+ */
+export interface CommerceUpdateCartItemParams {
+  /**
+   * the cart row to change: an item `id` from get-cart, one your app added
+   */
+  itemId: string;
+  /**
+   * the new quantity, a whole number of at least 1
+   */
+  qty?: number;
+  /**
+   * true to include it in the next checkout, false to leave it out
+   */
+  selected?: boolean;
+  /**
+   * true moves it out of the cart into saved for later; false brings it back
+   */
+  savedForLater?: boolean;
+}
+
+/**
+ * Commerce.update-discount-code — Change a discount code. DIRECT when it only stops the discount: `status: "disabled"`, or an `endsAt` sooner than the one it has (any end, for a code that has none). Anything that gives more — `status: "active"` again, a later end or none (`endsAt: null`), more uses, more per buyer — OPENS A PLATFORM DIALOG over your app with each change before → after, and saves only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Returns `{success: true, discountCode}`.
+ */
+export type CommerceUpdateDiscountCodeResult = any;
+
+/**
+ * Commerce.update-discount-code — Change a discount code. DIRECT when it only stops the discount: `status: "disabled"`, or an `endsAt` sooner than the one it has (any end, for a code that has none). Anything that gives more — `status: "active"` again, a later end or none (`endsAt: null`), more uses, more per buyer — OPENS A PLATFORM DIALOG over your app with each change before → after, and saves only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Returns `{success: true, discountCode}`.
+ */
+export interface CommerceUpdateDiscountCodeParams {
+  /**
+   * the code's id, from list-promotions
+   */
+  codeId: string;
+  /**
+   * disabled turns it off; active turns it back on
+   */
+  status?: "active" | "disabled";
+  /**
+   * ISO date it ends, or null for no end
+   */
+  endsAt?: string;
+  /**
+   * how many times it can be used in all, at least 1
+   */
+  maxRedemptions?: number;
+  /**
+   * how many times one buyer can use it, at least 1
+   */
+  perBuyerLimit?: number;
+}
+
+/**
+ * Commerce.update-product — The updated draft.
+ */
+export type CommerceUpdateProductResult = {product: Record<string, any>};
+
+/**
+ * Commerce.update-product — Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted first: unlist-product, or the seller in the Merchant Console). A `broken` product (needs attention: something it included was archived) accepts `items` only — its other fields are `not_editable` — and goes back on sale when it is published again (publish-product). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`.
+ */
+export interface CommerceUpdateProductParams {
+  /**
+   * the draft (or broken product) to edit, from list-seller-products (an app) or list-my-products (the AI)
+   */
+  productId: string;
+  /**
+   * the product's name
+   */
+  title?: string;
+  /**
+   * what a buyer reads before paying; an empty string clears it
+   */
+  description?: string;
+  /**
+   * the price; 0 makes it free. On a product that includes other products this is the price ON TOP of theirs (a buyer pays the included products plus this)
+   */
+  priceAmount?: number;
+  /**
+   * VRSC or USD
+   */
+  priceCurrency?: "VRSC" | "USD";
+  /**
+   * how many may be sold (the quantity on sale)
+   */
+  stock?: number;
+  /**
+   * true removes the quantity limit
+   */
+  unlimitedStock?: boolean;
+  /**
+   * one of the platform's category ids — see list-categories; an empty string clears it
+   */
+  category?: string;
+  /**
+   * the full tag list (replaces the current one): up to 10 tags of up to 24 characters
+   */
+  tags?: any[];
+  /**
+   * the cover: a resource id in the seller's own Media
+   */
+  imageResourceId?: string;
+  /**
+   * the WHOLE new content: resource ids ("res_1"), named files ({resourceId, title}), folders ({folder: "Unit 1", items: […]}) or other products ({productId}) for a bundle
+   */
+  items?: any[];
+}
+
+/**
+ * DataProvider.pick-multiple — What the user chose; empty when they cancelled.
+ */
+export type DataProviderPickMultipleResult = {picked: Record<string, any>[]};
+
+/**
+ * DataProvider.pick-multiple — Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"].
+ */
+export interface DataProviderPickMultipleParams {
+  /**
+   * Provider IDs to show. Same set as pick-single.
+   */
+  providers: string[];
+  /**
+   * Dialog title.
+   */
+  title?: string;
+  /**
+   * Confirm button label (e.g. "Invite", "Share with"). Defaults to "Select".
+   */
+  confirmLabel?: string;
+  /**
+   * Confirm button icon class (Font Awesome, e.g. "fa-light fa-paper-plane-top").
+   */
+  confirmIcon?: string;
+  /**
+   * CSS width for the modal (desktop only).
+   */
+  width?: string;
+  /**
+   * CSS height for the modal (desktop only).
+   */
+  height?: string;
+}
+
+/**
+ * DataProvider.pick-single — What the user chose, or null when they cancelled.
+ */
+export type DataProviderPickSingleResult = {picked: Record<string, any>|null};
+
+/**
+ * DataProvider.pick-single — Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that.
+ */
+export interface DataProviderPickSingleParams {
+  /**
+   * Provider IDs to show as picker sources. Available IDs include: "rooms", "contacts", "groups", "communities", "props", "events". Pass one entry for a single-source picker, or multiple to let the user switch sources via tabs. Example: ["rooms"] or ["contacts", "groups"].
+   */
+  providers: string[];
+  /**
+   * Dialog title shown above the picker. Defaults to the provider's built-in title.
+   */
+  title?: string;
+  /**
+   * CSS width for the modal (desktop only).
+   */
+  width?: string;
+  /**
+   * CSS height for the modal (desktop only).
+   */
+  height?: string;
+}
+
+/**
+ * RoomPoints.create-room-point — Opens the point editor for a NEW point and BLOCKS until the user saves or cancels. Needs a pose to save the point at: pass camera (the live 3D camera pose) or a point to copy the pose from — the web layer cannot read the camera itself. Resolves {status: "ok", point, persisted, savePreview} once the point is written, or {status: "cancelled"} / {status: "error", message}.
+ */
+export type RoomPointsCreateRoomPointResult = any;
+
+/**
+ * RoomPoints.create-room-point — Opens the point editor for a NEW point and BLOCKS until the user saves or cancels. Needs a pose to save the point at: pass camera (the live 3D camera pose) or a point to copy the pose from — the web layer cannot read the camera itself. Resolves {status: "ok", point, persisted, savePreview} once the point is written, or {status: "cancelled"} / {status: "error", message}.
+ */
+export interface RoomPointsCreateRoomPointParams {
+  /**
+   * The room the point belongs to.
+   */
+  roomId: string;
+  /**
+   * The pose the point is saved at: {position: {x,y,z}, rotation: {x,y,z,w}} with the rotation in EULER DEGREES. Required unless point carries a pose.
+   */
+  camera?: Record<string, any>;
+  /**
+   * A cameraPosition to pre-fill the form with (name, camera mode, pose). Its id is ignored for a create.
+   */
+  point?: Record<string, any>;
+  /**
+   * Pre-fills the point name. Wins over the name the point carried.
+   */
+  name?: string;
+  /**
+   * Pre-fills the camera mode: 0 — do not change, 1 — free fly, 2 — third person.
+   */
+  cameraMode?: number;
+  /**
+   * Pre-fills the "Make preview" toggle. Defaults to true. The screenshot and parallax capture themselves are done by the 3D scene, not here.
+   */
+  savePreview?: boolean;
+  /**
+   * Whether this service writes the point to the server. Defaults to true; pass false to use the editor as pure UI and save the returned point yourself.
+   */
+  persist?: boolean;
+  /**
+   * Network the room belongs to. Defaults to the current network.
+   */
+  networkId?: string;
+}
+
+/**
+ * RoomPoints.edit-room-point — Opens the point editor for an EXISTING point and BLOCKS until the user saves, deletes or cancels. Resolves {status: "ok", point, persisted, savePreview}, {status: "deleted", point: {id}, persisted}, {status: "cancelled"} or {status: "error", message}. A point whose id is empty is treated as a create.
+ */
+export type RoomPointsEditRoomPointResult = any;
+
+/**
+ * RoomPoints.edit-room-point — Opens the point editor for an EXISTING point and BLOCKS until the user saves, deletes or cancels. Resolves {status: "ok", point, persisted, savePreview}, {status: "deleted", point: {id}, persisted}, {status: "cancelled"} or {status: "error", message}. A point whose id is empty is treated as a create.
+ */
+export interface RoomPointsEditRoomPointParams {
+  /**
+   * The room the point belongs to.
+   */
+  roomId: string;
+  /**
+   * The point being edited, in the cameraPosition shape list-points returns.
+   */
+  point: Record<string, any>;
+  /**
+   * The live 3D camera pose, {position: {x,y,z}, rotation: {x,y,z,w}} in EULER DEGREES. When present the editor offers to move the point here, ticked by default.
+   */
+  camera?: Record<string, any>;
+  /**
+   * Whether the editor may offer Delete. Defaults to false — a room should keep at least one point.
+   */
+  deletable?: boolean;
+  /**
+   * Pre-fills the point name. Wins over the name the point carried.
+   */
+  name?: string;
+  /**
+   * Pre-fills the camera mode: 0 — do not change, 1 — free fly, 2 — third person.
+   */
+  cameraMode?: number;
+  /**
+   * Pre-fills the "Make preview" toggle. Defaults to true.
+   */
+  savePreview?: boolean;
+  /**
+   * Whether this service writes the change to the server. Defaults to true.
+   */
+  persist?: boolean;
+  /**
+   * Network the room belongs to. Defaults to the current network.
+   */
+  networkId?: string;
+}
+
 /** Every service, with each SERVICE function as a method. */
 export interface ValuServices {
   /**
@@ -2016,6 +3173,425 @@ export interface ValuServices {
      * @scope veruswallet:write
      */
     transfer(params: VerusWalletTransferParams): Promise<ValuAck<VerusWalletTransferResult>>;
+  };
+  /**
+   * Issues short-lived signed identity JWTs for iFrame (mini-app) applications. Allows an embedded application to obtain a signed token proving the current user's identity to the mini-app's own backend.
+   */
+  Application: {
+    /**
+     * Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed.
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-only
+     */
+    closeAll(): Promise<ValuAck<ApplicationCloseAllResult>>;
+    /**
+     * Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Close Application" default header action for iframe apps that render their own context menu (header: false).
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-only
+     */
+    closeApplication(): Promise<ValuAck<ApplicationCloseApplicationResult>>;
+    /**
+     * Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Expand Application" default header action for iframe apps that render their own context menu (header: false).
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-only
+     */
+    expandApplication(): Promise<ValuAck<ApplicationExpandApplicationResult>>;
+    /**
+     * Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.
+     * @channel intent
+     * @scope application:identity
+     * @mode both
+     */
+    getIdentityToken(): Promise<ValuAck<ApplicationGetIdentityTokenResult>>;
+  };
+  /**
+   * Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.
+   */
+  Commerce: {
+    /**
+     * Put a product in the user's cart, credited to your app. The server re-checks that it can be bought here before accepting it, so a refusal comes back with a code to show.
+     * @channel intent
+     * @scope commerce:write
+     * @mode both
+     */
+    addToCart(params: CommerceAddToCartParams): Promise<ValuAck<CommerceAddToCartResult>>;
+    /**
+     * Withdraw a product from sale for good. OPENS A PLATFORM DIALOG over your app saying it leaves every shelf and cannot be undone, and naming the products that include it — they stop selling too until each is published again without it. Archives only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Anyone who bought it keeps it. Returns `{success: true, product, brokeBundles}` — `brokeBundles` the ids of the products that stopped selling.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode embedded-served
+     */
+    archiveProduct(params: CommerceArchiveProductParams): Promise<ValuAck<CommerceArchiveProductResult>>;
+    /**
+     * Which of these products the current user owns. This is how an app unlocks a ticket, a seat or an in-app good it sold through the shared cart.
+     * @channel intent
+     * @scope commerce:read
+     * @mode both
+     */
+    checkEntitlements(params: CommerceCheckEntitlementsParams): Promise<ValuAck<CommerceCheckEntitlementsResult>>;
+    /**
+     * Your app's Pay button. Your app never takes a payment: this opens My Cart's own cart over your app, showing your items with `promoCode` typed in and applied, and the BUYER presses Pay and scans the code there — only My Cart creates the order. It answers when the buyer closes it: `{success: true, outcome, orderId?, status?}`. `outcome` is `paid` (a free order too: unlock it), `pending` (an order was made but is not paid yet — follow it with get-order or the order-updated event), `cancelled` (the order will not be paid: the buyer cancelled it, or it expired or failed — `status` says which — and its items are back in the cart) or `dismissed` (closed without making an order). Refused with code `empty`, and nothing opens, when none of your items is selected in the cart (add them first). With `popup: false` My Cart docks instead and it answers at once with `outcome: "opened"`, as it does where there is no popup to draw. A second checkout while one is open replaces it; the first answers at once — `dismissed`, unless an order was already made in it.
+     * @channel intent
+     * @scope commerce:write
+     * @mode window
+     */
+    checkout(params?: CommerceCheckoutParams): Promise<ValuAck<CommerceCheckoutResult>>;
+    /**
+     * Remove every row YOUR app added to the user's cart, saved-for-later ones included. Other apps' rows are never touched. No dialog: they are your own rows. Returns what is left — `{success: true, items, count}` — so an empty `items` means the cart held only your rows.
+     * @channel intent
+     * @scope commerce:write
+     * @mode both
+     */
+    clearCart(): Promise<ValuAck<CommerceClearCartResult>>;
+    /**
+     * A discount code buyers type at checkout — on the seller's own products only. OPENS A PLATFORM DIALOG over your app with the code, its value, limits and dates, and creates it only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. The code is stored upper-case; one the store already has is refused `conflict`. Returns `{success: true, discountCode}` in list-promotions' code shape — named `discountCode` because `code` is the refusal field.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode embedded-served
+     */
+    createDiscountCode(params: CommerceCreateDiscountCodeParams): Promise<ValuAck<CommerceCreateDiscountCodeResult>>;
+    /**
+     * Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, so the seller confirms it separately — in the publish dialog an app opens with publish-product, or in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    createProduct(params?: CommerceCreateProductParams): Promise<ValuAck<CommerceCreateProductResult>>;
+    /**
+     * Open the signed-in user's store — what lets them sell; buyers see the user themselves as the seller, so it needs no name. It needs a Verified Verus identity: without one it is refused with code `not_eligible_kyc` — send the user to their Profile. A user who already has a store gets it back unchanged. Returns `{success: true, store}` in get-my-store's shape. No dialog. Next steps: set-donation-tiers (a store with no donation sells nowhere), then create-product.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    createStore(params?: CommerceCreateStoreParams): Promise<ValuAck<CommerceCreateStoreResult>>;
+    /**
+     * Delete a code nothing ever used. Direct — no dialog. A code that was used is part of the record and is refused `conflict`: turn it off instead (update-discount-code with `status: "disabled"`). Returns `{success: true}`.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    deleteDiscountCode(params: CommerceDeleteDiscountCodeParams): Promise<ValuAck<CommerceDeleteDiscountCodeResult>>;
+    /**
+     * Delete a product for good. OPENS THE MERCHANT CONSOLE'S DELETE DIALOG over your app, where the user types the product's name to confirm; deletes only then. `{success: false, code: "cancelled"}` is a normal answer. A product that is part of another product cannot be deleted: the dialog names those products and the answer is `{success: false, code: "conflict"}` — take it out of them first (update-product on each). Buyers keep what they bought. Returns `{success: true}`.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode embedded-served
+     */
+    deleteProduct(params: CommerceDeleteProductParams): Promise<ValuAck<CommerceDeleteProductResult>>;
+    /**
+     * End a sale now. Direct — stopping a discount needs no dialog. Returns `{success: true, sale}` with `status: "ended"`.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    endSale(params: CommerceEndSaleParams): Promise<ValuAck<CommerceEndSaleResult>>;
+    /**
+     * The store's own numbers over a range — the Merchant Console's Analytics — exactly as the server sends them: `{range, totals: {revenueVrsc, orders, units, curatorFeeVrsc, revenueApproximate}, series: [{day, revenueVrsc, orders, suppressed}], topProducts: [{productId, title, revenueVrsc, units, suppressed}], byNetwork: [{networkId, revenueVrsc, orders, suppressed}], suppressedCells}`. A row with `suppressed: true` was built from too few orders and is WITHHELD: its numbers are not figures — show it as withheld, never as 0. `orders` counts order lines touched, an upper bound, not distinct orders. Read-only.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    getAnalytics(params?: CommerceGetAnalyticsParams): Promise<ValuAck<CommerceGetAnalyticsResult>>;
+    /**
+     * Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Each item's `appId` says which app added it. An app changes only its own rows: `add-to-cart` adds one, `update-cart-item` changes one, `remove-from-cart` and `clear-cart` take them out. Every other app's items are the buyer's to change in My Cart: send them there with `open-cart`.
+     * @channel intent
+     * @scope commerce:read
+     * @mode both
+     */
+    getCart(): Promise<ValuAck<CommerceGetCartResult>>;
+    /**
+     * How this network SHOWS prices: `{currency, vrscUsd}`, where `currency` is `USD` or `VRSC` (the network admins' choice) and `vrscUsd` is the server's VRSC→USD rate, null when it is unknown. Every amount Commerce answers with stays in VRSC (`…Vrsc`); multiply by `vrscUsd` to show dollars, and show VRSC when the rate is null.
+     * @channel intent
+     * @scope commerce:read
+     * @mode both
+     */
+    getDisplay(): Promise<ValuAck<CommerceGetDisplayResult>>;
+    /**
+     * One of the seller's own products with its content, in exactly the shape update-product takes: `{product, items}`. Read it before changing the content — `items` in update-product REPLACES the whole tree, so edit this list and send it back rather than sending only the new files. `product.editable` is true for a draft, whose fields and content may change; a `broken` product (needs attention: something it included was archived) takes new content only.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    getMyProduct(params: CommerceGetMyProductParams): Promise<ValuAck<CommerceGetMyProductResult>>;
+    /**
+     * The signed-in user's own store and where they stand to sell — with list-seller-products, enough to draw the Merchant Console's setup checklist (verified identity → store → donation set → a product → one published). Returns `{hasStore, identityVerified, sellerName, sellerUserId, store, network}`. Buyers see a PERSON as the seller, not a store: show `sellerName` (the owner's profile name) and draw their avatar from `sellerUserId` with the users API's getIcon. `store` is `{id, name, description, status, payoutIdentityName, donationTiers: [{minMembers, percent}], donationUpdatedAt}`, or null — its `name` is kept for older callers and is not what buyers see; an empty `donationTiers` means no donation is set, and such a store sells nowhere. `identityVerified` says whether the user can open a store (a Verified Verus identity; when false, send them to their Profile). `network` is the network the user is in now: `{id, memberCount, mode, allowedRatings, displayCurrency, donationTierIndex}` — `mode` is `open | approval_required | closed`, `donationTierIndex` which of the store's four donation tiers this network takes (null without a store or a known size). Read-only.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    getMyStore(): Promise<ValuAck<CommerceGetMyStoreResult>>;
+    /**
+     * One of the user's orders, in the shape list-orders answers: `{order}`. Use it to follow an order `checkout` answered with. An order that is not the user's is refused `not_found`, exactly like one that does not exist. `imageResourceId` is null here; list-orders resolves the pictures.
+     * @channel intent
+     * @scope commerce:read
+     * @mode both
+     */
+    getOrder(params: CommerceGetOrderParams): Promise<ValuAck<CommerceGetOrderResult>>;
+    /**
+     * One product with its price, its parts when it is a bundle, its seller, its reviews and whether the current user already owns it. The seller is a PERSON, as in list-products: `sellerName`, `sellerUserId` (their avatar through the users API's getIcon) and `sellerIdentityName`; the store record's name is that person too. `contents` is what the product holds, as a tree to draw: `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize}` and `{type: "product", productId, title}`. `children` is NOT the content: it is only the products a bundle includes, empty for anything else. `items` is the same content as flat database rows, kept for older callers. A file's `resourceId` (and `resource_id` in items) is null unless the user owns the product or sells it: titles and types are the shop window, the ids open the paid files. For something the user bought, use get-purchase-contents.
+     * @channel intent
+     * @scope commerce:read
+     * @mode both
+     */
+    getProduct(params: CommerceGetProductParams): Promise<ValuAck<CommerceGetProductResult>>;
+    /**
+     * One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. Refused with code `not_owned` when the user does not own the product — the server decides.
+     * @channel intent
+     * @scope commerce:read
+     * @mode both
+     */
+    getPurchaseContents(params: CommerceGetPurchaseContentsParams): Promise<ValuAck<CommerceGetPurchaseContentsResult>>;
+    /**
+     * The platform's product categories as `{categories: [{id, label}]}`. Every product is filed under exactly one; pass an `id` to list-products as `category`, and show the `label`.
+     * @channel intent
+     * @scope commerce:read
+     * @mode both
+     */
+    listCategories(): Promise<ValuAck<CommerceListCategoriesResult>>;
+    /**
+     * List the SELLER's own products in their store — drafts, unlisted, live and archived — unlike list-products, which is the buyer's shelf and never shows drafts. Use it to find the productId to edit. Each product carries `editable`: true only for a draft (never published, or unlisted by the seller). Returns `{hasStore, products}`.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    listMyProducts(params?: CommerceListMyProductsParams): Promise<ValuAck<CommerceListMyProductsResult>>;
+    /**
+     * Where the store stands in each network it asked to sell in: `{networks: [{networkId, status, requestedAt, decidedAt, note, message}]}`. `status` is `pending | approved | rejected | suspended`; `note` is the admins' word on their decision, `message` the seller's on the request. The network the user is in now may be missing: in an `open` one (get-my-store `network.mode`) a store sells without asking. Read-only.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    listNetworkAccess(): Promise<ValuAck<CommerceListNetworkAccessResult>>;
+    /**
+     * The user's orders, newest first, with their whole receipt as frozen at checkout. Returns `{orders: [{id, status, createdAt, paidAt, expiresAt, isTest, subtotalVrsc, totalVrsc, rateVrscUsd, items: [{productId, appId, title, qty, unitPriceVrsc, lineTotalVrsc, imageResourceId, deletedBySeller, parts: [{productId, title}], bundleFeeVrsc}], discounts: [{kind, label, amountVrsc}], notCharged: [{productId, title, amountVrsc}], payouts: [{kind, identityName, storeId, amountVrsc, status, donationPercent, donationMemberCount}], payment: {method, transactionId, failureReason} | null}]}`. `status` is `pending_payment`, `paid`, `expired`, `cancelled` or `failed`; without `status` you get pending and paid orders (a cancelled order is deleted). `notCharged` are parts of a bundle the user already owned. An order never carries a way to pay it: send the buyer to it with open-order.
+     * @channel intent
+     * @scope commerce:read
+     * @mode both
+     */
+    listOrders(params?: CommerceListOrdersParams): Promise<ValuAck<CommerceListOrdersResult>>;
+    /**
+     * Search the live products available in the user's current network — the buyer's shelf, every seller's goods, not only yours. Products the network or its admins have refused are simply absent from the answer. Each product names its seller, who is a PERSON, not a store: `sellerName` (their profile name), `sellerUserId` (draw their avatar with the users API's getIcon({userId: sellerUserId})) and `sellerIdentityName` (the Verus ID payments go to). `storeName` carries the same person's name, for older callers; show the person, never a store. For the signed-in seller's OWN products, drafts included, use list-seller-products.
+     * @channel intent
+     * @scope commerce:read
+     * @mode both
+     */
+    listProducts(params?: CommerceListProductsParams): Promise<ValuAck<CommerceListProductsResult>>;
+    /**
+     * Every sale, volume discount and discount code of the store: `{sales: [{id, productId, salePriceAmount, salePriceCurrency, startsAt, endsAt, status}], tiers: [{id, minItems, percentOff, status}], codes: [{id, code, kind, value, currency, minSubtotalVrsc, maxRedemptions, redeemedCount, reservedCount, perBuyerLimit, startsAt, endsAt, status}]}`. `status` is `active | ended` for a sale and `active | disabled` for a tier or a code. A buyer's price takes a sale first, then at most one volume discount, then at most one code — they never stack beyond that. Read-only.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    listPromotions(): Promise<ValuAck<CommerceListPromotionsResult>>;
+    /**
+     * What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs.
+     * @channel intent
+     * @scope commerce:read
+     * @mode both
+     */
+    listPurchases(params?: CommerceListPurchasesParams): Promise<ValuAck<CommerceListPurchasesResult>>;
+    /**
+     * Every product the SIGNED-IN user sells, from their own store, so an app can show a seller their own products: live, draft (unlisted ones included), archived and broken, in every network, including ones a network blocked. Unlike list-products, the buyer's shelf of live products allowed here. The store is always the current user's; there is no way to name another. Read-only, newest change first. Returns `{hasStore, products}`; `hasStore` is false (and products empty) when the user has no store. Each product: id, title, description, status, category, tags, priceAmount, priceCurrency, totalPriceAmount, isBundle, coverResourceId, stock (null = unlimited), soldCount, contentCount. Show totalPriceAmount as the price: on a bundle priceAmount is only the seller's part on top of what it includes, and totalPriceAmount is null when the server could not price the bundle.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    listSellerProducts(params?: CommerceListSellerProductsParams): Promise<ValuAck<CommerceListSellerProductsResult>>;
+    /**
+     * Open My Cart for the user, scoped to your app's items. With `popup` it is drawn over your own app instead of docking My Cart — mid-purchase, that keeps the user where they were. It answers as soon as the cart is open; for a Pay button use `checkout`, which opens the same cart and answers with what the buyer did there.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     */
+    openCart(params?: CommerceOpenCartParams): Promise<ValuAck<CommerceOpenCartResult>>;
+    /**
+     * Open one of the user's orders in My Cart, expanded: where the buyer resumes a pending payment ("Show code"), cancels or deletes an unpaid order, or reads a receipt. Those are the buyer's own actions in My Cart; your app cannot take them. With `popup` it is drawn over your own app instead of docking My Cart. Returns `{success: true, popup}`.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     */
+    openOrder(params: CommerceOpenOrderParams): Promise<ValuAck<CommerceOpenOrderResult>>;
+    /**
+     * Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it for a "My products" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's. With `popup` it is drawn over your own app instead of docking the console.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     */
+    openProducts(params?: CommerceOpenProductsParams): Promise<ValuAck<CommerceOpenProductsResult>>;
+    /**
+     * Open a purchase where it lives, in Media's Purchased section — the Orders tab's "Show in Media". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Media docks beside your app. Returns `{success: true}`, or `{success: false, code: "not_owned"}` without opening anything.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     */
+    openPurchaseInMedia(params?: CommerceOpenPurchaseInMediaParams): Promise<ValuAck<CommerceOpenPurchaseInMediaResult>>;
+    /**
+     * Open the user's order history in My Cart (one order, expanded: `open-order`). With `popup` it is drawn over your own app instead of docking My Cart.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     */
+    openPurchases(params?: CommerceOpenPurchasesParams): Promise<ValuAck<CommerceOpenPurchasesResult>>;
+    /**
+     * What a discount code would do to the items YOUR app has selected in the cart — exactly what `checkout` will charge for them. Returns `{valid, reason, discounts: [{kind, label, amountVrsc}], subtotalVrsc, totalVrsc}`. `reason` is null when valid, else `promo_invalid`, `promo_expired`, `promo_exhausted` or `not_applicable` (a real code that takes nothing off this selection, e.g. under its minimum). `discounts` lists everything that takes money off, the code and any volume discount or sale alike. Read-only: nothing is reserved, and My Cart prices the code again when the buyer pays. With nothing of yours selected the server refuses `validation_failed`.
+     * @channel intent
+     * @scope commerce:read
+     * @mode both
+     */
+    previewPromo(params: CommercePreviewPromoParams): Promise<ValuAck<CommercePreviewPromoResult>>;
+    /**
+     * Open the platform's previewer on what the user bought — the Orders tab's click on a file. Without `resourceId` it shows every file of the purchase in tree order; with one, just that file, which must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents). Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     */
+    previewPurchase(params: CommercePreviewPurchaseParams): Promise<ValuAck<CommercePreviewPurchaseResult>>;
+    /**
+     * Put one of the seller's products on sale. OPENS THE MERCHANT CONSOLE'S PUBLISH DIALOG over your app: the user picks the networks to sell in — `networkIds` start ticked where the store may sell, by default this network — and confirms. Only then is the product listed (in My Cart and in YOUR app) and published, freezing this version for buyers. `{success: false, code: "cancelled"}` is a normal answer: the user did not publish — do not ask again yourself. Only a draft or a `broken` product (its content fixed with update-product) can be published; no content, no category, or a store with no donation set is refused `validation_failed` before any dialog, saying which. Returns `{success: true, product, version: {id, version, status, vaultStatus, publishedAt}}`. Refused `busy` while another dialog from your app is open, `unsupported` where the platform cannot show one.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode embedded-served
+     */
+    publishProduct(params: CommercePublishProductParams): Promise<ValuAck<CommercePublishProductResult>>;
+    /**
+     * What a product made of these products would cost a buyer, priced by the server exactly as checkout prices it (sales, bundles inside bundles, a part reached twice). Returns `{currency, parts: [{productId, amount}], included, own, total, duplicates, unavailable}`: `included` is the parts' sum, `own` the seller's price on top, `total` what a buyer pays; `duplicates` are parts reached twice, `unavailable` ids that are neither on sale nor the seller's own. Read-only — show it while the seller assembles a bundle; create-product with `{productId}` items makes one.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    quoteBundle(params: CommerceQuoteBundleParams): Promise<ValuAck<CommerceQuoteBundleResult>>;
+    /**
+     * Rate a product the user owns, one to five stars with an optional review. A rating is public (it shows on the product's page), so the platform asks the user first in its own dialog over your app: `score` and `text` only pre-fill it, the user can change both, and what they confirm is what is saved. Returns `{success: true, review: {score, text}}` — what was saved. Refused with `cancelled` when the user closes the dialog (nothing is saved; do not ask again on your own), `not_owned` when they do not own the product (no dialog), `busy` while another platform dialog is waiting, and `unsupported` where there is no dialog to ask with.
+     * @channel intent
+     * @scope commerce:write
+     * @mode embedded-served
+     */
+    rateProduct(params: CommerceRateProductParams): Promise<ValuAck<CommerceRateProductResult>>;
+    /**
+     * Take one of YOUR app's rows out of the user's cart. Another app's row is refused with code `not_yours` (the buyer removes those in My Cart), a row the cart does not hold with `not_found`. Returns the whole cart: `{success: true, items, count}`.
+     * @channel intent
+     * @scope commerce:write
+     * @mode both
+     */
+    removeFromCart(params: CommerceRemoveFromCartParams): Promise<ValuAck<CommerceRemoveFromCartResult>>;
+    /**
+     * Remove a volume discount. Direct — no dialog. Returns `{success: true}`.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    removeVolumeTier(params: CommerceRemoveVolumeTierParams): Promise<ValuAck<CommerceRemoveVolumeTierResult>>;
+    /**
+     * Ask a network's admins to let the store sell there, with an optional message; they decide, and list-network-access shows the outcome. Returns `{success: true, request}` in list-network-access's shape (`status: "pending"`). No dialog.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    requestNetworkAccess(params: CommerceRequestNetworkAccessParams): Promise<ValuAck<CommerceRequestNetworkAccessResult>>;
+    /**
+     * Set the store's network donation — the share of every sale that goes to the network it is sold in, one percentage per network size; a store with none sells nowhere. OPENS A PLATFORM DIALOG over your app showing each tier old → new (this network's marked) and saves only if the user confirms. `{success: false, code: "cancelled"}` is a normal answer: the user said no — do not ask again yourself. Lowering any tier sends the store back for approval in every network that approved it (its products hide there until an admin approves again), and the dialog says so. Sending what is already saved asks nothing and changes nothing. Returns `{success: true, store, reopenedNetworks}` — the networks that must approve the store again. Refused `busy` while another dialog from your app is open, `unsupported` where the platform cannot show one.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode embedded-served
+     */
+    setDonationTiers(params: CommerceSetDonationTiersParams): Promise<ValuAck<CommerceSetDonationTiersResult>>;
+    /**
+     * Put one product on sale at a lower price. OPENS A PLATFORM DIALOG over your app showing the sale price against the usual one and when it runs; starts it only if the user confirms. `{success: false, code: "cancelled"}` is a normal answer. The sale price must be below the product's own and in its currency, and a bundle (priced by its parts) cannot go on sale — each refused `validation_failed` before any dialog. A product with a sale running gets this one instead. Returns `{success: true, sale}` in list-promotions' shape.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode embedded-served
+     */
+    setSale(params: CommerceSetSaleParams): Promise<ValuAck<CommerceSetSaleResult>>;
+    /**
+     * A store-wide volume discount: every order with at least `minItems` of the seller's items gets `percentOff` off, in every app and network the store sells in. OPENS A PLATFORM DIALOG over your app ("N or more items → P% off, every order in your store") and saves only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. With `tierId` it edits that discount (the dialog shows what it was); without, it adds one — or replaces the one at the same `minItems`. Returns `{success: true, tier}` in list-promotions' shape.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode embedded-served
+     */
+    setVolumeTier(params: CommerceSetVolumeTierParams): Promise<ValuAck<CommerceSetVolumeTierResult>>;
+    /**
+     * Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: "commerce", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Media; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.
+     * @channel intent
+     * @scope commerce:read
+     * @mode both
+     */
+    subscribeEvents(params: CommerceSubscribeEventsParams): Promise<ValuAck<CommerceSubscribeEventsResult>>;
+    /**
+     * Take a product that is on sale off every shelf: it becomes a draft again, its published version intact — buyers keep what they bought, and publishing again puts it back. OPENS THE MERCHANT CONSOLE'S UNLIST DIALOG over your app and unlists only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Only an `active` product can be unlisted. Returns `{success: true, product}`. Unlist a live product before editing it with update-product.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode embedded-served
+     */
+    unlistProduct(params: CommerceUnlistProductParams): Promise<ValuAck<CommerceUnlistProductResult>>;
+    /**
+     * Stop receiving commerce events. Without `events`, every one your app subscribed to; with it, only those. Answers `{success: true, events}`: what your app still receives (empty when nothing). An unknown name is refused with `validation_failed` and nothing changes. There is no need to call it before your app closes: a subscription ends with the frame that made it.
+     * @channel intent
+     * @scope commerce:read
+     * @mode both
+     */
+    unsubscribeEvents(params?: CommerceUnsubscribeEventsParams): Promise<ValuAck<CommerceUnsubscribeEventsResult>>;
+    /**
+     * Change one of YOUR app's rows in the user's cart: its quantity, whether it is selected for checkout, or whether it is saved for later. Give at least one of them; only the fields given change. A row added by another app is refused with code `not_yours` — the buyer changes those in My Cart (`open-cart`) — and a row the cart does not hold with `not_found`. Returns the whole cart as get-cart reads it: `{success: true, items, count}`, `count` excluding what is saved for later. The server re-checks stock and availability and refuses with its own code.
+     * @channel intent
+     * @scope commerce:write
+     * @mode both
+     */
+    updateCartItem(params: CommerceUpdateCartItemParams): Promise<ValuAck<CommerceUpdateCartItemResult>>;
+    /**
+     * Change a discount code. DIRECT when it only stops the discount: `status: "disabled"`, or an `endsAt` sooner than the one it has (any end, for a code that has none). Anything that gives more — `status: "active"` again, a later end or none (`endsAt: null`), more uses, more per buyer — OPENS A PLATFORM DIALOG over your app with each change before → after, and saves only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Returns `{success: true, discountCode}`.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode embedded-served
+     */
+    updateDiscountCode(params: CommerceUpdateDiscountCodeParams): Promise<ValuAck<CommerceUpdateDiscountCodeResult>>;
+    /**
+     * Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted first: unlist-product, or the seller in the Merchant Console). A `broken` product (needs attention: something it included was archived) accepts `items` only — its other fields are `not_editable` — and goes back on sale when it is published again (publish-product). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`.
+     * @channel intent
+     * @scope commerce:sell
+     * @mode both
+     */
+    updateProduct(params: CommerceUpdateProductParams): Promise<ValuAck<CommerceUpdateProductResult>>;
+  };
+  /**
+   * Picker service for selecting items from data providers (rooms, contacts, etc.) via modal or inline overlay.
+   */
+  DataProvider: {
+    /**
+     * Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"].
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-only
+     */
+    pickMultiple(params: DataProviderPickMultipleParams): Promise<ValuAck<DataProviderPickMultipleResult>>;
+    /**
+     * Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that.
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-only
+     */
+    pickSingle(params: DataProviderPickSingleParams): Promise<ValuAck<DataProviderPickSingleResult>>;
+  };
+  /**
+   * GoTo points of a room (server name "cameraPosition"): list them, save or delete one directly, or open the point editor and let the user do it. Editing points requires the room's edit permission. Position and rotation are metres and EULER DEGREES in the room's own space — they cannot be computed from outside the 3D scene, so prefer create-point / edit-point (which receive the live camera pose from Unity) over save-point unless you are re-using a pose you already read.
+   */
+  RoomPoints: {
+    /**
+     * Opens the point editor for a NEW point and BLOCKS until the user saves or cancels. Needs a pose to save the point at: pass camera (the live 3D camera pose) or a point to copy the pose from — the web layer cannot read the camera itself. Resolves {status: "ok", point, persisted, savePreview} once the point is written, or {status: "cancelled"} / {status: "error", message}.
+     * @channel intent
+     * @scope rooms:write
+     * @mode embedded-served
+     */
+    createRoomPoint(params: RoomPointsCreateRoomPointParams): Promise<ValuAck<RoomPointsCreateRoomPointResult>>;
+    /**
+     * Opens the point editor for an EXISTING point and BLOCKS until the user saves, deletes or cancels. Resolves {status: "ok", point, persisted, savePreview}, {status: "deleted", point: {id}, persisted}, {status: "cancelled"} or {status: "error", message}. A point whose id is empty is treated as a create.
+     * @channel intent
+     * @scope rooms:write
+     * @mode embedded-served
+     */
+    editRoomPoint(params: RoomPointsEditRoomPointParams): Promise<ValuAck<RoomPointsEditRoomPointResult>>;
   };
 }
 

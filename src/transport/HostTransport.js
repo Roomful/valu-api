@@ -41,6 +41,7 @@ import { ERROR_CODES, errorAck } from '../Errors.js';
 import { DEFAULT_TIMEOUT_MS } from '../CallPolicy.js';
 import { CONNECTION_STATE, HOST_ERRORS, MSG, PROTOCOL_VERSION } from '../host/protocol.js';
 import { isHostPath, isOrigin } from '../host/origins.js';
+import { intentAck, openedIntentAck, popupBlockedAck, skippedIntentAck } from '../services/intents.js';
 // Registers the service functions: the `local` ones run on this page.
 import '../services/impl/index.js';
 import { VERSION } from '../version.js';
@@ -145,6 +146,11 @@ export class HostTransport extends Transport {
   #pingIntervalMs;
   #pingTimeoutMs;
   #local;
+  /** Opens the Valu Social tab a `window` intent asks for at the app's own address (createValuApp); null: the intent is sent. */
+  #openIntentWindow;
+  #log;
+  /** The embedded-only intents warned about once each. */
+  #warned = new Set();
   #ownsLocal;
   #listener = (event) => this.#onMessage(event);
 
@@ -210,6 +216,8 @@ export class HostTransport extends Transport {
     localTransport,
     fetchImpl,
     config,
+    openIntentWindow = null,
+    log = (level, message) => globalThis.console?.[level === 'error' ? 'error' : 'warn']?.(`[valu-api] ${message}`),
     setTimeout: setTimer = (fn, ms) => globalThis.setTimeout(fn, ms),
     clearTimeout: clearTimer = (id) => globalThis.clearTimeout(id),
     random = Math.random,
@@ -236,6 +244,8 @@ export class HostTransport extends Transport {
     this.#pingTimeoutMs = pingTimeoutMs;
     this.#random = random;
     this.#ownsLocal = !localTransport;
+    this.#openIntentWindow = typeof openIntentWindow === 'function' ? openIntentWindow : null;
+    this.#log = log;
     this.#local = localTransport ?? new SocketTransport({ socket: null, fetchImpl, config });
   }
 
@@ -243,6 +253,7 @@ export class HostTransport extends Transport {
   get connected() { return this.#phase === 'ready'; }
 
   get servesServiceFunctions() { return true; }
+  get servesIntents() { return true; }
 
   /** The app's address, from `api:ready`. */
   get applicationId() { return this.#applicationId; }
@@ -335,6 +346,7 @@ export class HostTransport extends Transport {
    */
   callService(descriptor, params, options = {}) {
     if (descriptor?.channel === 'local') return this.#local.callService(descriptor, params, options);
+    if (descriptor?.channel === 'intent') return this.#callIntent(descriptor, params, options);
     const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     return new Promise((resolve) => {
       const requestId = nextId();
@@ -357,6 +369,40 @@ export class HostTransport extends Transport {
         service: descriptor.service, action: descriptor.action, params, requestId, timeoutMs,
       });
     });
+  }
+
+  /**
+   * A typed intent at the app's own address, by its mode: `embedded-only` is
+   * skipped (one warning per page); `window` opens Valu Social in a tab, when
+   * the app gave a way to (`openIntentWindow`); everything else is sent to the
+   * host as the intent it is (`api:service-intent`), which serves the Commerce
+   * and identity ones and answers `not_available` for the rest. Never rejects.
+   */
+  async #callIntent(descriptor, params, options = {}) {
+    const input = params && typeof params === 'object' ? params : {};
+    if (descriptor.mode === 'embedded-only') {
+      if (!this.#warned.has(descriptor.key)) {
+        this.#warned.add(descriptor.key);
+        this.#log('warn', `${descriptor.key} works only inside Valu Social; nothing to do at the app's own address.`);
+      }
+      return skippedIntentAck();
+    }
+    if (descriptor.mode === 'window' && this.#openIntentWindow) {
+      try {
+        const opened = await this.#openIntentWindow(descriptor, input);
+        return opened ? openedIntentAck() : popupBlockedAck(descriptor.key);
+      } catch (error) {
+        return errorAck(ERROR_CODES.UNSUPPORTED, error?.code ?? 'error', error?.message);
+      }
+    }
+    try {
+      const reply = await this.request(MSG.SERVICE_INTENT, {
+        applicationId: descriptor.service, action: descriptor.action, params: input,
+      }, undefined, { timeoutMs: options?.timeoutMs });
+      return intentAck(reply);
+    } catch (error) {
+      return errorAck(ERROR_CODES.DISCONNECTED, error?.code ?? error?.message ?? 'disconnected');
+    }
   }
 
   async close() {
