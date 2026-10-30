@@ -26,7 +26,7 @@ test('the catalogue matches the parity target', () => {
     declared: 64,
     sdkDeclared: 1,
     serviceFunctions: 65,
-    applicationOnly: 69,
+    applicationOnly: 78,
     remaining: 33,
     serverOnly: 7,
   });
@@ -42,8 +42,8 @@ test('every descriptor in the catalogue is a function this package can run', () 
   assert.equal(isServiceFunction('Users.teleport'), false);
 });
 
-test('the 69 application-served intents are declared by the app and absent here', () => {
-  assert.equal(APPLICATION_ONLY_INTENTS.length, 69);
+test('the 78 application-served intents are declared by the app and absent here', () => {
+  assert.equal(APPLICATION_ONLY_INTENTS.length, 78);
   assert.deepEqual([...APPLICATION_ONLY_INTENTS].sort(), [...APPLICATION_ONLY].sort());
   for (const key of APPLICATION_ONLY_INTENTS) {
     // Not a service function: nothing here runs it. The typed ones

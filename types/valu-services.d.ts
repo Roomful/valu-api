@@ -1930,12 +1930,12 @@ export interface CommerceGetProductParams {
 }
 
 /**
- * Commerce.get-purchase-contents — One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. Refused with code `not_owned` when the user does not own the product — the server decides.
+ * Commerce.get-purchase-contents — One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is "folder" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.
  */
 export type CommerceGetPurchaseContentsResult = any;
 
 /**
- * Commerce.get-purchase-contents — One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. Refused with code `not_owned` when the user does not own the product — the server decides.
+ * Commerce.get-purchase-contents — One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is "folder" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.
  */
 export interface CommerceGetPurchaseContentsParams {
   /**
@@ -2063,12 +2063,12 @@ export interface CommerceListPromotionsParams {
 }
 
 /**
- * Commerce.list-purchases — What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs.
+ * Commerce.list-purchases — What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.
  */
 export type CommerceListPurchasesResult = any;
 
 /**
- * Commerce.list-purchases — What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs.
+ * Commerce.list-purchases — What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.
  */
 export interface CommerceListPurchasesParams {
   /**
@@ -2094,6 +2094,25 @@ export interface CommerceListSellerProductsParams {
    * how many to return: 100 by default, up to 500
    */
   limit?: number;
+}
+
+/**
+ * Commerce.mark-purchase-file-seen — Mark one of the user's purchased files as OPENED, for an app that shows a purchase's files itself (preview-purchase marks the files it shows by itself). The file must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents) and not a folder. Returns `{success: true, resourceId, progress}` — `progress` as in get-purchase-contents — or `{success: false, code}` with `not_owned` or `not_in_purchase`.
+ */
+export type CommerceMarkPurchaseFileSeenResult = any;
+
+/**
+ * Commerce.mark-purchase-file-seen — Mark one of the user's purchased files as OPENED, for an app that shows a purchase's files itself (preview-purchase marks the files it shows by itself). The file must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents) and not a folder. Returns `{success: true, resourceId, progress}` — `progress` as in get-purchase-contents — or `{success: false, code}` with `not_owned` or `not_in_purchase`.
+ */
+export interface CommerceMarkPurchaseFileSeenParams {
+  /**
+   * a product the user owns
+   */
+  productId: string;
+  /**
+   * the file of that purchase the user opened
+   */
+  resourceId: string;
 }
 
 /**
@@ -2166,9 +2185,13 @@ export interface CommerceOpenPurchaseInMediaParams {
 export type CommerceOpenPurchasesResult = void;
 
 /**
- * Commerce.open-purchases — Open the user's order history in My Cart (one order, expanded: `open-order`). With `popup` it is drawn over your own app instead of docking My Cart.
+ * Commerce.open-purchases — Open what the user OWNS in My Cart's Purchased tab — each product with its files, how far through them they are, and their rating; with `productId`, that product opened and shown. Receipts are `open-order`. With `popup` it is drawn over your own app instead of docking My Cart.
  */
 export interface CommerceOpenPurchasesParams {
+  /**
+   * a product the user owns, to open and show
+   */
+  productId?: string;
   /**
    * true draws the surface over YOUR app's own pane instead of docking the application, so the page the user was on stays visible and usable behind it. Where your app is not on screen it falls back to a window over the whole page.
    */
@@ -2191,12 +2214,12 @@ export interface CommercePreviewPromoParams {
 }
 
 /**
- * Commerce.preview-purchase — Open the platform's previewer on what the user bought — the Orders tab's click on a file. Without `resourceId` it shows every file of the purchase in tree order; with one, just that file, which must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents). Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.
+ * Commerce.preview-purchase — Open the platform's previewer on what the user bought — the Orders tab's click on a file. It holds every file of the purchase in tree order, with previous / next arrows between them, and opens on `resourceId` when given (it must be in the purchase: its `resourceId` or `deliveredResourceId` from get-purchase-contents), on the first file otherwise. Every file the user lands on is marked as opened (`seen` in get-purchase-contents). A folder resource is shown on its own. Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.
  */
 export type CommercePreviewPurchaseResult = any;
 
 /**
- * Commerce.preview-purchase — Open the platform's previewer on what the user bought — the Orders tab's click on a file. Without `resourceId` it shows every file of the purchase in tree order; with one, just that file, which must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents). Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.
+ * Commerce.preview-purchase — Open the platform's previewer on what the user bought — the Orders tab's click on a file. It holds every file of the purchase in tree order, with previous / next arrows between them, and opens on `resourceId` when given (it must be in the purchase: its `resourceId` or `deliveredResourceId` from get-purchase-contents), on the first file otherwise. Every file the user lands on is marked as opened (`seen` in get-purchase-contents). A folder resource is shown on its own. Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.
  */
 export interface CommercePreviewPurchaseParams {
   /**
@@ -2204,7 +2227,7 @@ export interface CommercePreviewPurchaseParams {
    */
   productId: string;
   /**
-   * one file of that purchase to show
+   * the file of that purchase to open on
    */
   resourceId?: string;
 }
@@ -3338,7 +3361,7 @@ export interface ValuServices {
      */
     getProduct(params: CommerceGetProductParams): Promise<ValuAck<CommerceGetProductResult>>;
     /**
-     * One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. Refused with code `not_owned` when the user does not own the product — the server decides.
+     * One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is "folder" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.
      * @channel intent
      * @scope commerce:read
      * @mode both
@@ -3387,7 +3410,7 @@ export interface ValuServices {
      */
     listPromotions(): Promise<ValuAck<CommerceListPromotionsResult>>;
     /**
-     * What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs.
+     * What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.
      * @channel intent
      * @scope commerce:read
      * @mode both
@@ -3400,6 +3423,13 @@ export interface ValuServices {
      * @mode both
      */
     listSellerProducts(params?: CommerceListSellerProductsParams): Promise<ValuAck<CommerceListSellerProductsResult>>;
+    /**
+     * Mark one of the user's purchased files as OPENED, for an app that shows a purchase's files itself (preview-purchase marks the files it shows by itself). The file must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents) and not a folder. Returns `{success: true, resourceId, progress}` — `progress` as in get-purchase-contents — or `{success: false, code}` with `not_owned` or `not_in_purchase`.
+     * @channel intent
+     * @scope commerce:write
+     * @mode embedded-served
+     */
+    markPurchaseFileSeen(params: CommerceMarkPurchaseFileSeenParams): Promise<ValuAck<CommerceMarkPurchaseFileSeenResult>>;
     /**
      * Open My Cart for the user, scoped to your app's items. With `popup` it is drawn over your own app instead of docking My Cart — mid-purchase, that keeps the user where they were. It answers as soon as the cart is open; for a Pay button use `checkout`, which opens the same cart and answers with what the buyer did there.
      * @channel intent
@@ -3429,7 +3459,7 @@ export interface ValuServices {
      */
     openPurchaseInMedia(params?: CommerceOpenPurchaseInMediaParams): Promise<ValuAck<CommerceOpenPurchaseInMediaResult>>;
     /**
-     * Open the user's order history in My Cart (one order, expanded: `open-order`). With `popup` it is drawn over your own app instead of docking My Cart.
+     * Open what the user OWNS in My Cart's Purchased tab — each product with its files, how far through them they are, and their rating; with `productId`, that product opened and shown. Receipts are `open-order`. With `popup` it is drawn over your own app instead of docking My Cart.
      * @channel intent
      * @scope ui:open
      * @mode window
@@ -3443,7 +3473,7 @@ export interface ValuServices {
      */
     previewPromo(params: CommercePreviewPromoParams): Promise<ValuAck<CommercePreviewPromoResult>>;
     /**
-     * Open the platform's previewer on what the user bought — the Orders tab's click on a file. Without `resourceId` it shows every file of the purchase in tree order; with one, just that file, which must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents). Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.
+     * Open the platform's previewer on what the user bought — the Orders tab's click on a file. It holds every file of the purchase in tree order, with previous / next arrows between them, and opens on `resourceId` when given (it must be in the purchase: its `resourceId` or `deliveredResourceId` from get-purchase-contents), on the first file otherwise. Every file the user lands on is marked as opened (`seen` in get-purchase-contents). A folder resource is shown on its own. Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.
      * @channel intent
      * @scope ui:open
      * @mode window

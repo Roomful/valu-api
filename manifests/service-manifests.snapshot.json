@@ -593,6 +593,40 @@
               }
             ]
           }
+        },
+        {
+          "action": "pick-resource",
+          "description": "Opens a file picker over the Network Resources of the current network so a network admin can choose ONE file, and waits for the choice. The popup opens over whatever is on screen and does not open Media. BLOCKS until the user picks or cancels. Returns the picked resource `{id, title, contentType, thumbnailUrl}` or `null` when the user cancels or closes the popup. Refused (an error, and no popup) for anyone who is not an admin of the network, for an unknown source, and for a folderId outside the requested sources. The returned resource is always inside the requested sources.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "sources",
+                "type": "string[]",
+                "description": "Where files may be picked from. Only \"networkResources\" (the public files of the network, `networkPublic:{networkId}`) is supported. Nothing outside these sources is shown or reachable."
+              }
+            ],
+            "optional": [
+              {
+                "name": "accept",
+                "type": "string[]",
+                "description": "File types that can be picked: a family (\"image\"), a family wildcard (\"image/*\") or an exact type (\"image/png\"). Other files are shown disabled. Omit to allow any file."
+              },
+              {
+                "name": "folderId",
+                "type": "string",
+                "description": "Folder to open in. Must be a folder inside the requested sources, otherwise the call is refused."
+              },
+              {
+                "name": "title",
+                "type": "string",
+                "description": "Popup title. Defaults to \"Choose a file\"."
+              }
+            ]
+          }
         }
       ]
     },
@@ -968,7 +1002,7 @@
         },
         {
           "action": "list-purchases",
-          "description": "What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs.",
+          "description": "What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.",
           "availability": [
             "developer"
           ],
@@ -986,7 +1020,7 @@
         },
         {
           "action": "get-purchase-contents",
-          "description": "One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents}`; contents nodes are `{type: \"folder\", title, items}`, `{type: \"file\", resourceId, title, kind, contentType, fileSize, deliveredResourceId}` and `{type: \"product\", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. Refused with code `not_owned` when the user does not own the product — the server decides.",
+          "description": "One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: \"folder\", title, items}`, `{type: \"file\", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: \"product\", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is \"folder\" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.",
           "availability": [
             "developer"
           ],
@@ -1004,7 +1038,7 @@
         },
         {
           "action": "preview-purchase",
-          "description": "Open the platform's previewer on what the user bought — the Orders tab's click on a file. Without `resourceId` it shows every file of the purchase in tree order; with one, just that file, which must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents). Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.",
+          "description": "Open the platform's previewer on what the user bought — the Orders tab's click on a file. It holds every file of the purchase in tree order, with previous / next arrows between them, and opens on `resourceId` when given (it must be in the purchase: its `resourceId` or `deliveredResourceId` from get-purchase-contents), on the first file otherwise. Every file the user lands on is marked as opened (`seen` in get-purchase-contents). A folder resource is shown on its own. Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.",
           "availability": [
             "developer"
           ],
@@ -1021,9 +1055,32 @@
               {
                 "name": "resourceId",
                 "type": "string",
-                "description": "one file of that purchase to show"
+                "description": "the file of that purchase to open on"
               }
             ]
+          }
+        },
+        {
+          "action": "mark-purchase-file-seen",
+          "description": "Mark one of the user's purchased files as OPENED, for an app that shows a purchase's files itself (preview-purchase marks the files it shows by itself). The file must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents) and not a folder. Returns `{success: true, resourceId, progress}` — `progress` as in get-purchase-contents — or `{success: false, code}` with `not_owned` or `not_in_purchase`.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "productId",
+                "type": "string",
+                "description": "a product the user owns"
+              },
+              {
+                "name": "resourceId",
+                "type": "string",
+                "description": "the file of that purchase the user opened"
+              }
+            ],
+            "optional": []
           }
         },
         {
@@ -1064,7 +1121,7 @@
         },
         {
           "action": "open-purchases",
-          "description": "Open the user's order history in My Cart (one order, expanded: `open-order`). With `popup` it is drawn over your own app instead of docking My Cart.",
+          "description": "Open what the user OWNS in My Cart's Purchased tab — each product with its files, how far through them they are, and their rating; with `productId`, that product opened and shown. Receipts are `open-order`. With `popup` it is drawn over your own app instead of docking My Cart.",
           "availability": [
             "developer"
           ],
@@ -1072,6 +1129,11 @@
           "params": {
             "required": [],
             "optional": [
+              {
+                "name": "productId",
+                "type": "string",
+                "description": "a product the user owns, to open and show"
+              },
               {
                 "name": "popup",
                 "type": "boolean",
@@ -2088,6 +2150,32 @@
         {
           "action": "list-applications",
           "description": "Lists the current user's applications in the Developer Portal. Returns each application's appId, devId, name, slug, url, description, createdAt timestamp, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens an application inside the platform, paste its `tag` value verbatim into your reply (do NOT link the raw URL).",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        },
+        {
+          "action": "list-application-apis",
+          "description": "Lists every application published in the current network that declares a REST API in its manifest. Returns {success, networkId, apis}; each api carries applicationId, address (the gateway path and token audience), title, description, gatewayUrl (where callers send requests, through the Valu Guru gateway), documentUrl (its OpenAPI document, read through the gateway), scopes, callers, availability, userContext, docsUrl and routable. Read-only: it describes the APIs, it calls none of them.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        },
+        {
+          "action": "list-my-application-apis",
+          "description": "Lists the REST APIs of the applications the current user develops or tests, unreleased drafts included — what list-application-apis does not show. Returns {success, apis}; each api carries the same fields as list-application-apis plus devId, version (the version that describes the API: the released one when it declares an API, otherwise the newest that does) and live (true when that version is the released one). Read-only.",
           "availability": [
             "ai",
             "developer"
@@ -3382,6 +3470,150 @@
                 "description": "Network ID the room belongs to. Defaults to the current network."
               }
             ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "RoomZones",
+      "title": "Room Zones Service",
+      "description": "Zones of a room and the claims on them (docs/superpowers/specs/2026-10-16-room-claiming-zones-design.md). A zone is an invisible box in a room: it can join its video call when someone walks in, it can be claimed as somebody's personal space, or both. A CLAIM IS A PROP INVITATION on the master server — there is no other store — so the occupant also gets edit rights on the zone prop. The server does not enforce exclusivity: the earliest claim wins and the loser is withdrawn, so always read the occupancy back rather than assuming a claim held.",
+      "source": "src/Services/RoomZones/RoomZonesService.js",
+      "intents": [
+        {
+          "action": "list-room-zones",
+          "description": "Every zone of a room: {status: \"ok\", zones}. Each zone carries id (the prop id), title, its box in room metres (x, z, rotY in degrees, width, depth, height, floorOffset), the two capabilities (call, claim) and its claim policy (settings.audience is \"members\" or \"listed\"). A room with no zones returns an empty list.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room whose zones to list."
+              }
+            ],
+            "optional": [
+              {
+                "name": "claimableOnly",
+                "type": "boolean",
+                "description": "Only the zones that can be claimed (the \"spaces\"). Default false."
+              }
+            ]
+          }
+        },
+        {
+          "action": "zone-occupancy",
+          "description": "Who holds the room's claimable zones right now: {status: \"ok\", occupancy} keyed by zone id, each {claim, conflicts, stale}. `claim` is null when the zone is free, else {userId, claimedAt, source, doorPolicy, displayName, status}. `stale` means the occupant no longer has access to the room, so the zone is effectively free. `conflicts` are losing claims a moderator should clear. This reads the server every time — there is no push for prop invitations.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room to read."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "claim-zone",
+          "description": "Claims a zone for the SIGNED-IN user. Returns {status: \"ok\", claim} when it worked, or {status: \"refused\", reason, message} when it did not — \"taken\", \"limit\", \"not-listed\", \"not-claimable\", \"no-access\" or \"cooldown\". A user who may not write prop invitations at all gets {status: \"refused\", reason: \"needs-request\"}: they must ask a room owner to assign it instead. Never claims on behalf of somebody else — use assign-zone for that.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room the zone belongs to."
+              },
+              {
+                "name": "zoneId",
+                "type": "string",
+                "description": "The zone to claim (its prop id, as list-room-zones returns it)."
+              }
+            ],
+            "optional": [
+              {
+                "name": "displayName",
+                "type": "string",
+                "description": "What to call the space, shown instead of the claimant's name."
+              },
+              {
+                "name": "status",
+                "type": "string",
+                "description": "A one-line status shown next to the space, e.g. \"in focus until 4\"."
+              },
+              {
+                "name": "doorPolicy",
+                "type": "string",
+                "description": "Who may come in: \"open\" (default), \"knock\" or \"closed\". Shown, not yet enforced."
+              }
+            ]
+          }
+        },
+        {
+          "action": "release-zone",
+          "description": "Releases the signed-in user's own claim on a zone: {status: \"ok\"}. Starts a one-minute cooldown before the same user may claim that zone again. Releasing a zone somebody else holds is not possible here — a room owner uses assign-zone or the Spaces app.",
+          "availability": [
+            "ai",
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room the zone belongs to."
+              },
+              {
+                "name": "zoneId",
+                "type": "string",
+                "description": "The zone to release."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
+          "action": "assign-zone",
+          "description": "Gives a zone to a particular user. Requires the caller to OWN the room (manage rights) or be a network admin; anything less is refused. Bypasses the zone's audience, the room's per-user limit and the cooldown by design — this is how offices are handed out. Returns {status: \"ok\"}.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "roomId",
+                "type": "string",
+                "description": "The room the zone belongs to."
+              },
+              {
+                "name": "zoneId",
+                "type": "string",
+                "description": "The zone to assign."
+              },
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "Who gets it."
+              }
+            ],
+            "optional": []
           }
         }
       ]

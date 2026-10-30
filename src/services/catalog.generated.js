@@ -4531,7 +4531,7 @@ export const INTENT_DESCRIPTORS = [
     "serviceTitle": "Commerce",
     "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
     "source": "src/Services/Commerce/CommerceService.js",
-    "description": "One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents}`; contents nodes are `{type: \"folder\", title, items}`, `{type: \"file\", resourceId, title, kind, contentType, fileSize, deliveredResourceId}` and `{type: \"product\", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. Refused with code `not_owned` when the user does not own the product — the server decides.",
+    "description": "One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: \"folder\", title, items}`, `{type: \"file\", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: \"product\", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is \"folder\" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.",
     "availability": [
       "developer"
     ],
@@ -4879,7 +4879,7 @@ export const INTENT_DESCRIPTORS = [
     "serviceTitle": "Commerce",
     "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
     "source": "src/Services/Commerce/CommerceService.js",
-    "description": "What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs.",
+    "description": "What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.",
     "availability": [
       "developer"
     ],
@@ -4963,6 +4963,53 @@ export const INTENT_DESCRIPTORS = [
     "declaredBy": "manifest",
     "implementedBy": null,
     "mode": "both"
+  },
+  {
+    "key": "Commerce.mark-purchase-file-seen",
+    "service": "Commerce",
+    "action": "mark-purchase-file-seen",
+    "fn": "mark_purchase_file_seen",
+    "method": "markPurchaseFileSeen",
+    "toolName": "service__Commerce__mark_purchase_file_seen",
+    "serviceTitle": "Commerce",
+    "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
+    "source": "src/Services/Commerce/CommerceService.js",
+    "description": "Mark one of the user's purchased files as OPENED, for an app that shows a purchase's files itself (preview-purchase marks the files it shows by itself). The file must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents) and not a folder. Returns `{success: true, resourceId, progress}` — `progress` as in get-purchase-contents — or `{success: false, code}` with `not_owned` or `not_in_purchase`.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:write"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "a product the user owns"
+        },
+        {
+          "name": "resourceId",
+          "type": "string",
+          "description": "the file of that purchase the user opened"
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "mode": "embedded-served"
   },
   {
     "key": "Commerce.open-cart",
@@ -5148,7 +5195,7 @@ export const INTENT_DESCRIPTORS = [
     "serviceTitle": "Commerce",
     "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
     "source": "src/Services/Commerce/CommerceService.js",
-    "description": "Open the user's order history in My Cart (one order, expanded: `open-order`). With `popup` it is drawn over your own app instead of docking My Cart.",
+    "description": "Open what the user OWNS in My Cart's Purchased tab — each product with its files, how far through them they are, and their rating; with `productId`, that product opened and shown. Receipts are `open-order`. With `popup` it is drawn over your own app instead of docking My Cart.",
     "availability": [
       "developer"
     ],
@@ -5168,6 +5215,11 @@ export const INTENT_DESCRIPTORS = [
     "params": {
       "required": [],
       "optional": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "a product the user owns, to open and show"
+        },
         {
           "name": "popup",
           "type": "boolean",
@@ -5232,7 +5284,7 @@ export const INTENT_DESCRIPTORS = [
     "serviceTitle": "Commerce",
     "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
     "source": "src/Services/Commerce/CommerceService.js",
-    "description": "Open the platform's previewer on what the user bought — the Orders tab's click on a file. Without `resourceId` it shows every file of the purchase in tree order; with one, just that file, which must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents). Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.",
+    "description": "Open the platform's previewer on what the user bought — the Orders tab's click on a file. It holds every file of the purchase in tree order, with previous / next arrows between them, and opens on `resourceId` when given (it must be in the purchase: its `resourceId` or `deliveredResourceId` from get-purchase-contents), on the first file otherwise. Every file the user lands on is marked as opened (`seen` in get-purchase-contents). A folder resource is shown on its own. Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.",
     "availability": [
       "developer"
     ],
@@ -5261,7 +5313,7 @@ export const INTENT_DESCRIPTORS = [
         {
           "name": "resourceId",
           "type": "string",
-          "description": "one file of that purchase to show"
+          "description": "the file of that purchase to open on"
         }
       ]
     },
@@ -6384,6 +6436,7 @@ export const APPLICATION_ONLY_INTENTS = [
   "Application.close-application",
   "Application.expand-application",
   "Application.get-identity-token",
+  "CMS.pick-resource",
   "Commerce.add-to-cart",
   "Commerce.archive-product",
   "Commerce.check-entitlements",
@@ -6411,6 +6464,7 @@ export const APPLICATION_ONLY_INTENTS = [
   "Commerce.list-promotions",
   "Commerce.list-purchases",
   "Commerce.list-seller-products",
+  "Commerce.mark-purchase-file-seen",
   "Commerce.open-cart",
   "Commerce.open-order",
   "Commerce.open-products",
@@ -6435,12 +6489,19 @@ export const APPLICATION_ONLY_INTENTS = [
   "Commerce.update-product",
   "DataProvider.pick-multiple",
   "DataProvider.pick-single",
+  "Developer.list-application-apis",
+  "Developer.list-my-application-apis",
   "Logging.get-logs",
   "RoomPoints.create-room-point",
   "RoomPoints.delete-room-point",
   "RoomPoints.edit-room-point",
   "RoomPoints.list-room-points",
-  "RoomPoints.save-room-point"
+  "RoomPoints.save-room-point",
+  "RoomZones.assign-zone",
+  "RoomZones.claim-zone",
+  "RoomZones.list-room-zones",
+  "RoomZones.release-zone",
+  "RoomZones.zone-occupancy"
 ];
 
 /** @type {Record<string, 'no-rpc'|'valu-guru'|'not-ported'>} */
@@ -6457,6 +6518,7 @@ export const APPLICATION_INTENT_REASON = {
   "Application.close-application": "no-rpc",
   "Application.expand-application": "no-rpc",
   "Application.get-identity-token": "no-rpc",
+  "CMS.pick-resource": "no-rpc",
   "Commerce.add-to-cart": "valu-guru",
   "Commerce.archive-product": "no-rpc",
   "Commerce.check-entitlements": "valu-guru",
@@ -6484,6 +6546,7 @@ export const APPLICATION_INTENT_REASON = {
   "Commerce.list-promotions": "valu-guru",
   "Commerce.list-purchases": "valu-guru",
   "Commerce.list-seller-products": "valu-guru",
+  "Commerce.mark-purchase-file-seen": "no-rpc",
   "Commerce.open-cart": "no-rpc",
   "Commerce.open-order": "no-rpc",
   "Commerce.open-products": "no-rpc",
@@ -6508,12 +6571,19 @@ export const APPLICATION_INTENT_REASON = {
   "Commerce.update-product": "valu-guru",
   "DataProvider.pick-multiple": "no-rpc",
   "DataProvider.pick-single": "no-rpc",
+  "Developer.list-application-apis": "no-rpc",
+  "Developer.list-my-application-apis": "no-rpc",
   "Logging.get-logs": "no-rpc",
   "RoomPoints.create-room-point": "no-rpc",
   "RoomPoints.delete-room-point": "not-ported",
   "RoomPoints.edit-room-point": "no-rpc",
   "RoomPoints.list-room-points": "not-ported",
-  "RoomPoints.save-room-point": "not-ported"
+  "RoomPoints.save-room-point": "not-ported",
+  "RoomZones.assign-zone": "no-rpc",
+  "RoomZones.claim-zone": "no-rpc",
+  "RoomZones.list-room-zones": "no-rpc",
+  "RoomZones.release-zone": "no-rpc",
+  "RoomZones.zone-occupancy": "no-rpc"
 };
 
 /** Server tools that implement no declared intent. */

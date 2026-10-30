@@ -116,6 +116,17 @@ export const APPLICATION_ONLY_GROUPS = [
       // the user saves or cancels, as the DataProvider pickers do.
       'RoomPoints.create-room-point',
       'RoomPoints.edit-room-point',
+      // Added to the application's manifest since the previous snapshot
+      // (synced 2026-10-30): Valu Social's own screens and state, served by it alone.
+      'CMS.pick-resource',
+      'Commerce.mark-purchase-file-seen',
+      'Developer.list-application-apis',
+      'Developer.list-my-application-apis',
+      'RoomZones.list-room-zones',
+      'RoomZones.zone-occupancy',
+      'RoomZones.claim-zone',
+      'RoomZones.release-zone',
+      'RoomZones.assign-zone',
     ],
   },
   {

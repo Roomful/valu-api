@@ -71,7 +71,7 @@ test('the typed intents are on the tree, as intents; the untyped application-ser
   assert.equal(valu.Commerce.openCart.descriptor.mode, 'window');
   assert.equal(valu.Application.expandApplication.descriptor.mode, 'embedded-only');
   assert.equal(valu.AiGuru, undefined, 'the AI chat history is not an app\'s');
-  assert.equal(INTENT_FUNCTIONS.length, 57);
+  assert.equal(INTENT_FUNCTIONS.length, 58);
 });
 
 test('a method is the string call with the name already resolved', async () => {
