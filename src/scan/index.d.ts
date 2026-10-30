@@ -11,6 +11,8 @@ export interface ScopeFinding {
   kind: 'function' | 'intent' | 'asked' | 'bridge';
   file: string;
   line: number;
+  /** The helper the call was read through (`commerce`), when it was. */
+  via?: string;
 }
 
 export interface UnresolvedCall {

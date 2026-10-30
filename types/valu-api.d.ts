@@ -1367,6 +1367,8 @@ declare module '@arkeytyp/valu-api' {
         kind: 'function' | 'intent' | 'asked' | 'bridge';
         file: string;
         line: number;
+        /** The helper the call was read through (`commerce`), when it was. */
+        via?: string;
     }
     export interface UnresolvedCall { file: string; line: number; text: string; }
     export interface ScopeScan {

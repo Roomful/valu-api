@@ -90,6 +90,7 @@ function fakeGuru(handlers = {}, { keepListenersOnClose = false } = {}) {
 
 const LIST = 'valuguru.apps.grants.list';
 const GRANT = 'valuguru.apps.grants.grant';
+const MISS = 'valuguru.apps.permissions.miss';
 
 /** A Guru whose grants table holds `granted` for this app; `granted` is the live list (a grant adds to it). */
 function guruWithGrants(granted = [], extra = {}, options) {
@@ -1004,7 +1005,10 @@ test('an intent the host does not serve answers {error:{code:not_available}}', a
     assert.equal(typeof message.error.message, 'string');
     assert.equal(message.success, undefined);
   });
-  assert.deepEqual(env.guru.requests, [], 'not even the grants were read');
+  await until(() => env.guru.ops(MISS).length >= 3);
+  assert.deepEqual(env.guru.ops(LIST), [], 'not even the grants were read');
+  // The three intents valu-api knows and only Valu Social runs are counted as parity gaps; the rest are noise.
+  assert.deepEqual(env.guru.ops(MISS).map((r) => r.params.call), ['Commerce.open-cart', 'Commerce.checkout', 'Commerce.publish-product']);
 });
 
 test('an intent whose Guru op fails answers the module\'s refusal, never a throw', async () => {
@@ -1801,7 +1805,6 @@ test('a hello from the bound origin after calls still re-sends api:ready and ser
 // ---------------------------------------------------------------------------
 
 const DECLARED = 'valuguru.apps.permissions.declared';
-const MISS = 'valuguru.apps.permissions.miss';
 
 /** A bridge for an app whose resolve answer switches the rule on, and a Guru that declares `scopes`. */
 async function declaring({ mode = 'enforce', scopes = ['users:read'], granted = [] } = {}) {
@@ -1853,4 +1856,30 @@ test('enforce: a declared consent scope is still asked for', async () => {
   env.call(MSG.CONSENT, { scopes: ['groups:read'], nonce: 'n2', requestId: 4 });
   await until(() => env.bridge.pendingConsent('n2') !== null);
   assert.deepEqual(env.bridge.pendingConsent('n2').scopes, ['groups:read']);
+});
+
+test('an intent only Valu Social runs is refused not_available, and counted as a parity gap, whatever the mode', async () => {
+  const guru = guruWithGrants([], { [MISS]: () => ({ ok: true }) });
+  const env = await ready({ guru });
+  intent(env, 'Commerce', 'open-cart', { popup: true }, 5);
+  intent(env, 'Application', 'expand-application', {}, 6);
+  intent(env, 'Nope', 'made-up', {}, 7);
+  await until(() => replyTo(env, 7));
+  assert.equal(replyTo(env, 5).message.error.code, 'not_available');
+  assert.equal(replyTo(env, 6).message.error.code, 'not_available');
+  await until(() => env.guru.ops(MISS).length >= 2);
+  assert.deepEqual(env.guru.ops(MISS).map((r) => r.params), [
+    { appId: APP.address, devAppId: APP.devAppId, scope: 'ui:open', mode: 'off', path: 'host', reason: 'not_served', call: 'Commerce.open-cart' },
+    { appId: APP.address, devAppId: APP.devAppId, scope: 'ui:open', mode: 'off', path: 'host', reason: 'not_served', call: 'Application.expand-application' },
+  ], 'an intent valu-api does not know is not counted');
+});
+
+test('a signed-out app\'s unserved intent is not counted', async () => {
+  const guru = guruWithGrants([], { [MISS]: () => ({ ok: true }) });
+  const env = await ready({ guru, session: null });
+  intent(env, 'Commerce', 'open-cart', {}, 5);
+  await until(() => replyTo(env, 5));
+  await settle();
+  assert.equal(env.guru.ops(MISS).length, 0);
+  assert.equal(env.made.guru.length, 0);
 });

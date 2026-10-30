@@ -22,6 +22,7 @@
 // ===========================================================================
 import { ERROR_CODES } from '../Errors.js';
 import { findDescriptor } from '../services/descriptors.js';
+import { APPLICATION_ONLY_INTENTS } from '../services/catalog.generated.js';
 import { validationAck } from '../services/validate.js';
 import { cartCount as countCartRows } from './commerceShapes.js';
 import { checkDeclared, readDeclaration } from './Permissions.js';
@@ -51,6 +52,8 @@ import { HOST_ERRORS, MSG } from './protocol.js';
  *   how the rule applies (`Permissions.readDeclaration`); may reject when it cannot be read. Missing: the rule is off.
  * @property {(scope: string, mode: string) => void} [reportMiss] a call to a scope the app does not declare (counted,
  *   never awaited, never throws).
+ * @property {(call: string, scope: string|null) => void} [reportNotServed] an intent the app asked for that the host
+ *   does not serve at the app's own address (`Commerce.open-cart`): a parity gap, counted whatever the mode.
  * @property {() => object} guru the Guru client; may throw the same way.
  * @property {() => object|null} user the master's `user_info.user`.
  * @property {number} callTimeoutMs the longest one attempt of a call may take (`config.callTimeoutMs`).
@@ -443,8 +446,20 @@ export async function answerIntent(host, { applicationId, action, params }, trac
       },
     };
   }
+  // An intent valu-api knows and only Valu Social runs (`open-cart`, `checkout`,
+  // `expand-application`): the app would work framed and not here. Counted, so
+  // the gap is seen (spec 2026-10-30, mode parity); the answer is the same.
+  const key = typeof applicationId === 'string' && typeof action === 'string' ? `${applicationId}.${action}` : null;
+  if (key && KNOWN_INTENTS.has(key) && host.signedIn()) {
+    try {
+      host.reportNotServed?.(key, host.permissions.scopeOfIntent(applicationId, action));
+    } catch { /* counting never decides an answer */ }
+  }
   return notAvailable(`${label(applicationId)}.${label(action)}`);
 }
+
+/** Every intent valu-api knows that is not a service function. */
+const KNOWN_INTENTS = new Set(APPLICATION_ONLY_INTENTS);
 
 const isCommerceAction = (host, action) => typeof action === 'string'
   && (action === SUBSCRIBE || action === UNSUBSCRIBE || Object.hasOwn(host.commerce.COMMERCE_INTENTS, action));

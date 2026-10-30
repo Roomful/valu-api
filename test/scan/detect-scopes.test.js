@@ -187,3 +187,83 @@ test('the same call five times is kept three times, and says it was cut', () => 
 test('nothing to find is an empty answer', () => {
   assert.deepEqual(detectScopes([]), { scopes: [], findings: [], bridge: [], unresolved: [], truncated: false });
 });
+
+// ---------------------------------------------------------------------------
+// Helpers (2026-10-30): the form the Commerce skill teaches, read at its call sites.
+// ---------------------------------------------------------------------------
+
+const APP = [
+  { path: 'src/valu/valu.js', text: [
+    "import { Intent } from '@arkeytyp/valu-api';",
+    'export async function callService(service, action, params = {}) {',
+    '  return (await getValu()).callService(new Intent(service, action, params));',
+    '}',
+  ].join('\n') },
+  { path: 'src/state/store.jsx', text: [
+    "import { callService } from '../valu/valu.js';",
+    'const commerce = (action, params = {}) => callService(`Commerce`, action, params);',
+    "export const listProducts = (query) => commerce('list-products', query);",
+    "export const addToCart = (productId) => commerce('add-to-cart', { productId });",
+    "export const openCart = () => commerce('open-cart', { popup: true });",
+  ].join('\n') },
+  { path: 'src/components/AppHeader.jsx', text: [
+    "import { callService } from '../valu/valu.js';",
+    "const p = (e) => callService('Application', e).catch(() => {});",
+    'const m = (e) => { close(); p(e); };',
+    "<li onClick={() => m('expand-application')}/>",
+  ].join('\n') },
+];
+
+test('a helper around new Intent(service, action) is read at its call sites, through the levels', () => {
+  const result = detectScopes(APP);
+  assert.deepEqual(result.findings.map((f) => [f.call, f.scope, f.kind, f.file, f.line, f.via]), [
+    ['Application.expand-application', 'ui:open', 'bridge', 'src/components/AppHeader.jsx', 4, 'm'],
+    ['Commerce.list-products', 'commerce:read', 'intent', 'src/state/store.jsx', 3, 'commerce'],
+    ['Commerce.add-to-cart', 'commerce:write', 'intent', 'src/state/store.jsx', 4, 'commerce'],
+    ['Commerce.open-cart', 'ui:open', 'bridge', 'src/state/store.jsx', 5, 'commerce'],
+  ]);
+  assert.deepEqual(result.scopes, ['commerce:read', 'commerce:write', 'ui:open']);
+  assert.deepEqual(result.unresolved, [], 'the helpers themselves are no longer unreadable');
+});
+
+test('a helper nobody calls keeps its own line as unreadable', () => {
+  const result = detectScopes([APP[0]]);
+  assert.deepEqual(result.findings, []);
+  assert.deepEqual(result.unresolved.map((u) => [u.file, u.line]), [['src/valu/valu.js', 3]]);
+});
+
+test('a call site that passes a value on is unreadable at its own line, and the literal ones still count', () => {
+  const result = detectScopes([APP[0], { path: 'src/x.js', text: [
+    "import { callService } from './valu/valu.js';",
+    "callService('Commerce', 'get-cart');",
+    'callService(svc, chosen);',
+  ].join('\n') }]);
+  assert.deepEqual(result.findings.map((f) => [f.call, f.line]), [['Commerce.get-cart', 2]]);
+  assert.deepEqual(result.unresolved.map((u) => [u.file, u.line]), [['src/x.js', 3]]);
+});
+
+test('a helper around valu.call(name) resolves its literal call sites to catalogue functions', () => {
+  const result = detectScopes([{ path: 'src/api.js', text: [
+    'const run = (name, params) => valu.call(name, params);',
+    "run('Rooms.search-my-rooms', {});",
+    "run('Users.current');",
+    "run('Nope.nothing');",
+  ].join('\n') }]);
+  assert.deepEqual(result.findings.map((f) => [f.call, f.scope, f.line, f.via]), [
+    ['Rooms.search-my-rooms', 'rooms:read', 2, 'run'],
+    ['Users.current', 'users:read', 3, 'run'],
+  ]);
+  assert.deepEqual(result.unresolved.map((u) => u.line), [4]);
+});
+
+test('a class method and a plain function are helpers too; a call with the name computed inside is not', () => {
+  const result = detectScopes([{ path: 'src/store.js', text: [
+    'class Store {',
+    '  async commerce(action, params) { return this.valu.callService(new Intent("Commerce", action, params)); }',
+    "  cart() { return this.commerce('get-cart'); }",
+    '}',
+    'function byName(action) { return valu.callService(new Intent("Rooms", `${prefix}-${action}`)); }',
+  ].join('\n') }]);
+  assert.deepEqual(result.findings.map((f) => [f.call, f.line, f.via]), [['Commerce.get-cart', 3, 'commerce']]);
+  assert.deepEqual(result.unresolved.map((u) => u.line), [5]);
+});
