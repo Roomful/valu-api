@@ -450,6 +450,7 @@ export class HostBridge {
       grants: () => this.#grantsFor(),
       declaration: () => this.#declarationFor(),
       reportMiss: (scope, mode) => this.#declarationsFor()?.reportMiss(scope, mode),
+      reportNotServed: (call, scope) => this.#missReporter()?.reportMiss(scope ?? 'ui:open', this.#bound?.app?.permissionMode ?? 'off', { reason: 'not_served', call }),
       guru: () => this.#guruFor(),
       user: () => this.#session.masterUser,
       networkId: () => this.#session.networkId(),
@@ -766,7 +767,22 @@ export class HostBridge {
   #declarationsFor() {
     const app = this.#bound?.app;
     if (!declarationChecked(app)) return null;
-    if (!this.#declarations) this.#declarations = this.#makeDeclarations(this.#guruFor(), app);
+    return this.#missReporter();
+  }
+
+  /**
+   * The store that counts misses, whatever the mode: a `not_served` intent is a
+   * parity gap worth counting while the declaration rule is still off. Null
+   * when there is no app or no session (then nothing is counted).
+   */
+  #missReporter() {
+    const app = this.#bound?.app;
+    if (!app) return null;
+    try {
+      if (!this.#declarations) this.#declarations = this.#makeDeclarations(this.#guruFor(), app);
+    } catch {
+      return null;
+    }
     return this.#declarations;
   }
 

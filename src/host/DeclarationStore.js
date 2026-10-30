@@ -15,9 +15,12 @@
 //   lookup already under way is shared. A failure is not cached and rejects,
 //   so the caller refuses the call as `unavailable`; a server that does not
 //   know the op yet (`unknown_op`) is the rule switched off, not a failure.
-// - `reportMiss(scope, mode)` tells Valu Guru that the app called a scope it
-//   does not declare. Fire and forget, at most once per scope per `ttlMs`, and
-//   it never throws: counting a miss never decides a call.
+// - `reportMiss(scope, mode, detail?)` tells Valu Guru that the app called a
+//   scope it does not declare — or, with `detail.reason = 'not_served'` and
+//   `detail.call`, an intent the host does not serve at the app's own address
+//   (a parity gap, counted whatever the mode). Fire and forget, at most once
+//   per scope (or call) per `ttlMs`, and it never throws: counting a miss
+//   never decides a call.
 //
 // `guru` is anything with `request(op, params) → Promise<data>`.
 // ===========================================================================
@@ -96,18 +99,23 @@ export class DeclarationStore {
   }
 
   /**
-   * Count a call to a scope the app does not declare. Never throws, never waits.
+   * Count a call to a scope the app does not declare, or (`reason: 'not_served'`)
+   * an intent not served where the app runs. Never throws, never waits.
    * @param {string} scope
    * @param {string} mode the mode it was checked under
+   * @param {{reason?: 'undeclared'|'not_served', call?: string}} [detail] `call` names the intent
+   *   (`Commerce.open-cart`) for a `not_served` miss.
    */
-  reportMiss(scope, mode) {
+  reportMiss(scope, mode, { reason = 'undeclared', call } = {}) {
     if (typeof scope !== 'string' || !scope) return;
+    const key = reason === 'not_served' ? `not_served:${call ?? scope}` : scope;
     const at = this.#now();
-    const last = this.#reported.get(scope);
+    const last = this.#reported.get(key);
     if (last !== undefined && at - last < this.#ttlMs) return;
-    this.#reported.set(scope, at);
+    this.#reported.set(key, at);
+    const report = { ...this.#app, scope, mode, path: this.#path, ...(reason !== 'undeclared' ? { reason } : {}), ...(call ? { call } : {}) };
     try {
-      Promise.resolve(this.#guru.request(OP_MISS, { ...this.#app, scope, mode, path: this.#path })).catch(() => {});
+      Promise.resolve(this.#guru.request(OP_MISS, report)).catch(() => {});
     } catch { /* a guru that throws at once is the same as one that fails later */ }
   }
 

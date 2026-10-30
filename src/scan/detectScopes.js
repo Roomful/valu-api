@@ -16,7 +16,17 @@
 //   auth.signIn({ scopes: [...] })   auth.requestConsent([...])      → "asked"
 //   valuApi.getApi('network').run('id')   runConsoleCommand('…')     → the Valu Social bridge
 //
-// A call whose name is decided at run time (`valu.call(name)`, `new Intent(s, a)`,
+// A HELPER is followed (2026-10-30): a function whose parameter ends up as the
+// service, the action or the name of a call —
+//
+//   const call = (service, action, params) => valu.callService(new Intent(service, action, params));
+//   const commerce = (action, params = {}) => call('Commerce', action, params);
+//   commerce('get-cart');                                   → Commerce.get-cart, at THIS line
+//
+// is read at its call sites, through up to HELPER_DEPTH levels, by the
+// helper's name (an import keeps the name). Its definition is then not an
+// unreadable call. A call whose name is decided at run time and reaches no
+// helper (`valu.call(name)` from a value, `new Intent(s, a)` in no function,
 // `valu[svc][fn]()`) cannot be read; it is listed in `unresolved` so a reviewer
 // can ask what it does. A small lexer blanks comments and the insides of
 // strings, templates and regex literals first (same length, so line numbers
@@ -32,6 +42,8 @@ import { SCOPE_PATTERN } from './permissionsFile.js';
 export const FINDINGS_PER_CALL = 3;
 export const FINDINGS_MAX = 200;
 const LINE_TEXT_MAX = 120;
+/** How many helpers deep a call is followed: `m(e) → p(e) → call('Application', e)` is three. */
+export const HELPER_DEPTH = 4;
 
 /** `Service` → `method` → descriptor, exactly as the JS surface spells them. */
 const BY_MEMBER = new Map();
@@ -77,6 +89,16 @@ const LITERAL_PATTERNS = {
   console: new RegExp(String.raw`\brunConsoleCommand\s*\(\s*(?:${lit(1)})?`, 'g'),
   asked: /(?:\brequestConsent\s*\(\s*|\bsignIn\s*\(\s*\{[^}]*?\bscopes\s*:\s*)\[([^\]]*)\]/g,
 };
+
+/**
+ * A function header, with its name and parameter list — what a helper is
+ * recognised by: `function name(a, b)`, `name = (a, b) =>`, `name = a =>`,
+ * `name = function (a)`, `name = async (a) =>`, and a method `name(a) {`.
+ */
+const HEADER = new RegExp(String.raw`(?:\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(([^()]*)\)`
+  + String.raw`|(?<![\w$.])([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\s*\*?\s*\(([^()]*)\)|\(([^()]*)\)\s*=>|([A-Za-z_$][\w$]*)\s*=>)`
+  + String.raw`|(?<![\w$.])(?:async\s+)?([A-Za-z_$][\w$]*)\s*\(([^()]*)\)\s*\{)`, 'g');
+const NOT_A_FUNCTION = new Set(['if', 'for', 'while', 'switch', 'catch', 'function', 'return', 'with', 'await', 'async', 'else', 'do']);
 
 /** The services whose intents carry a scope, by their lower-case name. */
 const INTENT_SERVICES = { commerce: 'Commerce', application: 'Application' };
@@ -253,7 +275,8 @@ function lineOf(starts, offset) {
 }
 
 /**
- * @typedef {{scope: string|null, call: string, kind: 'function'|'intent'|'asked'|'bridge', file: string, line: number}} Finding
+ * @typedef {{scope: string|null, call: string, kind: 'function'|'intent'|'asked'|'bridge', file: string, line: number, via?: string}} Finding
+ *   `via`: the helper the call was read through (`commerce`), when it was.
  * @typedef {{file: string, line: number, text: string}} Unresolved
  * @typedef {{scopes: string[], findings: Finding[], bridge: Finding[], unresolved: Unresolved[], truncated: boolean}} ScopeScan
  */
@@ -280,19 +303,131 @@ function destructuredServices(code) {
   return names;
 }
 
-/** One file's raw findings, before de-duplication and the caps. */
-function scanFile(path, original) {
+/** The parameter names of a header's list: `a, b = {}, ...rest` → `['a', 'b', 'rest']`; a destructured one is `null`. */
+function paramNames(list) {
+  if (!list.trim()) return [];
+  return list.split(',').map((part) => {
+    const name = part.replace(/^\s*\.\.\./, '').split(/[=:]/)[0].trim();
+    return /^[A-Za-z_$][\w$]*$/.test(name) ? name : null;
+  });
+}
+
+/** Every function header in a file, by offset: `{name, nameOffset, params, end}`. */
+function functionHeaders(code) {
+  const headers = [];
+  for (const m of matches(HEADER, code)) {
+    const name = m[1] ?? m[3] ?? m[7];
+    const list = m[2] ?? m[4] ?? m[5] ?? (m[6] !== undefined ? m[6] : m[8]) ?? '';
+    if (!name || NOT_A_FUNCTION.has(name)) continue;
+    const nameOffset = m.index + m[0].indexOf(name);
+    headers.push({ name, nameOffset, params: paramNames(list), end: m.index + m[0].length });
+  }
+  return headers;
+}
+
+/** The nearest header before `offset`: the function the code at `offset` is most likely in. */
+function enclosingHeader(headers, offset) {
+  let found = null;
+  for (const header of headers) {
+    if (header.end <= offset) found = header;
+    else break;
+  }
+  return found;
+}
+
+/**
+ * The arguments of the call whose `(` is at `open`, each as the literal string it
+ * is, the identifier it is, or neither: `{literal, ident}`. Strings are blanked in
+ * `code`, so brackets inside them do not count.
+ */
+function readArgs(lexed, open) {
+  const { code, literal } = lexed;
+  const args = [];
+  let depth = 0;
+  let start = open + 1;
+  const push = (from, to) => {
+    const text = code.slice(from, to).trim();
+    const raw = literal.slice(from, to).trim();
+    const quoted = raw.match(/^(['"\x60])([^'"\x60\n]*)\1$/);
+    // A template with an expression in it is a name decided at run time.
+    const value = quoted && !quoted[2].includes('${') ? quoted[2] : null;
+    args.push({ literal: value, ident: /^[A-Za-z_$][\w$]*$/.test(text) ? text : null, empty: text === '' });
+  };
+  for (let i = open + 1; i < code.length; i++) {
+    const ch = code[i];
+    if (ch === '(' || ch === '[' || ch === '{') depth++;
+    else if (ch === ')' || ch === ']' || ch === '}') {
+      if (depth === 0) {
+        push(start, i);
+        break;
+      }
+      depth--;
+    } else if (ch === ',' && depth === 0) {
+      push(start, i);
+      start = i + 1;
+    }
+  }
+  if (args.length === 1 && args[0].empty) return [];
+  return args;
+}
+
+/**
+ * How a helper's call fills the (service, action) of an intent, or the name of
+ * a by-name call: each slot is a literal, or `{param}` — the index of the
+ * helper's parameter that carries it. Null when a slot is neither (a value
+ * computed inside), so the helper cannot be followed.
+ */
+function helperSlots(header, args, wanted) {
+  const slots = [];
+  for (let i = 0; i < wanted; i++) {
+    const arg = args[i];
+    if (!arg) return null;
+    if (arg.literal !== null) slots.push({ literal: arg.literal });
+    else if (arg.ident !== null && header.params.includes(arg.ident)) slots.push({ param: header.params.indexOf(arg.ident) });
+    else return null;
+  }
+  if (!slots.some((slot) => 'param' in slot)) return null; // every slot literal: not a helper, a plain call
+  return slots;
+}
+
+/** Read a file the way the patterns need it, plus its headers and line map. */
+function lexFile(path, original) {
   const source = String(original ?? '');
-  const { literal, code, inLiteral } = lex(MARKUP.test(path) ? scriptsOnly(source) : source);
-  const starts = lineStarts(code);
-  const originalLines = source.split('\n');
+  const lexed = lex(MARKUP.test(path) ? scriptsOnly(source) : source);
+  return {
+    path,
+    ...lexed,
+    starts: lineStarts(lexed.code),
+    originalLines: source.split('\n'),
+    headers: functionHeaders(lexed.code),
+  };
+}
+
+/** One file's raw findings, before de-duplication and the caps. */
+function scanFile(lexed) {
+  const { path, literal, code, inLiteral, starts, originalLines, headers } = lexed;
   const at = (offset) => lineOf(starts, offset);
   const findings = [];
   const bridge = [];
   const unresolved = [];
-  const unread = (offset) => {
+  /** Helpers this file defines: `{name, kind: 'intent'|'byName', slots, file, offset}`. */
+  const helpers = [];
+  const unread = (offset, helper = null) => {
     const line = at(offset);
-    unresolved.push({ file: path, line, text: (originalLines[line - 1] ?? '').trim().slice(0, LINE_TEXT_MAX) });
+    unresolved.push({ file: path, line, text: (originalLines[line - 1] ?? '').trim().slice(0, LINE_TEXT_MAX), helper });
+  };
+  /**
+   * A call whose names are not literals: a helper, when it sits in a function
+   * whose parameters carry them; unreadable otherwise. The helper's own line
+   * stays listed as unreadable until a call site of it is read.
+   */
+  const dynamic = (kind, open, wanted) => {
+    const header = enclosingHeader(headers, open);
+    const slots = header ? helperSlots(header, readArgs(lexed, open), wanted) : null;
+    if (!slots) return unread(open);
+    const helper = { name: header.name, kind, slots, file: path, offset: open, header };
+    helpers.push(helper);
+    return unread(open, helper);
   };
   const fn = (descriptor, kind, offset) =>
     findings.push({ scope: descriptor.scopes[0], call: descriptor.key, kind, file: path, line: at(offset) });
@@ -314,11 +449,12 @@ function scanFile(path, original) {
     const descriptor = findDescriptor(m[2]);
     if (descriptor) fn(descriptor, 'function', m.index);
   }
-  for (const m of matches(CODE_PATTERNS.byNameDynamic, code)) unread(m.index);
+  for (const m of matches(CODE_PATTERNS.byNameDynamic, code)) dynamic('byName', m.index + m[0].lastIndexOf('('), 1);
 
   const intentsRead = new Set();
   for (const m of literalMatches(LITERAL_PATTERNS.intent)) {
     const [service, action] = [m[2], m[4]];
+    if (service.includes('${') || action.includes('${')) continue; // a template with an expression: decided at run time
     intentsRead.add(m.index);
     const descriptor = findDescriptor(`${service}.${action}`);
     // The host's intents are named `Commerce` / `Application`; a lower-case
@@ -338,7 +474,7 @@ function scanFile(path, original) {
   }
   for (const m of matches(CODE_PATTERNS.intentAny, code)) {
     // `new Intent(` whose two names were not both literals.
-    if (!intentsRead.has(m.index + m[0].indexOf('Intent'))) unread(m.index);
+    if (!intentsRead.has(m.index + m[0].indexOf('Intent'))) dynamic('intent', m.index + m[0].length - 1, 2);
   }
 
   for (const m of literalMatches(LITERAL_PATTERNS.getApi)) {
@@ -369,7 +505,107 @@ function scanFile(path, original) {
 
   for (const m of matches(CODE_PATTERNS.computed, code)) unread(m.index);
 
-  return { findings, bridge, unresolved };
+  return { findings, bridge, unresolved, helpers };
+}
+
+/**
+ * The finding for an intent named at a call site: a catalogue function's scope,
+ * the host's own intents', or the older bridge's; a bridge call with no scope.
+ */
+function intentFinding(service, action, file, line, via) {
+  const descriptor = findDescriptor(`${service}.${action}`);
+  const scope = descriptor
+    ? descriptor.scopes[0]
+    : scopeOfIntent(INTENT_SERVICES[service.toLowerCase()] ?? service, action);
+  if (scope) return { scope, call: `${service}.${action}`, kind: 'intent', file, line, via };
+  const bridged = scopeOfServiceIntent(service, action) ?? scopeOfAppIntent(service, action);
+  return { scope: bridged, call: `${service}.${action}`, kind: 'bridge', file, line, via };
+}
+
+/**
+ * Follow the helpers to their call sites, through HELPER_DEPTH levels. A call
+ * site with literal names is a finding at its own line; one that passes a
+ * parameter of ITS function on is a helper one level further; any other is
+ * unreadable at its own line. A helper that is never called keeps its own
+ * definition listed as unreadable.
+ */
+function followHelpers(lexedFiles, scanned) {
+  const findings = [];
+  const bridge = [];
+  const unresolved = [];
+  const resolvedHelpers = new Set();
+  let level = scanned.flatMap((s) => s.helpers);
+  const seen = new Set(level.map((h) => `${h.file}:${h.offset}`));
+
+  for (let depth = 0; depth < HELPER_DEPTH && level.length; depth++) {
+    const next = [];
+    for (const helper of level) {
+      const callPattern = new RegExp(String.raw`(?<![\w$])${escape(helper.name)}\s*\(`, 'g');
+      for (const lexed of lexedFiles) {
+        const { path, code, starts, originalLines, headers } = lexed;
+        for (const m of matches(callPattern, code)) {
+          const open = m.index + m[0].length - 1;
+          // Not the definition itself, and not `function name(`.
+          if (headers.some((h) => h.nameOffset === m.index)) continue;
+          if (/\bfunction\s*\*?\s*$/.test(code.slice(Math.max(0, m.index - 12), m.index))) continue;
+          const args = readArgs(lexed, open);
+          const line = lineOf(starts, open);
+          const names = [];
+          let derived = null;
+          let readable = true;
+          for (const slot of helper.slots) {
+            if ('literal' in slot) {
+              names.push(slot.literal);
+              continue;
+            }
+            const arg = args[slot.param];
+            if (arg?.literal !== null && arg?.literal !== undefined) {
+              names.push(arg.literal);
+              continue;
+            }
+            const header = enclosingHeader(headers, open);
+            if (arg?.ident && header && header.params.includes(arg.ident)) {
+              derived ??= { name: header.name, kind: helper.kind, slots: [], file: path, offset: open, header };
+              names.push({ param: header.params.indexOf(arg.ident) });
+              continue;
+            }
+            readable = false;
+            break;
+          }
+          if (!readable) {
+            // The call the helper itself makes inside its body (`valu.callService(new Intent(…))`
+            // inside `callService`) is the helper, not a use of it.
+            if (path === helper.file && enclosingHeader(headers, open) === helper.header) continue;
+            unresolved.push({ file: path, line, text: (originalLines[line - 1] ?? '').trim().slice(0, LINE_TEXT_MAX) });
+            continue;
+          }
+          if (derived) {
+            // The slots as the derived helper fills them: a literal stays, a parameter is its own.
+            derived.slots = names.map((name) => (typeof name === 'string' ? { literal: name } : name));
+            derived.from = helper;
+            const key = `${path}:${open}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              next.push(derived);
+            }
+            continue;
+          }
+          // A call read by name: this helper, and every helper it came through, is read.
+          for (let h = helper; h; h = h.from) resolvedHelpers.add(h);
+          if (helper.kind === 'byName') {
+            const descriptor = findDescriptor(names[0]);
+            if (descriptor) findings.push({ scope: descriptor.scopes[0], call: descriptor.key, kind: 'function', file: path, line, via: helper.name });
+            else unresolved.push({ file: path, line, text: (originalLines[line - 1] ?? '').trim().slice(0, LINE_TEXT_MAX) });
+            continue;
+          }
+          const found = intentFinding(names[0], names[1], path, line, helper.name);
+          (found.scope ? findings : bridge).push(found);
+        }
+      }
+    }
+    level = next;
+  }
+  return { findings, bridge, unresolved, resolvedHelpers };
 }
 
 const byPlace = (a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line);
@@ -402,12 +638,18 @@ function capped(list) {
  */
 export function detectScopes(files) {
   const all = { findings: [], bridge: [], unresolved: [] };
-  for (const file of files ?? []) {
-    const found = scanFile(String(file?.path ?? ''), file?.text);
+  const lexedFiles = (files ?? []).map((file) => lexFile(String(file?.path ?? ''), file?.text));
+  const scanned = lexedFiles.map((lexed) => scanFile(lexed));
+  const followed = followHelpers(lexedFiles, scanned);
+  for (const found of scanned) {
     all.findings.push(...found.findings);
     all.bridge.push(...found.bridge);
-    all.unresolved.push(...found.unresolved);
+    // A helper's own line is unreadable only while no call site of it was read.
+    all.unresolved.push(...found.unresolved.filter((u) => !(u.helper && followed.resolvedHelpers.has(u.helper))));
   }
+  all.findings.push(...followed.findings);
+  all.bridge.push(...followed.bridge);
+  all.unresolved.push(...followed.unresolved);
   // Every scope seen counts, before any cap: the caps trim the evidence, never the list.
   const scopes = [...new Set(all.findings.map((f) => f.scope).filter(Boolean))].sort();
   const findings = capped(all.findings);

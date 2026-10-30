@@ -82,3 +82,18 @@ test('needs an app it can name', () => {
   assert.throws(() => new DeclarationStore({ guru: fakeGuru({}), app: {} }), TypeError);
   assert.throws(() => new DeclarationStore({ guru: null, app: { devAppId: 'a' } }), TypeError);
 });
+
+test('a not_served miss names the call, and is kept apart from an undeclared one of the same scope', async () => {
+  let clock = 0;
+  const guru = fakeGuru({});
+  const store = new DeclarationStore({ guru, app: { appId: 'ws_1/notes' }, path: 'host', now: () => clock, ttlMs: 1000 });
+  store.reportMiss('ui:open', 'off', { reason: 'not_served', call: 'Commerce.open-cart' });
+  store.reportMiss('ui:open', 'off', { reason: 'not_served', call: 'Commerce.open-cart' });
+  store.reportMiss('ui:open', 'off', { reason: 'not_served', call: 'Commerce.checkout' });
+  store.reportMiss('ui:open', 'enforce');
+  assert.deepEqual(guru.requests.map((r) => r.params), [
+    { appId: 'ws_1/notes', scope: 'ui:open', mode: 'off', path: 'host', reason: 'not_served', call: 'Commerce.open-cart' },
+    { appId: 'ws_1/notes', scope: 'ui:open', mode: 'off', path: 'host', reason: 'not_served', call: 'Commerce.checkout' },
+    { appId: 'ws_1/notes', scope: 'ui:open', mode: 'enforce', path: 'host' },
+  ]);
+});
