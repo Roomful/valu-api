@@ -34,6 +34,23 @@ You can implement **none**, **one**, or **both** — depending on your app's nee
 
 ---
 
+## Where `valuApi` Comes From
+
+Routing is part of the Valu Social bridge, the `ValuApi` underneath the app object. The examples below call it `valuApi`:
+
+```ts
+import { createValuApp } from "@arkeytyp/valu-api";
+
+const valu = await createValuApp();
+const valuApi = valu.bridge; // pushRoute, replaceRoute, addEventListener(ValuApi.ON_ROUTE, ...)
+```
+
+Routes exist **inside Valu Social only**. When the app runs at its own address (`valu.mode === "dedicated"`), the browser URL is the app's own: `pushRoute` and `replaceRoute` are not answered, and no `ON_ROUTE` arrives. Your router alone is enough there.
+
+In React, keep the one app object in a hook or context (see [Valu API Snippets](https://docs.texpo.io/valu-snippets)); `useValuAPI()` below stands for that hook returning `valu.bridge`, or `null` until it is ready.
+
+---
+
 ## When You Might Want Routing
 
 - **Multi-page app** — your app has tabs or views and you want deep links to work

@@ -2,15 +2,17 @@ name: Notify Docs Update
 on:
   push:
     branches: [main]
-    paths: [README.md]
+    paths: [README.md, valu-routing.md]
 
 jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
+      # --fail-with-body: a refused dispatch (an expired DOCS_DISPATCH_TOKEN
+      # answers 401) fails the run instead of passing with the error printed.
       - name: Trigger valu-docs sync
         run: |
-          curl -X POST \
+          curl --fail-with-body -sS -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.DOCS_DISPATCH_TOKEN }}" \
             https://api.github.com/repos/Roomful/valu-docs/dispatches \
