@@ -139,8 +139,8 @@ Ops (dispatched beside `valuguru.apps.privacy.*`). **Gate: a new
 `requireSuperAdmin`**, `perms.superAdmin` only. The privacy ops' `requireAdmin`
 is `admin || superAdmin`, and `admin` is a *network* admin
 (`network-admin.ts`), so reusing it would let a network admin switch the
-platform's mode, against decision 3. The privacy ops are left as they are;
-that is a separate question for Pavlo (§11).
+platform's mode, against decision 3. The privacy ops move to the same
+`requireSuperAdmin` in this work (decision 11).
 
 - `valuguru.apps.bridge.list {}` → `{entries: [{appKey, title, reason, addedBy, addedByName, addedAt, expiresAt, log, lastUse}]}`. `lastUse` joins §5.2's counters (`max(day)` for the key).
 - `valuguru.apps.bridge.set {appKey, title?, reason, expiresAt?}` → upsert, appends to `log`. `reason` required (like `privacy.setMode`).
@@ -305,7 +305,8 @@ shell by its own `webkit.messageHandlers.iosValu`, not by any `messageHandlers`
 - Backend: the migration seeds the built-in apps; `set`/`remove`/`candidates`
   round-trip with the log; `use` adds counts; `setMode` is refused to a
   non-superAdmin and logs for one.
-- Backend: `requireSuperAdmin` refuses a user with `admin` only; `use` and
+- Backend: `requireSuperAdmin` refuses a user with `admin` only, for the
+  bridge ops, both mode ops and the privacy ops; `use` and
   `set` normalise `dev:` to `ws:` when a project exists, and `declared` finds
   the row by either key.
 - Web, `IFrameStore`: with the bridge `closed` an app off the list is refused
@@ -320,9 +321,24 @@ shell by its own `webkit.messageHandlers.iosValu`, not by any `messageHandlers`
   `service-intent-catalogue` is marked migrated.
 - Nothing in the native bridges changes: their existing tests pass unchanged.
 
-## 11. Open: Pavlo's answers needed
+## 11. Decided after the builder check (Pavlo, 2026-11-03)
 
-1. The privacy ops (`valuguru.apps.privacy.setMode`, `recordReview`, …) are
-   gated by `admin || superAdmin`, so a network admin can change any app's
-   privacy mode platform-wide. Tighten them to `superAdmin` in this work, or
-   leave them? (This design's own ops use `requireSuperAdmin` either way.)
+11. The privacy ops (`valuguru.apps.privacy.setMode`, `recordReview`, …) are
+    tightened to `requireSuperAdmin` in this work too: today they pass
+    `admin || superAdmin`, so a network admin could change any app's privacy
+    mode platform-wide. One check, one meaning.
+
+## 12. Where the "collect data first" plan came from
+
+Pavlo's memory of "a few weeks of data, then see how many iframes and apps
+there are, then decide" is the permissions rollout, not a tab: the app-permissions
+design of 2026-10-28 (`valusocial-web docs/superpowers/specs/2026-10-28-app-permissions-design.md`,
+"Rollout (D11)") goes `off` → `report` → `enforce`, with `report` counting
+would-be refusals into `vg_app_permission_misses`; the 10-30 session said
+"collect which apps got how many refusals, so you decide on `enforce`", and
+the 11-02 rollout session "then `report` mode until the misses table is
+quiet". Production has been in `report` since 11-02. The misses show per app
+on the Valu API tab (PR #1218); there is no platform-wide view of them, and
+nothing counts the old bridge. This design adds both: §5.2's counters and
+§5.5's Candidates block are that "see how many, then decide" step, for the
+bridge rule, on one screen.
