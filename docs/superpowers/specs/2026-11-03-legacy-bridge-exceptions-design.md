@@ -16,8 +16,9 @@ Valu Social frames apps in its dock and lets them drive it over postMessage: the
 **old bridge** (`api:run-intent`, `api:service-intent`, API pointers
 `api:create-pointer` + `api:run`, `api:run-console`, `api:run-command`) and
 the **new path** (`api:call`, answered by valu-api's frame server). The permission
-gate (`app_permissions_mode`, seeded `off` on 2026-10-29) checks only Developer
-Portal apps, and only once the mode is `report` or `enforce`. About thirty
+gate (`app_permissions_mode`, seeded `off` on 2026-10-29, **`report` in
+production since 2026-11-02**, read live from `/api/host/v1/resolve`) checks
+only Developer Portal apps, and refuses nothing until the mode is `enforce`. About thirty
 built-in iframe apps in the manifests (Merkos302 sites, ckids.org, vercel
 previews, Valu Docs) are never checked.
 
@@ -45,6 +46,21 @@ yet. The first thing to build is the counting.
 5. Legacy stays legacy: the list never widens what any app may do. Internal API
    functions, internal application intents and forbidden writes are refused to
    a legacy app too.
+
+### Two "legacy" workstreams, not one
+
+The rollout planning of 2026-10-30…11-02 (memory `permissions-go-live`) holds a
+**legacy backfill**: scan each Workspaces project's HEAD, auto-declare its
+scopes into a `backfill` record (`file.generated`, shown as "Auto-declared" on
+the Valu API tab, PR #1218), a "Fix in Workspaces" notice, a readiness op. That
+is about the *declaration rule*: apps published before `valu-permissions.json`
+existed get a list so `enforce` does not refuse them. It is not started.
+
+This design's **legacy list** is about the *bridge rule*: which apps may keep
+the old postMessage bridge once it closes. The two are independent, keyed the
+same way (`ws:`/`dev:`), and both show on the Developer Portal: the backfill on
+an app's own Valu API tab, the list on the new Legacy bridge tab. Neither
+replaces the other.
 
 ## 3. Non-goals
 
@@ -213,7 +229,7 @@ already equals in the web). Three blocks, top to bottom:
    removed"), Remove (reason required).
 3. **Candidates**: apps seen on the old bridge in the last 30 days that are not
    on the list, with counts per message kind and an **Add** button (reason
-   required). Empty under `off` until counting ships; the block says so.
+   required). Empty until counting ships; the block says so.
 
 Read-only for everyone else: the tab is not rendered. The store side mirrors
 `loadReviewQueue`: one load on tab open, the server's refusal recorded as
@@ -246,9 +262,9 @@ shell by its own `webkit.messageHandlers.iosValu`, not by any `messageHandlers`
 1. Merge `fix/valu-api-native-only` (rebased on develop) and deploy on all four
    brands. Independent of everything below.
 2. Ship §5.1–5.3 and §5.5 (backend migration + ops; web counting + tab) with the
-   mode still `off`. The tab shows candidates filling up.
-3. Switch permissions to `report` (from the tab). Run 2–4 weeks across every
-   brand; the bridge stays `open`, so this only counts.
+   bridge `open`. The tab shows candidates filling up.
+3. Permissions are already `report` in production (2026-11-02). Count for 2–4
+   weeks across every brand; the bridge stays `open`, so this only counts.
 4. Seed the list from the candidates (the migration already holds the built-in
    apps); tell the owners of Portal apps on it.
 5. Decision 7's typing, routes, `valu.Apps.*` (typed-app-intents work) and the
