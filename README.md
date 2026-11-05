@@ -1,206 +1,140 @@
-The `valu-api` package enables developers to build custom iframe applications for Valu Social.
-It provides tools to invoke functions on registered Valu applications, subscribe to their events, and communicate via intents.
-With features like API versioning, event handling, and console command execution, you can seamlessly integrate and extend functionality within the Valu Social ecosystem.
+# Valu API
+
+`@arkeytyp/valu-api` is the JavaScript package a Valu app uses to talk to Valu: the signed-in user, rooms, chat, resources, Commerce, and Valu Social's own windows and docks.
+The same code runs in both places an app lives:
+
+- **Inside Valu Social** (*embedded*): Valu Social frames the app. The user is Valu Social's, and Valu Social answers the app's calls. Nothing is asked of the user.
+- **At its own address** (*dedicated*): a `*.valuguru.app` page, or a page on your own domain. The package signs the user in through a Valu popup and runs every call through a hidden Valu host, which checks the app's permissions. No session or token ever reaches your page.
+
+One entry point covers both: `createValuApp()`.
 
 ## Installation
 
+Version 2 is not on npm yet: `npm install @arkeytyp/valu-api` still installs `1.1.3`, which predates everything below.
+Install it from GitHub, pinned to a commit (the repository is public, so no token is needed):
+
 ```bash
-npm install @arkeytyp/valu-api
+npm install github:Roomful/valu-api#b951fb7
 ```
 
-## Quick Start: Full Example
-
-Below is a complete example that initializes the API, gets the current user, and retrieves their avatar. This is the most common starting pattern for any Valu iframe app.
+## Quick Start
 
 ```javascript
-import { ValuApi } from "@arkeytyp/valu-api";
+import { createValuApp } from '@arkeytyp/valu-api';
 
-// Use a singleton — store on globalThis to avoid duplicate instances
-let valuApi = globalThis.valuApi;
-if (!valuApi) {
-  valuApi = globalThis.valuApi = new ValuApi();
-}
+// Framed by Valu Social it is embedded; a top-level page is dedicated. Same code.
+const valu = await createValuApp();
+await valu.ready;
 
-// If already connected, proceed immediately; otherwise wait for the event
-if (valuApi.connected) {
-  onReady();
-} else {
-  valuApi.addEventListener(ValuApi.API_READY, onReady);
-}
+valu.auth.on('change', render);
+render(valu.auth.state);
 
-async function onReady() {
-  // getApi() returns a Promise — always use await
-  const usersApi = await valuApi.getApi('users');
-  const currentUser = await usersApi.run('current');
-
-  if (!currentUser) {
-    console.error('Could not get current user');
+async function render({ signedIn }) {
+  if (!signedIn) {
+    // Only at the app's own address: inside Valu Social the user is already signed in.
+    signInButton.hidden = false;
     return;
   }
+  signInButton.hidden = true;
 
-  console.log('User:', currentUser.id, currentUser.firstName, currentUser.lastName);
-
-  // Avatar requires a separate call
-  const avatarUrl = await usersApi.run('get-icon', { userId: currentUser.id });
-  console.log('Avatar URL:', avatarUrl);
-}
-```
-
-## Usage
-
-### Initialize ValuApi
-
-On application startup, create an instance of `ValuApi` and subscribe to the `API_READY` event.
-This event is triggered only when your application is launched as an iframe within the Valu Verse application.
-
-> **Important:** `ValuApi.API_READY` is a **string constant** (event name), not a Promise.
-> Always use it with `addEventListener()`. Do **not** call `.then()` on it.
-
-> **Important:** `getApi()` returns a **Promise**. Always `await` the result before calling `.run()`.
-
-```javascript
-import { ValuApi } from "@arkeytyp/valu-api";
-
-const valuApi = new ValuApi();
-valuApi.addEventListener(ValuApi.API_READY, async (e) => {
-  console.log("API IS READY!");
-});
-```
-
-**Recommended singleton pattern** — prevents duplicate connections if your init code runs more than once (e.g., React strict mode):
-
-```javascript
-let valuApi = globalThis.valuApi;
-if (!valuApi) {
-  valuApi = globalThis.valuApi = new ValuApi();
+  const { user } = await valu.data.Users.current();   // the payload; throws on an error
+  show(user, valu.network);                            // {id, name} of the user's network
 }
 
-if (valuApi.connected) {
-  // Already connected — safe to make API calls immediately
-} else {
-  valuApi.addEventListener(ValuApi.API_READY, () => {
-    // Now connected — safe to make API calls
-  });
-}
+// The browser opens the sign-in popup only from a click: call signIn() first thing in the handler.
+signInButton.onclick = () => valu.auth.signIn().catch((error) => showError(error.code));
 ```
 
-## Users API Reference
+- `valu.Users.current()` resolves the envelope `{data} | {error}` and never rejects; `valu.data.Users.current()` resolves the payload and throws `ValuServiceError`. Every service function comes in both forms.
+- `valu.mode` is `'embedded'` or `'dedicated'`. Hide controls that only make sense inside Valu Social (expand, close, the dock pickers) when it is `'dedicated'`.
+- Every function, with its params and what it returns: [docs/service-api.md](docs/service-api.md). The options, sign-in, consent, errors and connection states: [docs/connecting.md](docs/connecting.md).
 
-The `users` API provides commands for retrieving user information.
+## Calling Valu
 
-### Get Current User
+Everything is on the object `createValuApp()` returns, in both modes:
 
-```javascript
-const usersApi = await valuApi.getApi('users');
-const currentUser = await usersApi.run('current');
-```
+| What | How |
+|---|---|
+| **Service functions**: users, rooms, communities, chat, resources, events, CMS, storage … | `valu.data.Networks.getCurrentNetwork()`, `valu.data.CMS.resourceSearch({ communityId, channelId })` |
+| **Valu Social's intents as functions**: Commerce, the identity token, expand/close, the pickers | `valu.data.Commerce.getCart()`, `valu.Commerce.openCart()`, `valu.data.Application.getIdentityToken()` |
+| **A call by name** (an LLM tool call, a string from config) | `valu.call('Rooms.searchMyRooms', params)` (envelope) or `valu.invoke(...)` (payload) |
+| **Any intent by name**: open another app, or a service intent this version has no function for | `valu.sendIntent(new Intent('textchat', 'open-channel', { userId }))` (an app), `valu.callService(new Intent(service, action, params))` (a service) |
+| **The user and the network** | `valu.auth.state` (`{signedIn, user, network}`), `valu.auth.on('change', handler)`, `valu.network` |
+| **Commerce events** | `valu.onCommerceEvent(handler)`, after subscribing (see [Commerce Events](#commerce-events)) |
+| **The older bridge**: API pointers, console, routes, lifecycle | `valu.bridge` is the `ValuApi` below. Inside Valu Social only. |
 
-**Returns an object with the following fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | `string` | Unique user identifier |
-| `firstName` | `string` | User's first name |
-| `lastName` | `string` | User's last name |
-| `companyTitle` | `string` | User's role or title |
-
-> **Note:** There is no `name` or `avatar` field on the user object.
-> Use `firstName` and `lastName` for the display name. Use `get-icon` (below) for the avatar.
-
-### Get User Avatar
-
-Avatar is retrieved with a **separate API call**, not from the user object:
-
-```javascript
-const usersApi = await valuApi.getApi('users');
-const avatarUrl = await usersApi.run('get-icon', { userId: currentUser.id });
-```
-
-**Parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `userId` | `string` | The ID of the user whose avatar to retrieve |
-
-**Returns:** A URL string pointing to the user's avatar image.
-
-## Running Application Intents
-
-Intents are a powerful way to communicate with other applications inside Valu Social.
-They allow your application to request actions from other registered apps in a standardized way — for example, opening a chat, joining a meeting, or performing any supported operation.
-
-Each Intent contains:
-
-- **applicationId:** The target application's ID.
-- **action:** The action to perform (e.g., `open`, `connect-to-meeting`).
-- **params:** Optional parameters for the action (e.g., room IDs, configuration data).
-
-### Example: Open a Video Chat
-
-```javascript
-import { Intent } from "@arkeytyp/valu-api";
-
-const intent = new Intent('videochat');
-await valuApi.sendIntent(intent);
-```
+Write function names as literals (`valu.data.Users.current()`, `new Intent('Commerce', 'get-cart')`): the permission check reads your source for them (see [Permissions](#permissions)).
 
 ### Example: Open a Text Channel for the Current User
 
-First, get the current user ID using the `users` API:
-
 ```javascript
-import { Intent } from "@arkeytyp/valu-api";
+import { createValuApp, Intent } from '@arkeytyp/valu-api';
 
-const usersApi = await valuApi.getApi('users');
-const currentUser = await usersApi.run('current');
-if (!currentUser) {
-  console.error('Something went wrong');
-  return;
+const valu = await createValuApp();
+const { user } = await valu.data.Users.current();
+
+// Opening another app is Valu Social's job, so this works inside Valu Social only.
+if (valu.mode === 'embedded') {
+  await valu.sendIntent(new Intent('textchat', 'open-channel', { userId: user.id }));
 }
-
-const intent = new Intent('textchat', 'open-channel', { userId: currentUser.id });
-await valuApi.sendIntent(intent);
 ```
 
-## Invoking Services
-
-Invoking a Service works almost the same way as running an Application Intent.
-You still use the same `Intent` object with `applicationId`, `action`, and optional `params` — the key difference is **what the `applicationId` points to and how the call affects the UI**.
-
-When calling a **Service Intent**:
-
-- **`applicationId`** refers to the **service name** (e.g., `ApplicationStorage`), not a visible UI application.
-- Services run entirely **in the background**.
-- Invoking a service **does not change** the currently opened applications.
-
-### Example: Querying the `ApplicationStorage` Service
+### Example: An Identity Token for Your Backend
 
 ```javascript
-import { Intent } from "@arkeytyp/valu-api";
+const { token } = await valu.data.Application.getIdentityToken();
 
-const intent = new Intent('ApplicationStorage', 'resource-search', {
-  size: 10,
+await fetch('https://your-backend.example.com/api/data', {
+  headers: { Authorization: `Bearer ${token}` },
 });
-
-const result = await valuApi.callService(intent);
 ```
+
+The token is a JWT valid for five minutes, in both modes. How your backend checks it: [Identity Token Validation](https://docs.texpo.io/identity-token-validation).
+
+## Permissions
+
+Every function and intent has a scope (`rooms:read`, `commerce:write` …). Inside Valu Social nobody is asked anything: there are no tiers and no consent. At the app's own address the host checks the scope's tier on every call:
+
+- **Basic** scopes (`users:read`, `networks:read`, `resources:read`, `applicationstorage:*`, `application:identity` …) work for any signed-in user.
+- **Consent** scopes (`rooms:read`, `textchat:write`, `cms:write`, `commerce:read` …) need the user's yes once per app. A call made from a click opens the consent window and is repeated once when the user allows it; otherwise it answers `403 consent_required` and the app asks from its own click with `valu.auth.requestConsent([scope])`.
+- **Forbidden** scopes (`cbac:write`, `veruswallet:*`, `developer:*`) are never allowed to an app.
+
+Declare the scopes your app uses, each with one sentence a reviewer can check, in `valu-permissions.json`: a Workspaces app keeps it at the repository root; any other app serves it at `/.well-known/valu-permissions.json`. The file binds in both modes: a call to an undeclared scope is refused `permission_not_declared`, inside Valu Social too. The fix is a line in the file, never a retry.
+
+```json
+{
+  "permissions": [
+    { "scope": "rooms:read", "why": "Lists your rooms on the home screen." },
+    { "scope": "commerce:read", "why": "Shows the products in your shop." }
+  ]
+}
+```
+
+The full tier table and how the file is enforced: [docs/connecting.md](docs/connecting.md#declaring-permissions).
+
+## Developing Locally
+
+- **Inside a local Valu Social**: name it, or the package will not trust it with your calls: `createValuApp({ hostOrigins: ['http://localhost:3005'] })`. Do not ship that list.
+- **At your own address**: the production host serves only published `*.valuguru.app` origins, so a `localhost` page needs a local dev host. See [examples/dedicated/README.md](examples/dedicated/README.md).
+- An app that sends its own `Content-Security-Policy` must allow the host in `frame-src`: `frame-src https://valuguru.texpo.io`.
 
 ## Commerce
 
 Your app can sell through Valu Social's shared cart, show the user what they bought, and run the signed-in seller's store — its products, promotions and sales numbers.
-All of it is the **`Commerce` service**, and you reach it with **service intents over the bridge**: `callService(new Intent('Commerce', action, params))`.
-Commerce is not one of this package's service functions (see [The service SDK](#the-service-sdk) below) — the Valu Social application serves it, so you ask for it by name.
+All of it is the **`Commerce` service**, which the Valu Social application serves.
+Call it as typed functions on the app object: `valu.data.Commerce.listProducts(...)`, `valu.Commerce.addToCart(...)`, `valu.Commerce.openCart()`. They work in both modes; the windows (`openCart`, `checkout` …) open Valu Social in a tab when the app runs at its own address.
+The examples below use the older form, `valu.callService(new Intent('Commerce', action, params))`, which still works and answers `{success: false, code, error}` on a refusal; a typed function answers the envelope (`{error: {code, message}}`) instead, like every other function.
 
 ### Example: Sell a Product
 
 ```javascript
 import { Intent } from "@arkeytyp/valu-api";
 
-const { products } = await valuApi.callService(
+const { products } = await valu.callService(
   new Intent('Commerce', 'list-products', { query: 'starter', sort: 'popular' })
 );
 
-const added = await valuApi.callService(
+const added = await valu.callService(
   new Intent('Commerce', 'add-to-cart', { productId: products[0].id, qty: 1 })
 );
 if (added.success === false) {
@@ -208,7 +142,7 @@ if (added.success === false) {
 }
 
 // Unlock what the user owns: entitlements are the receipt your app can trust.
-const { entitlements } = await valuApi.callService(
+const { entitlements } = await valu.callService(
   new Intent('Commerce', 'check-entitlements', { productIds: [products[0].id] })
 );
 if (entitlements[products[0].id]) unlockPurchase();
@@ -226,7 +160,7 @@ if (entitlements[products[0].id]) unlockPurchase();
 To let the buyer pay for what your app put in the cart, hand them to My Cart with `Commerce.checkout`:
 
 ```javascript
-const result = await valuApi.callService(
+const result = await valu.callService(
   new Intent('Commerce', 'checkout', { promoCode: 'SPRING' })
 );
 
@@ -248,23 +182,24 @@ if (result.success === false) {
 The buyer presses Pay and scans there — only My Cart creates the order — and the call resolves with `{success: true, outcome, orderId?, status?}` when they close it.
 With `popup: false`, or where there is no popup to draw, My Cart docks instead and the call resolves at once with `outcome: 'opened'`.
 A second `checkout` while one is open replaces it.
+At the app's own address, call the windows as typed functions from a click (`valu.Commerce.checkout({ promoCode })`, `valu.Commerce.openCart()`): they open Valu Social in a tab, and the outcome reaches the app through the Commerce events.
 To simply show the cart, use `Commerce.open-cart`; to send the buyer to one order — to resume a pending payment, or read a receipt — use `Commerce.open-order`.
 
 ### Commerce Events
 
 Your app can react when the cart, an order, the network's shelf or the seller's own store changes.
-Events are **opt-in**: listen for `ValuApi.ON_COMMERCE`, then subscribe to the events you want with `Commerce.subscribe-events`.
+Events are **opt-in**: listen with `valu.onCommerceEvent(handler)`, then subscribe to the events you want with `Commerce.subscribe-events`.
 
 ```javascript
-import { ValuApi, Intent } from "@arkeytyp/valu-api";
+import { Intent } from "@arkeytyp/valu-api";
 
-valuApi.addEventListener(ValuApi.ON_COMMERCE, ({ event, ...data }) => {
+valu.onCommerceEvent(({ event, ...data }) => {
   if (event === 'order-updated') refreshOrder(data.orderId);
   if (event === 'catalogue-updated') refreshShelf();
 });
 
-// Every time the app starts, once connected (ValuApi.API_READY):
-await valuApi.callService(new Intent('Commerce', 'subscribe-events', {
+// After every start and every sign-in (a sign-out or reload ends the subscription):
+await valu.callService(new Intent('Commerce', 'subscribe-events', {
   events: ['catalogue-updated', 'order-updated'],
 }));
 ```
@@ -326,7 +261,7 @@ function callService(applicationId, action, params = {}) {
 ## Handling Application Lifecycle
 
 The `valu-api` package lets your iframe app handle **application lifecycle events**.
-By extending `ValuApplication` and registering it with `ValuApi`, you can respond when your app is created, receives a new intent, or is destroyed.
+By extending `ValuApplication` and registering it on the bridge (`valu.bridge.setApplication(...)`), you can respond when your app is created, receives a new intent, or is destroyed.
 
 This helps you **separate application logic from API wiring** and makes handling incoming intents straightforward.
 
@@ -352,13 +287,13 @@ class MyApp extends ValuApplication {
 }
 ```
 
-### 2. Register Your Application with ValuApi
+### 2. Register Your Application
 
 ```javascript
-import { ValuApi } from '@arkeytyp/valu-api';
+import { createValuApp } from '@arkeytyp/valu-api';
 
-const valuApi = new ValuApi();
-valuApi.setApplication(new MyApp());
+const valu = await createValuApp();
+valu.bridge.setApplication(new MyApp());
 ```
 
 **Lifecycle Methods:**
@@ -375,6 +310,8 @@ valuApi.setApplication(new MyApp());
 
 
 ## Using the System API
+
+> **Inside Valu Social only.** API pointers and console commands belong to the Valu Social application. At the app's own address the host answers them `not_available`, and the permission check refuses every console command. For data, use the service functions above; the examples below take `valuApi = valu.bridge`.
 
 The **System API** allows your iframe app to interact directly with the Valu Social platform and its internal applications.
 It provides a unified way to:
@@ -461,14 +398,16 @@ console.log(reply);
 
 | Mistake | Why it's wrong | Correct approach |
 |---------|---------------|-----------------|
-| `ValuApi.API_READY.then(...)` | `API_READY` is a string, not a Promise | `valuApi.addEventListener(ValuApi.API_READY, callback)` |
-| `valuApi.getApi('users').run(...)` | `getApi()` returns a Promise | `const api = await valuApi.getApi('users')` then `api.run(...)` |
-| `currentUser.name` | Field doesn't exist | Use `currentUser.firstName` and `currentUser.lastName` |
-| `currentUser.avatar` | Field doesn't exist | Use `await usersApi.run('get-icon', { userId: currentUser.id })` |
-| Creating multiple `new ValuApi()` | Causes duplicate connections | Store singleton on `globalThis` |
-| Building your own checkout or payment screen | Apps never take payments — My Cart does | `await valuApi.callService(new Intent('Commerce', 'checkout'))` |
-| Listening for `ValuApi.ON_COMMERCE` without subscribing | Commerce events are opt-in; nothing arrives otherwise | `callService(new Intent('Commerce', 'subscribe-events', { events: [...] }))` |
-| Reading the new state from a Commerce event | Events say what changed, not what it is now | Re-read with the matching intent (`get-cart`, `list-products`, …) |
+| `npm install @arkeytyp/valu-api` | npm still has `1.1.3`, without `createValuApp` | `npm install github:Roomful/valu-api#b951fb7` |
+| `new ValuApi()` + `getApi('users')` in a new app | Works only inside Valu Social; a top-level page gets nothing | `const valu = await createValuApp()` |
+| Calling `valu.auth.signIn()` after an `await` | The browser blocks a popup that is not opened in the click's own turn | Call it first thing in the click handler |
+| Treating `consent_required` as a failure | At the app's own address a consent scope needs the user's yes once | Call from a click (the dialog opens itself), or `valu.auth.requestConsent([scope])` from a click |
+| A scope missing from `valu-permissions.json` | Undeclared scopes are refused `permission_not_declared` in both modes | Add the scope with a `why` |
+| Building a function name at run time (`valu[service][fn]()`) | The publish check cannot read it, and the reviewer will ask | Write the call as a literal |
+| `currentUser.name` from `getApi('users').run('current')` | That older object has `firstName`/`lastName`, no `name` | Use `firstName` and `lastName` |
+| Building your own checkout or payment screen | Apps never take payments — My Cart does | `valu.Commerce.checkout()` (from a click) |
+| Listening for Commerce events without subscribing | Commerce events are opt-in; nothing arrives otherwise | `valu.Commerce.subscribeEvents({ events: [...] })` |
+| Reading the new state from a Commerce event | Events say what changed, not what it is now | Re-read with the matching call (`getCart`, `listProducts`, …) |
 
 ## Sample Project
 
@@ -476,6 +415,8 @@ We've created a sample application integrated with Valu API.
 Check out the repository here and feel free to leave comments or feedback:
 
 [https://github.com/Roomful/ValuSampleApp](https://github.com/Roomful/ValuSampleApp)
+
+For `createValuApp` in both modes (sign-in, consent, Commerce), see [examples/dedicated](examples/dedicated/): one page, no bundler.
 
 ---
 
@@ -548,16 +489,15 @@ waits on a scoped, revocable token ([docs/authorization.md](docs/authorization.m
 functions always run over a connection (yours, the host's or Valu Social's); the
 intents bridge (`ValuApi.callService`) runs intents by name, not functions.
 
-**Anything the Valu Social application serves itself is not a function here** —
-opening a dock, expanding a pane, showing a picker, and anything a *different*
-server answers on a socket this package does not hold (the Commerce catalogue
-and the knowledge-base search, which are the Valu Guru server's). The
-application registers its intents at runtime, so this package declares none of
-them and you ask for one by name instead, over the bridge above
-([Commerce](#commerce) is the worked example):
+**What the Valu Social application serves itself is not a socket function** —
+Commerce, opening a dock or another app, expanding a pane, showing a picker. An
+app still calls the common ones as typed functions on the `createValuApp()`
+object (`valu.Commerce.getCart()`, `valu.Application.expandApplication()`;
+see [Calling Valu](#calling-valu)), which send the intent underneath; anything
+else it asks for by name, over the bridge:
 
 ```javascript
-await api.callService(new Intent('Commerce', 'open-cart'));
+await valu.callService(new Intent('AiGuru', 'open', { applicationId }));
 ```
 
 - [docs/socket-functions.md](docs/socket-functions.md) — every function, the
