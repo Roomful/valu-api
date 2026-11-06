@@ -5,7 +5,7 @@
 The first version 2 on npm (`npm install @arkeytyp/valu-api@^2`). Until now it
 was installed from GitHub by commit (`github:Roomful/valu-api#b951fb7`, the same
 code). From here on, a new version in `package.json` on `main` is a release:
-`.github/workflows/npm.yml` tests it, publishes it and tags the commit. The
+`.github/workflows/npm.yml` tests it, publishes it (npm Trusted Publishing, no token) and tags the commit. The
 package carries only what an app needs (`src`, `types`, `bin`, `manifests`,
 `docs`, the READMEs): 2 MB instead of 25.
 
