@@ -42,7 +42,7 @@ What that costs, concretely:
 
 ## The inventory
 
-63 functions across 11 modules, vendored in
+68 functions across 11 modules, vendored in
 [`scripts/apiPointers.js`](../scripts/apiPointers.js) and re-measured against a
 real checkout by `npm run measure:api-pointers`, which exits non-zero the
 moment the app adds, renames or drops one.
@@ -50,10 +50,10 @@ moment the app adds, renames or drops one.
 | | n |
 |---|---|
 | modules | 11 |
-| functions | 63 |
+| functions | 68 |
 | … a declared SDK function does the same work | 15 |
 | … a declared function is close but not equivalent | 7 |
-| … **no declared intent: the pointer is the only way** | 41 |
+| … **no declared intent: the pointer is the only way** | 46 |
 
 So two thirds of this surface is not reachable through the service SDK at all,
 and that is the answer to "what still relies on API pointers": theming and
@@ -78,7 +78,12 @@ The application dock: what is installed, what is open, and how a pane behaves.
 | `expand` | `applicationId` | Expand an application pane. | ⚠️ close `Application.expand-application` |
 | `hasApplication` | `applicationId` | Whether the dock knows this application at all. | ✅ same `AiGuru.has-application` |
 | `isApplicationLoaded` | `applicationId` | Whether it is loaded right now — a different question. | ✅ same `AiGuru.is-application-loaded` |
-| `getApplications` | `()` | Every application the dock can open, with id, slug and icon. | ✅ same `AiGuru.get-applications` |
+| `getApplications` | `()` | Every application registered for this account on this network — the compiled-in manifest apps, the published Developer Portal catalogue, and the unreleased builds this person may test. Carries what a launcher needs to lay them out: group, hidden, popup, anonymous, iframe, dockComposition, manifestRevision, and the published/testing block saying which build an entry runs. | ✅ same `AiGuru.get-applications` |
+| `getApplicationGroups` | `()` | The sections a launcher lays applications out in, for this network, descending by priority. The catch-all section's id is `null`. | — none |
+| `getApplicationIcon` | `{applicationId, size, scale, colorScheme}` | An application's icon in a form another process can draw: a glyph class comes back rasterised with the platform font, artwork comes back as absolute urls per theme and state, plus a tile gradient. Null when there is nothing to draw. | — none |
+| `getApplicationVersions` | `applicationId` | The versions of a Development Testing entry this person may run, newest first. Empty for every other kind of application. | — none |
+| `selectApplicationVersion` | `{applicationId, tag}` | Run another version of an application under test. False when the app is not under test or the version is out of reach. | — none |
+| `getMobileConfig` | `()` | The session's account, network and dock composition, the document's own origin, the resolved default and auth applications, and the `/.mobile/` index url. | — none |
 | `getApplicationHeader` | `applicationId` | An application's title and a glyph already drawn with the platform font, for a page on another origin that cannot draw a Font Awesome class. | — none |
 | `getSetting` | `key` | Read one platform setting by key. | — none |
 | `navigate` | `{path}` | Navigate the Valu Social router. | — none |
@@ -91,6 +96,11 @@ The application dock: what is installed, what is open, and how a pane behaves.
 
 - `close` — The declared `Application.close-application` closes the CALLER; this closes whichever id you name.
 - `expand` — The declared intent expands the caller and takes no id.
+- `getApplications` — A native shell reads this INSTEAD of the build-time `/.mobile/<network>.manifest.json`, which is one file per deployment and therefore carries neither dynamic kind. `applications-updated` re-announces the list whenever it is rebuilt.
+- `getApplicationGroups` — Not to be tabled caller-side: networks add their own sections, and one that DROPS `develop_testing` has opted out of showing unreleased builds.
+- `getApplicationIcon` — Wider than `getApplicationHeader`, which answers the title and one glyph. Manifest artwork is written relative to the web origin, so a caller on another origin cannot resolve it itself.
+- `selectApplicationVersion` — The reachability check stays in the app's DeveloperPortalStore, so a caller cannot reach a build its user has no claim to. A successful switch republishes the registry.
+- `getMobileConfig` — The index url is built from the document origin, replacing the host a native shell used to carry. userId and networkId are the cache key for a resolved registry.
 - `navigate` — `api.pushRoute(path)` / `api.replaceRoute(path)` do this over `api:run-command`, which is a bridge command rather than a declared intent.
 - `run` — `api.sendIntent(intent)` is the typed form, over `api:run-intent`.
 
@@ -267,8 +277,8 @@ Whether a call is running.
 `dialog` is declared **twice**: once above, and again by
 [`src/Services/UnityDialog/UnityDialogApi.js`](https://github.com/Roomful/valusocial-web/blob/develop/src/Services/UnityDialog/UnityDialogApi.js) with the same 2 functions (`open`, `close`).
 `APIBridge.createAPi` throws on a duplicate module name, so at most one of the
-two is ever live; the tables above count the pair once. 65 registrations,
-63 distinct functions.
+two is ever live; the tables above count the pair once. 70 registrations,
+68 distinct functions.
 
 An **alias** collides silently instead — `registerAlias` just overwrites the
 entry, so the last module to register the name owns it:
@@ -287,7 +297,7 @@ Prefer the module's own name over an alias for exactly this reason.
   socket; `ValuApi.callService(intent)` sends `api:service-intent`.
 - There is no plan in Phases 1–2 to wrap them. A pointer function that deserves
   to be callable from an agent should be **declared as an intent** and
-  implemented here; the 41 above are the candidate list.
+  implemented here; the 46 above are the candidate list.
 
 ## Application intents: the other thing the bridge carries
 
