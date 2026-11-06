@@ -1257,6 +1257,16 @@ const bridgeReplacements = {};
       : (d.params.required.length || d.params.optional.length) ? '{...}' : '';
     return `valu.${d.service}.${d.method}(${args})`;
   };
+  // An alias two modules both claim is ambiguous: it gets no entry. The
+  // canonical module names always do.
+  const claims = new Map();
+  for (const m of API_POINTER_MODULES) {
+    for (const alias of [...m.aliases, ...Object.entries(API_ALIASES).filter(([, to]) => to === m.module).map(([a]) => a)]) {
+      if (!claims.has(alias)) claims.set(alias, new Set());
+      claims.get(alias).add(m.module);
+    }
+  }
+  const aliasesOf = (module) => [...claims].filter(([, mods]) => mods.size === 1 && mods.has(module)).map(([a]) => a);
   const byKey = new Map([...descriptors, ...intentDescriptors].map((d) => [d.key, d]));
   const set = (kind, name, value) => { bridgeReplacements[`${kind} ${name}`] = value; };
   for (const f of API_POINTER_FUNCTIONS) {
@@ -1267,11 +1277,9 @@ const bridgeReplacements = {};
     else if (f.sdk) {
       const d = byKey.get(f.sdk);
       if (!d) throw new Error(`apiPointers.js: ${f.module}.${f.fn} names ${f.sdk}, which is not in the catalogue`);
-      value = typedCall(d);
+      value = typedCall(d) + (f.via === 'close' ? ' (similar, not the same)' : '');
     } else continue;
-    const mod = API_POINTER_MODULES.find((m) => m.module === f.module);
-    const names = new Set([f.module, ...mod.aliases,
-      ...Object.entries(API_ALIASES).filter(([, to]) => to === f.module).map(([alias]) => alias)]);
+    const names = [f.module, ...aliasesOf(f.module)];
     for (const name of names) {
       set('pointer-run', `${name}.${f.fn}`, value);
       set('run-console', `${name}.${f.fn}`, value);

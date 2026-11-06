@@ -30,6 +30,20 @@ test('console, intents, routes, direct', () => {
   assert.equal(bridgeReplacement('run-intent', 'toString'), null);
 });
 
+test('a call that is only similar says so', () => {
+  assert.ok(bridgeReplacement('pointer-run', 'users.getFollowersCount').endsWith(' (similar, not the same)'));
+  assert.ok(bridgeReplacement('run-console', 'users.getFollowersCount').endsWith(' (similar, not the same)'));
+  assert.ok(!bridgeReplacement('pointer-run', 'app.isApplicationLoaded').includes('similar'));
+});
+
+test('an alias two modules share has no entry; canonical names do', () => {
+  // `chat` is claimed by text-chat and auth.
+  assert.equal(bridgeReplacement('pointer-run', 'chat.getChannel'), null);
+  assert.equal(bridgeReplacement('pointer-run', 'chat.logout'), null);
+  assert.ok(!Object.keys(BRIDGE_REPLACEMENTS).some((k) => /^(pointer-run|run-console) chat\./.test(k)));
+  assert.equal(bridgeReplacement('pointer-run', 'users.current'), 'valu.Users.current()');
+});
+
 test('every valu.* value names a function the package has', () => {
   for (const [key, value] of Object.entries(BRIDGE_REPLACEMENTS)) {
     if (key.startsWith('direct ') || value.startsWith('valu.route.')) continue;
