@@ -17,6 +17,19 @@
     "typecheck": "tsc --noEmit --strict --skipLibCheck types/valu-api.d.ts types/valu-services.d.ts && tsc -p test/types/consumer"
   },
   "types": "./types/valu-api.d.ts",
+  "files": [
+    "src",
+    "types",
+    "bin",
+    "manifests",
+    "docs",
+    "!docs/superpowers",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "valu-app-api.md",
+    "valu-routing.md"
+  ],
   "exports": {
     ".": {
       "types": "./types/valu-api.d.ts",
@@ -38,6 +51,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/arkeytyp/valu-api.git"
+    "url": "https://github.com/Roomful/valu-api.git"
   }
 }

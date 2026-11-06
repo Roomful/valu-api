@@ -1,28 +1,84 @@
 name: Publish to npm
 
-# Controls when the action will run.  
-# In this case I'm saying on each release event when it's specifically a new release publish, the types: [published] is required here, 
-# since releases could also be updated or deleted, we only want to publish to npm when a new release is created (published).
+# A release is a version in package.json that npm does not have yet. When a
+# push to main brings one, this tests the package, publishes it and tags the
+# commit with a GitHub release of the same name (no `v`, as 1.1.3 was).
+# Pushing main without changing the version publishes nothing.
+#
+# Run it by hand (workflow_dispatch) to check the npm token and what would be
+# packed; it publishes only when `dry_run` is off and the version is new.
+
 on:
-  release:
-    types: [published, edited]
+  push:
+    branches: [main]
+    paths: [package.json]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Check the token and the package, publish nothing
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
-    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-    - uses: actions/checkout@v2
-    #Install Node.js, with the version 12 and using the registry URL of npm, this could be changed to a custom registry or the GitHub registry.
-    - uses: actions/setup-node@v1
-      with:
-        node-version: 12
-        registry-url: https://registry.npmjs.org/
+      - uses: actions/checkout@v4
 
-    # Command to install the package dependencies
-    # - run: yarn install
-      
-    # Publish to npm
-    - run: npm publish --access public
-      env:
-        NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org/
+
+      - name: Which version
+        id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if npm view "@arkeytyp/valu-api@$version" version > /dev/null 2>&1; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            echo "$version is on npm already: nothing to publish."
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+            echo "$version is not on npm yet."
+          fi
+
+      - name: Decide
+        id: decide
+        run: |
+          if [ "${{ steps.version.outputs.new }}" = "true" ] && { [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.dry_run }}" = "false" ]; }; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test
+        if: steps.decide.outputs.publish == 'true' || github.event_name == 'workflow_dispatch'
+        run: npm test
+
+      - name: The npm token
+        if: steps.decide.outputs.publish == 'true' || github.event_name == 'workflow_dispatch'
+        run: npm whoami
+
+      - name: What would be packed
+        if: steps.decide.outputs.publish == 'true' || github.event_name == 'workflow_dispatch'
+        run: npm pack --dry-run
+
+      - name: Publish
+        if: steps.decide.outputs.publish == 'true'
+        run: npm publish --access public
+
+      - name: Tag it
+        if: steps.decide.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ steps.version.outputs.version }}" --target "$GITHUB_SHA" --title "${{ steps.version.outputs.version }}" --generate-notes

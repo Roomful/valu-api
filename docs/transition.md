@@ -293,6 +293,8 @@ longer here.)
 
 ## Do we need a release?
 
+*Released 2026-11-06 as `2.0.0` on npm; see CHANGELOG.md. What follows is the case as it was made.*
+
 **No — and yes.** Nothing is blocked on one, and one should still happen.
 
 A consumer can depend on a **commit** (`github:Roomful/valu-api#<sha>`), which
