@@ -3,7 +3,6 @@
 // older postMessage bridge. Keys are "<kind> <name>".
 export const BRIDGE_REPLACEMENTS = Object.freeze({
   "direct api:create-pointer": "the valu.* function for each API call",
-  "direct api:ready": "createValuApp()",
   "direct api:run-intent": "the valu.* function for each intent",
   "direct api:service-intent": "the valu.* function for each service intent",
   "pointer-run app.expand": "valu.Application.expandApplication() (similar, not the same)",

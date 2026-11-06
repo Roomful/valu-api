@@ -328,8 +328,27 @@ test('callService with an intent is service-intent-other', () => {
   assert.deepEqual([...r.findings, ...r.bridge].map((f) => [f.message, f.name]), [['service-intent-other', 'textchat.open-channel']]);
 });
 test('direct postMessage to the parent is bridge use', () => {
-  const r = scan("window.parent.postMessage({type: 'api:run-intent', applicationId: 'x'}, '*');\ntop.postMessage({type:'api:ready'}, '*');");
-  assert.deepEqual(r.bridge.map((f) => [f.message, f.name, f.call, f.line]), [['direct','api:run-intent','postMessage api:run-intent',1],['direct','api:ready','postMessage api:ready',2]]);
+  const r = scan("window.parent.postMessage({name: 'api:run-intent', message: {}}, '*');\nwindow.top?.postMessage({ \"name\": \"api:service-intent\", message }, '*');\nopener.postMessage({message: x, name:`api:create-pointer`}, origin);");
+  assert.deepEqual(r.bridge.map((f) => [f.message, f.name, f.call, f.line]), [
+    ['direct','api:run-intent','postMessage api:run-intent',1],
+    ['direct','api:service-intent','postMessage api:service-intent',2],
+    ['direct','api:create-pointer','postMessage api:create-pointer',3],
+  ]);
+});
+test('one direct finding for the bridge wire format', () => {
+  const r = scan("window.parent.postMessage({name:'api:run-intent', message:{}}, '*');");
+  assert.deepEqual(r.bridge.map((f) => [f.message, f.name, f.call]), [['direct', 'api:run-intent', 'postMessage api:run-intent']]);
+});
+test('direct detection needs the parent window and the name form', () => {
+  assert.deepEqual(scan("worker.postMessage({name:'api:run-intent'});").bridge, []);
+  assert.deepEqual(scan("frame.contentWindow.postMessage({name:'api:run-intent'}, '*');").bridge, []);
+  assert.deepEqual(scan("x.parent.postMessage({name:'api:run-intent'}, '*');").bridge, []);
+  assert.deepEqual(scan("window.parent.postMessage({type:'api:run-intent'}, '*');").bridge, []);
+  assert.deepEqual(scan("parent.postMessage({name:'api:ready'}, '*');").bridge, []);
+  assert.deepEqual(scan("parent.postMessage({name:'api:call', message: {}}, '*');").bridge, []);
+  assert.deepEqual(scan("parent.postMessage({kind: 'x', note: 'api:run-intent'}, '*');").bridge, []);
+  assert.deepEqual(scan("parent.postMessage({message: {name: 'api:run-intent'}}, '*');").bridge, []);
+  assert.deepEqual(scan("parent.postMessage(data, '*'); const n = 'api:run-intent';").bridge, []);
 });
 test('postMessage of something else is not bridge use', () => {
   assert.deepEqual(scan("window.parent.postMessage({type: 'resize', h: 3}, '*');").bridge, []);

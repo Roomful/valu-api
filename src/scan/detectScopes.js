@@ -92,7 +92,9 @@ const LITERAL_PATTERNS = {
   intent: new RegExp(String.raw`\bIntent\s*\(\s*${lit(1)}\s*,\s*${lit(3)}`, 'g'),
   getApi: new RegExp(String.raw`\bgetApi\s*\(\s*${lit(1)}\s*\)(\s*\.\s*run\s*\(\s*(?:${lit(4)})?)?`, 'g'),
   console: new RegExp(String.raw`\brunConsoleCommand\s*\(\s*(?:${lit(1)})?`, 'g'),
-  postMessage: /\bpostMessage\s*\(/g,
+  // `window.parent.postMessage(`, `parent?.postMessage(`, `top.`, `opener.`: a message to the
+  // window that embeds or opened this one. Never `worker.postMessage(` or `x.parent.postMessage(`.
+  postMessage: /(?<![\w$.])(?:window\s*(?:\?\.|\.)\s*)?(?:parent|top|opener)\s*(?:\?\.|\.)\s*postMessage\s*(?:\?\.\s*)?\(/g,
   asked: /(?:\brequestConsent\s*\(\s*|\bsignIn\s*\(\s*\{[^}]*?\bscopes\s*:\s*)\[([^\]]*)\]/g,
 };
 
@@ -438,8 +440,35 @@ function callText(text, open) {
   return text.slice(open);
 }
 
-const DIRECT_NAMES = /(['"`])(api:(?:ready|run-intent|service-intent|create-pointer))\1/;
-const DIRECT_TYPE = /\btype\s*['"`]?\s*:\s*(['"`])(api:[\w-]+)\1/;
+/** The old bridge's messages an app sends to its parent (`api:ready` is the host's, never an app's). */
+const DIRECT_NAME = /(?:^|[{,\s])(['"`]?)name\1\s*:\s*(['"`])(api:(?:run-intent|service-intent|create-pointer))\2/;
+
+/**
+ * The top level of the object literal that is the first argument of the call whose text (from
+ * its `(`) is `text`, nested objects, arrays and calls blanked; null when that argument is not one.
+ */
+function firstObjectArg(text) {
+  let i = 1;
+  while (i < text.length && /\s/.test(text[i])) i++;
+  if (text[i] !== '{') return null;
+  let depth = 0;
+  let out = '';
+  for (; i < text.length; i++) {
+    const c = text[i];
+    if (c === "'" || c === '"' || c === '`') {
+      const start = i;
+      for (i++; i < text.length && text[i] !== c && text[i] !== '\n'; i++) if (text[i] === '\\') i++;
+      if (depth === 1) out += text.slice(start, i + 1);
+      continue;
+    }
+    if (c === '{' || c === '[' || c === '(') {
+      if (++depth === 1) out += c;
+    } else if (c === '}' || c === ']' || c === ')') {
+      if (--depth === 0) return out + c;
+    } else if (depth === 1) out += c;
+  }
+  return null;
+}
 
 /** One file's raw findings, before de-duplication and the caps. */
 function scanFile(lexed) {
@@ -559,10 +588,11 @@ function scanFile(lexed) {
     bridge.push({ scope: null, call: m[1], kind: 'bridge', file: path, line: at(m.index), message: 'run-command', name: m[1] });
   }
 
-  // `parent.postMessage({type: 'api:run-intent', …}, '*')`: the bridge spoken to directly.
+  // `window.parent.postMessage({name: 'api:run-intent', message}, '*')`: the bridge spoken to
+  // directly, in its own wire format (`{name, message}`).
   for (const m of literalMatches(LITERAL_PATTERNS.postMessage)) {
-    const text = callText(literal, m.index + m[0].length - 1);
-    const name = (DIRECT_TYPE.exec(text) ?? DIRECT_NAMES.exec(text))?.[2];
+    const object = firstObjectArg(callText(literal, m.index + m[0].length - 1));
+    const name = object && DIRECT_NAME.exec(object)?.[3];
     if (name) bridge.push({ scope: null, call: `postMessage ${name}`, kind: 'bridge', file: path, line: at(m.index), message: 'direct', name });
   }
 

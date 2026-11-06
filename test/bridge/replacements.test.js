@@ -25,7 +25,11 @@ test('console, intents, routes, direct', () => {
   assert.equal(bridgeReplacement('service-intent-other', 'textchat.open-channel'), 'valu.Chats.openChannel({...})');
   assert.equal(bridgeReplacement('run-command', 'pushRoute'), 'valu.route.push(path)');
   assert.equal(bridgeReplacement('run-command', 'replaceRoute'), 'valu.route.replace(path)');
-  assert.equal(bridgeReplacement('direct', 'api:ready'), 'createValuApp()');
+  assert.equal(bridgeReplacement('direct', 'api:run-intent'), 'the valu.* function for each intent');
+  assert.equal(bridgeReplacement('direct', 'api:service-intent'), 'the valu.* function for each service intent');
+  assert.equal(bridgeReplacement('direct', 'api:create-pointer'), 'the valu.* function for each API call');
+  // `api:ready` is the host's message to the frame, never an app's: no entry.
+  assert.equal(bridgeReplacement('direct', 'api:ready'), null);
   assert.equal(bridgeReplacement('run-intent', 'nope.nothing'), null);
   assert.equal(bridgeReplacement('run-intent', 'toString'), null);
 });

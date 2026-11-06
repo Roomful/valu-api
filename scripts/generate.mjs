@@ -1291,7 +1291,6 @@ const bridgeReplacements = {};
   }
   set('run-command', ROUTE_COMMANDS.push, 'valu.route.push(path)');
   set('run-command', ROUTE_COMMANDS.replace, 'valu.route.replace(path)');
-  set('direct', 'api:ready', 'createValuApp()');
   set('direct', 'api:run-intent', 'the valu.* function for each intent');
   set('direct', 'api:service-intent', 'the valu.* function for each service intent');
   set('direct', 'api:create-pointer', 'the valu.* function for each API call');

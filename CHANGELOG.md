@@ -9,7 +9,8 @@
 - **Old bridge → typed function table.** `BRIDGE_REPLACEMENTS` / `bridgeReplacement(kind, name)`
   name the typed function that replaces each call an app makes over the older
   postMessage bridge (`api:run` pointer calls and their aliases, `run-intent`,
-  service intents, `pushRoute` / `replaceRoute`, the direct `api:*` messages):
+  service intents, `pushRoute` / `replaceRoute`, and `api:run-intent` / `api:service-intent` /
+  `api:create-pointer` posted straight to the parent window):
   `bridgeReplacement('pointer-run', 'users.current')` is `valu.Users.current()`.
   Generated from the catalogue; exported from the package root and from
   `@arkeytyp/valu-api/src/scan/index.js`.
