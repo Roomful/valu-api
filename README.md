@@ -10,12 +10,13 @@ One entry point covers both: `createValuApp()`.
 
 ## Installation
 
-Version 2 is not on npm yet: `npm install @arkeytyp/valu-api` still installs `1.1.3`, which predates everything below.
-Install it from GitHub, pinned to a commit (the repository is public, so no token is needed):
-
 ```bash
-npm install github:Roomful/valu-api#b951fb7
+npm install @arkeytyp/valu-api@^2
 ```
+
+A page with no build step imports the same version as an ES module:
+`https://cdn.jsdelivr.net/npm/@arkeytyp/valu-api@2/src/ValuApi.js`.
+Version 1 (`1.1.3` and older) has no `createValuApp` and none of what follows.
 
 ## Quick Start
 
@@ -398,7 +399,7 @@ console.log(reply);
 
 | Mistake | Why it's wrong | Correct approach |
 |---------|---------------|-----------------|
-| `npm install @arkeytyp/valu-api` | npm still has `1.1.3`, without `createValuApp` | `npm install github:Roomful/valu-api#b951fb7` |
+| `npm install @arkeytyp/valu-api@1` (or an old lockfile) | Version 1 has no `createValuApp` | `npm install @arkeytyp/valu-api@^2` |
 | `new ValuApi()` + `getApi('users')` in a new app | Works only inside Valu Social; a top-level page gets nothing | `const valu = await createValuApp()` |
 | Calling `valu.auth.signIn()` after an `await` | The browser blocks a popup that is not opened in the click's own turn | Call it first thing in the click handler |
 | Treating `consent_required` as a failure | At the app's own address a consent scope needs the user's yes once | Call from a click (the dialog opens itself), or `valu.auth.requestConsent([scope])` from a click |
