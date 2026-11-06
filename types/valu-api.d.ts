@@ -1434,6 +1434,11 @@ declare module '@arkeytyp/valu-api' {
     export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>>;
     export function describeScope(scope: string): string | null;
 
+    /** The typed call (`valu.Users.current()`) that replaces an old bridge call, or null when none does. Kinds: `pointer-run`, `run-console`, `run-intent`, `service-intent-other`, `run-command`, `direct`. */
+    export function bridgeReplacement(kind: string, name: string): string | null;
+    /** Every old bridge call and its typed replacement, keyed `"<kind> <name>"`. */
+    export const BRIDGE_REPLACEMENTS: Readonly<Record<string, string>>;
+
 }
 
 /** The frame server by path (`package.json` maps `./src/*`), for a bundle that imports only what it mounts. */

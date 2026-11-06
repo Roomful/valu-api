@@ -87,6 +87,8 @@ export {
   detectScopes, parsePermissionsFile, comparePermissions, declaredScopes, SCOPE_PATTERN, WHY_MAX,
   SCOPE_DESCRIPTIONS, describeScope,
 } from "./scan/index.js";
+// The typed function that replaces each call of the older postMessage bridge.
+export { BRIDGE_REPLACEMENTS, bridgeReplacement } from "./bridge/replacements.js";
 
 
 /**

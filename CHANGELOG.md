@@ -4,6 +4,13 @@
 
 ### Added
 
+- **Old bridge → typed function table.** `BRIDGE_REPLACEMENTS` / `bridgeReplacement(kind, name)`
+  name the typed function that replaces each call an app makes over the older
+  postMessage bridge (`api:run` pointer calls and their aliases, `run-intent`,
+  service intents, `pushRoute` / `replaceRoute`, the direct `api:*` messages):
+  `bridgeReplacement('pointer-run', 'users.current')` is `valu.Users.current()`.
+  Generated from the catalogue; exported from the package root and from
+  `@arkeytyp/valu-api/src/scan/index.js`.
 - **Typed app intents.** Every intent an app may send to Valu Social's own apps
   is a function on the `createValuApp()` object, on a namespace named by the
   app's title, or on the service of the same name: `valu.Chats.openChannel({ userId })`,

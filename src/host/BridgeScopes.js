@@ -104,7 +104,7 @@ const APP_INTENT_SCOPE = byScope({
 });
 
 /** The aliases the bridge registers an API under, to its one name. `chat` is text chat's (the auth API's alias is never asked for). */
-const API_ALIASES = Object.freeze({ u: 'users', v: 'videochat', d: 'dialog', chat: 'text-chat' });
+export const API_ALIASES = Object.freeze({ u: 'users', v: 'videochat', d: 'dialog', chat: 'text-chat' });
 
 /** API pointer commands (`getApi(api).run(command)`) by `api.command`, the command in camelCase. */
 const API_COMMAND_SCOPE = byScope({
