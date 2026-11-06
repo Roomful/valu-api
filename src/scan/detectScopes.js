@@ -81,6 +81,7 @@ const CODE_PATTERNS = {
   intentAny: /\bnew\s+Intent\s*\(/g,
   getApiDynamic: /\bgetApi\s*\(\s*(?!['"`])/g,
   computed: new RegExp(String.raw`${VALU}(?:${DOT}[\w$]+)*\s*(?:\?\.)?\[`, 'g'),
+  valuRoute: new RegExp(String.raw`${VALU}${DOT}(pushRoute|replaceRoute)\s*\(`, 'g'),
   askedDynamic: /(?:\brequestConsent\s*\(\s*(?![[\s)])|\bsignIn\s*\(\s*\{[^}]*?\bscopes\s*:\s*(?![[\s]))/g,
 };
 
@@ -91,6 +92,7 @@ const LITERAL_PATTERNS = {
   intent: new RegExp(String.raw`\bIntent\s*\(\s*${lit(1)}\s*,\s*${lit(3)}`, 'g'),
   getApi: new RegExp(String.raw`\bgetApi\s*\(\s*${lit(1)}\s*\)(\s*\.\s*run\s*\(\s*(?:${lit(4)})?)?`, 'g'),
   console: new RegExp(String.raw`\brunConsoleCommand\s*\(\s*(?:${lit(1)})?`, 'g'),
+  postMessage: /\bpostMessage\s*\(/g,
   asked: /(?:\brequestConsent\s*\(\s*|\bsignIn\s*\(\s*\{[^}]*?\bscopes\s*:\s*)\[([^\]]*)\]/g,
 };
 
@@ -279,8 +281,10 @@ function lineOf(starts, offset) {
 }
 
 /**
- * @typedef {{scope: string|null, call: string, kind: 'function'|'intent'|'asked'|'bridge', file: string, line: number, via?: string}} Finding
+ * @typedef {{scope: string|null, call: string, kind: 'function'|'intent'|'asked'|'bridge', file: string, line: number, via?: string, message?: string, name?: string}} Finding
  *   `via`: the helper the call was read through (`commerce`), when it was.
+ *   `message`, `name`: on every `bridge` finding, the kind and name the runtime
+ *   counter records the same call under (`run-intent` `textchat.open-channel`).
  * @typedef {{file: string, line: number, text: string}} Unresolved
  * @typedef {{scopes: string[], findings: Finding[], bridge: Finding[], unresolved: Unresolved[], truncated: boolean}} ScopeScan
  */
@@ -407,6 +411,36 @@ function lexFile(path, original) {
   };
 }
 
+/**
+ * The counter's kind for a `new Intent(…)` at `offset` (the `new`): `service-intent-other` when
+ * it is the argument of `callService(`, otherwise `run-intent` (`sendIntent`, or not seen).
+ */
+function intentMessage(code, offset) {
+  return /\bcallService\s*\(\s*$/.test(code.slice(Math.max(0, offset - 40), offset)) ? 'service-intent-other' : 'run-intent';
+}
+
+/** The counter's name for a console command: its first word, and its second unless that is a flag. */
+function consoleName(command) {
+  const [api, fn] = command.trim().split(/\s+/);
+  return [api, fn && !fn.startsWith('-') ? fn : ''].filter(Boolean).join('.');
+}
+
+/** The text of the call whose `(` is at `open`, up to its matching `)` (strings skipped). */
+function callText(text, open) {
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    const c = text[i];
+    if (c === "'" || c === '"' || c === '`') {
+      for (i++; i < text.length && text[i] !== c && text[i] !== '\n'; i++) if (text[i] === '\\') i++;
+    } else if (c === '(') depth++;
+    else if (c === ')' && --depth === 0) return text.slice(open, i + 1);
+  }
+  return text.slice(open);
+}
+
+const DIRECT_NAMES = /(['"`])(api:(?:ready|run-intent|service-intent|create-pointer))\1/;
+const DIRECT_TYPE = /\btype\s*['"`]?\s*:\s*(['"`])(api:[\w-]+)\1/;
+
 /** One file's raw findings, before de-duplication and the caps. */
 function scanFile(lexed) {
   const { path, literal, code, inLiteral, starts, originalLines, headers } = lexed;
@@ -425,11 +459,11 @@ function scanFile(lexed) {
    * whose parameters carry them; unreadable otherwise. The helper's own line
    * stays listed as unreadable until a call site of it is read.
    */
-  const dynamic = (kind, open, wanted) => {
+  const dynamic = (kind, open, wanted, message) => {
     const header = enclosingHeader(headers, open);
     const slots = header ? helperSlots(header, readArgs(lexed, open), wanted) : null;
     if (!slots) return unread(open);
-    const helper = { name: header.name, kind, slots, file: path, offset: open, header };
+    const helper = { name: header.name, kind, slots, file: path, offset: open, header, message };
     helpers.push(helper);
     return unread(open, helper);
   };
@@ -459,7 +493,7 @@ function scanFile(lexed) {
       const descriptor = appIntentDescriptor(appId, action);
       const call = `${appId}.${action}`;
       if (descriptor) findings.push({ scope: descriptor.scopes[0], call, kind: 'intent', file: path, line: at(m.index) });
-      else bridge.push({ scope: null, call, kind: 'bridge', file: path, line: at(m.index) });
+      else bridge.push({ scope: null, call, kind: 'bridge', file: path, line: at(m.index), message: 'run-intent', name: call });
       continue;
     }
     const descriptor = BY_MEMBER.get(m[1])?.get(m[2]);
@@ -494,20 +528,22 @@ function scanFile(lexed) {
     // Not the host's: an intent of Valu Social's older bridge, a service's or
     // an application's. Its scope is what Valu Social will check it against.
     const bridged = scopeOfServiceIntent(service, action) ?? scopeOfAppIntent(service, action);
-    if (bridged) findings.push({ scope: bridged, call: `${service}.${action}`, kind: 'bridge', file: path, line: at(m.index) });
-    else bridge.push({ scope: null, call: `${service}.${action}`, kind: 'bridge', file: path, line: at(m.index) });
+    const call = `${service}.${action}`;
+    const message = intentMessage(code, code.lastIndexOf('new', m.index));
+    const finding = { scope: bridged, call, kind: 'bridge', file: path, line: at(m.index), message, name: call };
+    (bridged ? findings : bridge).push(finding);
   }
   for (const m of matches(CODE_PATTERNS.intentAny, code)) {
     // `new Intent(` whose two names were not both literals.
-    if (!intentsRead.has(m.index + m[0].indexOf('Intent'))) dynamic('intent', m.index + m[0].length - 1, 2);
+    if (!intentsRead.has(m.index + m[0].indexOf('Intent'))) dynamic('intent', m.index + m[0].length - 1, 2, intentMessage(code, m.index));
   }
 
   for (const m of literalMatches(LITERAL_PATTERNS.getApi)) {
     const api = m[2];
-    if (!m[3]) bridge.push({ scope: null, call: api, kind: 'bridge', file: path, line: at(m.index) });
+    if (!m[3]) bridge.push({ scope: null, call: api, kind: 'bridge', file: path, line: at(m.index), message: 'pointer-run', name: api });
     else if (m[4]) {
       const scope = scopeOfApiCommand(api, m[5]);
-      const finding = { scope, call: `${api}.${m[5]}`, kind: 'bridge', file: path, line: at(m.index) };
+      const finding = { scope, call: `${api}.${m[5]}`, kind: 'bridge', file: path, line: at(m.index), message: 'pointer-run', name: `${api}.${m[5]}` };
       (scope ? findings : bridge).push(finding);
     }
     else unread(m.index);
@@ -515,8 +551,19 @@ function scanFile(lexed) {
   for (const m of matches(CODE_PATTERNS.getApiDynamic, code)) unread(m.index);
 
   for (const m of literalMatches(LITERAL_PATTERNS.console)) {
-    if (m[1]) bridge.push({ scope: null, call: `console:${m[2]}`, kind: 'bridge', file: path, line: at(m.index) });
+    if (m[1]) bridge.push({ scope: null, call: `console:${m[2]}`, kind: 'bridge', file: path, line: at(m.index), message: 'run-console', name: consoleName(m[2]) });
     else unread(m.index);
+  }
+
+  for (const m of matches(CODE_PATTERNS.valuRoute, code)) {
+    bridge.push({ scope: null, call: m[1], kind: 'bridge', file: path, line: at(m.index), message: 'run-command', name: m[1] });
+  }
+
+  // `parent.postMessage({type: 'api:run-intent', …}, '*')`: the bridge spoken to directly.
+  for (const m of literalMatches(LITERAL_PATTERNS.postMessage)) {
+    const text = callText(literal, m.index + m[0].length - 1);
+    const name = (DIRECT_TYPE.exec(text) ?? DIRECT_NAMES.exec(text))?.[2];
+    if (name) bridge.push({ scope: null, call: `postMessage ${name}`, kind: 'bridge', file: path, line: at(m.index), message: 'direct', name });
   }
 
   for (const m of literalMatches(LITERAL_PATTERNS.asked)) {
@@ -537,14 +584,14 @@ function scanFile(lexed) {
  * The finding for an intent named at a call site: a catalogue function's scope,
  * the host's own intents', or the older bridge's; a bridge call with no scope.
  */
-function intentFinding(service, action, file, line, via) {
+function intentFinding(service, action, file, line, via, message = 'run-intent') {
   const descriptor = findDescriptor(`${service}.${action}`);
   const scope = descriptor
     ? descriptor.scopes[0]
     : scopeOfIntent(INTENT_SERVICES[service.toLowerCase()] ?? service, action);
   if (scope) return { scope, call: `${service}.${action}`, kind: 'intent', file, line, via };
   const bridged = scopeOfServiceIntent(service, action) ?? scopeOfAppIntent(service, action);
-  return { scope: bridged, call: `${service}.${action}`, kind: 'bridge', file, line, via };
+  return { scope: bridged, call: `${service}.${action}`, kind: 'bridge', file, line, via, message, name: `${service}.${action}` };
 }
 
 /**
@@ -623,7 +670,7 @@ function followHelpers(lexedFiles, scanned) {
             else unresolved.push({ file: path, line, text: (originalLines[line - 1] ?? '').trim().slice(0, LINE_TEXT_MAX) });
             continue;
           }
-          const found = intentFinding(names[0], names[1], path, line, helper.name);
+          const found = intentFinding(names[0], names[1], path, line, helper.name, helper.message);
           (found.scope ? findings : bridge).push(found);
         }
       }

@@ -13,6 +13,10 @@ export interface ScopeFinding {
   line: number;
   /** The helper the call was read through (`commerce`), when it was. */
   via?: string;
+  /** On every `bridge` finding: the kind the runtime counter records the same call under. */
+  message?: 'run-intent' | 'service-intent-other' | 'pointer-run' | 'run-console' | 'run-command' | 'direct';
+  /** On every `bridge` finding: the counter's name for it (`textchat.open-channel`, `api:ready`). */
+  name?: string;
 }
 
 export interface UnresolvedCall {

@@ -54,12 +54,12 @@ test('intents: Commerce, the identity token, the older bridge\'s, and one with n
   assert.equal(only(scan("new Intent('commerce', 'get-cart')")).scope, 'commerce:read');
   // Valu Social checks the older bridge's intents too, so they need their scopes (BridgeScopes.js).
   assert.deepEqual(only(scan("new Intent('textchat', 'open-channel', {userId})")), {
-    scope: 'ui:open', call: 'textchat.open-channel', kind: 'bridge', file: 'src/app.ts', line: 1,
+    scope: 'ui:open', call: 'textchat.open-channel', kind: 'bridge', file: 'src/app.ts', line: 1, message: 'run-intent', name: 'textchat.open-channel',
   });
   assert.equal(only(scan("new Intent('RoomZones', 'claim-zone')")).scope, 'rooms:write');
   const result = scan("new Intent('auth', 'logout')");
   assert.deepEqual(result.findings, []);
-  assert.deepEqual(result.bridge, [{ scope: null, call: 'auth.logout', kind: 'bridge', file: 'src/app.ts', line: 1 }]);
+  assert.deepEqual(result.bridge, [{ scope: null, call: 'auth.logout', kind: 'bridge', file: 'src/app.ts', line: 1, message: 'run-intent', name: 'auth.logout' }]);
 });
 
 test('an intent that names a catalogue function needs that function\'s scope', () => {
@@ -316,4 +316,21 @@ test('valu.Apps.open / send read a literal app id and action, and flag a dynamic
 test("new Intent('rooms', 'show-room') is still the bridge's application intent, never the folded function's name", () => {
   assert.deepEqual(only(scan("api.sendIntent(new Intent('rooms', 'show-room', { roomId }))")).kind, 'bridge');
   assert.deepEqual(scan("api.callService(new Intent('Rooms', 'show-room'))").bridge.map((f) => f.call), ['Rooms.show-room']);
+});
+
+test('bridge findings carry the counter kind and name', () => {
+  const r = scan("valuApi.sendIntent(new Intent('textchat','open-channel'));\nawait valuApi.getApi('users').run('current');\nvaluApi.runConsoleCommand('users current');\nvaluApi.pushRoute('/a');");
+  const all = [...r.findings, ...r.bridge].filter((f) => f.kind === 'bridge').map((f) => [f.message, f.name, f.line]);
+  assert.deepEqual(all.sort(), [['pointer-run','users.current',2],['run-command','pushRoute',4],['run-console','users.current',3],['run-intent','textchat.open-channel',1]].sort());
+});
+test('callService with an intent is service-intent-other', () => {
+  const r = scan("valuApi.callService(new Intent('textchat','open-channel'));");
+  assert.deepEqual([...r.findings, ...r.bridge].map((f) => [f.message, f.name]), [['service-intent-other', 'textchat.open-channel']]);
+});
+test('direct postMessage to the parent is bridge use', () => {
+  const r = scan("window.parent.postMessage({type: 'api:run-intent', applicationId: 'x'}, '*');\ntop.postMessage({type:'api:ready'}, '*');");
+  assert.deepEqual(r.bridge.map((f) => [f.message, f.name, f.call, f.line]), [['direct','api:run-intent','postMessage api:run-intent',1],['direct','api:ready','postMessage api:ready',2]]);
+});
+test('postMessage of something else is not bridge use', () => {
+  assert.deepEqual(scan("window.parent.postMessage({type: 'resize', h: 3}, '*');").bridge, []);
 });
