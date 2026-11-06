@@ -1571,3 +1571,46 @@ test('an embedded-only intent is skipped at the app\'s own address; a served one
   assert.deepEqual(await h.valu.data.Commerce.getCart(), { success: true, got: ['Commerce', 'get-cart'] });
   assert.equal(h.popups.calls.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// The typed APPLICATION intents at the app's own address (2026-11-03 design
+// §5.4): a window one opens the /-i/ route with the app's id; embedded-only is
+// skipped; anything else answers 501 here, never asking the host.
+// ---------------------------------------------------------------------------
+
+test('a window app intent opens Valu Social at /-i/<app id>/<action>', async (t) => {
+  const h = await setup(t, { signInOrigin: 'https://live.valuverse.io' });
+  assert.deepEqual(await h.valu.Chats.openChannel({ userId: 'u-2' }), { data: { success: true, opened: 'tab' } });
+  assert.deepEqual(await h.valu.Apps.open('events', { route: '/week' }), { data: { success: true, opened: 'tab' } });
+  assert.deepEqual(h.popups.calls.map((call) => call.url), [
+    'https://live.valuverse.io/-i/textchat/open-channel?userId=u-2&app=demo&popup=false',
+    'https://live.valuverse.io/-i/events/open?route=%2Fweek&app=demo&popup=false',
+  ]);
+  assert.equal(h.sent(MSG.SERVICE_INTENT).length, 0, 'nothing is asked of the host');
+});
+
+test('an embedded-only app intent is skipped; an embedded-served one answers 501 without a round trip', async (t) => {
+  const h = await setup(t);
+  h.host.intent = () => ({ success: true });
+  assert.deepEqual(await h.valu.Chats.getUiState(), { data: { success: true, skipped: true, reason: 'embedded_only' } });
+  const served = await h.valu.Chats.sendMessage({ text: 'hi' });
+  assert.equal(served.error.code, 501);
+  assert.equal(served.error.message, 'not_available');
+  assert.equal((await h.valu.Apps.send('ws-portal-app', 'refresh')).error.code, 501);
+  assert.equal(h.sent(MSG.SERVICE_INTENT).length, 0);
+  assert.equal(h.popups.calls.length, 0);
+  // The valu.Apps reads are service intents: the host is asked, and it answers what it answers.
+  await h.valu.Apps.isLoaded('textchat');
+  assert.deepEqual(h.sent(MSG.SERVICE_INTENT).map(({ data: { message: m } }) => [m.applicationId, m.action, m.params]), [
+    ['AiGuru', 'is-application-loaded', { applicationId: 'textchat' }],
+  ]);
+});
+
+test('valu.route at the app\'s own address is skipped with one warning; valu.onRoute is there', async (t) => {
+  const h = await setup(t);
+  const warn = t.mock.method(console, 'warn', () => {});
+  assert.deepEqual(await h.valu.route.push('/a'), { data: { success: true, skipped: true, reason: 'embedded_only' } });
+  await h.valu.route.replace('/b');
+  assert.equal(warn.mock.callCount(), 1);
+  assert.equal(typeof h.valu.onRoute(() => {}), 'function');
+});

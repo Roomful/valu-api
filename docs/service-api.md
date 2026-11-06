@@ -2,7 +2,7 @@
 # The service API
 
 Every service function this package offers, as the call you would write. There
-are **65** of them, on **20** services, and the same
+are **65** of them, on **38** services, and the same
 65 are available from a Valu Social build, from a Node script, from a
 server-side agent and from an iframe application that has a socket — that is
 what makes them service functions.
@@ -23,12 +23,26 @@ is the same call with the envelope taken off: it returns the payload and throws
 `ValuServiceError`. `valu.call('Users.current')` takes the name as a string,
 which is what an LLM tool call has.
 
-What is **not** here: application intents — open a dock, expand a pane, show a
-picker, or anything the Valu Guru server answers on its own socket (Commerce,
-the knowledge-base search). The Valu Social application serves those, and it is
-asked for one **by name**, with nothing declared on this side:
-`api.callService(new Intent('AiGuru', 'open', {applicationId}))`. See
-[api-pointers.md](api-pointers.md).
+**Intents are functions too.** 132 of the functions below are intents
+that Valu Social serves (`createValuApp()` only: a socket client has nowhere to send
+one): 70 of its services' (`valu.Commerce.getCart()`, `valu.CMS.pickResource()`) and
+62 of its apps' — every intent an app may send to Chats, Calendar, My Cart
+and the rest, on a namespace named by the app's title
+(`valu.Chats.openChannel({ userId })`, `valu.MyCart.openCart()`), or on the
+service of the same name (`valu.Rooms.showRoom({ roomId })`). Every app intent
+also takes `route` and `pushToHistory`. Inside Valu Social they go over
+`api:call` when Valu Social says it answers them, and over the older bridge
+otherwise; each one's line says what it does at the app's own address.
+
+Two more are written by hand, because their app is the caller's to name:
+`valu.Apps.open(appId, { route? })` opens any app, and
+`valu.Apps.send(appId, action, params)` sends an intent to any app, a framed
+or Developer Portal one included (`apps:intent`). And the app's own route:
+`valu.route.push(path)`, `valu.route.replace(path)`, `valu.onRoute(handler)`.
+
+`valu.sendIntent`, `valu.callService`, API pointers and console commands
+are being retired: Valu Social will close that older bridge to apps.
+[api-pointers.md](api-pointers.md) is what it carried.
 
 | | |
 |---|---|
@@ -90,6 +104,9 @@ Content management service for uploading, searching, and deleting resources scop
 - `valu.CMS.resourceSearch({ communityId?, channelId?, directoryId?, postId?, roomId?, propId?, limit?, query?, cursor? }?)` → `{resources: object[], hasMore: boolean, cursor: string}`
   Searches for resources within a given scope (room, prop, community, channel, directory, or post). Each returned resource has an id (and a title/name) — tag every resource you reference in your reply as @[cms-resource:id|title].
   <sub>Roomful socket</sub>
+- `valu.CMS.pickResource({ sources, accept?, folderId?, title? })` → `?`
+  Opens a file picker over the Network Resources of the current network so a network admin can choose ONE file, and waits for the choice. The popup opens over whatever is on screen and does not open Files. BLOCKS until the user picks or cancels. Returns the picked resource `{id, title, contentType, thumbnailUrl}` or `null` when the user cancels or closes the popup. Refused (an error, and no popup) for anyone who is not an admin of the network, for an unknown source, and for a folderId outside the requested sources. The returned resource is always inside the requested sources.
+  <sub>intent · inside Valu Social only; skipped at the app's own address</sub>
 
 **Writes**
 
@@ -169,6 +186,9 @@ Group management service for listing groups the current user belongs to and thei
 - `valu.Groups.listGroups({ query?, limit?, cursor? }?)` → `{groups: object[], hasMore: boolean, cursor: string}`
   Returns groups the current user belongs to. Supports search and cursor-based pagination.
   <sub>Roomful socket</sub>
+- `valu.Groups.open({ groupId, route?, pushToHistory? })` → `?`
+  Opens the groups view and navigates to a specific group.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `groups` app's `open`</sub>
 
 **Writes**
 
@@ -217,6 +237,15 @@ Read-only access to a user's public profile artifacts — Verus verifiable crede
 - `valu.Profile.getUserCredentials({ userId, status? })` → `{credentials: object[]}`
   Returns the Verus verifiable credentials published on a user's profile, by their userId. These are the attestation claims of type "credential" shown in the profile Credentials view. Revoked credentials are returned only when the userId is the current user. Visibility is enforced by the backend against the current user.
   <sub>Roomful socket</sub>
+- `valu.Profile.openProfileWithMode({ userId?, offerId?, route?, pushToHistory? }?)` → `?`
+  Opens the profile view for a user and optionally navigates to a specific mode such as the marketplace.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `profile` app's `open-profile-with-mode`</sub>
+- `valu.Profile.showCurrentUser({ route?, pushToHistory? }?)` → `?`
+  Opens the profile view for the currently signed-in user.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `profile` app's `show-current-user`</sub>
+- `valu.Profile.showUser({ userId?, route?, pushToHistory? }?)` → `?`
+  Shows the profile view for a specific user, or the current user if no userId is provided.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `profile` app's `show-user`</sub>
 
 ## Resources
 
@@ -273,6 +302,12 @@ Room management service for searching rooms, browsing room templates, creating r
 - `valu.Rooms.searchRooms({ query?, offset?, size? }?)` → `{rooms: object[]}`
   Searches all public/discoverable rooms in the current network using the explorer service. Returns rooms anyone can find and join, regardless of membership. Use this when the user wants to discover or browse rooms. Every room in the result carries a ready-made entity link in its `tag` field (`@[room:networkId/roomId|Name]`) plus the resolved `networkId` — paste that `tag` verbatim when linking to the room and NEVER assemble one from ids yourself.
   <sub>Roomful socket</sub>
+- `valu.Rooms.open({ tab?, route?, pushToHistory? }?)` → `?`
+  Opens the Rooms app on a chosen list. With no parameter the app simply opens on whatever it was last showing.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `rooms` app's `open`</sub>
+- `valu.Rooms.showRoom({ roomId, route?, pushToHistory? })` → `?`
+  Opens the Rooms app on a specific room's detail view — info, members and settings.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `rooms` app's `show-room`</sub>
 
 **Writes**
 
@@ -294,6 +329,9 @@ Room management service for searching rooms, browsing room templates, creating r
 - `valu.Rooms.renamePropGroup({ roomId, groupId, name, networkId? })` → `{roomId: string, groupId: string, name: string, hasLabels: boolean, renamedLabelPropIds: string[], failed: object[]}`
   Gives a prop GROUP a display name by retitling its section SIGNS — the group's labels from get-room-prop-groups, i.e. the tagged Text props that show the section name in the room. Content props (frames, boards) are never touched: they carry no title at all (pasting clears any they had), the name lives on the sign. Use it in the guided build once the section's name is settled (listed by the user up front, self-evident from the tag, or confirmed from your proposal — or chosen by you when the user asked you to decide everything). The group id itself comes from tags and does not change. Returns { roomId, groupId, name, hasLabels, renamedLabelPropIds, failed } — hasLabels false means the group has no sign, so there was nothing to rename (say so); renamedLabelPropIds are the signs that now show the name; failed lists signs that could not be saved. Never rename a group the user did not name or ask you to name.
   <sub>Roomful socket</sub>
+- `valu.Rooms.inviteToRoom({ roomId, route?, pushToHistory? })` → `?`
+  Opens the room invitation dialog for a specific room.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `rooms` app's `invite-to-room`</sub>
 
 ## TextChat
 
@@ -377,6 +415,29 @@ Executes on-chain transfers from an AI agent's attached Verus wallet identity. E
   Send currency from the agent's attached Verus wallet to a destination address or identity. Call this when the user or agent needs to move funds out of an agent wallet. Fails if the agent has no wallet attached, or if the wallet is still pending creation.
   <sub>Roomful socket</sub>
 
+## Apps
+
+Any Valu Social app, by its id: open one, send it an intent, and ask which apps there are and which are open.
+
+- `valu.Apps.open(appId, { route?, pushToHistory? }?)` → `?`
+  Open any Valu Social app by its id, at a route of its own.
+  <sub>intent · opens a Valu Social tab at the app's own address · `ui:open`</sub>
+- `valu.Apps.send(appId, action, params?)` → `?`
+  Send an intent to any app: an app's own function when the catalogue has one, else scoped as the bridge scopes it (`apps:intent` for a framed or Developer Portal app).
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
+
+**Reads**
+
+- `valu.Apps.list()` → `?`
+  Returns a list of all registered applications with their id, slug, icon, and title.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the intent `AiGuru.get-applications`</sub>
+- `valu.Apps.has(applicationId)` → `?`
+  Checks whether an application with the given ID exists in the registry.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the intent `AiGuru.has-application`</sub>
+- `valu.Apps.isLoaded(applicationId)` → `?`
+  Checks whether an application with the given ID is currently loaded (open) in the dock.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the intent `AiGuru.is-application-loaded`</sub>
+
 ## Application
 
 Issues short-lived signed identity JWTs for iFrame (mini-app) applications. Allows an embedded application to obtain a signed token proving the current user's identity to the mini-app's own backend.
@@ -385,16 +446,76 @@ Issues short-lived signed identity JWTs for iFrame (mini-app) applications. Allo
 
 - `valu.Application.closeAll()` → `void`
   Closes all currently loaded applications and clears all docks. Unlike the normal close flow, does not re-open the default application — the UI stays blank with no application displayed.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; skipped at the app's own address</sub>
 - `valu.Application.closeApplication()` → `void`
   Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Close Application" default header action for iframe apps that render their own context menu (header: false).
-  <sub></sub>
+  <sub>intent · inside Valu Social only; skipped at the app's own address</sub>
 - `valu.Application.expandApplication()` → `void`
   Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Expand Application" default header action for iframe apps that render their own context menu (header: false).
-  <sub></sub>
+  <sub>intent · inside Valu Social only; skipped at the app's own address</sub>
 - `valu.Application.getIdentityToken()` → `{token: string}`
   Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
+
+## Calendar
+
+Valu Social's Calendar app (`events`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.Calendar.openCalendar({ source, id?, fullName?, communityId?, communityFullName?, eventId?, eventFullName?, route?, pushToHistory? })` → `?`
+  Opens the calendar view, optionally filtered by a specific source type (all, room, group, user, or community event).
+  <sub>intent · opens a Valu Social tab at the app's own address · the `events` app's `open-calendar`</sub>
+
+## Calls
+
+Valu Social's Calls app (`videochat`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.Calls.connectToMeeting({ roomId?, propId?, groupId?, userId?, withLocalTracks?, autoConnectToVideochat?, route?, pushToHistory? }?)` → `?`
+  Connects to a specific meeting by room, prop, group, or user and manages video chat and presentation settings.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the `videochat` app's `connect-to-meeting`</sub>
+- `valu.Calls.openSourcePicker({ standalone?, route?, pushToHistory? }?)` → `?`
+  Opens the "Open Videochat from" source picker (Rooms, Groups, Contacts, Textchats) as the inline full-view list. Selecting an item starts a video chat with that source.
+  <sub>intent · inside Valu Social only; skipped at the app's own address · the `videochat` app's `open-source-picker`</sub>
+
+**Writes**
+
+- `valu.Calls.leaveMeeting({ roomId, propId, route?, pushToHistory? })` → `?`
+  Leaves the current call only when it is the given prop's call (roomId + propId); otherwise does nothing. Returns {left: boolean}. Used by Metaverse 2D video chat zones.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the `videochat` app's `leave-meeting`</sub>
+
+## Chats
+
+Valu Social's Chats app (`textchat`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.Chats.closeChannel({ route?, pushToHistory? }?)` → `?`
+  Closes the currently open channel and returns to the channel list. Mirrors the toolbar back button used on mobile/narrow layouts.
+  <sub>intent · inside Valu Social only; skipped at the app's own address · the `textchat` app's `close-channel`</sub>
+- `valu.Chats.getUiState({ route?, pushToHistory? }?)` → `?`
+  Read-only. Returns a snapshot of what the chat is currently showing — the channels list, an open channel, or both side by side (wide layout) — plus the in-app back action. Lets non-web clients (e.g. the Android device back button) mirror the toolbar back-button navigation. Changes nothing. Returns { view: "list" | "channel" | "list-and-channel", isWide, activeChannelId, openThreadId, threadTakeover, canNavigateBack, backAction: "close-thread" | "close-channel" | null }.
+  <sub>intent · inside Valu Social only; skipped at the app's own address · the `textchat` app's `get-ui-state`</sub>
+- `valu.Chats.openChannel({ channelId?, userId?, groupId?, roomId?, propId?, route?, pushToHistory? }?)` → `?`
+  Opens a text chat session based on channel, user, group, room, or prop.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `textchat` app's `open-channel`</sub>
+- `valu.Chats.openRoomAiChat({ roomId, route?, pushToHistory? })` → `?`
+  Opens an AI‑powered chat session scoped to a specific room.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `textchat` app's `open-room-ai-chat`</sub>
+- `valu.Chats.options({ isWide, route?, pushToHistory? })` → `?`
+  Sets the text‑chat view layout (e.g. wide or narrow mode).
+  <sub>intent · inside Valu Social only; skipped at the app's own address · the `textchat` app's `options`</sub>
+- `valu.Chats.shareCard({ cardType, id?, ids?, channelId?, networkId?, route?, pushToHistory? })` → `?`
+  Shares one or more entities into a chat as rich, interactive cards — Rooms, Groups, Communities, Meetings, or Contacts — instead of plain links. Pass "id" for a single card or "ids" for several in one message. All cards in one call must be the SAME cardType (mixed types need separate calls). Posts into the currently open channel by default; pass channelId to target a specific channel.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the `textchat` app's `share-card`</sub>
+
+**Writes**
+
+- `valu.Chats.sendMessage({ text, channelId?, userId?, buttons?, route?, pushToHistory? })` → `?`
+  Sends a rich text message to a text-chat channel on behalf of an initiator (e.g. an AI agent or automated service). Silent — does NOT open or change the visible chat. Use channelId when you know it; otherwise provide userId for a direct message.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the `textchat` app's `send-message`</sub>
 
 ## Commerce
 
@@ -404,157 +525,186 @@ Products, the cart, orders and the seller's own store, shared across apps. An ap
 
 - `valu.Commerce.archiveProduct({ productId })` → `?`
   Withdraw a product from sale for good. OPENS A PLATFORM DIALOG over your app saying it leaves every shelf and cannot be undone, and naming the products that include it — they stop selling too until each is published again without it. Archives only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Anyone who bought it keeps it. Returns `{success: true, product, brokeBundles}` — `brokeBundles` the ids of the products that stopped selling.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 - `valu.Commerce.checkEntitlements({ productIds })` → `{entitlements: object[]}`
   Which of these products the current user owns. This is how an app unlocks a ticket, a seat or an in-app good it sold through the shared cart.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.checkout({ promoCode?, popup? }?)` → `?`
   Your app's Pay button. Your app never takes a payment: this opens My Cart's own cart over your app, showing your items with `promoCode` typed in and applied, and the BUYER presses Pay and scans the code there — only My Cart creates the order. It answers when the buyer closes it: `{success: true, outcome, orderId?, status?}`. `outcome` is `paid` (a free order too: unlock it), `pending` (an order was made but is not paid yet — follow it with get-order or the order-updated event), `cancelled` (the order will not be paid: the buyer cancelled it, or it expired or failed — `status` says which — and its items are back in the cart) or `dismissed` (closed without making an order). Refused with code `empty`, and nothing opens, when none of your items is selected in the cart (add them first). With `popup: false` My Cart docks instead and it answers at once with `outcome: "opened"`, as it does where there is no popup to draw. A second checkout while one is open replaces it; the first answers at once — `dismissed`, unless an order was already made in it.
-  <sub></sub>
+  <sub>intent · opens a Valu Social tab at the app's own address</sub>
 - `valu.Commerce.clearCart()` → `?`
   Remove every row YOUR app added to the user's cart, saved-for-later ones included. Other apps' rows are never touched. No dialog: they are your own rows. Returns what is left — `{success: true, items, count}` — so an empty `items` means the cart held only your rows.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.endSale({ saleId })` → `?`
   End a sale now. Direct — stopping a discount needs no dialog. Returns `{success: true, sale}` with `status: "ended"`.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.getAnalytics({ from?, to?, testOnly? }?)` → `?`
   The store's own numbers over a range — the Merchant Console's Analytics — exactly as the server sends them: `{range, totals: {revenueVrsc, orders, units, curatorFeeVrsc, revenueApproximate}, series: [{day, revenueVrsc, orders, suppressed}], topProducts: [{productId, title, revenueVrsc, units, suppressed}], byNetwork: [{networkId, revenueVrsc, orders, suppressed}], suppressedCells}`. A row with `suppressed: true` was built from too few orders and is WITHHELD: its numbers are not figures — show it as withheld, never as 0. `orders` counts order lines touched, an upper bound, not distinct orders. Read-only.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.getCart()` → `{items: object[], count: number}`
   Reads the user's cart — every item in it, from every app, as the buyer will check it out. Returns `{items, count}` where `count` excludes anything saved for later. Use it to show a badge, a summary, or to tell whether something this app sells is already in there. Each item's `appId` says which app added it. An app changes only its own rows: `add-to-cart` adds one, `update-cart-item` changes one, `remove-from-cart` and `clear-cart` take them out. Every other app's items are the buyer's to change in My Cart: send them there with `open-cart`.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.getDisplay()` → `?`
   How this network SHOWS prices: `{currency, vrscUsd}`, where `currency` is `USD` or `VRSC` (the network admins' choice) and `vrscUsd` is the server's VRSC→USD rate, null when it is unknown. Every amount Commerce answers with stays in VRSC (`…Vrsc`); multiply by `vrscUsd` to show dollars, and show VRSC when the rate is null.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.getMyProduct({ productId })` → `{product: object, items: object[]}`
   One of the seller's own products with its content, in exactly the shape update-product takes: `{product, items}`. Read it before changing the content — `items` in update-product REPLACES the whole tree, so edit this list and send it back rather than sending only the new files. `product.editable` is true for a draft, whose fields and content may change; a `broken` product (needs attention: something it included was archived) takes new content only.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.getMyStore()` → `?`
   The signed-in user's own store and where they stand to sell — with list-seller-products, enough to draw the Merchant Console's setup checklist (verified identity → store → donation set → a product → one published). Returns `{hasStore, identityVerified, sellerName, sellerUserId, store, network}`. Buyers see a PERSON as the seller, not a store: show `sellerName` (the owner's profile name) and draw their avatar from `sellerUserId` with the users API's getIcon. `store` is `{id, name, description, status, payoutIdentityName, donationTiers: [{minMembers, percent}], donationUpdatedAt}`, or null — its `name` is kept for older callers and is not what buyers see; an empty `donationTiers` means no donation is set, and such a store sells nowhere. `identityVerified` says whether the user can open a store (a Verified Verus identity; when false, send them to their Profile). `network` is the network the user is in now: `{id, memberCount, mode, allowedRatings, displayCurrency, donationTierIndex}` — `mode` is `open | approval_required | closed`, `donationTierIndex` which of the store's four donation tiers this network takes (null without a store or a known size). Read-only.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.getOrder({ orderId })` → `?`
   One of the user's orders, in the shape list-orders answers: `{order}`. Use it to follow an order `checkout` answered with. An order that is not the user's is refused `not_found`, exactly like one that does not exist. `imageResourceId` is null here; list-orders resolves the pictures.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.getProduct({ productId })` → `{product: object}`
   One product with its price, its parts when it is a bundle, its seller, its reviews and whether the current user already owns it. The seller is a PERSON, as in list-products: `sellerName`, `sellerUserId` (their avatar through the users API's getIcon) and `sellerIdentityName`; the store record's name is that person too. `contents` is what the product holds, as a tree to draw: `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize}` and `{type: "product", productId, title}`. `children` is NOT the content: it is only the products a bundle includes, empty for anything else. `items` is the same content as flat database rows, kept for older callers. A file's `resourceId` (and `resource_id` in items) is null unless the user owns the product or sells it: titles and types are the shop window, the ids open the paid files. For something the user bought, use get-purchase-contents.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.getPurchaseContents({ productId })` → `?`
-  One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is "folder" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.
-  <sub></sub>
+  One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Files, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is "folder" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.listCategories()` → `{categories: object[]}`
   The platform's product categories as `{categories: [{id, label}]}`. Every product is filed under exactly one; pass an `id` to list-products as `category`, and show the `label`.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.listMyProducts({ status?, limit? }?)` → `{hasStore: boolean, products: object[]}`
   List the SELLER's own products in their store — drafts, unlisted, live and archived — unlike list-products, which is the buyer's shelf and never shows drafts. Use it to find the productId to edit. Each product carries `editable`: true only for a draft (never published, or unlisted by the seller). Returns `{hasStore, products}`.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.listNetworkAccess()` → `?`
   Where the store stands in each network it asked to sell in: `{networks: [{networkId, status, requestedAt, decidedAt, note, message}]}`. `status` is `pending | approved | rejected | suspended`; `note` is the admins' word on their decision, `message` the seller's on the request. The network the user is in now may be missing: in an `open` one (get-my-store `network.mode`) a store sells without asking. Read-only.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.listOrders({ status?, limit?, thisAppOnly? }?)` → `?`
   The user's orders, newest first, with their whole receipt as frozen at checkout. Returns `{orders: [{id, status, createdAt, paidAt, expiresAt, isTest, subtotalVrsc, totalVrsc, rateVrscUsd, items: [{productId, appId, title, qty, unitPriceVrsc, lineTotalVrsc, imageResourceId, deletedBySeller, parts: [{productId, title}], bundleFeeVrsc}], discounts: [{kind, label, amountVrsc}], notCharged: [{productId, title, amountVrsc}], payouts: [{kind, identityName, storeId, amountVrsc, status, donationPercent, donationMemberCount}], payment: {method, transactionId, failureReason} | null}]}`. `status` is `pending_payment`, `paid`, `expired`, `cancelled` or `failed`; without `status` you get pending and paid orders (a cancelled order is deleted). `notCharged` are parts of a bundle the user already owned. An order never carries a way to pay it: send the buyer to it with open-order.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.listProducts({ query?, storeId?, category?, tag?, attributes?, sort?, limit?, offset? }?)` → `{products: object[], total: number}`
   Search the live products available in the user's current network — the buyer's shelf, every seller's goods, not only yours. Products the network or its admins have refused are simply absent from the answer. Each product names its seller, who is a PERSON, not a store: `sellerName` (their profile name), `sellerUserId` (draw their avatar with the users API's getIcon({userId: sellerUserId})) and `sellerIdentityName` (the Verus ID payments go to). `storeName` carries the same person's name, for older callers; show the person, never a store. For the signed-in seller's OWN products, drafts included, use list-seller-products.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.listPromotions()` → `?`
   Every sale, volume discount and discount code of the store: `{sales: [{id, productId, salePriceAmount, salePriceCurrency, startsAt, endsAt, status}], tiers: [{id, minItems, percentOff, status}], codes: [{id, code, kind, value, currency, minSubtotalVrsc, maxRedemptions, redeemedCount, reservedCount, perBuyerLimit, startsAt, endsAt, status}]}`. `status` is `active | ended` for a sale and `active | disabled` for a tier or a code. A buyer's price takes a sale first, then at most one volume discount, then at most one code — they never stack beyond that. Read-only.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.listPurchases({ thisAppOnly? }?)` → `?`
-  What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.
-  <sub></sub>
+  What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Files; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.listSellerProducts({ status?, limit? }?)` → `?`
   Every product the SIGNED-IN user sells, from their own store, so an app can show a seller their own products: live, draft (unlisted ones included), archived and broken, in every network, including ones a network blocked. Unlike list-products, the buyer's shelf of live products allowed here. The store is always the current user's; there is no way to name another. Read-only, newest change first. Returns `{hasStore, products}`; `hasStore` is false (and products empty) when the user has no store. Each product: id, title, description, status, category, tags, priceAmount, priceCurrency, totalPriceAmount, isBundle, coverResourceId, stock (null = unlimited), soldCount, contentCount. Show totalPriceAmount as the price: on a bundle priceAmount is only the seller's part on top of what it includes, and totalPriceAmount is null when the server could not price the bundle.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.markPurchaseFileSeen({ productId, resourceId })` → `?`
   Mark one of the user's purchased files as OPENED, for an app that shows a purchase's files itself (preview-purchase marks the files it shows by itself). The file must be in the purchase (its `resourceId` or `deliveredResourceId` from get-purchase-contents) and not a folder. Returns `{success: true, resourceId, progress}` — `progress` as in get-purchase-contents — or `{success: false, code}` with `not_owned` or `not_in_purchase`.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 - `valu.Commerce.openCart({ popup? }?)` → `void`
   Open My Cart for the user, scoped to your app's items. With `popup` it is drawn over your own app instead of docking My Cart — mid-purchase, that keeps the user where they were. It answers as soon as the cart is open; for a Pay button use `checkout`, which opens the same cart and answers with what the buyer did there.
-  <sub></sub>
+  <sub>intent · opens a Valu Social tab at the app's own address</sub>
 - `valu.Commerce.openOrder({ orderId, popup? })` → `?`
   Open one of the user's orders in My Cart, expanded: where the buyer resumes a pending payment ("Show code"), cancels or deletes an unpaid order, or reads a receipt. Those are the buyer's own actions in My Cart; your app cannot take them. With `popup` it is drawn over your own app instead of docking My Cart. Returns `{success: true, popup}`.
-  <sub></sub>
+  <sub>intent · opens a Valu Social tab at the app's own address</sub>
 - `valu.Commerce.openProducts({ popup? }?)` → `void`
   Open the seller's own products in the Merchant Console — the seller's side of `open-cart`. Use it for a "My products" link: it shows everything they sell across every app, not just yours, and whether they may sell at all is the platform's decision, not your app's. With `popup` it is drawn over your own app instead of docking the console.
-  <sub></sub>
+  <sub>intent · opens a Valu Social tab at the app's own address</sub>
 - `valu.Commerce.openPurchaseInMedia({ productId? }?)` → `?`
-  Open a purchase where it lives, in Media's Purchased section — the Orders tab's "Show in Media". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Media docks beside your app. Returns `{success: true}`, or `{success: false, code: "not_owned"}` without opening anything.
-  <sub></sub>
+  Open a purchase where it lives, in the Purchased section of Files — the Orders tab's "Show in Files". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Files docks beside your app. Returns `{success: true}`, or `{success: false, code: "not_owned"}` without opening anything.
+  <sub>intent · opens a Valu Social tab at the app's own address</sub>
 - `valu.Commerce.openPurchases({ productId?, popup? }?)` → `void`
   Open what the user OWNS in My Cart's Purchased tab — each product with its files, how far through them they are, and their rating; with `productId`, that product opened and shown. Receipts are `open-order`. With `popup` it is drawn over your own app instead of docking My Cart.
-  <sub></sub>
+  <sub>intent · opens a Valu Social tab at the app's own address</sub>
 - `valu.Commerce.previewPromo({ code })` → `?`
   What a discount code would do to the items YOUR app has selected in the cart — exactly what `checkout` will charge for them. Returns `{valid, reason, discounts: [{kind, label, amountVrsc}], subtotalVrsc, totalVrsc}`. `reason` is null when valid, else `promo_invalid`, `promo_expired`, `promo_exhausted` or `not_applicable` (a real code that takes nothing off this selection, e.g. under its minimum). `discounts` lists everything that takes money off, the code and any volume discount or sale alike. Read-only: nothing is reserved, and My Cart prices the code again when the buyer pays. With nothing of yours selected the server refuses `validation_failed`.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.previewPurchase({ productId, resourceId? })` → `?`
   Open the platform's previewer on what the user bought — the Orders tab's click on a file. It holds every file of the purchase in tree order, with previous / next arrows between them, and opens on `resourceId` when given (it must be in the purchase: its `resourceId` or `deliveredResourceId` from get-purchase-contents), on the first file otherwise. Every file the user lands on is marked as opened (`seen` in get-purchase-contents). A folder resource is shown on its own. Returns `{success: true, count}`, or `{success: false, code}` with `not_owned`, `not_in_purchase` or `empty`. The previewer is a window over the whole page.
-  <sub></sub>
+  <sub>intent · opens a Valu Social tab at the app's own address</sub>
 - `valu.Commerce.publishProduct({ productId, networkIds? })` → `?`
   Put one of the seller's products on sale. OPENS THE MERCHANT CONSOLE'S PUBLISH DIALOG over your app: the user picks the networks to sell in — `networkIds` start ticked where the store may sell, by default this network — and confirms. Only then is the product listed (in My Cart and in YOUR app) and published, freezing this version for buyers. `{success: false, code: "cancelled"}` is a normal answer: the user did not publish — do not ask again yourself. Only a draft or a `broken` product (its content fixed with update-product) can be published; no content, no category, or a store with no donation set is refused `validation_failed` before any dialog, saying which. Returns `{success: true, product, version: {id, version, status, vaultStatus, publishedAt}}`. Refused `busy` while another dialog from your app is open, `unsupported` where the platform cannot show one.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 - `valu.Commerce.quoteBundle({ productIds, priceCurrency?, ownPrice? })` → `?`
   What a product made of these products would cost a buyer, priced by the server exactly as checkout prices it (sales, bundles inside bundles, a part reached twice). Returns `{currency, parts: [{productId, amount}], included, own, total, duplicates, unavailable}`: `included` is the parts' sum, `own` the seller's price on top, `total` what a buyer pays; `duplicates` are parts reached twice, `unavailable` ids that are neither on sale nor the seller's own. Read-only — show it while the seller assembles a bundle; create-product with `{productId}` items makes one.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.rateProduct({ productId, score?, text? })` → `?`
   Rate a product the user owns, one to five stars with an optional review. A rating is public (it shows on the product's page), so the platform asks the user first in its own dialog over your app: `score` and `text` only pre-fill it, the user can change both, and what they confirm is what is saved. Returns `{success: true, review: {score, text}}` — what was saved. Refused with `cancelled` when the user closes the dialog (nothing is saved; do not ask again on your own), `not_owned` when they do not own the product (no dialog), `busy` while another platform dialog is waiting, and `unsupported` where there is no dialog to ask with.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 - `valu.Commerce.requestNetworkAccess({ networkId, message? })` → `?`
   Ask a network's admins to let the store sell there, with an optional message; they decide, and list-network-access shows the outcome. Returns `{success: true, request}` in list-network-access's shape (`status: "pending"`). No dialog.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.subscribeEvents({ events })` → `?`
-  Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: "commerce", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Media; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.
-  <sub></sub>
+  Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: "commerce", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Files; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.unlistProduct({ productId })` → `?`
   Take a product that is on sale off every shelf: it becomes a draft again, its published version intact — buyers keep what they bought, and publishing again puts it back. OPENS THE MERCHANT CONSOLE'S UNLIST DIALOG over your app and unlists only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Only an `active` product can be unlisted. Returns `{success: true, product}`. Unlist a live product before editing it with update-product.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 - `valu.Commerce.unsubscribeEvents({ events? }?)` → `?`
   Stop receiving commerce events. Without `events`, every one your app subscribed to; with it, only those. Answers `{success: true, events}`: what your app still receives (empty when nothing). An unknown name is refused with `validation_failed` and nothing changes. There is no need to call it before your app closes: a subscription ends with the frame that made it.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 
 **Writes**
 
 - `valu.Commerce.addToCart({ productId, qty? })` → `{items: object[]}`
   Put a product in the user's cart, credited to your app. The server re-checks that it can be bought here before accepting it, so a refusal comes back with a code to show.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.createDiscountCode({ code, kind, value, currency?, minSubtotalVrsc?, maxRedemptions?, perBuyerLimit?, startsAt?, endsAt? })` → `?`
   A discount code buyers type at checkout — on the seller's own products only. OPENS A PLATFORM DIALOG over your app with the code, its value, limits and dates, and creates it only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. The code is stored upper-case; one the store already has is refused `conflict`. Returns `{success: true, discountCode}` in list-promotions' code shape — named `discountCode` because `code` is the refusal field.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 - `valu.Commerce.createProduct({ title?, description?, priceAmount?, priceCurrency?, category?, tags?, imageResourceId?, items?, stock? }?)` → `{product: object}`
-  Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, so the seller confirms it separately — in the publish dialog an app opens with publish-product, or in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
-  <sub></sub>
+  Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Files). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, so the seller confirms it separately — in the publish dialog an app opens with publish-product, or in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.createStore({ name?, description? }?)` → `?`
   Open the signed-in user's store — what lets them sell; buyers see the user themselves as the seller, so it needs no name. It needs a Verified Verus identity: without one it is refused with code `not_eligible_kyc` — send the user to their Profile. A user who already has a store gets it back unchanged. Returns `{success: true, store}` in get-my-store's shape. No dialog. Next steps: set-donation-tiers (a store with no donation sells nowhere), then create-product.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.deleteDiscountCode({ codeId })` → `?`
   Delete a code nothing ever used. Direct — no dialog. A code that was used is part of the record and is refused `conflict`: turn it off instead (update-discount-code with `status: "disabled"`). Returns `{success: true}`.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.deleteProduct({ productId })` → `?`
   Delete a product for good. OPENS THE MERCHANT CONSOLE'S DELETE DIALOG over your app, where the user types the product's name to confirm; deletes only then. `{success: false, code: "cancelled"}` is a normal answer. A product that is part of another product cannot be deleted: the dialog names those products and the answer is `{success: false, code: "conflict"}` — take it out of them first (update-product on each). Buyers keep what they bought. Returns `{success: true}`.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 - `valu.Commerce.removeFromCart({ itemId })` → `?`
   Take one of YOUR app's rows out of the user's cart. Another app's row is refused with code `not_yours` (the buyer removes those in My Cart), a row the cart does not hold with `not_found`. Returns the whole cart: `{success: true, items, count}`.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.removeVolumeTier({ tierId })` → `?`
   Remove a volume discount. Direct — no dialog. Returns `{success: true}`.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.setDonationTiers({ tiers })` → `?`
   Set the store's network donation — the share of every sale that goes to the network it is sold in, one percentage per network size; a store with none sells nowhere. OPENS A PLATFORM DIALOG over your app showing each tier old → new (this network's marked) and saves only if the user confirms. `{success: false, code: "cancelled"}` is a normal answer: the user said no — do not ask again yourself. Lowering any tier sends the store back for approval in every network that approved it (its products hide there until an admin approves again), and the dialog says so. Sending what is already saved asks nothing and changes nothing. Returns `{success: true, store, reopenedNetworks}` — the networks that must approve the store again. Refused `busy` while another dialog from your app is open, `unsupported` where the platform cannot show one.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 - `valu.Commerce.setSale({ productId, salePriceAmount, salePriceCurrency?, startsAt?, endsAt? })` → `?`
   Put one product on sale at a lower price. OPENS A PLATFORM DIALOG over your app showing the sale price against the usual one and when it runs; starts it only if the user confirms. `{success: false, code: "cancelled"}` is a normal answer. The sale price must be below the product's own and in its currency, and a bundle (priced by its parts) cannot go on sale — each refused `validation_failed` before any dialog. A product with a sale running gets this one instead. Returns `{success: true, sale}` in list-promotions' shape.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 - `valu.Commerce.setVolumeTier({ minItems, percentOff, tierId? })` → `?`
   A store-wide volume discount: every order with at least `minItems` of the seller's items gets `percentOff` off, in every app and network the store sells in. OPENS A PLATFORM DIALOG over your app ("N or more items → P% off, every order in your store") and saves only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. With `tierId` it edits that discount (the dialog shows what it was); without, it adds one — or replaces the one at the same `minItems`. Returns `{success: true, tier}` in list-promotions' shape.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 - `valu.Commerce.updateCartItem({ itemId, qty?, selected?, savedForLater? })` → `?`
   Change one of YOUR app's rows in the user's cart: its quantity, whether it is selected for checkout, or whether it is saved for later. Give at least one of them; only the fields given change. A row added by another app is refused with code `not_yours` — the buyer changes those in My Cart (`open-cart`) — and a row the cart does not hold with `not_found`. Returns the whole cart as get-cart reads it: `{success: true, items, count}`, `count` excluding what is saved for later. The server re-checks stock and availability and refuses with its own code.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
 - `valu.Commerce.updateDiscountCode({ codeId, status?, endsAt?, maxRedemptions?, perBuyerLimit? })` → `?`
   Change a discount code. DIRECT when it only stops the discount: `status: "disabled"`, or an `endsAt` sooner than the one it has (any end, for a code that has none). Anything that gives more — `status: "active"` again, a later end or none (`endsAt: null`), more uses, more per buyer — OPENS A PLATFORM DIALOG over your app with each change before → after, and saves only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Returns `{success: true, discountCode}`.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 - `valu.Commerce.updateProduct({ productId, title?, description?, priceAmount?, priceCurrency?, stock?, unlimitedStock?, category?, tags?, imageResourceId?, items? })` → `{product: object}`
   Edit one of the seller's own DRAFT products — one never published, or one the seller unlisted. A live or archived product is refused with code `not_editable` (a live one must be unlisted first: unlist-product, or the seller in the Merchant Console). A `broken` product (needs attention: something it included was archived) accepts `items` only — its other fields are `not_editable` — and goes back on sale when it is published again (publish-product). Only the fields given change. `items` REPLACES the content: call get-my-product first and send back the edited list; an empty list is refused. Never publishes. Returns `{success: true, product}` or `{success: false, code, error}`.
-  <sub></sub>
+  <sub>intent · served by the host too</sub>
+
+## Contacts
+
+Valu Social's Contacts app (`contacts`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.Contacts.showUserConnections({ userId, route?, pushToHistory? })` → `?`
+  Open the connections view for the specified user
+  <sub>intent · opens a Valu Social tab at the app's own address · the `contacts` app's `show-user-connections`</sub>
+
+## ContentStudio
+
+Valu Social's Content Studio app (`content-studio`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.ContentStudio.navigate({ route, pushToHistory? })` → `?`
+  Navigate to a specific route within Content Studio
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the `content-studio` app's `navigate`</sub>
+- `valu.ContentStudio.openCreate({ roomId?, communityId?, channelId?, groupId?, label?, department?, theme?, route?, pushToHistory? }?)` → `?`
+  Open the content upload page with an optional upload destination
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the `content-studio` app's `open-create`</sub>
+- `valu.ContentStudio.openEdit({ contentItemId, roomId?, communityId?, channelId?, groupId?, label?, department?, theme?, route?, pushToHistory? })` → `?`
+  Open the edit page for a specific content item
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the `content-studio` app's `open-edit`</sub>
+- `valu.ContentStudio.openSearch({ route?, pushToHistory? }?)` → `?`
+  Open the search page
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the `content-studio` app's `open-search`</sub>
 
 ## DataProvider
 
@@ -564,23 +714,297 @@ Picker service for selecting items from data providers (rooms, contacts, etc.) v
 
 - `valu.DataProvider.pickMultiple({ providers, title?, confirmLabel?, confirmIcon?, width?, height? })` → `{picked: object[]}`
   Same as pick-single but lets the END USER select MORE THAN ONE item. BLOCKS until they confirm or cancel. Returns an array of selected items (`[{id, name, ...}, ...]`) or `null` if cancelled. Use when the user's request implies multiple targets — e.g. "invite some people to the room" → call with providers: ["contacts"].
-  <sub></sub>
+  <sub>intent · inside Valu Social only; skipped at the app's own address</sub>
 - `valu.DataProvider.pickSingle({ providers, title?, width?, height? })` → `{picked: object|null}`
   Opens an interactive picker so the END USER can choose ONE item (a room, contact, group, etc.) and returns their selection. BLOCKS until the user picks or cancels. Returns the selected item object (its shape depends on the provider — typically `{id, name, ...}`) or `null` if the user cancelled. Use this when the user's request needs an entity reference and they have NOT named a specific one — e.g. "share this in a group" without naming the group → call with providers: ["groups"]. Do not use to search programmatically; use the provider's own search/list service intent for that.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; skipped at the app's own address</sub>
+
+## Files
+
+Valu Social's Files app (`cms`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.Files.previewResource({ resourceId, route?, pushToHistory? })` → `?`
+  Open a resource (file) in the CMS preview viewer by its resource ID
+  <sub>intent · opens a Valu Social tab at the app's own address · the `cms` app's `preview-resource`</sub>
+- `valu.Files.showApplicationStorage({ applicationId, resourceId?, route?, pushToHistory? })` → `?`
+  Open an application's storage folder in the CMS — the files that app has stored under the current user, shown at Applications › <app>. Provide the application id (e.g. "valuguru"). The app must declare `storage: true` in its manifest.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `cms` app's `show-application-storage`</sub>
+- `valu.Files.showChatChannel({ channelId, route?, pushToHistory? })` → `?`
+  Open and display the specified chat channel
+  <sub>intent · opens a Valu Social tab at the app's own address · the `cms` app's `show-chat-channel`</sub>
+- `valu.Files.showCommunityChannel({ communityId, communityChannelId, route?, pushToHistory? })` → `?`
+  Open and display the specified community channel
+  <sub>intent · opens a Valu Social tab at the app's own address · the `cms` app's `show-community-channel`</sub>
+- `valu.Files.showFolder({ folderId, resourceId?, route?, pushToHistory? })` → `?`
+  Navigate to and open a specific folder in the CMS by its folder ID
+  <sub>intent · opens a Valu Social tab at the app's own address · the `cms` app's `show-folder`</sub>
+- `valu.Files.showMyFiles({ route?, pushToHistory? }?)` → `?`
+  Navigate to the user's own files in the CMS (the "My Files" view). Use this when the user asks about their files, uploads, or personal content — do not use show-folder for this.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `cms` app's `show-my-files`</sub>
+- `valu.Files.showResource({ resourceId, route?, pushToHistory? })` → `?`
+  Reveal a resource in the CMS file browser by its resource ID — navigates to the folder holding it (or to its section root when it is not in a folder), selects it and opens its Edit side panel. Use this when you only have a resource id and want to show the user where that file lives; use preview-resource instead to just view its contents.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `cms` app's `show-resource`</sub>
+
+## MerchantConsole
+
+Valu Social's Merchant Console app (`merchant`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.MerchantConsole.openProduct({ productId, route?, pushToHistory? })` → `?`
+  Open one of the seller's own products for editing.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `merchant` app's `open-product`</sub>
+- `valu.MerchantConsole.openProducts({ popup?, route?, pushToHistory? }?)` → `?`
+  Open the seller's product list. With `popup` it is drawn over the calling app instead of docking the console.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `merchant` app's `open-products`</sub>
+- `valu.MerchantConsole.openSection({ section, popup?, route?, pushToHistory? })` → `?`
+  Open the Merchant Console on one of its tabs. The tab becomes part of the address, so the place it opens on can be linked to and comes back on a reload. Home is the setup checklist until the store can sell, then the overview. Promotions, Analytics and Store need a store; Moderation is for network admins. Bundles opens Products filtered to bundles; the old names overview and api-access still work (Home, Store).
+  <sub>intent · opens a Valu Social tab at the app's own address · the `merchant` app's `open-section`</sub>
+
+## Metaverse
+
+Valu Social's Metaverse app (`metaverse`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.Metaverse.openRoom({ networkId, roomId, route?, pushToHistory? })` → `?`
+  Open a specific room in the ValuVerse 3D environment. Both networkId and roomId are required. Use the networkId provided in context.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `metaverse` app's `open-room`</sub>
+- `valu.Metaverse.previewProp({ networkId, roomId, propId, route?, pushToHistory? })` → `?`
+  Navigate the camera to a specific prop in a room, opening the Metaverse view. networkId, roomId, and propId are all required. Only call this when the user explicitly asks to show, open, navigate to, or view a prop. Do not call this automatically when listing or describing props.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `metaverse` app's `preview-prop`</sub>
+
+**Writes**
+
+- `valu.Metaverse.setRoute({ route, pushToHistory? })` → `?`
+  initiate the opening of the Metaverse 3d application with spsific route
+  <sub>intent · inside Valu Social only; skipped at the app's own address · the `metaverse` app's `set-route`</sub>
+
+## Metaverse2D
+
+Valu Social's Metaverse 2D app (`hubs`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.Metaverse2D.enterRoom({ roomId, hubId?, route?, pushToHistory? })` → `?`
+  Opens the Metaverse 2D app on a room and joins that room's public hub, as picking the room there does (Rooms → Room Info → Go in 2D, the user card → Go in 2D).
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the `hubs` app's `enter-room`</sub>
+- `valu.Metaverse2D.findPeople({ roomIds?, route?, pushToHistory? }?)` → `?`
+  Counts the people in each hub of some rooms in this network (default: the room on the map and its linked rooms, at most 9). Needs you to be in a hub. Use it to choose where the agent goes.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the `hubs` app's `find-people`</sub>
+- `valu.Metaverse2D.open({ roomId?, route?, pushToHistory? }?)` → `?`
+  Opens the Metaverse 2D app (the 2D room maps and their hubs), optionally preselecting a room. Joining a hub stays a user action.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `hubs` app's `open`</sub>
+
+## MyCart
+
+Valu Social's My Cart app (`cart`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.MyCart.openCart({ appId?, popup?, promoCode?, route?, pushToHistory? }?)` → `?`
+  Open the cart. Pass an app id to show only that app's items and check them out on their own, and `popup` to draw it over the calling app instead of docking My Cart.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `cart` app's `open-cart`</sub>
+- `valu.MyCart.openOrder({ orderId, popup?, route?, pushToHistory? })` → `?`
+  Open one order and show its receipt.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `cart` app's `open-order`</sub>
+- `valu.MyCart.openOrders({ popup?, route?, pushToHistory? }?)` → `?`
+  Open the order history — every purchase made across Valu apps, with its receipt. With `popup` it is drawn over the calling app instead of docking My Cart.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `cart` app's `open-orders`</sub>
+- `valu.MyCart.openProduct({ productId, route?, pushToHistory? })` → `?`
+  Open a product's page — what it is, what it is made of, what makes up its price, and whether this buyer can buy it.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `cart` app's `open-product`</sub>
+- `valu.MyCart.openPurchased({ productId?, popup?, route?, pushToHistory? }?)` → `?`
+  Open what the user OWNS — every product they bought or got free, with its files, how far through them they are, and their rating. With `productId`, that product opened and shown. Orders (open-orders) are the receipts only.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `cart` app's `open-purchased`</sub>
+- `valu.MyCart.openSection({ section, route?, pushToHistory? })` → `?`
+  Open My Cart on one of its tabs. The tab becomes part of the address, so the place it opens on can be linked to and comes back on a reload.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `cart` app's `open-section`</sub>
+
+**Writes**
+
+- `valu.MyCart.addToCart({ productId, qty?, route?, pushToHistory? })` → `?`
+  Add a product to the cart and open it. The item is credited to the app that asks — the platform knows which one, so there is no app to name — or to My Cart itself when the asker is not an app. The server re-checks that the product can be bought in this network before accepting it.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the `cart` app's `add-to-cart`</sub>
+
+## ResourcesViewer
+
+Valu Social's Resources Viewer app (`preview`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.ResourcesViewer.preview({ resourceId, route?, pushToHistory? })` → `?`
+  Opens the resource viewer to preview a specific resource.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `preview` app's `preview`</sub>
 
 ## RoomPoints
 
 GoTo points of a room (server name "cameraPosition"): list them, save or delete one directly, or open the point editor and let the user do it. Editing points requires the room's edit permission. Position and rotation are metres and EULER DEGREES in the room's own space — they cannot be computed from outside the 3D scene, so prefer create-point / edit-point (which receive the live camera pose from Unity) over save-point unless you are re-using a pose you already read.
 
+**Reads**
+
+- `valu.RoomPoints.listRoomPoints({ roomId, networkId? })` → `?`
+  Returns every saved GoTo point of a room, in server order: {status: "ok", points}. Each point carries id, name, position {x,y,z}, rotation {x,y,z,w} (EULER DEGREES, w is always 0 — NOT a quaternion), cameraMode (0 = do not change, 1 = fly, 2 = third person) and the server timestamps. A room with no saved points returns an empty list — the "Home" point Unity shows in that case exists only in its memory.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
+- `valu.RoomPoints.saveRoomPoint({ roomId, point })` → `?`
+  Writes a point WITHOUT opening any UI: creates it when point.id is empty or missing, otherwise overwrites the saved point with that id. An update REPLACES the whole point, so send a complete one (read it with list-room-points first) — fields left out are not kept. Returns {status: "ok", point} with the server copy, whose id is the one to keep after a create.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
+
 **Writes**
 
 - `valu.RoomPoints.createRoomPoint({ roomId, camera?, point?, name?, cameraMode?, savePreview?, persist?, networkId? })` → `?`
   Opens the point editor for a NEW point and BLOCKS until the user saves or cancels. Needs a pose to save the point at: pass camera (the live 3D camera pose) or a point to copy the pose from — the web layer cannot read the camera itself. Resolves {status: "ok", point, persisted, savePreview} once the point is written, or {status: "cancelled"} / {status: "error", message}.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
+- `valu.RoomPoints.deleteRoomPoint({ roomId, pointId })` → `?`
+  Deletes one saved point by id. Returns {status: "ok"}. The point parallax preview resource is cleaned up by the 3D scene, not here.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 - `valu.RoomPoints.editRoomPoint({ roomId, point, camera?, deletable?, name?, cameraMode?, savePreview?, persist?, networkId? })` → `?`
   Opens the point editor for an EXISTING point and BLOCKS until the user saves, deletes or cancels. Resolves {status: "ok", point, persisted, savePreview}, {status: "deleted", point: {id}, persisted}, {status: "cancelled"} or {status: "error", message}. A point whose id is empty is treated as a create.
-  <sub></sub>
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
+
+## RoomZones
+
+Zones of a room and the claims on them (docs/superpowers/specs/2026-10-16-room-claiming-zones-design.md). A zone is an invisible box in a room: it can join its video call when someone walks in, it can be claimed as somebody's personal space, or both. A CLAIM IS A PROP INVITATION on the master server — there is no other store — so the occupant also gets edit rights on the zone prop. The server does not enforce exclusivity: the earliest claim wins and the loser is withdrawn, so always read the occupancy back rather than assuming a claim held.
+
+**Reads**
+
+- `valu.RoomZones.assignZone({ roomId, zoneId, userId })` → `?`
+  Gives a zone to a particular user. Requires the caller to OWN the room (manage rights) or be a network admin; anything less is refused. Bypasses the zone's audience, the room's per-user limit and the cooldown by design — this is how offices are handed out. Returns {status: "ok"}.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
+- `valu.RoomZones.claimZone({ roomId, zoneId, displayName?, status?, doorPolicy? })` → `?`
+  Claims a zone for the SIGNED-IN user. Returns {status: "ok", claim} when it worked, or {status: "refused", reason, message} when it did not — "taken", "limit", "not-listed", "not-claimable", "no-access" or "cooldown". A user who may not write prop invitations at all gets {status: "refused", reason: "needs-request"}: they must ask a room owner to assign it instead. Never claims on behalf of somebody else — use assign-zone for that.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
+- `valu.RoomZones.listRoomZones({ roomId, claimableOnly? })` → `?`
+  Every zone of a room: {status: "ok", zones}. Each zone carries id (the prop id), title, its box in room metres (x, z, rotY in degrees, width, depth, height, floorOffset), the two capabilities (call, claim) and its claim policy (settings.audience is "members" or "listed"). A room with no zones returns an empty list.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
+- `valu.RoomZones.releaseZone({ roomId, zoneId })` → `?`
+  Releases the signed-in user's own claim on a zone: {status: "ok"}. Starts a one-minute cooldown before the same user may claim that zone again. Releasing a zone somebody else holds is not possible here — a room owner uses assign-zone or the Spaces app.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
+- `valu.RoomZones.zoneOccupancy({ roomId })` → `?`
+  Who holds the room's claimable zones right now: {status: "ok", occupancy} keyed by zone id, each {claim, conflicts, stale}. `claim` is null when the zone is free, else {userId, claimedAt, source, doorPolicy, displayName, status}. `stale` means the occupant no longer has access to the room, so the zone is effectively free. `conflicts` are losing claims a moderator should clear. This reads the server every time — there is no push for prop invitations.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
+
+## Social
+
+Valu Social's Social app (`community`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.Social.openCommunity({ communityId, route?, pushToHistory? })` → `?`
+  Opens the community view and navigates to a community by its ID. Use when you only have a communityId and no specific channel to target — the app will land on the first available channel.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `community` app's `open-community`</sub>
+- `valu.Social.showChannel({ communityId, rootChannelId, subChannelId?, route?, pushToHistory? })` → `?`
+  Opens the community view and navigates to a specific channel. Use communityId from AI context. For a root channel: pass its id as rootChannelId, omit subChannelId. For a sub-channel: the sub-channel object in AI context has a rootChannelId field — pass that as rootChannelId, and the sub-channel id as subChannelId.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `community` app's `show-channel`</sub>
+- `valu.Social.showPost({ communityId, rootChannelId, messageId, subChannelId?, route?, pushToHistory? })` → `?`
+  Opens the community view and navigates to a specific post. Use communityId from AI context. For a post in a root channel: pass the channel id as rootChannelId, omit subChannelId. For a post in a sub-channel: pass the sub-channel's rootChannelId as rootChannelId, and the sub-channel id as subChannelId. Pass the post id as messageId.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `community` app's `show-post`</sub>
+
+**Writes**
+
+- `valu.Social.createChannel({ community, contentDirectoryId?, rootChannel?, subChannelId?, mode?, contentDirectoryTitle?, route?, pushToHistory? })` → `?`
+  Opens the community view and starts channel creation in a specific community context.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `community` app's `create-channel`</sub>
+- `valu.Social.createPost({ resourceId, rootChannel, community, path, title?, body?, route?, pushToHistory? })` → `?`
+  Open view and open post editor
+  <sub>intent · opens a Valu Social tab at the app's own address · the `community` app's `create-post`</sub>
+
+## UserCard
+
+Valu Social's User Card app (`user-card`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.UserCard.show({ userId, anchor?, hostApplicationId?, route?, pushToHistory? })` → `?`
+  Shows the contextual profile card for a user.
+  <sub>intent · inside Valu Social only; skipped at the app's own address · the `user-card` app's `show`</sub>
+
+## ValuGames
+
+Valu Social's Valu Games app (`games`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.ValuGames.open({ route?, pushToHistory? }?)` → `?`
+  Open the Valu Games app.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `games` app's `open`</sub>
+
+## ValuGuru
+
+Valu Social's Valu Guru app (`valuguru`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.ValuGuru.open({ newChat?, route?, pushToHistory? }?)` → `?`
+  Opens the Valu Guru app on a chat with the built-in Valu Guru assistant, without sending anything. Resumes the most recent built-in-assistant conversation, or lands on the empty new-chat screen when there is none. Custom chatbot conversations are never resumed, and nothing is created on the server — a session appears only once a message is sent.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `valuguru` app's `open`</sub>
+- `valu.ValuGuru.openAgent({ agentId, route?, pushToHistory? })` → `?`
+  Opens the Valu Guru app and navigates to a specific agent chat by ID.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `valuguru` app's `open-agent`</sub>
+- `valu.ValuGuru.openChat({ chatId, route?, pushToHistory? })` → `?`
+  Opens the Valu Guru app and navigates to a specific chat session by ID.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `valuguru` app's `open-chat`</sub>
+- `valu.ValuGuru.openChatbot({ chatbotId, route?, pushToHistory? })` → `?`
+  Opens the Valu Guru app on a library chatbot's detail page. Unlike open-chat, the target is not personal — any user in the network can view it (used e.g. by the bot badge on shared chatbot replies).
+  <sub>intent · opens a Valu Social tab at the app's own address · the `valuguru` app's `open-chatbot`</sub>
+- `valu.ValuGuru.showAgents({ route?, pushToHistory? }?)` → `?`
+  Opens the Valu Guru app and switches to the Agents tab in the left panel.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `valuguru` app's `show-agents`</sub>
+- `valu.ValuGuru.startSession({ message, chatbotId?, route?, pushToHistory? })` → `?`
+  Opens the Valu Guru app and starts a brand-new conversation session with an initial message. Always creates a new session regardless of existing ones.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the `valuguru` app's `start-session`</sub>
+
+**Writes**
+
+- `valu.ValuGuru.createChatbot({ prompt?, instructions?, name?, description?, icon?, skillIds?, route?, pushToHistory? }?)` → `?`
+  Opens the Valu Guru app on the new-chatbot creation wizard, optionally pre-filled. Pass `instructions` to land on the Design step fully filled in, or just `prompt` to land on the Describe step with the task pre-typed and ready to generate.
+  <sub>intent · opens a Valu Social tab at the app's own address · the `valuguru` app's `create-chatbot`</sub>
+
+## ValuPuzzles
+
+Valu Social's Valu Puzzles app (`puzzles`): the intents it declares, as functions.
+
+**Reads**
+
+- `valu.ValuPuzzles.startPuzzle({ puzzleId, scoreToBeat?, challengerName?, route?, pushToHistory? })` → `?`
+  Open Valu Puzzles and launch a specific puzzle, optionally with a score-to-beat challenge from another user.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the `puzzles` app's `start-puzzle`</sub>
+
+## Application intents with no function
+
+16 intents Valu Social's apps declare are not functions here: Valu Social's
+own (decision 1 of the typed-app-intents design), and any with no scope, which
+Valu Social refuses once permissions are enforced.
+
+- `auth.logout` — signs the user out of Valu Social
+- `hubs.agent-enter-room` — the Valu Guru agent's own body in Metaverse 2D
+- `hubs.agent-people` — the Valu Guru agent's own body in Metaverse 2D
+- `hubs.agent-walk-to` — the Valu Guru agent's own body in Metaverse 2D
+- `hubs.agent-say` — the Valu Guru agent's own body in Metaverse 2D
+- `hubs.agent-status` — the Valu Guru agent's own body in Metaverse 2D
+- `hubs.agent-leave` — the Valu Guru agent's own body in Metaverse 2D
+- `iframe_llm_debug.open-session` — LLM Debug: Valu's own debugging screens
+- `iframe_llm_debug.open-agent` — LLM Debug: Valu's own debugging screens
+- `iframe_llm_debug.open-run` — LLM Debug: Valu's own debugging screens
+- `staging-content-studio.open-create` — the staging copy of Content Studio
+- `staging-content-studio.open-edit` — the staging copy of Content Studio
+- `staging-content-studio.open-search` — the staging copy of Content Studio
+- `staging-content-studio.navigate` — the staging copy of Content Studio
+- `merchant.open-moderation` — no scope in BridgeScopes.js: Valu Social refuses it once permissions are enforced
+- `valuguru.show-chatbots` — no scope in BridgeScopes.js: Valu Social refuses it once permissions are enforced
+
+## The app's own route
+
+```javascript
+await valu.route.push('/inbox/42');     // a new history entry in Valu Social
+await valu.route.replace('/inbox');     // the same entry
+const stop = valu.onRoute((route) => render(route));  // Valu Social moved it
+```
+
+Inside Valu Social only (`createValuApp()`); at the app's own address the app
+owns its address, and `route.push` / `replace` answer `skipped`.
 
 ## Names
 

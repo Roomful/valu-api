@@ -12,13 +12,14 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import {
   APPLICATION_ONLY, APPLICATION_ONLY_GROUPS, APPLICATION_ONLY_REASON,
-  INTENT_FUNCTION_SERVICES, INTENT_MODE_OVERRIDES,
+  INTENT_FUNCTION_SERVICES, INTENT_FUNCTION_KEYS, INTENT_FUNCTION_NAMES, INTENT_MODE_OVERRIDES,
+  APPS_NAMESPACE, EXCLUDED_APP_INTENTS, APP_INTENT_PARAMS,
   LOCAL, SERVER_TOOLS, SERVER_ONLY_TOOLS, mutates, defaultCache,
 } from './bindings.js';
 // The scope tables the typed intents take their scopes from: what the host
 // serves (Permissions) and the rest of the older bridge (BridgeScopes).
 import { scopeOfIntent } from '../src/host/Permissions.js';
-import { scopeOfServiceIntent } from '../src/host/BridgeScopes.js';
+import { scopeOfAppIntent, scopeOfServiceIntent } from '../src/host/BridgeScopes.js';
 import {
   APP_STATE_CHANNEL, RETURNS, SERVER_ONLY_RECONCILIATION, KNOWN_DELTAS,
   REQUIREMENTS,
@@ -37,6 +38,11 @@ const check = process.argv.includes('--check');
 
 const snapshot = JSON.parse(
   readFileSync(new URL('manifests/service-manifests.snapshot.json', root), 'utf8'),
+);
+// Valu Social's applications and their intents (scripts/sync-manifests.mjs):
+// what the typed app intents (`valu.Chats.openChannel(...)`) are built from.
+const applicationsSnapshot = JSON.parse(
+  readFileSync(new URL('manifests/application-manifests.snapshot.json', root), 'utf8'),
 );
 
 const applicationOnly = new Set(APPLICATION_ONLY);
@@ -175,29 +181,150 @@ descriptors.sort((a, b) => a.key.localeCompare(b.key));
 
 // --- the typed intents ------------------------------------------------------
 // Functions on the tree for the application-served intents of a few services
-// (scripts/bindings.js INTENT_FUNCTION_SERVICES): the same descriptor shape,
-// channel `intent`, a scope from the host's tables, and a MODE for the app's
-// own address. Never in SERVICE_DESCRIPTORS: nothing here runs them.
+// (scripts/bindings.js INTENT_FUNCTION_SERVICES, plus the single intents of
+// INTENT_FUNCTION_KEYS): the same descriptor shape, channel `intent`, a scope
+// from the host's tables, and a MODE for the app's own address. Never in
+// SERVICE_DESCRIPTORS: nothing here runs them.
+//
+// Every one says where the intent goes: `target` (`service` here,
+// `application` for the app intents below) and `to`, the service or app id the
+// intent is addressed to. `service` is the namespace on the tree, which is
+// `to` for all of these but the `valu.Apps` reads (INTENT_FUNCTION_NAMES).
+// A `not-ported` intent is typed too (the RoomPoints reads and writes): the
+// Roomful socket could answer it, and until this package does, Valu Social
+// does, as an intent.
 const intentServices = new Set(INTENT_FUNCTION_SERVICES);
+const intentKeys = new Set(INTENT_FUNCTION_KEYS);
+for (const key of [...intentKeys, ...Object.keys(INTENT_FUNCTION_NAMES)]) {
+  if (!applicationOnly.has(key)) throw new Error(`bindings.js types the intent ${key}, which is not an application-served intent of the manifest`);
+}
 const intentDescriptors = [];
 for (const intent of applicationOnlyIntents) {
-  if (!intentServices.has(intent.service) || intent.reason === 'not-ported') continue;
+  if (!intentServices.has(intent.service) && !intentKeys.has(intent.key)) continue;
   const service = snapshot.services.find((s) => s.id === intent.service);
   const served = scopeOfIntent(intent.service, intent.action);
   const scope = served ?? scopeOfServiceIntent(intent.service, intent.action);
   if (!scope) throw new Error(`${intent.key} is a typed intent with no scope: add it to BridgeScopes.js`);
   const mode = INTENT_MODE_OVERRIDES[intent.key] ?? (served ? 'both' : scope === 'ui:open' ? 'window' : 'embedded-served');
-  const base = buildDescriptor(service, intent, 'manifest');
+  const named = INTENT_FUNCTION_NAMES[intent.key];
+  const base = buildDescriptor(named ? {
+    ...service,
+    id: named.service,
+    title: named.service,
+    description: 'Any Valu Social app, by its id: open one, send it an intent, and ask which apps there are and which are open.',
+  } : service, intent, 'manifest');
   intentDescriptors.push({
     ...base,
+    // The intent's own name stays its key, whatever the tree calls it.
+    key: intent.key,
+    ...(named ? { method: named.method, toolName: `service__${named.service}__${snake(named.method)}` } : {}),
+    ...(named?.positional ? { positional: named.positional } : {}),
     scopes: [scope],
     channel: 'intent',
+    target: 'service',
+    to: intent.service,
     mode,
     cache: { mode: 'none' },
     implementedBy: null,
   });
 }
+
+// --- the typed APPLICATION intents (2026-11-03 design, §5.1) -----------------
+// One function per intent a Valu Social app declares, on a namespace named by
+// the app's title in PascalCase (`Chats`, `MyCart`, `Metaverse2D`), or on the
+// valu-api service of the same name (`Rooms`, `Groups`, `Profile`). Its scope
+// is the one the bridge computes for the same intent (`scopeOfAppIntent`, with
+// the app's real iframe flag), so the function is checked exactly as the
+// intent is. Left out: Valu Social's own intents (EXCLUDED_APP_INTENTS), and
+// any intent with no scope, which Valu Social refuses once permissions are
+// enforced: a function for it would be a trap. Both lists are printed and
+// written to docs/service-api.md, so a reviewer sees them.
+const pascal = (title) => title.replace(/[^A-Za-z0-9]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ''))
+  .replace(/^[a-z]/, (c) => c.toUpperCase());
+const serviceIds = new Set(snapshot.services.map((s) => s.id));
+const excludedAppIntents = [];
+const scopelessAppIntents = [];
+const excludeUsed = new Set();
+const appIntentDescriptors = [];
+for (const app of applicationsSnapshot.applications) {
+  const namespace = pascal(app.title);
+  const folded = serviceIds.has(namespace);
+  const header = {
+    id: namespace,
+    title: app.title,
+    description: folded
+      ? snapshot.services.find((s) => s.id === namespace).description
+      : `Valu Social's ${app.title} app (\`${app.id}\`): the intents it declares, as functions.`,
+    source: applicationsSnapshot.sourceFile,
+  };
+  for (const intent of app.intents) {
+    const name = `${app.id}.${intent.action}`;
+    const rule = EXCLUDED_APP_INTENTS.find((x) => x.app === app.id && x.actions.test(intent.action));
+    if (rule) {
+      excludeUsed.add(rule);
+      excludedAppIntents.push({ name, why: rule.why });
+      continue;
+    }
+    const scope = scopeOfAppIntent(app.id, intent.action, { toFrame: app.iframe });
+    if (!scope) {
+      scopelessAppIntents.push({ name, why: 'no scope in BridgeScopes.js: Valu Social refuses it once permissions are enforced' });
+      continue;
+    }
+    const own = new Set([...intent.params.required, ...intent.params.optional].map((p) => p.name));
+    const withRoute = {
+      ...intent,
+      params: {
+        required: intent.params.required,
+        optional: [...intent.params.optional, ...APP_INTENT_PARAMS.filter((p) => !own.has(p.name))],
+      },
+    };
+    const base = buildDescriptor(header, withRoute, 'manifest');
+    const key = `${namespace}.${intent.action}`;
+    appIntentDescriptors.push({
+      ...base,
+      scopes: [scope],
+      channel: 'intent',
+      target: 'application',
+      to: app.id,
+      mode: INTENT_MODE_OVERRIDES[key] ?? (scope === 'ui:open' ? 'window' : 'embedded-served'),
+      cache: { mode: 'none' },
+      sdkParams: APP_INTENT_PARAMS.filter((p) => !own.has(p.name)).map((p) => p.name),
+      implementedBy: null,
+    });
+  }
+}
+for (const rule of EXCLUDED_APP_INTENTS) {
+  if (!excludeUsed.has(rule)) throw new Error(`bindings.js excludes the intents of ${rule.app} ${rule.actions}, which no application declares — drop it`);
+}
+intentDescriptors.push(...appIntentDescriptors);
 intentDescriptors.sort((a, b) => a.key.localeCompare(b.key));
+
+// Two functions with one name is a build failure, never a silent winner: the
+// same key, the same method in one namespace (an app intent folded onto a
+// service that already has the method), or two descriptors any name form of
+// which resolves alike (descriptors.js indexes four of them, case-blind).
+{
+  const seen = new Map();
+  const claim = (name, d) => {
+    const owner = seen.get(name);
+    if (owner && owner !== d) throw new Error(`name collision: ${owner.key} and ${d.key} are both "${name}"`);
+    seen.set(name, d);
+  };
+  for (const d of [...descriptors, ...intentDescriptors]) {
+    for (const name of new Set([
+      d.key.toLowerCase(), `${d.service}.${d.fn}`.toLowerCase(), `${d.service}.${d.method}`.toLowerCase(),
+      d.toolName.toLowerCase(),
+    ])) claim(name, d);
+  }
+  const hand = [`${APPS_NAMESPACE}.open`, `${APPS_NAMESPACE}.send`].map((n) => n.toLowerCase());
+  for (const name of hand) {
+    if (seen.has(name)) throw new Error(`${seen.get(name).key} takes the name ${name}, which valu.Apps writes by hand`);
+  }
+}
+/** The apps an intent may name, and whether Valu Social frames each: the scanner scopes `valu.Apps.send` by it. */
+const applicationTargets = Object.fromEntries(
+  applicationsSnapshot.applications.map((app) => [app.id, { frame: app.iframe }]),
+);
 
 /** Counts that keep "what the app declares" and "what the SDK offers" apart. */
 const declaredCount = descriptors.filter((d) => d.declaredBy === 'manifest').length;
@@ -217,11 +344,21 @@ const catalogJs = `${banner}
 /** @type {ServiceDescriptor[]} */
 export const SERVICE_DESCRIPTORS = ${JSON.stringify(descriptors, null, 2)};
 
-/** The typed intents (scripts/bindings.js INTENT_FUNCTION_SERVICES): functions
- * on the tree that the transport sends, as intents, to whoever frames or hosts
- * the app. Channel \`intent\`; \`mode\` says what happens at the app's own
- * address (\`both\`, \`window\`, \`embedded-only\`, \`embedded-served\`). */
+/** The typed intents (scripts/bindings.js INTENT_FUNCTION_SERVICES, and every
+ * application intent an app may send): functions on the tree that the
+ * transport sends, as intents, to whoever frames or hosts the app. Channel
+ * \`intent\`; \`target\` (\`service\` | \`application\`) and \`to\` say where the
+ * intent goes; \`mode\` says what happens at the app's own address (\`both\`,
+ * \`window\`, \`embedded-only\`, \`embedded-served\`). */
 export const INTENT_DESCRIPTORS = ${JSON.stringify(intentDescriptors, null, 2)};
+
+/** Every Valu Social application an intent may name, and whether Valu Social
+ * frames it (an intent to a frame is \`apps:intent\`): how \`valu.Apps.send\`
+ * and the scanner scope an app id no descriptor names. */
+export const APPLICATION_TARGETS = ${JSON.stringify(applicationTargets, null, 2)};
+
+/** Application intents with no function, and why: Valu Social's own, or no scope. */
+export const UNTYPED_APPLICATION_INTENTS = ${JSON.stringify([...excludedAppIntents, ...scopelessAppIntents], null, 2)};
 
 /** Declared intents the Valu Social application serves and this package does
  * not — asked for by name over the postMessage bridge, never functions here.
@@ -290,6 +427,21 @@ export type IntentMode = 'both' | 'window' | 'embedded-only' | 'embedded-served'
 
 `;
 
+/** The two \`valu.Apps\` functions whose app id is the caller's, so no descriptor names them (src/services/apps.js). */
+const APPS_HAND_WRITTEN_DTS = `${jsdoc('    ', [
+  "Open any Valu Social app by its id, at a route of its own. Inside Valu Social it opens beside the app; at the app's own address, in a Valu Social tab (call it from a click).",
+  '@scope ui:open',
+  '@mode window',
+])}
+    open(appId: string, options?: { route?: string; pushToHistory?: boolean }): Promise<ValuAck<any>>;
+${jsdoc('    ', [
+  "Send an intent to any app by id, a framed or Developer Portal app included. Scoped when it runs: the app intent's own scope, or \\`apps:intent\\` for an app that is itself a frame. Inside Valu Social only; at the app's own address it answers \\`not_available\\`, unless the intent is one that opens a window.",
+  '@scope apps:intent (a framed app), or the intent\'s own',
+  '@mode embedded-served',
+])}
+    send(appId: string, action: string, params?: Record<string, any>): Promise<ValuAck<any>>;
+`;
+
 /** The declared return shape, as TypeScript. `object` is an open record. */
 const returnType = (returns) => (returns?.type && returns.type !== 'unknown'
   ? returns.type.replace(/\bobject\b/g, 'Record<string, any>')
@@ -319,9 +471,15 @@ for (const [service, fns] of serviceByService) {
     const hasParams = d.params.required.length + d.params.optional.length > 0;
     const required = d.params.required.length > 0;
     const paramsName = `${service}${d.method[0].toUpperCase()}${d.method.slice(1)}Params`;
-    dts += `${jsdoc('    ', [d.description, `@channel ${d.channel}`, `@scope ${d.scopes.join(' ')}`, d.mode ? `@mode ${d.mode}` : ''])}\n`;
-    dts += `    ${d.method}(${hasParams ? `params${required ? '' : '?'}: ${paramsName}` : ''}): Promise<ValuAck<${resultName(d)}>>;\n`;
+    dts += `${jsdoc('    ', [
+      d.description, `@channel ${d.channel}`, `@scope ${d.scopes.join(' ')}`, d.mode ? `@mode ${d.mode}` : '',
+      d.target ? `@intent ${d.target} \`${d.to}\` \`${d.action}\`` : '',
+    ])}\n`;
+    // A function that takes its params in order too (`valu.Apps.isLoaded('textchat')`): one, as a string.
+    const paramsType = d.positional?.length === 1 ? `string | ${paramsName}` : paramsName;
+    dts += `    ${d.method}(${hasParams ? `params${required ? '' : '?'}: ${paramsType}` : ''}): Promise<ValuAck<${resultName(d)}>>;\n`;
   }
+  if (service === APPS_NAMESPACE) dts += APPS_HAND_WRITTEN_DTS;
   dts += `  };\n`;
 }
 dts += `}\n\nexport type ServiceName = keyof ValuServices;\n`;
@@ -886,8 +1044,12 @@ await api.sendIntent(new Intent('chatApp', Intent.ACTION_OPEN, { roomId }));
 Nothing has to be declared for this to work. The name is a string, the
 application resolves it against **its own runtime registry**, and an intent
 registered after this package was published works exactly as well as one that
-predates it. That is why this package declares no application intents: a method
-per intent would be a copy of a list that moves without us.
+predates it.
+
+**Being retired.** Since 2026-11-06 the intents an app may send are functions
+instead (\`valu.Chats.openChannel({ userId })\`, \`valu.Apps.open(appId)\`,
+\`valu.Apps.send(appId, action, params)\`; [service-api.md](service-api.md)),
+which keep working when Valu Social closes this bridge to apps.
 
 ${applicationOnlyIntents.length} intents in the manifest snapshot can ONLY be run this way, so
 [socket-functions.md](socket-functions.md) has no function for any of them.
@@ -936,6 +1098,14 @@ const CHANNEL_NOTE = {
   local: 'answered by the SDK',
 };
 
+/** What a typed intent does at the app's own address, in a few words (docs/connecting.md, "Typed intents"). */
+const MODE_NOTE = {
+  both: 'intent · served by the host too',
+  window: 'intent · opens a Valu Social tab at the app\'s own address',
+  'embedded-only': 'intent · inside Valu Social only; skipped at the app\'s own address',
+  'embedded-served': 'intent · inside Valu Social only; `not_available` at the app\'s own address',
+};
+
 let apiMd = `<!-- GENERATED by scripts/generate.mjs. Do not edit: run \`npm run build\`. -->
 # The service API
 
@@ -961,12 +1131,26 @@ is the same call with the envelope taken off: it returns the payload and throws
 \`ValuServiceError\`. \`valu.call('Users.current')\` takes the name as a string,
 which is what an LLM tool call has.
 
-What is **not** here: application intents — open a dock, expand a pane, show a
-picker, or anything the Valu Guru server answers on its own socket (Commerce,
-the knowledge-base search). The Valu Social application serves those, and it is
-asked for one **by name**, with nothing declared on this side:
-\`api.callService(new Intent('AiGuru', 'open', {applicationId}))\`. See
-[api-pointers.md](api-pointers.md).
+**Intents are functions too.** ${intentDescriptors.length} of the functions below are intents
+that Valu Social serves (\`createValuApp()\` only: a socket client has nowhere to send
+one): ${intentDescriptors.filter((d) => d.target === 'service').length} of its services' (\`valu.Commerce.getCart()\`, \`valu.CMS.pickResource()\`) and
+${appIntentDescriptors.length} of its apps' — every intent an app may send to Chats, Calendar, My Cart
+and the rest, on a namespace named by the app's title
+(\`valu.Chats.openChannel({ userId })\`, \`valu.MyCart.openCart()\`), or on the
+service of the same name (\`valu.Rooms.showRoom({ roomId })\`). Every app intent
+also takes \`route\` and \`pushToHistory\`. Inside Valu Social they go over
+\`api:call\` when Valu Social says it answers them, and over the older bridge
+otherwise; each one's line says what it does at the app's own address.
+
+Two more are written by hand, because their app is the caller's to name:
+\`valu.Apps.open(appId, { route? })\` opens any app, and
+\`valu.Apps.send(appId, action, params)\` sends an intent to any app, a framed
+or Developer Portal one included (\`apps:intent\`). And the app's own route:
+\`valu.route.push(path)\`, \`valu.route.replace(path)\`, \`valu.onRoute(handler)\`.
+
+\`valu.sendIntent\`, \`valu.callService\`, API pointers and console commands
+are being retired: Valu Social will close that older bridge to apps.
+[api-pointers.md](api-pointers.md) is what it carried.
 
 | | |
 |---|---|
@@ -982,17 +1166,47 @@ for (const [service, fns] of serviceByService) {
   const writes = fns.filter((d) => d.mutates);
   apiMd += `## ${service}\n\n${fns[0].serviceDescription}\n\n`;
   const line = (d) => {
-    const marks = [CHANNEL_NOTE[d.channel]];
+    const marks = [d.channel === 'intent' ? MODE_NOTE[d.mode] : CHANNEL_NOTE[d.channel]];
+    if (d.target === 'application') marks.push(`the \`${d.to}\` app's \`${d.action}\``);
+    else if (d.target === 'service' && d.key !== `${service}.${d.action}`) marks.push(`the intent \`${d.key}\``);
     if (d.declaredBy === 'sdk') marks.push('declared by this package');
-    return `- \`valu.${service}.${d.method}${apiSignature(d)}\` → \`${apiReturn(d)}\`\n`
+    const signature = d.positional ? `(${d.positional.join(', ')})` : apiSignature(d);
+    return `- \`valu.${service}.${d.method}${signature}\` → \`${apiReturn(d)}\`\n`
       + `  ${d.description}\n`
       + `  <sub>${marks.join(' · ')}</sub>\n`;
   };
+  if (service === APPS_NAMESPACE) {
+    apiMd += `- \`valu.Apps.open(appId, { route?, pushToHistory? }?)\` → \`?\`\n`
+      + `  Open any Valu Social app by its id, at a route of its own.\n`
+      + `  <sub>${MODE_NOTE.window} · \`ui:open\`</sub>\n`
+      + `- \`valu.Apps.send(appId, action, params?)\` → \`?\`\n`
+      + `  Send an intent to any app: an app's own function when the catalogue has one, else scoped as the bridge scopes it (\`apps:intent\` for a framed or Developer Portal app).\n`
+      + `  <sub>${MODE_NOTE['embedded-served']}</sub>\n\n`;
+  }
   if (reads.length) apiMd += `**Reads**\n\n${reads.map(line).join('')}\n`;
   if (writes.length) apiMd += `**Writes**\n\n${writes.map(line).join('')}\n`;
 }
 
-apiMd += `## Names
+apiMd += `## Application intents with no function
+
+${excludedAppIntents.length + scopelessAppIntents.length} intents Valu Social's apps declare are not functions here: Valu Social's
+own (decision 1 of the typed-app-intents design), and any with no scope, which
+Valu Social refuses once permissions are enforced.
+
+${[...excludedAppIntents, ...scopelessAppIntents].map((i) => `- \`${i.name}\` — ${i.why}`).join('\n')}
+
+## The app's own route
+
+\`\`\`javascript
+await valu.route.push('/inbox/42');     // a new history entry in Valu Social
+await valu.route.replace('/inbox');     // the same entry
+const stop = valu.onRoute((route) => render(route));  // Valu Social moved it
+\`\`\`
+
+Inside Valu Social only (\`createValuApp()\`); at the app's own address the app
+owns its address, and \`route.push\` / \`replace\` answer \`skipped\`.
+
+## Names
 
 One function, four ways to write it — the tree, and the three string forms the
 platform already uses:

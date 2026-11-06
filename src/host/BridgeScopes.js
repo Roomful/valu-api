@@ -48,6 +48,9 @@ const SERVICE_INTENT_SCOPE = byScope({
     'Application.close_all', 'Application.expand-application', 'Application.close-application',
     'Commerce.open-cart', 'Commerce.open-order', 'Commerce.open-products', 'Commerce.open-purchases',
     'Commerce.open-purchase-in-media', 'Commerce.preview-purchase',
+    // Which apps there are, and which are open: what the `app.getApplications` / `app.hasApplication` /
+    // `app.isApplicationLoaded` API pointer commands answer (`ui:open` there too), typed as `valu.Apps.*`.
+    'AiGuru.get-applications', 'AiGuru.has-application', 'AiGuru.is-application-loaded',
   ],
   'cms:read': ['CMS.pick-resource'],
   'rooms:read': ['RoomPoints.list-room-points', 'RoomZones.list-room-zones', 'RoomZones.zone-occupancy'],
@@ -134,13 +137,19 @@ const API_COMMAND_SCOPE = byScope({
 /**
  * The scope of a service intent: a catalogue function's, the host's own
  * intents', or the bridge's own table. `null`: not served.
+ *
+ * A typed APPLICATION intent is not a service intent, though its key may read
+ * like one (`Rooms.show-room` is the Rooms app's `rooms.show-room`, folded onto
+ * the Rooms service's namespace): it is skipped, so `api:service-intent
+ * Rooms.show-room` stays as unscoped as it always was.
  * @param {string} service e.g. `Rooms`
  * @param {string} action e.g. `search-my-rooms`
  * @returns {string|null}
  */
 export function scopeOfServiceIntent(service, action) {
   if (typeof service !== 'string' || typeof action !== 'string') return null;
-  const descriptor = findDescriptor(`${service}.${action}`);
+  const found = findDescriptor(`${service}.${action}`);
+  const descriptor = found?.target === 'application' ? undefined : found;
   if (descriptor) return scopeOfDescriptor(descriptor);
   const key = `${service}.${action}`;
   return scopeOfIntent(service, action) ?? (has(SERVICE_INTENT_SCOPE, key) ? SERVICE_INTENT_SCOPE[key] : null);

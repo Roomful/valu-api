@@ -79,7 +79,20 @@ export class ServiceClient {
     if (!descriptor) {
       return errorAck(ERROR_CODES.UNKNOWN_FUNCTION, `unknown service function: ${name}`);
     }
+    return this.run(descriptor, params, options);
+  }
 
+  /**
+   * `call()` with the descriptor already in hand: the same path, from the
+   * intent check on. For a function no name resolves to, because its target is
+   * the caller's: `valu.Apps.open(appId)` and `valu.Apps.send(appId, action)`
+   * (src/services/apps.js) build theirs when they are called.
+   * @param {import('./descriptors.js').ServiceDescriptor} descriptor
+   * @param {object} [params]
+   * @param {object} [options] as `call`'s
+   * @returns {Promise<import('../socket/ValuSocket.js').ValuAck>}
+   */
+  async run(descriptor, params = {}, options = {}) {
     if (descriptor.channel === 'intent' && !this.#transport.servesIntents) {
       return errorAck(
         ERROR_CODES.UNSUPPORTED,
@@ -123,6 +136,12 @@ export class ServiceClient {
     const descriptor = findDescriptor(name);
     const ack = await this.call(name, params, options);
     return unwrapAck(ack, { service: descriptor?.service, fn: descriptor?.fn, fallback: `${name} failed` });
+  }
+
+  /** `run()`, unwrapped: returns `ack.data`, throws `ValuServiceError` for anything else. */
+  async runData(descriptor, params, options) {
+    const ack = await this.run(descriptor, params, options);
+    return unwrapAck(ack, { service: descriptor.service, fn: descriptor.fn, fallback: `${descriptor.key} failed` });
   }
 
   /**

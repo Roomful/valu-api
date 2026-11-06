@@ -701,7 +701,7 @@ test('readyTimeoutMs bounds the dedicated handshake too: createValuApp rejects h
 // The typed intents inside Valu Social (2026-10-30): sent as the intents they are.
 // ---------------------------------------------------------------------------
 
-test('a typed intent goes to Valu Social as api:service-intent, whatever its mode, and the reply is the ack', async (t) => {
+test('without valuApi.intents a typed intent goes to Valu Social as api:service-intent, whatever its mode, and the reply is the ack', async (t) => {
   const h = await setup(t);
   const intents = [];
   h.valuSocial.addEventListener('message', ({ data, source }) => {
@@ -719,4 +719,155 @@ test('a typed intent goes to Valu Social as api:service-intent, whatever its mod
   ]);
   assert.equal(h.calls().length, 0, 'never an api:call');
   assert.equal(h.popups.calls.length, 0, 'no window inside Valu Social');
+});
+
+// ---------------------------------------------------------------------------
+// Typed app intents over api:call (2026-11-03 design §5.3): when Valu Social's
+// api:ready says `intents`, every typed intent is an api:call with `intent`.
+// ---------------------------------------------------------------------------
+
+const WITH_INTENTS = { ...VALU_API, intents: true };
+
+/** Valu Social's older bridge, answered: every `api:run-intent` / `api:service-intent` it gets. */
+function oldBridge(h, answer = () => ({ success: true })) {
+  const got = [];
+  h.valuSocial.addEventListener('message', ({ data, source }) => {
+    if (source !== h.frame) return;
+    if (data?.name === MSG.RUN_INTENT) {
+      got.push({ name: data.name, ...data.message });
+      h.send(MSG.RUN_COMPLETED, answer(data.message), data.message.requestId);
+    } else if (data?.name === MSG.SERVICE_INTENT) {
+      got.push({ name: data.name, ...data.message });
+      h.send(MSG.RUN_CONSOLE_COMPLETED, answer(data.message), data.message.requestId);
+    } else if (data?.name === MSG.RUN_COMMAND) {
+      got.push({ name: data.name, ...data.message });
+    }
+  });
+  return got;
+}
+
+test('with valuApi.intents a typed intent is an api:call with intent: {target, id}, app and service alike', async (t) => {
+  const h = await setup(t, { answer: (message) => ({ data: { echoed: message.intent } }) });
+  const bridge = oldBridge(h);
+  h.ready(WITH_INTENTS);
+  await settle();
+  assert.deepEqual(await h.valu.Chats.openChannel({ userId: 'u-2' }), { data: { echoed: { target: 'application', id: 'textchat' } } });
+  assert.deepEqual(await h.valu.Commerce.getCart(), { data: { echoed: { target: 'service', id: 'Commerce' } } });
+  assert.deepEqual(await h.valu.Apps.isLoaded('textchat'), { data: { echoed: { target: 'service', id: 'AiGuru' } } });
+
+  const [chat, cart, loaded] = h.calls().map((post) => post.message);
+  assert.deepEqual(Object.keys(chat), ['intent', 'action', 'params', 'requestId', 'timeoutMs', 'client']);
+  assert.equal(chat.action, 'open-channel');
+  assert.deepEqual(chat.params, { userId: 'u-2' });
+  assert.equal(cart.action, 'get-cart');
+  assert.deepEqual(loaded.params, { applicationId: 'textchat' });
+  assert.equal(loaded.action, 'is-application-loaded');
+  assert.deepEqual(bridge, [], 'nothing over the older bridge');
+});
+
+test('without valuApi.intents an app intent goes over api:run-intent, a service intent over api:service-intent', async (t) => {
+  const h = await setup(t);
+  const bridge = oldBridge(h, (message) => (message.action === 'open-channel' ? { success: true } : { success: false, code: 'consent_required', scope: 'commerce:write' }));
+  h.ready(); // calls, but no intents: a Valu Social from before typed app intents
+  await settle();
+  assert.deepEqual(await h.valu.Chats.openChannel({ userId: 'u-2' }), { data: { success: true } });
+  const refused = await h.valu.Commerce.addToCart({ productId: 'p-1' });
+  assert.equal(refused.error.message, 'consent_required', 'the reply is read with intentAck: a refusal reads like a refused function');
+  assert.deepEqual(bridge.map(({ name, applicationId, action, params }) => [name, applicationId, action, params]), [
+    [MSG.RUN_INTENT, 'textchat', 'open-channel', { userId: 'u-2' }],
+    [MSG.SERVICE_INTENT, 'Commerce', 'add-to-cart', { productId: 'p-1' }],
+  ]);
+  assert.equal(h.calls().length, 0);
+});
+
+test('a typed intent made before api:ready is held for it; one held past its timeout answers 408 and is never sent', async (t) => {
+  const h = await setup(t, { answer: () => ({ data: { ok: true } }) });
+  const late = track(h.valu.call('Chats.openChannel', {}, { timeoutMs: 2_000 }));
+  const held = track(h.valu.Rooms.showRoom({ roomId: 'r-1' }));
+  h.clock.tick(2_000);
+  await settle();
+  assert.equal(late.value.error.code, 408);
+  assert.equal(held.settled, false);
+  h.ready(WITH_INTENTS);
+  await settle();
+  assert.deepEqual(held.value, { data: { ok: true } });
+  assert.deepEqual(h.calls().map((post) => post.message.intent), [{ target: 'application', id: 'rooms' }]);
+});
+
+test('a posted typed intent that outlives its timeout answers 408; an app intent that writes says it may still apply', async (t) => {
+  const h = await setup(t, { answer: () => null });
+  h.ready(WITH_INTENTS);
+  await settle();
+  const pending = track(h.valu.call('Chats.sendMessage', { text: 'hi' }, { timeoutMs: 3_000 }));
+  await settle();
+  h.clock.tick(3_000);
+  await settle();
+  assert.equal(pending.value.error.code, 408);
+  assert.equal(pending.value.error.retryable, false);
+  assert.equal(h.calls().length, 1, 'never retried');
+});
+
+test('valu.Apps.open and valu.Apps.send go out as app intents to the app the caller names', async (t) => {
+  const h = await setup(t, { answer: () => ({ data: { success: true } }) });
+  h.ready(WITH_INTENTS);
+  await settle();
+  await h.valu.Apps.open('settings', { route: '/privacy' });
+  await h.valu.Apps.send('ws-portal-app', 'refresh', { full: true });
+  await h.valu.Apps.send('textchat', 'open-channel', { userId: 'u-3' });
+  assert.deepEqual(h.calls().map(({ message }) => [message.intent, message.action, message.params]), [
+    [{ target: 'application', id: 'settings' }, 'open', { route: '/privacy' }],
+    [{ target: 'application', id: 'ws-portal-app' }, 'refresh', { full: true }],
+    [{ target: 'application', id: 'textchat' }, 'open-channel', { userId: 'u-3' }],
+  ]);
+  // A catalogue intent sent by name keeps its params checked.
+  assert.equal((await h.valu.Apps.send('textchat', 'open-channel', { usr: 'x' })).error.code, 400);
+});
+
+test('valu.route.push / replace: an api:call with intent: {target: route} when intents are served, api:run-command otherwise', async (t) => {
+  const h = await setup(t, { answer: () => ({ data: { success: true } }) });
+  h.ready(WITH_INTENTS);
+  await settle();
+  assert.deepEqual(await h.valu.route.push('/a'), { data: { success: true } });
+  assert.deepEqual(await h.valu.route.replace('/b'), { data: { success: true } });
+  assert.deepEqual(h.calls().map(({ message }) => [message.intent, message.action, message.params]), [
+    [{ target: 'route' }, 'push', { path: '/a' }],
+    [{ target: 'route' }, 'replace', { path: '/b' }],
+  ]);
+
+  const old = await setup(t);
+  const bridge = oldBridge(old);
+  old.ready();
+  await settle();
+  assert.deepEqual(await old.valu.route.push('/c'), { data: { success: true, sent: true } });
+  assert.deepEqual(await old.valu.route.replace('/d'), { data: { success: true, sent: true } });
+  assert.deepEqual(bridge.map(({ name, command, data }) => [name, command, data]), [
+    [MSG.RUN_COMMAND, 'pushRoute', '/c'],
+    [MSG.RUN_COMMAND, 'replaceRoute', '/d'],
+  ]);
+  assert.equal((await old.valu.route.push(42)).error.code, 400);
+});
+
+test('valu.onRoute hears Valu Social move the route, until it is stopped', async (t) => {
+  const h = await setup(t);
+  h.ready(WITH_INTENTS);
+  await settle();
+  const seen = [];
+  const stop = h.valu.onRoute((route) => seen.push(route));
+  h.send(MSG.TRIGGER, { action: 'on_route', data: '/inbox' });
+  await settle();
+  stop();
+  h.send(MSG.TRIGGER, { action: 'on_route', data: '/elsewhere' });
+  await settle();
+  assert.deepEqual(seen, ['/inbox']);
+  assert.throws(() => h.valu.onRoute('nope'), TypeError);
+});
+
+test('an untrusted parent is never sent an intent over api:call, whatever its api:ready says', async (t) => {
+  const h = await setup(t, { parentOrigin: 'https://evil.example', answer: () => ({ data: { stolen: true } }) });
+  const bridge = oldBridge(h);
+  h.ready(WITH_INTENTS);
+  await settle();
+  await h.valu.Chats.openChannel({});
+  assert.equal(h.calls().length, 0);
+  assert.equal(bridge.length, 1, 'the older bridge, as before: it is what such a parent always got');
 });

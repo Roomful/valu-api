@@ -31,6 +31,9 @@ export function validateParams(descriptor, params = {}) {
   if (params === null || typeof params !== 'object' || Array.isArray(params)) {
     return { ok: false, errors: ['params must be an object'] };
   }
+  // `valu.Apps.send` to an intent no manifest here declares: the app it goes
+  // to is the one that knows its params (src/services/apps.js).
+  if (descriptor.anyParams === true) return { ok: true, errors: [] };
 
   const declared = [...descriptor.params.required, ...descriptor.params.optional];
   const known = new Set(declared.map((p) => p.name));

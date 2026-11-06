@@ -338,7 +338,41 @@ export const SERVER_ONLY_TOOLS = [
  * The mode is derived (scripts/generate.mjs) from what the host serves and the
  * scope tables; these are the two lists the derivation reads.
  */
-export const INTENT_FUNCTION_SERVICES = ['Commerce', 'Application', 'DataProvider', 'RoomPoints'];
+export const INTENT_FUNCTION_SERVICES = ['Commerce', 'Application', 'DataProvider', 'RoomPoints', 'RoomZones'];
+
+/**
+ * Single service intents that are typed functions although the rest of their
+ * service is not (typed app intents, 2026-11-06). `CMS.pick-resource` is a
+ * picker (`valu.CMS.pickResource(...)`); the three `AiGuru` reads are what an
+ * app polls the `app.isApplicationLoaded` API pointer for today, and they are
+ * functions on `valu.Apps` ({@link INTENT_FUNCTION_NAMES}). `AiGuru.open` /
+ * `close` and the histories stay off the tree: legacy-only, or no scope.
+ */
+export const INTENT_FUNCTION_KEYS = [
+  'CMS.pick-resource',
+  'AiGuru.is-application-loaded',
+  'AiGuru.get-applications',
+  'AiGuru.has-application',
+];
+
+/**
+ * Typed intents that sit on the tree under another name than their own: the
+ * namespace, the method, and the params a caller may pass in order instead of
+ * as an object (`valu.Apps.isLoaded('textchat')`). On the wire they are still
+ * the intent they always were (`AiGuru.is-application-loaded`).
+ */
+export const INTENT_FUNCTION_NAMES = {
+  'AiGuru.is-application-loaded': { service: 'Apps', method: 'isLoaded', positional: ['applicationId'] },
+  'AiGuru.get-applications': { service: 'Apps', method: 'list' },
+  'AiGuru.has-application': { service: 'Apps', method: 'has', positional: ['applicationId'] },
+};
+
+/**
+ * The namespace the `valu.Apps` functions share: the reads above, and the two
+ * the SDK writes by hand because their app id is the caller's
+ * (`valu.Apps.open(appId)`, `valu.Apps.send(appId, action, params)`).
+ */
+export const APPS_NAMESPACE = 'Apps';
 
 /** Overrides of the derived mode: what opens no window and has no meaning at the app's own address. */
 export const INTENT_MODE_OVERRIDES = {
@@ -350,4 +384,47 @@ export const INTENT_MODE_OVERRIDES = {
   // The pickers return the user's choice; a window with no way back is not a picker. Until one exists: embedded only.
   'DataProvider.pick-single': 'embedded-only',
   'DataProvider.pick-multiple': 'embedded-only',
+  'CMS.pick-resource': 'embedded-only',
+  // Which apps the user has, and which are open, are Valu Social's to say: the host has no dock to read.
+  'AiGuru.get-applications': 'embedded-served',
+  'AiGuru.has-application': 'embedded-served',
+  'AiGuru.is-application-loaded': 'embedded-served',
+  // --- the application intents (reviewed 2026-11-06). Every `ui:open` one
+  // derives `window`: Valu Social's `/-i/<app>/<action>` route opens it in a
+  // tab. These open nothing there, so they mean something only inside Valu
+  // Social, beside the app that asked:
+  // a getter, and two that change the chat pane the app sits next to;
+  'Chats.get-ui-state': 'embedded-only',
+  'Chats.close-channel': 'embedded-only',
+  'Chats.options': 'embedded-only',
+  // a card anchored over the calling app, and the screen-share source picker of a call in progress;
+  'UserCard.show': 'embedded-only',
+  'Calls.open-source-picker': 'embedded-only',
+  // the 3D view's route, which a fresh tab has no 3D view to apply to.
+  'Metaverse.set-route': 'embedded-only',
 };
+
+/**
+ * Application intents no app is given a function for (decision 1 of the
+ * typed-app-intents design, 2026-11-03): Valu Social's own. By app id, with
+ * the actions as a pattern; `*` is every action of the app. The generator
+ * lists what it left out, and fails when an entry matches nothing.
+ */
+export const EXCLUDED_APP_INTENTS = [
+  { app: 'auth', actions: /^logout$/, why: 'signs the user out of Valu Social' },
+  { app: 'iframe_llm_debug', actions: /./, why: "LLM Debug: Valu's own debugging screens" },
+  { app: 'staging-content-studio', actions: /./, why: 'the staging copy of Content Studio' },
+  { app: 'hubs', actions: /^agent-/, why: "the Valu Guru agent's own body in Metaverse 2D" },
+];
+
+/**
+ * Params every application intent accepts beyond its manifest's: Valu Social
+ * opens the app at `route` (valu-routing.md), and `pushToHistory` says whether
+ * that is a new history entry. `predefinedDock` / `predefinedLayout` are not
+ * offered: they rearrange the user's dock, and nothing outside Valu Social
+ * should.
+ */
+export const APP_INTENT_PARAMS = [
+  { name: 'route', type: 'string', description: "Open the app at this route of its own (valu-routing.md)." },
+  { name: 'pushToHistory', type: 'boolean', description: 'Whether opening the app is a new entry in the browser history.' },
+];

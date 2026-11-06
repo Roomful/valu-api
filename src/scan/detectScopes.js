@@ -11,6 +11,9 @@
 // documents, and which keep their names through minification):
 //
 //   valu.Rooms.searchMyRooms(…)   valu.data.Users.current()   Rooms.getRoom(…)
+//   valu.Chats.openChannel(…)     (an app intent: its scope is the bridge's for that intent)
+//   valu.Apps.open('events')   valu.Apps.send('textchat', 'open-channel', …)   (a literal app id and
+//                                 action; a dynamic one is listed in `unresolved`)
 //   valu.call('Rooms.search-my-rooms', …)   valu.invoke('Users.current')
 //   new Intent('Commerce', 'get-cart')       (catalogue function, then Commerce/identity intents)
 //   auth.signIn({ scopes: [...] })   auth.requestConsent([...])      → "asked"
@@ -37,6 +40,7 @@ import { SERVICE_DESCRIPTORS, INTENT_DESCRIPTORS, findDescriptor } from '../serv
 import { scopeOfIntent } from '../host/Permissions.js';
 import { scopeOfApiCommand, scopeOfAppIntent, scopeOfServiceIntent } from '../host/BridgeScopes.js';
 import { SCOPE_PATTERN } from './permissionsFile.js';
+import { APPS, appIntentDescriptor } from '../services/apps.js';
 
 /** At most this many findings are kept for one call name, and this many in all. */
 export const FINDINGS_PER_CALL = 3;
@@ -439,10 +443,28 @@ function scanFile(lexed) {
   // module (`import * as Http from './http'`), not valu-api.
   const destructured = destructuredServices(code);
   for (const m of matches(CODE_PATTERNS.member, code)) {
+    const before = code.slice(0, m.index).trimEnd();
+    const onValu = before.endsWith('.') || destructured.has(m[1]);
+    // `valu.Apps.open(appId)`, `valu.Apps.send(appId, action)`: the app is the caller's to name, so its
+    // scope is read from the literal app id and action; one decided at run time cannot be read.
+    if (m[1] === APPS && (m[2] === 'open' || m[2] === 'send') && onValu) {
+      const open = m.index + m[0].lastIndexOf('(');
+      const [appArg, actionArg] = readArgs(lexed, open);
+      const appId = appArg?.literal ?? null;
+      const action = m[2] === 'open' ? 'open' : (actionArg?.literal ?? null);
+      if (appId === null || action === null) {
+        unread(open);
+        continue;
+      }
+      const descriptor = appIntentDescriptor(appId, action);
+      const call = `${appId}.${action}`;
+      if (descriptor) findings.push({ scope: descriptor.scopes[0], call, kind: 'intent', file: path, line: at(m.index) });
+      else bridge.push({ scope: null, call, kind: 'bridge', file: path, line: at(m.index) });
+      continue;
+    }
     const descriptor = BY_MEMBER.get(m[1])?.get(m[2]);
     if (!descriptor) continue;
-    const before = code.slice(0, m.index).trimEnd();
-    if (before.endsWith('.') || destructured.has(m[1])) fn(descriptor, 'function', m.index);
+    if (onValu) fn(descriptor, 'function', m.index);
   }
 
   for (const m of literalMatches(LITERAL_PATTERNS.byName)) {
@@ -456,7 +478,10 @@ function scanFile(lexed) {
     const [service, action] = [m[2], m[4]];
     if (service.includes('${') || action.includes('${')) continue; // a template with an expression: decided at run time
     intentsRead.add(m.index);
-    const descriptor = findDescriptor(`${service}.${action}`);
+    // `new Intent('rooms', 'show-room')` names the app's id, not the function's
+    // (`Rooms.show-room`, folded onto the Rooms service): read below, by the bridge's tables.
+    const found = findDescriptor(`${service}.${action}`);
+    const descriptor = found?.target === 'application' ? undefined : found;
     // The host's intents are named `Commerce` / `Application`; a lower-case
     // name reaches the same intent, so it needs the same scope.
     const scope = descriptor

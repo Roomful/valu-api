@@ -276,3 +276,44 @@ test('a typed intent on the tree is read like any function', () => {
     ['Application.expand-application', 'ui:open', 'function', 3],
   ]);
 });
+
+// ---------------------------------------------------------------------------
+// Typed app intents (2026-11-03 design §5.6, decided 2026-11-06)
+// ---------------------------------------------------------------------------
+
+test('an app intent reads like any function: an own namespace, a folded one, and a window one', () => {
+  // Own namespace (the app's title): a write.
+  assert.deepEqual(only(scan("await valu.Chats.sendMessage({ text: 'hi' });")), {
+    scope: 'textchat:write', call: 'Chats.send-message', kind: 'function', file: 'src/app.ts', line: 1,
+  });
+  // Folded onto the service of the same name.
+  assert.deepEqual(only(scan("valu.Rooms.showRoom({ roomId });")).call, 'Rooms.show-room');
+  assert.equal(only(scan("valu.Rooms.showRoom({ roomId });")).scope, 'ui:open');
+  // A window one, and a framed app's (apps:intent).
+  assert.equal(only(scan('valu.data.Calendar.openCalendar({ source })')).scope, 'ui:open');
+  assert.equal(only(scan('valu.ContentStudio.openCreate({})')).scope, 'apps:intent');
+  // The valu.Apps reads.
+  assert.deepEqual(only(scan("valu.Apps.isLoaded('textchat')")), {
+    scope: 'ui:open', call: 'AiGuru.is-application-loaded', kind: 'function', file: 'src/app.ts', line: 1,
+  });
+});
+
+test('valu.Apps.open / send read a literal app id and action, and flag a dynamic one', () => {
+  assert.deepEqual(only(scan("valu.Apps.open('events', { route: '/week' })")), {
+    scope: 'ui:open', call: 'events.open', kind: 'intent', file: 'src/app.ts', line: 1,
+  });
+  assert.equal(only(scan("valu.Apps.send('textchat', 'send-message', { text })")).scope, 'textchat:write');
+  // An app no snapshot names is a framed or Developer Portal app.
+  assert.equal(only(scan("valu.Apps.send('ws-other-app', 'refresh')")).scope, 'apps:intent');
+  // Valu Social's own: no scope, a bridge finding a reviewer sees.
+  assert.deepEqual(scan("valu.Apps.send('auth', 'logout')").bridge.map((f) => [f.scope, f.call]), [[null, 'auth.logout']]);
+  // Decided at run time: unreadable, at its line.
+  const dynamic = scan("valu.Apps.open(appId);\nvalu.Apps.send('textchat', action);");
+  assert.deepEqual(dynamic.findings, []);
+  assert.deepEqual(dynamic.unresolved.map((u) => u.line), [1, 2]);
+});
+
+test("new Intent('rooms', 'show-room') is still the bridge's application intent, never the folded function's name", () => {
+  assert.deepEqual(only(scan("api.sendIntent(new Intent('rooms', 'show-room', { roomId }))")).kind, 'bridge');
+  assert.deepEqual(scan("api.callService(new Intent('Rooms', 'show-room'))").bridge.map((f) => f.call), ['Rooms.show-room']);
+});

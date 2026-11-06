@@ -31,6 +31,8 @@
 import { ServiceClient } from './ServiceClient.js';
 import { SERVICE_FUNCTIONS, INTENT_FUNCTIONS, catalogSummary, listServices } from './descriptors.js';
 import { toolDefinitions } from './toolDefs.js';
+import { APPS, appsFunctions } from './apps.js';
+import { unwrapAck } from '../socket/ValuSocket.js';
 import { SocketTransport } from '../transport/SocketTransport.js';
 import { openValuSocket } from '../socket/open.js';
 // Imported for its effect: this is what puts the 65 handlers in the default
@@ -60,10 +62,17 @@ function groupByService() {
  * builds tools from these functions never has to look the function up by
  * string to find out what it is.
  */
-function buildNamespace(descriptors, run) {
-  const namespace = {};
+function buildNamespace(descriptors, run, extra = {}) {
+  const namespace = { ...extra };
   for (const descriptor of descriptors) {
-    const method = (params, options) => run(descriptor, params, options);
+    // A function that takes its params in order too (`valu.Apps.isLoaded('textchat')`):
+    // anything but an object first is the first of them.
+    const { positional } = descriptor;
+    const method = positional
+      ? (first, ...rest) => (first === undefined || (first !== null && typeof first === 'object')
+        ? run(descriptor, first, rest[0])
+        : run(descriptor, Object.fromEntries(positional.map((name, i) => [name, [first, ...rest][i]])), rest[positional.length - 1]))
+      : (params, options) => run(descriptor, params, options);
     Object.defineProperty(method, 'name', { value: descriptor.method });
     method.descriptor = descriptor;
     method.key = descriptor.key;
@@ -73,10 +82,15 @@ function buildNamespace(descriptors, run) {
   return Object.freeze(namespace);
 }
 
-function buildTree(run) {
+/**
+ * @param {(descriptor: object, params: object, options?: object) => Promise<any>} run every function
+ * @param {object} apps the hand-written `valu.Apps.open` / `send` (src/services/apps.js), which join
+ *   the generated `Apps` reads
+ */
+function buildTree(run, apps) {
   const tree = {};
   for (const [service, descriptors] of groupByService()) {
-    tree[service] = buildNamespace(descriptors, run);
+    tree[service] = buildNamespace(descriptors, run, service === APPS ? apps : {});
   }
   return Object.freeze(tree);
 }
@@ -106,7 +120,9 @@ export class ValuServiceApi {
     if (!client) throw new TypeError('ValuServiceApi needs a ServiceClient');
     this.#client = client;
     this.#connection = connection ?? null;
-    Object.assign(this, buildTree((d, params, opts) => client.call(d.key, params, opts)));
+    // `client.run`: the descriptor is in hand, and `valu.Apps.open/send` make theirs when called.
+    const run = (d, params, opts) => client.run(d, params, opts);
+    Object.assign(this, buildTree(run, appsFunctions(run)));
   }
 
   get client() { return this.#client; }
@@ -131,7 +147,8 @@ export class ValuServiceApi {
    */
   get data() {
     if (!this.#data) {
-      this.#data = buildTree((d, params, opts) => this.#client.invoke(d.key, params, opts));
+      const run = (d, params, opts) => this.#client.runData(d, params, opts);
+      this.#data = buildTree(run, appsFunctions(run, (ack) => unwrapAck(ack, { service: APPS, fallback: 'Apps failed' })));
     }
     return this.#data;
   }
