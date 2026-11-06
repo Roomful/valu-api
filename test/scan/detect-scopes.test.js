@@ -54,12 +54,12 @@ test('intents: Commerce, the identity token, the older bridge\'s, and one with n
   assert.equal(only(scan("new Intent('commerce', 'get-cart')")).scope, 'commerce:read');
   // Valu Social checks the older bridge's intents too, so they need their scopes (BridgeScopes.js).
   assert.deepEqual(only(scan("new Intent('textchat', 'open-channel', {userId})")), {
-    scope: 'ui:open', call: 'textchat.open-channel', kind: 'bridge', file: 'src/app.ts', line: 1,
+    scope: 'ui:open', call: 'textchat.open-channel', kind: 'bridge', file: 'src/app.ts', line: 1, message: 'run-intent', name: 'textchat.open-channel',
   });
   assert.equal(only(scan("new Intent('RoomZones', 'claim-zone')")).scope, 'rooms:write');
   const result = scan("new Intent('auth', 'logout')");
   assert.deepEqual(result.findings, []);
-  assert.deepEqual(result.bridge, [{ scope: null, call: 'auth.logout', kind: 'bridge', file: 'src/app.ts', line: 1 }]);
+  assert.deepEqual(result.bridge, [{ scope: null, call: 'auth.logout', kind: 'bridge', file: 'src/app.ts', line: 1, message: 'run-intent', name: 'auth.logout' }]);
 });
 
 test('an intent that names a catalogue function needs that function\'s scope', () => {
@@ -275,4 +275,81 @@ test('a typed intent on the tree is read like any function', () => {
     ['Commerce.open-cart', 'ui:open', 'function', 2],
     ['Application.expand-application', 'ui:open', 'function', 3],
   ]);
+});
+
+// ---------------------------------------------------------------------------
+// Typed app intents (2026-11-03 design §5.6, decided 2026-11-06)
+// ---------------------------------------------------------------------------
+
+test('an app intent reads like any function: an own namespace, a folded one, and a window one', () => {
+  // Own namespace (the app's title): a write.
+  assert.deepEqual(only(scan("await valu.Chats.sendMessage({ text: 'hi' });")), {
+    scope: 'textchat:write', call: 'Chats.send-message', kind: 'function', file: 'src/app.ts', line: 1,
+  });
+  // Folded onto the service of the same name.
+  assert.deepEqual(only(scan("valu.Rooms.showRoom({ roomId });")).call, 'Rooms.show-room');
+  assert.equal(only(scan("valu.Rooms.showRoom({ roomId });")).scope, 'ui:open');
+  // A window one, and a framed app's (apps:intent).
+  assert.equal(only(scan('valu.data.Calendar.openCalendar({ source })')).scope, 'ui:open');
+  assert.equal(only(scan('valu.ContentStudio.openCreate({})')).scope, 'apps:intent');
+  // The valu.Apps reads.
+  assert.deepEqual(only(scan("valu.Apps.isLoaded('textchat')")), {
+    scope: 'ui:open', call: 'AiGuru.is-application-loaded', kind: 'function', file: 'src/app.ts', line: 1,
+  });
+});
+
+test('valu.Apps.open / send read a literal app id and action, and flag a dynamic one', () => {
+  assert.deepEqual(only(scan("valu.Apps.open('events', { route: '/week' })")), {
+    scope: 'ui:open', call: 'events.open', kind: 'intent', file: 'src/app.ts', line: 1,
+  });
+  assert.equal(only(scan("valu.Apps.send('textchat', 'send-message', { text })")).scope, 'textchat:write');
+  // An app no snapshot names is a framed or Developer Portal app.
+  assert.equal(only(scan("valu.Apps.send('ws-other-app', 'refresh')")).scope, 'apps:intent');
+  // Valu Social's own: no scope, a bridge finding a reviewer sees.
+  assert.deepEqual(scan("valu.Apps.send('auth', 'logout')").bridge.map((f) => [f.scope, f.call]), [[null, 'auth.logout']]);
+  // Decided at run time: unreadable, at its line.
+  const dynamic = scan("valu.Apps.open(appId);\nvalu.Apps.send('textchat', action);");
+  assert.deepEqual(dynamic.findings, []);
+  assert.deepEqual(dynamic.unresolved.map((u) => u.line), [1, 2]);
+});
+
+test("new Intent('rooms', 'show-room') is still the bridge's application intent, never the folded function's name", () => {
+  assert.deepEqual(only(scan("api.sendIntent(new Intent('rooms', 'show-room', { roomId }))")).kind, 'bridge');
+  assert.deepEqual(scan("api.callService(new Intent('Rooms', 'show-room'))").bridge.map((f) => f.call), ['Rooms.show-room']);
+});
+
+test('bridge findings carry the counter kind and name', () => {
+  const r = scan("valuApi.sendIntent(new Intent('textchat','open-channel'));\nawait valuApi.getApi('users').run('current');\nvaluApi.runConsoleCommand('users current');\nvaluApi.pushRoute('/a');");
+  const all = [...r.findings, ...r.bridge].filter((f) => f.kind === 'bridge').map((f) => [f.message, f.name, f.line]);
+  assert.deepEqual(all.sort(), [['pointer-run','users.current',2],['run-command','pushRoute',4],['run-console','users.current',3],['run-intent','textchat.open-channel',1]].sort());
+});
+test('callService with an intent is service-intent-other', () => {
+  const r = scan("valuApi.callService(new Intent('textchat','open-channel'));");
+  assert.deepEqual([...r.findings, ...r.bridge].map((f) => [f.message, f.name]), [['service-intent-other', 'textchat.open-channel']]);
+});
+test('direct postMessage to the parent is bridge use', () => {
+  const r = scan("window.parent.postMessage({name: 'api:run-intent', message: {}}, '*');\nwindow.top?.postMessage({ \"name\": \"api:service-intent\", message }, '*');\nopener.postMessage({message: x, name:`api:create-pointer`}, origin);");
+  assert.deepEqual(r.bridge.map((f) => [f.message, f.name, f.call, f.line]), [
+    ['direct','api:run-intent','postMessage api:run-intent',1],
+    ['direct','api:service-intent','postMessage api:service-intent',2],
+    ['direct','api:create-pointer','postMessage api:create-pointer',3],
+  ]);
+});
+test('one direct finding for the bridge wire format', () => {
+  const r = scan("window.parent.postMessage({name:'api:run-intent', message:{}}, '*');");
+  assert.deepEqual(r.bridge.map((f) => [f.message, f.name, f.call]), [['direct', 'api:run-intent', 'postMessage api:run-intent']]);
+});
+test('direct detection needs the parent window and the name form', () => {
+  assert.deepEqual(scan("worker.postMessage({name:'api:run-intent'});").bridge, []);
+  assert.deepEqual(scan("frame.contentWindow.postMessage({name:'api:run-intent'}, '*');").bridge, []);
+  assert.deepEqual(scan("x.parent.postMessage({name:'api:run-intent'}, '*');").bridge, []);
+  assert.deepEqual(scan("window.parent.postMessage({type:'api:run-intent'}, '*');").bridge, []);
+  assert.deepEqual(scan("parent.postMessage({name:'api:ready'}, '*');").bridge, []);
+  assert.deepEqual(scan("parent.postMessage({name:'api:call', message: {}}, '*');").bridge, []);
+  assert.deepEqual(scan("parent.postMessage({kind: 'x', note: 'api:run-intent'}, '*');").bridge, []);
+  assert.deepEqual(scan("parent.postMessage({message: {name: 'api:run-intent'}}, '*');").bridge, []);
+  assert.deepEqual(scan("parent.postMessage(data, '*'); const n = 'api:run-intent';").bridge, []);
+});
+test('postMessage of something else is not bridge use', () => {
+  assert.deepEqual(scan("window.parent.postMessage({type: 'resize', h: 3}, '*');").bridge, []);
 });

@@ -13,6 +13,17 @@
 //   every other one   one `api:call` over the bridge, `{service, action,
 //                     params, requestId, timeoutMs}` exactly as HostTransport
 //                     posts it; the `api:call-completed` message IS the ack
+//   a typed intent    (`valu.Chats.openChannel()`, `valu.Commerce.getCart()`)
+//                     one `api:call` too, with `intent: {target, id}` (the
+//                     app or service it goes to), when the `api:ready` said
+//                     `valuApi.intents`; otherwise the older bridge, as before:
+//                     `api:run-intent` to an app, `api:service-intent` to a
+//                     service. Either way the reply is read into an ack
+//                     (`intentAck`), it is held for `api:ready` and bounded by
+//                     the call's timeout like any call, and never retried
+//   a route           (`valu.route.push(path)`, `routeCommand`) the same: an
+//                     `api:call` with `intent: {target: 'route'}` when intents
+//                     are served, the older `api:run-command` otherwise
 //   before api:ready  held for it, within the call's own timeout
 //   no valuApi.calls  an older Valu Social, which serves intents only: 501, as
 //                     embedded mode always answered
@@ -54,19 +65,31 @@ export const EMBEDDED_READY_TIMEOUT_MS = 10_000;
 
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
-/** What a parent that says nothing of valu-api (or is not trusted to) leaves: no calls, no user. */
-const NOTHING = Object.freeze({ calls: false, user: null, network: null });
+/** What a parent that says nothing of valu-api (or is not trusted to) leaves: no calls, no intents, no user. */
+const NOTHING = Object.freeze({ calls: false, intents: false, user: null, network: null });
 
-/** What `api:ready` says of valu-api: whether `api:call` is answered, and who the user and the network are. */
+/**
+ * What `api:ready` says of valu-api: whether `api:call` answers functions
+ * (`calls`) and intents (`intents`, typed app intents), and who the user and
+ * the network are. The two are separate: Valu Social answers intents even
+ * when it cannot name the app a function would be served for.
+ */
 function valuApiOf(message) {
   const info = isPlainObject(message) ? message.valuApi : undefined;
   if (!isPlainObject(info)) return NOTHING;
+  const spoken = info.protocol === EMBEDDED_PROTOCOL_VERSION;
   return {
-    calls: info.calls === true && info.protocol === EMBEDDED_PROTOCOL_VERSION,
+    calls: info.calls === true && spoken,
+    intents: info.intents === true && spoken,
     user: identityOf(info.user),
     network: identityOf(info.network),
   };
 }
+
+/** The route commands, and what the older bridge calls each (`ValuApi.pushRoute`, `replaceRoute`). */
+export const ROUTE_COMMANDS = Object.freeze({ push: 'pushRoute', replace: 'replaceRoute' });
+/** A route moves the app's own address and nothing else: never a write anyone else sees, never retried. */
+const ROUTE = Object.freeze({ key: 'route', mutates: false });
 
 /** What an older Valu Social leaves a service function with: the answer embedded mode always gave. */
 const unserved = (descriptor) => errorAck(
@@ -150,6 +173,9 @@ export class EmbeddedTransport extends Transport {
   /** Whether Valu Social answers `api:call`: what the last `api:ready` said. */
   get calls() { return this.#info.calls; }
 
+  /** Whether Valu Social answers intents over `api:call` (`valuApi.intents`): what the last `api:ready` said. */
+  get intents() { return this.#info.intents; }
+
   /** Valu Social's user, `{id, name}`, or `null`. */
   get user() { return this.#info.user; }
 
@@ -160,12 +186,39 @@ export class EmbeddedTransport extends Transport {
 
   /**
    * Run one service function: in the page for a `local` one, otherwise as an
-   * `api:call` to Valu Social once it has said it answers one. Never rejects.
+   * `api:call` to Valu Social once it has said it answers one; a typed intent
+   * as an intent (see the header). Never rejects.
    */
   callService(descriptor, params, options = {}) {
     if (descriptor?.channel === 'local') return this.#local.callService(descriptor, params, options);
-    if (descriptor?.channel === 'intent') return this.#callIntent(descriptor, params);
     const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const send = descriptor?.channel === 'intent'
+      ? (entry) => this.#sendIntent(entry, descriptor, params, timeoutMs)
+      : (entry) => this.#send(entry, descriptor, params, timeoutMs);
+    return this.#queue(descriptor, timeoutMs, send);
+  }
+
+  /**
+   * Move the app's own route inside Valu Social: `push` (a new history entry)
+   * or `replace`. Held for `api:ready` and bounded by `timeoutMs` like a call;
+   * never rejects. Over `api:call` when Valu Social answers intents, otherwise
+   * the older `api:run-command`, which answers nothing: then the ack says only
+   * that it was sent.
+   * @param {'push'|'replace'} command
+   * @param {string} path
+   * @param {{timeoutMs?: number}} [options]
+   */
+  routeCommand(command, path, options = {}) {
+    if (!Object.hasOwn(ROUTE_COMMANDS, command)) {
+      return Promise.resolve(errorAck(ERROR_CODES.INVALID_PARAMS, `route command must be push or replace, not ${String(command)}`));
+    }
+    if (typeof path !== 'string') return Promise.resolve(errorAck(ERROR_CODES.INVALID_PARAMS, 'route: path must be a string'));
+    const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    return this.#queue(ROUTE, timeoutMs, (entry) => this.#sendRoute(entry, command, path, timeoutMs));
+  }
+
+  /** One call's life: held for `api:ready`, then `send(entry)`, answered once, bounded by `timeoutMs`. */
+  #queue(descriptor, timeoutMs, send) {
     return new Promise((resolve) => {
       let timer = null;
       const entry = { posted: false, send: null, answer: null };
@@ -175,7 +228,7 @@ export class EmbeddedTransport extends Transport {
         this.#clearTimer(timer);
         resolve(ack);
       };
-      entry.send = () => this.#send(entry, descriptor, params, timeoutMs);
+      entry.send = () => send(entry);
       this.#active.add(entry);
       timer = this.#setTimer(() => {
         const timedOut = errorAck(ERROR_CODES.TIMEOUT, 'timeout');
@@ -192,19 +245,61 @@ export class EmbeddedTransport extends Transport {
   }
 
   /**
-   * A typed intent inside Valu Social: sent to it as the intent it is
-   * (`api:service-intent`, the older bridge, which Valu Social gates by the
-   * app's declared permissions), whatever its mode. Never rejects.
+   * A typed intent inside Valu Social: an `api:call` with `intent` when the
+   * `api:ready` said it answers one (the frame server checks it as the bridge
+   * checks the same intent), the older bridge otherwise: `api:run-intent` to an
+   * app, `api:service-intent` to a service, which Valu Social gates by the
+   * app's declared permissions too.
    */
-  async #callIntent(descriptor, params) {
-    try {
-      const reply = await this.#bridge.request(MSG.SERVICE_INTENT, {
-        applicationId: descriptor.service, action: descriptor.action, params: params && typeof params === 'object' ? params : {},
-      });
-      return intentAck(reply);
-    } catch (error) {
-      return errorAck(ERROR_CODES.DISCONNECTED, error?.code ?? error?.message ?? 'disconnected');
+  #sendIntent(entry, descriptor, params, timeoutMs) {
+    this.#held.delete(entry);
+    if (!this.#active.has(entry)) return;
+    const input = isPlainObject(params) ? params : {};
+    const target = descriptor.target ?? 'service';
+    const id = descriptor.to ?? descriptor.service;
+    entry.posted = true;
+    if (this.#info.intents) {
+      this.#post(entry, (requestId) => ({ intent: { target, id }, action: descriptor.action, params: input, requestId, timeoutMs }));
+      return;
     }
+    const name = target === 'application' ? MSG.RUN_INTENT : MSG.SERVICE_INTENT;
+    let sent;
+    try {
+      sent = this.#bridge.request(name, { applicationId: id, action: descriptor.action, params: input });
+    } catch (error) {
+      sent = Promise.reject(error);
+    }
+    sent.then(
+      (reply) => entry.answer(intentAck(reply)),
+      (error) => entry.answer(errorAck(ERROR_CODES.DISCONNECTED, reasonOf(error))),
+    );
+  }
+
+  /** A route command, by what the `api:ready` said (see `routeCommand`). */
+  #sendRoute(entry, command, path, timeoutMs) {
+    this.#held.delete(entry);
+    if (!this.#active.has(entry)) return;
+    entry.posted = true;
+    if (this.#info.intents) {
+      this.#post(entry, (requestId) => ({ intent: { target: 'route' }, action: command, params: { path }, requestId, timeoutMs }));
+      return;
+    }
+    try {
+      this.#bridge.notify(MSG.RUN_COMMAND, { command: ROUTE_COMMANDS[command], data: path });
+      entry.answer({ data: { success: true, sent: true } });
+    } catch (error) {
+      entry.answer(errorAck(ERROR_CODES.DISCONNECTED, reasonOf(error)));
+    }
+  }
+
+  /** Post one `api:call` for `entry`, `message(requestId)`; the `api:call-completed` message is its ack. */
+  #post(entry, message) {
+    const requestId = nextId();
+    this.#bridge.request(MSG.CALL, message(requestId), requestId).then(
+      (reply) => entry.answer(isPlainObject(reply) ? reply : errorAck(ERROR_CODES.DISCONNECTED, HOST_ERRORS.HOST_UNREACHABLE)),
+      // The post itself failed (a message that cannot be cloned): it never left the page.
+      (error) => entry.answer(errorAck(ERROR_CODES.DISCONNECTED, reasonOf(error))),
+    );
   }
 
   /** Answer what is waiting, stop the ready timer and the listener. Idempotent. */
@@ -226,16 +321,9 @@ export class EmbeddedTransport extends Transport {
       entry.answer(unserved(descriptor));
       return;
     }
-    const requestId = nextId();
     // Marked first: a parent that answers inside the post must find it posted.
     entry.posted = true;
-    this.#bridge.request(MSG.CALL, {
-      service: descriptor.service, action: descriptor.action, params, requestId, timeoutMs,
-    }, requestId).then(
-      (reply) => entry.answer(isPlainObject(reply) ? reply : errorAck(ERROR_CODES.DISCONNECTED, HOST_ERRORS.HOST_UNREACHABLE)),
-      // The post itself failed (a message that cannot be cloned): it never left the page.
-      (error) => entry.answer(errorAck(ERROR_CODES.DISCONNECTED, reasonOf(error))),
-    );
+    this.#post(entry, (requestId) => ({ service: descriptor.service, action: descriptor.action, params, requestId, timeoutMs }));
   }
 
   /** Whether the parent the bridge is bound to may say that it answers calls, and who the user is. */

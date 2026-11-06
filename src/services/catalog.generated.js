@@ -3515,11 +3515,139 @@ export const SERVICE_DESCRIPTORS = [
   }
 ];
 
-/** The typed intents (scripts/bindings.js INTENT_FUNCTION_SERVICES): functions
- * on the tree that the transport sends, as intents, to whoever frames or hosts
- * the app. Channel `intent`; `mode` says what happens at the app's own
- * address (`both`, `window`, `embedded-only`, `embedded-served`). */
+/** The typed intents (scripts/bindings.js INTENT_FUNCTION_SERVICES, and every
+ * application intent an app may send): functions on the tree that the
+ * transport sends, as intents, to whoever frames or hosts the app. Channel
+ * `intent`; `target` (`service` | `application`) and `to` say where the
+ * intent goes; `mode` says what happens at the app's own address (`both`,
+ * `window`, `embedded-only`, `embedded-served`). */
 export const INTENT_DESCRIPTORS = [
+  {
+    "key": "AiGuru.get-applications",
+    "service": "Apps",
+    "action": "get-applications",
+    "fn": "get_applications",
+    "method": "list",
+    "toolName": "service__Apps__list",
+    "serviceTitle": "Apps",
+    "serviceDescription": "Any Valu Social app, by its id: open one, send it an intent, and ask which apps there are and which are open.",
+    "source": "src/Services/AiGuru/AiGuruService.js",
+    "description": "Returns a list of all registered applications with their id, slug, icon, and title.",
+    "availability": [],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "AiGuru",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "AiGuru.has-application",
+    "service": "Apps",
+    "action": "has-application",
+    "fn": "has_application",
+    "method": "has",
+    "toolName": "service__Apps__has",
+    "serviceTitle": "Apps",
+    "serviceDescription": "Any Valu Social app, by its id: open one, send it an intent, and ask which apps there are and which are open.",
+    "source": "src/Services/AiGuru/AiGuruService.js",
+    "description": "Checks whether an application with the given ID exists in the registry.",
+    "availability": [],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "applicationId",
+          "type": "string",
+          "description": "The unique identifier of the application to check."
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "positional": [
+      "applicationId"
+    ],
+    "target": "service",
+    "to": "AiGuru",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "AiGuru.is-application-loaded",
+    "service": "Apps",
+    "action": "is-application-loaded",
+    "fn": "is_application_loaded",
+    "method": "isLoaded",
+    "toolName": "service__Apps__isLoaded",
+    "serviceTitle": "Apps",
+    "serviceDescription": "Any Valu Social app, by its id: open one, send it an intent, and ask which apps there are and which are open.",
+    "source": "src/Services/AiGuru/AiGuruService.js",
+    "description": "Checks whether an application with the given ID is currently loaded (open) in the dock.",
+    "availability": [],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "applicationId",
+          "type": "string",
+          "description": "The unique identifier of the application to check."
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "positional": [
+      "applicationId"
+    ],
+    "target": "service",
+    "to": "AiGuru",
+    "mode": "embedded-served"
+  },
   {
     "key": "Application.close_all",
     "service": "Application",
@@ -3554,6 +3682,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Application",
     "mode": "embedded-only"
   },
   {
@@ -3590,6 +3720,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Application",
     "mode": "embedded-only"
   },
   {
@@ -3626,6 +3758,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Application",
     "mode": "embedded-only"
   },
   {
@@ -3662,7 +3796,814 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Application",
     "mode": "both"
+  },
+  {
+    "key": "Calendar.open-calendar",
+    "service": "Calendar",
+    "action": "open-calendar",
+    "fn": "open_calendar",
+    "method": "openCalendar",
+    "toolName": "service__Calendar__open_calendar",
+    "serviceTitle": "Calendar",
+    "serviceDescription": "Valu Social's Calendar app (`events`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the calendar view, optionally filtered by a specific source type (all, room, group, user, or community event).",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "source",
+          "type": "string",
+          "description": "The source type for the calendar filter. Must be one of: all, room, group, user, community. Use \"all\" to show meetings from every source type."
+        }
+      ],
+      "optional": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "The unique identifier of the room, group, or user."
+        },
+        {
+          "name": "fullName",
+          "type": "string",
+          "description": "The display name of the room, group, or user."
+        },
+        {
+          "name": "communityId",
+          "type": "string",
+          "description": "The unique identifier of the community (used when source is community)."
+        },
+        {
+          "name": "communityFullName",
+          "type": "string",
+          "description": "The display name of the community."
+        },
+        {
+          "name": "eventId",
+          "type": "string",
+          "description": "The unique identifier of the community event."
+        },
+        {
+          "name": "eventFullName",
+          "type": "string",
+          "description": "The display name of the community event."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "events",
+    "mode": "window"
+  },
+  {
+    "key": "Calls.connect-to-meeting",
+    "service": "Calls",
+    "action": "connect-to-meeting",
+    "fn": "connect_to_meeting",
+    "method": "connectToMeeting",
+    "toolName": "service__Calls__connect_to_meeting",
+    "serviceTitle": "Calls",
+    "serviceDescription": "Valu Social's Calls app (`videochat`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Connects to a specific meeting by room, prop, group, or user and manages video chat and presentation settings.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "videochat:write"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The unique identifier of the room to connect to."
+        },
+        {
+          "name": "propId",
+          "type": "string",
+          "description": "The unique identifier of the prop to connect to."
+        },
+        {
+          "name": "groupId",
+          "type": "string",
+          "description": "The unique identifier of the group to connect to."
+        },
+        {
+          "name": "userId",
+          "type": "string",
+          "description": "The unique identifier of the user to connect to."
+        },
+        {
+          "name": "withLocalTracks",
+          "type": "boolean",
+          "description": "If true, view shared screens or presenter content without joining the video chat."
+        },
+        {
+          "name": "autoConnectToVideochat",
+          "type": "boolean",
+          "description": "If true, automatically join the video chat after connecting."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "videochat",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Calls.leave-meeting",
+    "service": "Calls",
+    "action": "leave-meeting",
+    "fn": "leave_meeting",
+    "method": "leaveMeeting",
+    "toolName": "service__Calls__leave_meeting",
+    "serviceTitle": "Calls",
+    "serviceDescription": "Valu Social's Calls app (`videochat`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Leaves the current call only when it is the given prop's call (roomId + propId); otherwise does nothing. Returns {left: boolean}. Used by Metaverse 2D video chat zones.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "videochat:write"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The room of the prop whose call to leave."
+        },
+        {
+          "name": "propId",
+          "type": "string",
+          "description": "The prop whose call to leave; any other call is left as it is."
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "videochat",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Calls.open-source-picker",
+    "service": "Calls",
+    "action": "open-source-picker",
+    "fn": "open_source_picker",
+    "method": "openSourcePicker",
+    "toolName": "service__Calls__open_source_picker",
+    "serviceTitle": "Calls",
+    "serviceDescription": "Valu Social's Calls app (`videochat`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the \"Open Videochat from\" source picker (Rooms, Groups, Contacts, Textchats) as the inline full-view list. Selecting an item starts a video chat with that source.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "standalone",
+          "type": "boolean",
+          "description": "If true, render the picker as a standalone window with no back button (e.g. when launched from the native app, where there is no video chat to return to)."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "videochat",
+    "mode": "embedded-only"
+  },
+  {
+    "key": "Chats.close-channel",
+    "service": "Chats",
+    "action": "close-channel",
+    "fn": "close_channel",
+    "method": "closeChannel",
+    "toolName": "service__Chats__close_channel",
+    "serviceTitle": "Chats",
+    "serviceDescription": "Valu Social's Chats app (`textchat`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Closes the currently open channel and returns to the channel list. Mirrors the toolbar back button used on mobile/narrow layouts.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "textchat",
+    "mode": "embedded-only"
+  },
+  {
+    "key": "Chats.get-ui-state",
+    "service": "Chats",
+    "action": "get-ui-state",
+    "fn": "get_ui_state",
+    "method": "getUiState",
+    "toolName": "service__Chats__get_ui_state",
+    "serviceTitle": "Chats",
+    "serviceDescription": "Valu Social's Chats app (`textchat`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Read-only. Returns a snapshot of what the chat is currently showing — the channels list, an open channel, or both side by side (wide layout) — plus the in-app back action. Lets non-web clients (e.g. the Android device back button) mirror the toolbar back-button navigation. Changes nothing. Returns { view: \"list\" | \"channel\" | \"list-and-channel\", isWide, activeChannelId, openThreadId, threadTakeover, canNavigateBack, backAction: \"close-thread\" | \"close-channel\" | null }.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "textchat",
+    "mode": "embedded-only"
+  },
+  {
+    "key": "Chats.open-channel",
+    "service": "Chats",
+    "action": "open-channel",
+    "fn": "open_channel",
+    "method": "openChannel",
+    "toolName": "service__Chats__open_channel",
+    "serviceTitle": "Chats",
+    "serviceDescription": "Valu Social's Chats app (`textchat`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens a text chat session based on channel, user, group, room, or prop.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "channelId",
+          "type": "string",
+          "description": "The unique identifier of the text channel to open."
+        },
+        {
+          "name": "userId",
+          "type": "string",
+          "description": "The unique identifier of the user for a direct chat."
+        },
+        {
+          "name": "groupId",
+          "type": "string",
+          "description": "The unique identifier of the group to open a group chat."
+        },
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The unique identifier of the room to open a room chat."
+        },
+        {
+          "name": "propId",
+          "type": "string",
+          "description": "The unique identifier of the prop to open a prop-specific chat."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "textchat",
+    "mode": "window"
+  },
+  {
+    "key": "Chats.open-room-ai-chat",
+    "service": "Chats",
+    "action": "open-room-ai-chat",
+    "fn": "open_room_ai_chat",
+    "method": "openRoomAiChat",
+    "toolName": "service__Chats__open_room_ai_chat",
+    "serviceTitle": "Chats",
+    "serviceDescription": "Valu Social's Chats app (`textchat`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens an AI‑powered chat session scoped to a specific room.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The unique identifier of the room in which to start the AI chat."
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "textchat",
+    "mode": "window"
+  },
+  {
+    "key": "Chats.options",
+    "service": "Chats",
+    "action": "options",
+    "fn": "options",
+    "method": "options",
+    "toolName": "service__Chats__options",
+    "serviceTitle": "Chats",
+    "serviceDescription": "Valu Social's Chats app (`textchat`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Sets the text‑chat view layout (e.g. wide or narrow mode).",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "isWide",
+          "type": "boolean",
+          "description": "Whether to enable wide‑mode layout in the chat view."
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "textchat",
+    "mode": "embedded-only"
+  },
+  {
+    "key": "Chats.send-message",
+    "service": "Chats",
+    "action": "send-message",
+    "fn": "send_message",
+    "method": "sendMessage",
+    "toolName": "service__Chats__send_message",
+    "serviceTitle": "Chats",
+    "serviceDescription": "Valu Social's Chats app (`textchat`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Sends a rich text message to a text-chat channel on behalf of an initiator (e.g. an AI agent or automated service). Silent — does NOT open or change the visible chat. Use channelId when you know it; otherwise provide userId for a direct message.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "textchat:write"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "The message body to send."
+        }
+      ],
+      "optional": [
+        {
+          "name": "channelId",
+          "type": "string",
+          "description": "Target channel ID. Takes precedence over userId."
+        },
+        {
+          "name": "userId",
+          "type": "string",
+          "description": "Target user ID for a direct message. Ignored if channelId is provided."
+        },
+        {
+          "name": "buttons",
+          "type": "object[]",
+          "description": "Optional interactive buttons to attach to the message as a rich card."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "textchat",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Chats.share-card",
+    "service": "Chats",
+    "action": "share-card",
+    "fn": "share_card",
+    "method": "shareCard",
+    "toolName": "service__Chats__share_card",
+    "serviceTitle": "Chats",
+    "serviceDescription": "Valu Social's Chats app (`textchat`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Shares one or more entities into a chat as rich, interactive cards — Rooms, Groups, Communities, Meetings, or Contacts — instead of plain links. Pass \"id\" for a single card or \"ids\" for several in one message. All cards in one call must be the SAME cardType (mixed types need separate calls). Posts into the currently open channel by default; pass channelId to target a specific channel.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "textchat:write"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "cardType",
+          "type": "string",
+          "description": "The entity type to share: \"room\", \"group\", \"community\", \"meeting\", or \"contact\". Applies to every id in this call."
+        }
+      ],
+      "optional": [
+        {
+          "name": "id",
+          "type": "string",
+          "description": "A single entity id to share (room/group/community id, user id for a contact, or — for meetings — the occurrence id from list-events; a one-off meeting id also works). Use this OR \"ids\"."
+        },
+        {
+          "name": "ids",
+          "type": "string[]",
+          "description": "Several entity ids to share as multiple cards in one message — all of the given cardType (for meetings, occurrence ids from list-events). Use this OR \"id\"."
+        },
+        {
+          "name": "channelId",
+          "type": "string",
+          "description": "Target channel id. Defaults to the currently active channel."
+        },
+        {
+          "name": "networkId",
+          "type": "string",
+          "description": "The network the entities belong to. Defaults to the active network."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "textchat",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "CMS.pick-resource",
+    "service": "CMS",
+    "action": "pick-resource",
+    "fn": "pick_resource",
+    "method": "pickResource",
+    "toolName": "service__CMS__pick_resource",
+    "serviceTitle": "CMS Service",
+    "serviceDescription": "Content management service for uploading, searching, and deleting resources scoped to rooms, props, communities, channels, and directories.",
+    "source": "src/Services/CMS/CMSService.js",
+    "description": "Opens a file picker over the Network Resources of the current network so a network admin can choose ONE file, and waits for the choice. The popup opens over whatever is on screen and does not open Files. BLOCKS until the user picks or cancels. Returns the picked resource `{id, title, contentType, thumbnailUrl}` or `null` when the user cancels or closes the popup. Refused (an error, and no popup) for anyone who is not an admin of the network, for an unknown source, and for a folderId outside the requested sources. The returned resource is always inside the requested sources.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "cms:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "sources",
+          "type": "string[]",
+          "description": "Where files may be picked from. Only \"networkResources\" (the public files of the network, `networkPublic:{networkId}`) is supported. Nothing outside these sources is shown or reachable."
+        }
+      ],
+      "optional": [
+        {
+          "name": "accept",
+          "type": "string[]",
+          "description": "File types that can be picked: a family (\"image\"), a family wildcard (\"image/*\") or an exact type (\"image/png\"). Other files are shown disabled. Omit to allow any file."
+        },
+        {
+          "name": "folderId",
+          "type": "string",
+          "description": "Folder to open in. Must be a folder inside the requested sources, otherwise the call is refused."
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "description": "Popup title. Defaults to \"Choose a file\"."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "CMS",
+    "mode": "embedded-only"
   },
   {
     "key": "Commerce.add-to-cart",
@@ -3711,6 +4652,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -3753,6 +4696,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "embedded-served"
   },
   {
@@ -3796,6 +4741,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -3843,6 +4790,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "window"
   },
   {
@@ -3879,6 +4828,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -3970,6 +4921,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "embedded-served"
   },
   {
@@ -3982,7 +4935,7 @@ export const INTENT_DESCRIPTORS = [
     "serviceTitle": "Commerce",
     "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
     "source": "src/Services/Commerce/CommerceService.js",
-    "description": "Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, so the seller confirms it separately — in the publish dialog an app opens with publish-product, or in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.",
+    "description": "Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Files). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, so the seller confirms it separately — in the publish dialog an app opens with publish-product, or in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.",
     "availability": [
       "ai",
       "developer"
@@ -4040,7 +4993,7 @@ export const INTENT_DESCRIPTORS = [
         {
           "name": "imageResourceId",
           "type": "string",
-          "description": "the cover: a resource id in the seller's own Media, e.g. one you generated"
+          "description": "the cover: a resource id in the seller's own Files, e.g. one you generated"
         },
         {
           "name": "items",
@@ -4057,6 +5010,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4104,6 +5059,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4146,6 +5103,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4188,6 +5147,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "embedded-served"
   },
   {
@@ -4230,6 +5191,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4282,6 +5245,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4319,6 +5284,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4355,6 +5322,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4398,6 +5367,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4434,6 +5405,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4476,6 +5449,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4519,6 +5494,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4531,7 +5508,7 @@ export const INTENT_DESCRIPTORS = [
     "serviceTitle": "Commerce",
     "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
     "source": "src/Services/Commerce/CommerceService.js",
-    "description": "One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: \"folder\", title, items}`, `{type: \"file\", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: \"product\", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is \"folder\" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.",
+    "description": "One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: \"folder\", title, items}`, `{type: \"file\", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: \"product\", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Files, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is \"folder\" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.",
     "availability": [
       "developer"
     ],
@@ -4561,6 +5538,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4598,6 +5577,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4651,6 +5632,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4687,6 +5670,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4746,6 +5731,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4831,6 +5818,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4867,6 +5856,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4879,7 +5870,7 @@ export const INTENT_DESCRIPTORS = [
     "serviceTitle": "Commerce",
     "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
     "source": "src/Services/Commerce/CommerceService.js",
-    "description": "What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.",
+    "description": "What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Files; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.",
     "availability": [
       "developer"
     ],
@@ -4909,6 +5900,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -4962,6 +5955,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -5009,6 +6004,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "embedded-served"
   },
   {
@@ -5051,6 +6048,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "window"
   },
   {
@@ -5099,6 +6098,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "window"
   },
   {
@@ -5141,6 +6142,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "window"
   },
   {
@@ -5153,7 +6156,7 @@ export const INTENT_DESCRIPTORS = [
     "serviceTitle": "Commerce",
     "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
     "source": "src/Services/Commerce/CommerceService.js",
-    "description": "Open a purchase where it lives, in Media's Purchased section — the Orders tab's \"Show in Media\". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Media docks beside your app. Returns `{success: true}`, or `{success: false, code: \"not_owned\"}` without opening anything.",
+    "description": "Open a purchase where it lives, in the Purchased section of Files — the Orders tab's \"Show in Files\". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Files docks beside your app. Returns `{success: true}`, or `{success: false, code: \"not_owned\"}` without opening anything.",
     "availability": [
       "developer"
     ],
@@ -5183,6 +6186,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "window"
   },
   {
@@ -5230,6 +6235,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "window"
   },
   {
@@ -5272,6 +6279,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -5320,6 +6329,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "window"
   },
   {
@@ -5368,6 +6379,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "embedded-served"
   },
   {
@@ -5425,6 +6438,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -5478,6 +6493,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "embedded-served"
   },
   {
@@ -5520,6 +6537,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -5562,6 +6581,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -5610,6 +6631,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -5652,6 +6675,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "embedded-served"
   },
   {
@@ -5719,6 +6744,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "embedded-served"
   },
   {
@@ -5772,6 +6799,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "embedded-served"
   },
   {
@@ -5784,7 +6813,7 @@ export const INTENT_DESCRIPTORS = [
     "serviceTitle": "Commerce",
     "serviceDescription": "Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.",
     "source": "src/Services/Commerce/CommerceService.js",
-    "description": "Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: \"commerce\", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Media; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.",
+    "description": "Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: \"commerce\", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Files; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.",
     "availability": [
       "developer"
     ],
@@ -5814,6 +6843,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -5856,6 +6887,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "embedded-served"
   },
   {
@@ -5898,6 +6931,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -5956,6 +6991,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
   },
   {
@@ -6023,6 +7060,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "embedded-served"
   },
   {
@@ -6109,7 +7148,7 @@ export const INTENT_DESCRIPTORS = [
         {
           "name": "imageResourceId",
           "type": "string",
-          "description": "the cover: a resource id in the seller's own Media"
+          "description": "the cover: a resource id in the seller's own Files"
         },
         {
           "name": "items",
@@ -6121,7 +7160,344 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "Commerce",
     "mode": "both"
+  },
+  {
+    "key": "Contacts.show-user-connections",
+    "service": "Contacts",
+    "action": "show-user-connections",
+    "fn": "show_user_connections",
+    "method": "showUserConnections",
+    "toolName": "service__Contacts__show_user_connections",
+    "serviceTitle": "Contacts",
+    "serviceDescription": "Valu Social's Contacts app (`contacts`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open the connections view for the specified user",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "userId",
+          "type": "string",
+          "description": "The unique identifier of the user to display"
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "contacts",
+    "mode": "window"
+  },
+  {
+    "key": "ContentStudio.navigate",
+    "service": "ContentStudio",
+    "action": "navigate",
+    "fn": "navigate",
+    "method": "navigate",
+    "toolName": "service__ContentStudio__navigate",
+    "serviceTitle": "Content Studio",
+    "serviceDescription": "Valu Social's Content Studio app (`content-studio`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Navigate to a specific route within Content Studio",
+    "availability": [],
+    "permissions": [],
+    "scopes": [
+      "apps:intent"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "The route path to navigate to within Content Studio"
+        }
+      ],
+      "optional": [
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "content-studio",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "ContentStudio.open-create",
+    "service": "ContentStudio",
+    "action": "open-create",
+    "fn": "open_create",
+    "method": "openCreate",
+    "toolName": "service__ContentStudio__open_create",
+    "serviceTitle": "Content Studio",
+    "serviceDescription": "Valu Social's Content Studio app (`content-studio`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open the content upload page with an optional upload destination",
+    "availability": [],
+    "permissions": [],
+    "scopes": [
+      "apps:intent"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "ID of the room to upload to"
+        },
+        {
+          "name": "communityId",
+          "type": "string",
+          "description": "ID of the community to upload to"
+        },
+        {
+          "name": "channelId",
+          "type": "string",
+          "description": "ID of the channel to upload to"
+        },
+        {
+          "name": "groupId",
+          "type": "string",
+          "description": "ID of the group to upload to"
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "description": "Label to apply to the content"
+        },
+        {
+          "name": "department",
+          "type": "string",
+          "description": "Department associated with the content"
+        },
+        {
+          "name": "theme",
+          "type": "string",
+          "description": "Theme to apply to the upload page"
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "content-studio",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "ContentStudio.open-edit",
+    "service": "ContentStudio",
+    "action": "open-edit",
+    "fn": "open_edit",
+    "method": "openEdit",
+    "toolName": "service__ContentStudio__open_edit",
+    "serviceTitle": "Content Studio",
+    "serviceDescription": "Valu Social's Content Studio app (`content-studio`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open the edit page for a specific content item",
+    "availability": [],
+    "permissions": [],
+    "scopes": [
+      "apps:intent"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "contentItemId",
+          "type": "string",
+          "description": "ID of the content item to edit"
+        }
+      ],
+      "optional": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "ID of the room context"
+        },
+        {
+          "name": "communityId",
+          "type": "string",
+          "description": "ID of the community context"
+        },
+        {
+          "name": "channelId",
+          "type": "string",
+          "description": "ID of the channel context"
+        },
+        {
+          "name": "groupId",
+          "type": "string",
+          "description": "ID of the group context"
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "description": "Label to apply to the content"
+        },
+        {
+          "name": "department",
+          "type": "string",
+          "description": "Department associated with the content"
+        },
+        {
+          "name": "theme",
+          "type": "string",
+          "description": "Theme to apply to the edit page"
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "content-studio",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "ContentStudio.open-search",
+    "service": "ContentStudio",
+    "action": "open-search",
+    "fn": "open_search",
+    "method": "openSearch",
+    "toolName": "service__ContentStudio__open_search",
+    "serviceTitle": "Content Studio",
+    "serviceDescription": "Valu Social's Content Studio app (`content-studio`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open the search page",
+    "availability": [],
+    "permissions": [],
+    "scopes": [
+      "apps:intent"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "content-studio",
+    "mode": "embedded-served"
   },
   {
     "key": "DataProvider.pick-multiple",
@@ -6190,6 +7566,8 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "DataProvider",
     "mode": "embedded-only"
   },
   {
@@ -6249,7 +7627,1748 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "DataProvider",
     "mode": "embedded-only"
+  },
+  {
+    "key": "Files.preview-resource",
+    "service": "Files",
+    "action": "preview-resource",
+    "fn": "preview_resource",
+    "method": "previewResource",
+    "toolName": "service__Files__preview_resource",
+    "serviceTitle": "Files",
+    "serviceDescription": "Valu Social's Files app (`cms`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open a resource (file) in the CMS preview viewer by its resource ID",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "resourceId",
+          "type": "string",
+          "description": "The unique identifier of the resource to preview"
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cms",
+    "mode": "window"
+  },
+  {
+    "key": "Files.show-application-storage",
+    "service": "Files",
+    "action": "show-application-storage",
+    "fn": "show_application_storage",
+    "method": "showApplicationStorage",
+    "toolName": "service__Files__show_application_storage",
+    "serviceTitle": "Files",
+    "serviceDescription": "Valu Social's Files app (`cms`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open an application's storage folder in the CMS — the files that app has stored under the current user, shown at Applications › <app>. Provide the application id (e.g. \"valuguru\"). The app must declare `storage: true` in its manifest.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "applicationId",
+          "type": "string",
+          "description": "The id of the application whose storage folder to open (e.g. \"valuguru\")."
+        }
+      ],
+      "optional": [
+        {
+          "name": "resourceId",
+          "type": "string",
+          "description": "A resource inside that storage folder to open in the Edit side panel after navigating."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cms",
+    "mode": "window"
+  },
+  {
+    "key": "Files.show-chat-channel",
+    "service": "Files",
+    "action": "show-chat-channel",
+    "fn": "show_chat_channel",
+    "method": "showChatChannel",
+    "toolName": "service__Files__show_chat_channel",
+    "serviceTitle": "Files",
+    "serviceDescription": "Valu Social's Files app (`cms`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open and display the specified chat channel",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "channelId",
+          "type": "string",
+          "description": "The unique identifier of the chat channel to display"
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cms",
+    "mode": "window"
+  },
+  {
+    "key": "Files.show-community-channel",
+    "service": "Files",
+    "action": "show-community-channel",
+    "fn": "show_community_channel",
+    "method": "showCommunityChannel",
+    "toolName": "service__Files__show_community_channel",
+    "serviceTitle": "Files",
+    "serviceDescription": "Valu Social's Files app (`cms`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open and display the specified community channel",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "communityId",
+          "type": "string",
+          "description": "The unique identifier of the community"
+        },
+        {
+          "name": "communityChannelId",
+          "type": "string",
+          "description": "The unique identifier of the channel within the community"
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cms",
+    "mode": "window"
+  },
+  {
+    "key": "Files.show-folder",
+    "service": "Files",
+    "action": "show-folder",
+    "fn": "show_folder",
+    "method": "showFolder",
+    "toolName": "service__Files__show_folder",
+    "serviceTitle": "Files",
+    "serviceDescription": "Valu Social's Files app (`cms`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Navigate to and open a specific folder in the CMS by its folder ID",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "folderId",
+          "type": "string",
+          "description": "The unique identifier of the folder to open"
+        }
+      ],
+      "optional": [
+        {
+          "name": "resourceId",
+          "type": "string",
+          "description": "A resource inside that folder to open in the Edit side panel after navigating."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cms",
+    "mode": "window"
+  },
+  {
+    "key": "Files.show-my-files",
+    "service": "Files",
+    "action": "show-my-files",
+    "fn": "show_my_files",
+    "method": "showMyFiles",
+    "toolName": "service__Files__show_my_files",
+    "serviceTitle": "Files",
+    "serviceDescription": "Valu Social's Files app (`cms`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Navigate to the user's own files in the CMS (the \"My Files\" view). Use this when the user asks about their files, uploads, or personal content — do not use show-folder for this.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cms",
+    "mode": "window"
+  },
+  {
+    "key": "Files.show-resource",
+    "service": "Files",
+    "action": "show-resource",
+    "fn": "show_resource",
+    "method": "showResource",
+    "toolName": "service__Files__show_resource",
+    "serviceTitle": "Files",
+    "serviceDescription": "Valu Social's Files app (`cms`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Reveal a resource in the CMS file browser by its resource ID — navigates to the folder holding it (or to its section root when it is not in a folder), selects it and opens its Edit side panel. Use this when you only have a resource id and want to show the user where that file lives; use preview-resource instead to just view its contents.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "resourceId",
+          "type": "string",
+          "description": "The unique identifier of the resource to reveal"
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cms",
+    "mode": "window"
+  },
+  {
+    "key": "Groups.open",
+    "service": "Groups",
+    "action": "open",
+    "fn": "open",
+    "method": "open",
+    "toolName": "service__Groups__open",
+    "serviceTitle": "Groups",
+    "serviceDescription": "Group management service for listing groups the current user belongs to and their participants.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the groups view and navigates to a specific group.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "groupId",
+          "type": "string",
+          "description": "The unique identifier of the group to open."
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "groups",
+    "mode": "window"
+  },
+  {
+    "key": "MerchantConsole.open-product",
+    "service": "MerchantConsole",
+    "action": "open-product",
+    "fn": "open_product",
+    "method": "openProduct",
+    "toolName": "service__MerchantConsole__open_product",
+    "serviceTitle": "Merchant Console",
+    "serviceDescription": "Valu Social's Merchant Console app (`merchant`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open one of the seller's own products for editing.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "the product to open"
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "merchant",
+    "mode": "window"
+  },
+  {
+    "key": "MerchantConsole.open-products",
+    "service": "MerchantConsole",
+    "action": "open-products",
+    "fn": "open_products",
+    "method": "openProducts",
+    "toolName": "service__MerchantConsole__open_products",
+    "serviceTitle": "Merchant Console",
+    "serviceDescription": "Valu Social's Merchant Console app (`merchant`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open the seller's product list. With `popup` it is drawn over the calling app instead of docking the console.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "popup",
+          "type": "boolean",
+          "description": "true draws the product list over the pane of the app that asked instead of docking the console, so the app the seller came from stays visible behind it. Products is the only tab with a popup form; any other section docks the console as usual. Where the caller is not on screen the popup falls back to a window over the whole page."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "merchant",
+    "mode": "window"
+  },
+  {
+    "key": "MerchantConsole.open-section",
+    "service": "MerchantConsole",
+    "action": "open-section",
+    "fn": "open_section",
+    "method": "openSection",
+    "toolName": "service__MerchantConsole__open_section",
+    "serviceTitle": "Merchant Console",
+    "serviceDescription": "Valu Social's Merchant Console app (`merchant`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open the Merchant Console on one of its tabs. The tab becomes part of the address, so the place it opens on can be linked to and comes back on a reload. Home is the setup checklist until the store can sell, then the overview. Promotions, Analytics and Store need a store; Moderation is for network admins. Bundles opens Products filtered to bundles; the old names overview and api-access still work (Home, Store).",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "section",
+          "type": "string",
+          "description": "Which tab to open: home, products, bundles, promotions, analytics, store or moderation.",
+          "options": [
+            {
+              "value": "home",
+              "label": "Home"
+            },
+            {
+              "value": "products",
+              "label": "Products"
+            },
+            {
+              "value": "bundles",
+              "label": "Bundles (Products, filtered)"
+            },
+            {
+              "value": "promotions",
+              "label": "Promotions"
+            },
+            {
+              "value": "analytics",
+              "label": "Analytics"
+            },
+            {
+              "value": "store",
+              "label": "Store"
+            },
+            {
+              "value": "moderation",
+              "label": "Moderation"
+            }
+          ]
+        }
+      ],
+      "optional": [
+        {
+          "name": "popup",
+          "type": "boolean",
+          "description": "true draws the product list over the pane of the app that asked instead of docking the console, so the app the seller came from stays visible behind it. Products is the only tab with a popup form; any other section docks the console as usual. Where the caller is not on screen the popup falls back to a window over the whole page."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "merchant",
+    "mode": "window"
+  },
+  {
+    "key": "Metaverse.open-room",
+    "service": "Metaverse",
+    "action": "open-room",
+    "fn": "open_room",
+    "method": "openRoom",
+    "toolName": "service__Metaverse__open_room",
+    "serviceTitle": "Metaverse",
+    "serviceDescription": "Valu Social's Metaverse app (`metaverse`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open a specific room in the ValuVerse 3D environment. Both networkId and roomId are required. Use the networkId provided in context.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "networkId",
+          "type": "string",
+          "description": "The network the room belongs to. Use the networkId from context."
+        },
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The ID of the room to open."
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "metaverse",
+    "mode": "window"
+  },
+  {
+    "key": "Metaverse.preview-prop",
+    "service": "Metaverse",
+    "action": "preview-prop",
+    "fn": "preview_prop",
+    "method": "previewProp",
+    "toolName": "service__Metaverse__preview_prop",
+    "serviceTitle": "Metaverse",
+    "serviceDescription": "Valu Social's Metaverse app (`metaverse`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Navigate the camera to a specific prop in a room, opening the Metaverse view. networkId, roomId, and propId are all required. Only call this when the user explicitly asks to show, open, navigate to, or view a prop. Do not call this automatically when listing or describing props.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "networkId",
+          "type": "string",
+          "description": "The network the room belongs to. Use the networkId from context."
+        },
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The ID of the room containing the prop."
+        },
+        {
+          "name": "propId",
+          "type": "string",
+          "description": "The ID of the prop to navigate to."
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "metaverse",
+    "mode": "window"
+  },
+  {
+    "key": "Metaverse.set-route",
+    "service": "Metaverse",
+    "action": "set-route",
+    "fn": "set_route",
+    "method": "setRoute",
+    "toolName": "service__Metaverse__set_route",
+    "serviceTitle": "Metaverse",
+    "serviceDescription": "Valu Social's Metaverse app (`metaverse`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "initiate the opening of the Metaverse 3d application with spsific route",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "The route to set. Defines the current view or action in the application. If not provided, the default application state will open."
+        }
+      ],
+      "optional": [
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "metaverse",
+    "mode": "embedded-only"
+  },
+  {
+    "key": "Metaverse2D.enter-room",
+    "service": "Metaverse2D",
+    "action": "enter-room",
+    "fn": "enter_room",
+    "method": "enterRoom",
+    "toolName": "service__Metaverse2D__enter_room",
+    "serviceTitle": "Metaverse 2D",
+    "serviceDescription": "Valu Social's Metaverse 2D app (`hubs`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the Metaverse 2D app on a room and joins that room's public hub, as picking the room there does (Rooms → Room Info → Go in 2D, the user card → Go in 2D).",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "hubs:write"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The room to enter. Metaverse 2D checks that the user may join it."
+        }
+      ],
+      "optional": [
+        {
+          "name": "hubId",
+          "type": "string",
+          "description": "A hub of that room to switch to once its public hub is joined, when it is still there and has room (the user card's location)."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "hubs",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Metaverse2D.find-people",
+    "service": "Metaverse2D",
+    "action": "find-people",
+    "fn": "find_people",
+    "method": "findPeople",
+    "toolName": "service__Metaverse2D__find_people",
+    "serviceTitle": "Metaverse 2D",
+    "serviceDescription": "Valu Social's Metaverse 2D app (`hubs`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Counts the people in each hub of some rooms in this network (default: the room on the map and its linked rooms, at most 9). Needs you to be in a hub. Use it to choose where the agent goes.",
+    "availability": [
+      "ai"
+    ],
+    "permissions": [],
+    "scopes": [
+      "hubs:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "roomIds",
+          "type": "string[]",
+          "description": "The rooms to look into."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "hubs",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Metaverse2D.open",
+    "service": "Metaverse2D",
+    "action": "open",
+    "fn": "open",
+    "method": "open",
+    "toolName": "service__Metaverse2D__open",
+    "serviceTitle": "Metaverse 2D",
+    "serviceDescription": "Valu Social's Metaverse 2D app (`hubs`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the Metaverse 2D app (the 2D room maps and their hubs), optionally preselecting a room. Joining a hub stays a user action.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "Room to preselect in the room picker."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "hubs",
+    "mode": "window"
+  },
+  {
+    "key": "MyCart.add-to-cart",
+    "service": "MyCart",
+    "action": "add-to-cart",
+    "fn": "add_to_cart",
+    "method": "addToCart",
+    "toolName": "service__MyCart__add_to_cart",
+    "serviceTitle": "My Cart",
+    "serviceDescription": "Valu Social's My Cart app (`cart`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Add a product to the cart and open it. The item is credited to the app that asks — the platform knows which one, so there is no app to name — or to My Cart itself when the asker is not an app. The server re-checks that the product can be bought in this network before accepting it.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "commerce:write"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "the product to add"
+        }
+      ],
+      "optional": [
+        {
+          "name": "qty",
+          "type": "number",
+          "description": "how many, at least 1"
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cart",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "MyCart.open-cart",
+    "service": "MyCart",
+    "action": "open-cart",
+    "fn": "open_cart",
+    "method": "openCart",
+    "toolName": "service__MyCart__open_cart",
+    "serviceTitle": "My Cart",
+    "serviceDescription": "Valu Social's My Cart app (`cart`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open the cart. Pass an app id to show only that app's items and check them out on their own, and `popup` to draw it over the calling app instead of docking My Cart.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "appId",
+          "type": "string",
+          "description": "show only the items added from this app"
+        },
+        {
+          "name": "popup",
+          "type": "boolean",
+          "description": "true draws this over the pane of the app that asked instead of docking My Cart, so the app the buyer came from stays visible and usable behind it. Where the caller is not on screen the popup falls back to a window over the whole page."
+        },
+        {
+          "name": "promoCode",
+          "type": "string",
+          "description": "a discount code to type into the cart and apply, as if the buyer had typed it; they see whether it applies and can remove it. Paying is still their own press of Pay."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cart",
+    "mode": "window"
+  },
+  {
+    "key": "MyCart.open-order",
+    "service": "MyCart",
+    "action": "open-order",
+    "fn": "open_order",
+    "method": "openOrder",
+    "toolName": "service__MyCart__open_order",
+    "serviceTitle": "My Cart",
+    "serviceDescription": "Valu Social's My Cart app (`cart`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open one order and show its receipt.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "orderId",
+          "type": "string",
+          "description": "the order to show"
+        }
+      ],
+      "optional": [
+        {
+          "name": "popup",
+          "type": "boolean",
+          "description": "true draws this over the pane of the app that asked instead of docking My Cart, so the app the buyer came from stays visible and usable behind it. Where the caller is not on screen the popup falls back to a window over the whole page."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cart",
+    "mode": "window"
+  },
+  {
+    "key": "MyCart.open-orders",
+    "service": "MyCart",
+    "action": "open-orders",
+    "fn": "open_orders",
+    "method": "openOrders",
+    "toolName": "service__MyCart__open_orders",
+    "serviceTitle": "My Cart",
+    "serviceDescription": "Valu Social's My Cart app (`cart`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open the order history — every purchase made across Valu apps, with its receipt. With `popup` it is drawn over the calling app instead of docking My Cart.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "popup",
+          "type": "boolean",
+          "description": "true draws this over the pane of the app that asked instead of docking My Cart, so the app the buyer came from stays visible and usable behind it. Where the caller is not on screen the popup falls back to a window over the whole page."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cart",
+    "mode": "window"
+  },
+  {
+    "key": "MyCart.open-product",
+    "service": "MyCart",
+    "action": "open-product",
+    "fn": "open_product",
+    "method": "openProduct",
+    "toolName": "service__MyCart__open_product",
+    "serviceTitle": "My Cart",
+    "serviceDescription": "Valu Social's My Cart app (`cart`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open a product's page — what it is, what it is made of, what makes up its price, and whether this buyer can buy it.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "the product to show"
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cart",
+    "mode": "window"
+  },
+  {
+    "key": "MyCart.open-purchased",
+    "service": "MyCart",
+    "action": "open-purchased",
+    "fn": "open_purchased",
+    "method": "openPurchased",
+    "toolName": "service__MyCart__open_purchased",
+    "serviceTitle": "My Cart",
+    "serviceDescription": "Valu Social's My Cart app (`cart`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open what the user OWNS — every product they bought or got free, with its files, how far through them they are, and their rating. With `productId`, that product opened and shown. Orders (open-orders) are the receipts only.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "productId",
+          "type": "string",
+          "description": "a product the user owns, to open and show"
+        },
+        {
+          "name": "popup",
+          "type": "boolean",
+          "description": "true draws this over the pane of the app that asked instead of docking My Cart, so the app the buyer came from stays visible and usable behind it. Where the caller is not on screen the popup falls back to a window over the whole page."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cart",
+    "mode": "window"
+  },
+  {
+    "key": "MyCart.open-section",
+    "service": "MyCart",
+    "action": "open-section",
+    "fn": "open_section",
+    "method": "openSection",
+    "toolName": "service__MyCart__open_section",
+    "serviceTitle": "My Cart",
+    "serviceDescription": "Valu Social's My Cart app (`cart`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open My Cart on one of its tabs. The tab becomes part of the address, so the place it opens on can be linked to and comes back on a reload.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "section",
+          "type": "string",
+          "description": "Which tab to open: discover, cart, purchased (what the user owns) or orders (receipts).",
+          "options": [
+            {
+              "value": "discover",
+              "label": "Discover"
+            },
+            {
+              "value": "cart",
+              "label": "Cart"
+            },
+            {
+              "value": "purchased",
+              "label": "Purchased"
+            },
+            {
+              "value": "orders",
+              "label": "Orders"
+            }
+          ]
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "cart",
+    "mode": "window"
+  },
+  {
+    "key": "Profile.open-profile-with-mode",
+    "service": "Profile",
+    "action": "open-profile-with-mode",
+    "fn": "open_profile_with_mode",
+    "method": "openProfileWithMode",
+    "toolName": "service__Profile__open_profile_with_mode",
+    "serviceTitle": "Profile",
+    "serviceDescription": "Read-only access to a user's public profile artifacts — Verus verifiable credentials and network badges — addressed by userId. No UI side effects.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the profile view for a user and optionally navigates to a specific mode such as the marketplace.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "userId",
+          "type": "string",
+          "description": "The unique identifier of the user whose profile to open. Defaults to the current user."
+        },
+        {
+          "name": "offerId",
+          "type": "string",
+          "description": "The identifier of the marketplace offer to display."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "profile",
+    "mode": "window"
+  },
+  {
+    "key": "Profile.show-current-user",
+    "service": "Profile",
+    "action": "show-current-user",
+    "fn": "show_current_user",
+    "method": "showCurrentUser",
+    "toolName": "service__Profile__show_current_user",
+    "serviceTitle": "Profile",
+    "serviceDescription": "Read-only access to a user's public profile artifacts — Verus verifiable credentials and network badges — addressed by userId. No UI side effects.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the profile view for the currently signed-in user.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "profile",
+    "mode": "window"
+  },
+  {
+    "key": "Profile.show-user",
+    "service": "Profile",
+    "action": "show-user",
+    "fn": "show_user",
+    "method": "showUser",
+    "toolName": "service__Profile__show_user",
+    "serviceTitle": "Profile",
+    "serviceDescription": "Read-only access to a user's public profile artifacts — Verus verifiable credentials and network badges — addressed by userId. No UI side effects.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Shows the profile view for a specific user, or the current user if no userId is provided.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "userId",
+          "type": "string",
+          "description": "The unique identifier of the user whose profile to open. Defaults to the current user."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "profile",
+    "mode": "window"
+  },
+  {
+    "key": "ResourcesViewer.preview",
+    "service": "ResourcesViewer",
+    "action": "preview",
+    "fn": "preview",
+    "method": "preview",
+    "toolName": "service__ResourcesViewer__preview",
+    "serviceTitle": "Resources Viewer",
+    "serviceDescription": "Valu Social's Resources Viewer app (`preview`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the resource viewer to preview a specific resource.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "resourceId",
+          "type": "string",
+          "description": "The unique identifier of the resource to preview."
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "preview",
+    "mode": "window"
   },
   {
     "key": "RoomPoints.create-room-point",
@@ -6328,6 +9447,57 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "RoomPoints",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "RoomPoints.delete-room-point",
+    "service": "RoomPoints",
+    "action": "delete-room-point",
+    "fn": "delete_room_point",
+    "method": "deleteRoomPoint",
+    "toolName": "service__RoomPoints__delete_room_point",
+    "serviceTitle": "Room Points Service",
+    "serviceDescription": "GoTo points of a room (server name \"cameraPosition\"): list them, save or delete one directly, or open the point editor and let the user do it. Editing points requires the room's edit permission. Position and rotation are metres and EULER DEGREES in the room's own space — they cannot be computed from outside the 3D scene, so prefer create-point / edit-point (which receive the live camera pose from Unity) over save-point unless you are re-using a pose you already read.",
+    "source": "src/Services/RoomPoints/RoomPointsService.js",
+    "description": "Deletes one saved point by id. Returns {status: \"ok\"}. The point parallax preview resource is cleaned up by the 3D scene, not here.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "rooms:write"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The room the point belongs to."
+        },
+        {
+          "name": "pointId",
+          "type": "string",
+          "description": "Id of the point to delete."
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "RoomPoints",
     "mode": "embedded-served"
   },
   {
@@ -6412,7 +9582,1867 @@ export const INTENT_DESCRIPTORS = [
     "sdkParams": [],
     "declaredBy": "manifest",
     "implementedBy": null,
+    "target": "service",
+    "to": "RoomPoints",
     "mode": "embedded-served"
+  },
+  {
+    "key": "RoomPoints.list-room-points",
+    "service": "RoomPoints",
+    "action": "list-room-points",
+    "fn": "list_room_points",
+    "method": "listRoomPoints",
+    "toolName": "service__RoomPoints__list_room_points",
+    "serviceTitle": "Room Points Service",
+    "serviceDescription": "GoTo points of a room (server name \"cameraPosition\"): list them, save or delete one directly, or open the point editor and let the user do it. Editing points requires the room's edit permission. Position and rotation are metres and EULER DEGREES in the room's own space — they cannot be computed from outside the 3D scene, so prefer create-point / edit-point (which receive the live camera pose from Unity) over save-point unless you are re-using a pose you already read.",
+    "source": "src/Services/RoomPoints/RoomPointsService.js",
+    "description": "Returns every saved GoTo point of a room, in server order: {status: \"ok\", points}. Each point carries id, name, position {x,y,z}, rotation {x,y,z,w} (EULER DEGREES, w is always 0 — NOT a quaternion), cameraMode (0 = do not change, 1 = fly, 2 = third person) and the server timestamps. A room with no saved points returns an empty list — the \"Home\" point Unity shows in that case exists only in its memory.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "rooms:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The room whose points to list."
+        }
+      ],
+      "optional": [
+        {
+          "name": "networkId",
+          "type": "string",
+          "description": "Network the room belongs to. Defaults to the current network."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "RoomPoints",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "RoomPoints.save-room-point",
+    "service": "RoomPoints",
+    "action": "save-room-point",
+    "fn": "save_room_point",
+    "method": "saveRoomPoint",
+    "toolName": "service__RoomPoints__save_room_point",
+    "serviceTitle": "Room Points Service",
+    "serviceDescription": "GoTo points of a room (server name \"cameraPosition\"): list them, save or delete one directly, or open the point editor and let the user do it. Editing points requires the room's edit permission. Position and rotation are metres and EULER DEGREES in the room's own space — they cannot be computed from outside the 3D scene, so prefer create-point / edit-point (which receive the live camera pose from Unity) over save-point unless you are re-using a pose you already read.",
+    "source": "src/Services/RoomPoints/RoomPointsService.js",
+    "description": "Writes a point WITHOUT opening any UI: creates it when point.id is empty or missing, otherwise overwrites the saved point with that id. An update REPLACES the whole point, so send a complete one (read it with list-room-points first) — fields left out are not kept. Returns {status: \"ok\", point} with the server copy, whose id is the one to keep after a create.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "rooms:write"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The room the point belongs to."
+        },
+        {
+          "name": "point",
+          "type": "object",
+          "description": "The complete point: {id?, name, position {x,y,z}, rotation {x,y,z,w} in EULER DEGREES, cameraMode}."
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "RoomPoints",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Rooms.invite-to-room",
+    "service": "Rooms",
+    "action": "invite-to-room",
+    "fn": "invite_to_room",
+    "method": "inviteToRoom",
+    "toolName": "service__Rooms__invite_to_room",
+    "serviceTitle": "Rooms",
+    "serviceDescription": "Room management service for searching rooms, browsing room templates, creating rooms from templates, retrieving room details, managing prop content, and checking permissions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the room invitation dialog for a specific room.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The unique identifier of the room to invite users to."
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "rooms",
+    "mode": "window"
+  },
+  {
+    "key": "Rooms.open",
+    "service": "Rooms",
+    "action": "open",
+    "fn": "open",
+    "method": "open",
+    "toolName": "service__Rooms__open",
+    "serviceTitle": "Rooms",
+    "serviceDescription": "Room management service for searching rooms, browsing room templates, creating rooms from templates, retrieving room details, managing prop content, and checking permissions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the Rooms app on a chosen list. With no parameter the app simply opens on whatever it was last showing.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "tab",
+          "type": "string",
+          "description": "Which list to show. Defaults to the currently visible one.",
+          "options": [
+            {
+              "value": "browse",
+              "label": "Browse"
+            },
+            {
+              "value": "discover",
+              "label": "Discover"
+            },
+            {
+              "value": "my-rooms",
+              "label": "My Rooms"
+            }
+          ]
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "rooms",
+    "mode": "window"
+  },
+  {
+    "key": "Rooms.show-room",
+    "service": "Rooms",
+    "action": "show-room",
+    "fn": "show_room",
+    "method": "showRoom",
+    "toolName": "service__Rooms__show_room",
+    "serviceTitle": "Rooms",
+    "serviceDescription": "Room management service for searching rooms, browsing room templates, creating rooms from templates, retrieving room details, managing prop content, and checking permissions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the Rooms app on a specific room's detail view — info, members and settings.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The unique identifier of the room to show."
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "rooms",
+    "mode": "window"
+  },
+  {
+    "key": "RoomZones.assign-zone",
+    "service": "RoomZones",
+    "action": "assign-zone",
+    "fn": "assign_zone",
+    "method": "assignZone",
+    "toolName": "service__RoomZones__assign_zone",
+    "serviceTitle": "Room Zones Service",
+    "serviceDescription": "Zones of a room and the claims on them (docs/superpowers/specs/2026-10-16-room-claiming-zones-design.md). A zone is an invisible box in a room: it can join its video call when someone walks in, it can be claimed as somebody's personal space, or both. A CLAIM IS A PROP INVITATION on the master server — there is no other store — so the occupant also gets edit rights on the zone prop. The server does not enforce exclusivity: the earliest claim wins and the loser is withdrawn, so always read the occupancy back rather than assuming a claim held.",
+    "source": "src/Services/RoomZones/RoomZonesService.js",
+    "description": "Gives a zone to a particular user. Requires the caller to OWN the room (manage rights) or be a network admin; anything less is refused. Bypasses the zone's audience, the room's per-user limit and the cooldown by design — this is how offices are handed out. Returns {status: \"ok\"}.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "rooms:write"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The room the zone belongs to."
+        },
+        {
+          "name": "zoneId",
+          "type": "string",
+          "description": "The zone to assign."
+        },
+        {
+          "name": "userId",
+          "type": "string",
+          "description": "Who gets it."
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "RoomZones",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "RoomZones.claim-zone",
+    "service": "RoomZones",
+    "action": "claim-zone",
+    "fn": "claim_zone",
+    "method": "claimZone",
+    "toolName": "service__RoomZones__claim_zone",
+    "serviceTitle": "Room Zones Service",
+    "serviceDescription": "Zones of a room and the claims on them (docs/superpowers/specs/2026-10-16-room-claiming-zones-design.md). A zone is an invisible box in a room: it can join its video call when someone walks in, it can be claimed as somebody's personal space, or both. A CLAIM IS A PROP INVITATION on the master server — there is no other store — so the occupant also gets edit rights on the zone prop. The server does not enforce exclusivity: the earliest claim wins and the loser is withdrawn, so always read the occupancy back rather than assuming a claim held.",
+    "source": "src/Services/RoomZones/RoomZonesService.js",
+    "description": "Claims a zone for the SIGNED-IN user. Returns {status: \"ok\", claim} when it worked, or {status: \"refused\", reason, message} when it did not — \"taken\", \"limit\", \"not-listed\", \"not-claimable\", \"no-access\" or \"cooldown\". A user who may not write prop invitations at all gets {status: \"refused\", reason: \"needs-request\"}: they must ask a room owner to assign it instead. Never claims on behalf of somebody else — use assign-zone for that.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "rooms:write"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The room the zone belongs to."
+        },
+        {
+          "name": "zoneId",
+          "type": "string",
+          "description": "The zone to claim (its prop id, as list-room-zones returns it)."
+        }
+      ],
+      "optional": [
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "What to call the space, shown instead of the claimant's name."
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "description": "A one-line status shown next to the space, e.g. \"in focus until 4\"."
+        },
+        {
+          "name": "doorPolicy",
+          "type": "string",
+          "description": "Who may come in: \"open\" (default), \"knock\" or \"closed\". Shown, not yet enforced."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "RoomZones",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "RoomZones.list-room-zones",
+    "service": "RoomZones",
+    "action": "list-room-zones",
+    "fn": "list_room_zones",
+    "method": "listRoomZones",
+    "toolName": "service__RoomZones__list_room_zones",
+    "serviceTitle": "Room Zones Service",
+    "serviceDescription": "Zones of a room and the claims on them (docs/superpowers/specs/2026-10-16-room-claiming-zones-design.md). A zone is an invisible box in a room: it can join its video call when someone walks in, it can be claimed as somebody's personal space, or both. A CLAIM IS A PROP INVITATION on the master server — there is no other store — so the occupant also gets edit rights on the zone prop. The server does not enforce exclusivity: the earliest claim wins and the loser is withdrawn, so always read the occupancy back rather than assuming a claim held.",
+    "source": "src/Services/RoomZones/RoomZonesService.js",
+    "description": "Every zone of a room: {status: \"ok\", zones}. Each zone carries id (the prop id), title, its box in room metres (x, z, rotY in degrees, width, depth, height, floorOffset), the two capabilities (call, claim) and its claim policy (settings.audience is \"members\" or \"listed\"). A room with no zones returns an empty list.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "rooms:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The room whose zones to list."
+        }
+      ],
+      "optional": [
+        {
+          "name": "claimableOnly",
+          "type": "boolean",
+          "description": "Only the zones that can be claimed (the \"spaces\"). Default false."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "RoomZones",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "RoomZones.release-zone",
+    "service": "RoomZones",
+    "action": "release-zone",
+    "fn": "release_zone",
+    "method": "releaseZone",
+    "toolName": "service__RoomZones__release_zone",
+    "serviceTitle": "Room Zones Service",
+    "serviceDescription": "Zones of a room and the claims on them (docs/superpowers/specs/2026-10-16-room-claiming-zones-design.md). A zone is an invisible box in a room: it can join its video call when someone walks in, it can be claimed as somebody's personal space, or both. A CLAIM IS A PROP INVITATION on the master server — there is no other store — so the occupant also gets edit rights on the zone prop. The server does not enforce exclusivity: the earliest claim wins and the loser is withdrawn, so always read the occupancy back rather than assuming a claim held.",
+    "source": "src/Services/RoomZones/RoomZonesService.js",
+    "description": "Releases the signed-in user's own claim on a zone: {status: \"ok\"}. Starts a one-minute cooldown before the same user may claim that zone again. Releasing a zone somebody else holds is not possible here — a room owner uses assign-zone or the Spaces app.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "rooms:write"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The room the zone belongs to."
+        },
+        {
+          "name": "zoneId",
+          "type": "string",
+          "description": "The zone to release."
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "RoomZones",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "RoomZones.zone-occupancy",
+    "service": "RoomZones",
+    "action": "zone-occupancy",
+    "fn": "zone_occupancy",
+    "method": "zoneOccupancy",
+    "toolName": "service__RoomZones__zone_occupancy",
+    "serviceTitle": "Room Zones Service",
+    "serviceDescription": "Zones of a room and the claims on them (docs/superpowers/specs/2026-10-16-room-claiming-zones-design.md). A zone is an invisible box in a room: it can join its video call when someone walks in, it can be claimed as somebody's personal space, or both. A CLAIM IS A PROP INVITATION on the master server — there is no other store — so the occupant also gets edit rights on the zone prop. The server does not enforce exclusivity: the earliest claim wins and the loser is withdrawn, so always read the occupancy back rather than assuming a claim held.",
+    "source": "src/Services/RoomZones/RoomZonesService.js",
+    "description": "Who holds the room's claimable zones right now: {status: \"ok\", occupancy} keyed by zone id, each {claim, conflicts, stale}. `claim` is null when the zone is free, else {userId, claimedAt, source, doorPolicy, displayName, status}. `stale` means the occupant no longer has access to the room, so the zone is effectively free. `conflicts` are losing claims a moderator should clear. This reads the server every time — there is no push for prop invitations.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "rooms:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "roomId",
+          "type": "string",
+          "description": "The room to read."
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "RoomZones",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Social.create-channel",
+    "service": "Social",
+    "action": "create-channel",
+    "fn": "create_channel",
+    "method": "createChannel",
+    "toolName": "service__Social__create_channel",
+    "serviceTitle": "Social",
+    "serviceDescription": "Valu Social's Social app (`community`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the community view and starts channel creation in a specific community context.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "community",
+          "type": "object",
+          "description": "Community data object."
+        }
+      ],
+      "optional": [
+        {
+          "name": "contentDirectoryId",
+          "type": "string",
+          "description": "The content directory identifier for the new channel."
+        },
+        {
+          "name": "rootChannel",
+          "type": "object",
+          "description": "Root channel of the community."
+        },
+        {
+          "name": "subChannelId",
+          "type": "string",
+          "description": "The sub-channel identifier to navigate to."
+        },
+        {
+          "name": "mode",
+          "type": "string",
+          "description": "The creation mode for the channel."
+        },
+        {
+          "name": "contentDirectoryTitle",
+          "type": "string",
+          "description": "Display title for the content directory."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "community",
+    "mode": "window"
+  },
+  {
+    "key": "Social.create-post",
+    "service": "Social",
+    "action": "create-post",
+    "fn": "create_post",
+    "method": "createPost",
+    "toolName": "service__Social__create_post",
+    "serviceTitle": "Social",
+    "serviceDescription": "Valu Social's Social app (`community`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open view and open post editor",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "resourceId",
+          "type": "string",
+          "description": "Resource id for post attachment"
+        },
+        {
+          "name": "rootChannel",
+          "type": "object",
+          "description": "Root chanel of community"
+        },
+        {
+          "name": "community",
+          "type": "object",
+          "description": "Community data"
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "description": "Full path to channel or subchannel"
+        }
+      ],
+      "optional": [
+        {
+          "name": "title",
+          "type": "string",
+          "description": "Pre-fills the post title in the editor. Optional; the editor opens with this title instead of blank."
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "description": "Pre-fills the post body (Markdown) in the editor. Optional; the editor opens with this body instead of blank."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "community",
+    "mode": "window"
+  },
+  {
+    "key": "Social.open-community",
+    "service": "Social",
+    "action": "open-community",
+    "fn": "open_community",
+    "method": "openCommunity",
+    "toolName": "service__Social__open_community",
+    "serviceTitle": "Social",
+    "serviceDescription": "Valu Social's Social app (`community`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the community view and navigates to a community by its ID. Use when you only have a communityId and no specific channel to target — the app will land on the first available channel.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "communityId",
+          "type": "string",
+          "description": "The community id."
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "community",
+    "mode": "window"
+  },
+  {
+    "key": "Social.show-channel",
+    "service": "Social",
+    "action": "show-channel",
+    "fn": "show_channel",
+    "method": "showChannel",
+    "toolName": "service__Social__show_channel",
+    "serviceTitle": "Social",
+    "serviceDescription": "Valu Social's Social app (`community`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the community view and navigates to a specific channel. Use communityId from AI context. For a root channel: pass its id as rootChannelId, omit subChannelId. For a sub-channel: the sub-channel object in AI context has a rootChannelId field — pass that as rootChannelId, and the sub-channel id as subChannelId.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "communityId",
+          "type": "string",
+          "description": "The community id from AI context."
+        },
+        {
+          "name": "rootChannelId",
+          "type": "string",
+          "description": "The top-level root channel id. Never a sub-channel id."
+        }
+      ],
+      "optional": [
+        {
+          "name": "subChannelId",
+          "type": "string",
+          "description": "The sub-channel id to navigate into. Omit when navigating to the root channel itself."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "community",
+    "mode": "window"
+  },
+  {
+    "key": "Social.show-post",
+    "service": "Social",
+    "action": "show-post",
+    "fn": "show_post",
+    "method": "showPost",
+    "toolName": "service__Social__show_post",
+    "serviceTitle": "Social",
+    "serviceDescription": "Valu Social's Social app (`community`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the community view and navigates to a specific post. Use communityId from AI context. For a post in a root channel: pass the channel id as rootChannelId, omit subChannelId. For a post in a sub-channel: pass the sub-channel's rootChannelId as rootChannelId, and the sub-channel id as subChannelId. Pass the post id as messageId.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "communityId",
+          "type": "string",
+          "description": "The community id from AI context."
+        },
+        {
+          "name": "rootChannelId",
+          "type": "string",
+          "description": "The top-level root channel id. Never a sub-channel id."
+        },
+        {
+          "name": "messageId",
+          "type": "string",
+          "description": "The post id from AI context."
+        }
+      ],
+      "optional": [
+        {
+          "name": "subChannelId",
+          "type": "string",
+          "description": "The sub-channel id containing the post. Omit when the post is in the root channel itself."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "community",
+    "mode": "window"
+  },
+  {
+    "key": "UserCard.show",
+    "service": "UserCard",
+    "action": "show",
+    "fn": "show",
+    "method": "show",
+    "toolName": "service__UserCard__show",
+    "serviceTitle": "User Card",
+    "serviceDescription": "Valu Social's User Card app (`user-card`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Shows the contextual profile card for a user.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "userId",
+          "type": "string",
+          "description": "The unique identifier of the user whose card to show."
+        }
+      ],
+      "optional": [
+        {
+          "name": "anchor",
+          "type": "object",
+          "description": "Viewport rect {left, top, right, bottom, width, height} of the tapped avatar, used to position the card in web. Ignored by native hosts, which anchor the card their own way. Omitted, the card is centred."
+        },
+        {
+          "name": "hostApplicationId",
+          "type": "string",
+          "description": "The application the card is opened from, and so the view a native host should present it above (e.g. \"textchat\"). Absent when the caller could not name one — present over the topmost view in that case."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "user-card",
+    "mode": "embedded-only"
+  },
+  {
+    "key": "ValuGames.open",
+    "service": "ValuGames",
+    "action": "open",
+    "fn": "open",
+    "method": "open",
+    "toolName": "service__ValuGames__open",
+    "serviceTitle": "Valu Games",
+    "serviceDescription": "Valu Social's Valu Games app (`games`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open the Valu Games app.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "games",
+    "mode": "window"
+  },
+  {
+    "key": "ValuGuru.create-chatbot",
+    "service": "ValuGuru",
+    "action": "create-chatbot",
+    "fn": "create_chatbot",
+    "method": "createChatbot",
+    "toolName": "service__ValuGuru__create_chatbot",
+    "serviceTitle": "Valu Guru",
+    "serviceDescription": "Valu Social's Valu Guru app (`valuguru`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the Valu Guru app on the new-chatbot creation wizard, optionally pre-filled. Pass `instructions` to land on the Design step fully filled in, or just `prompt` to land on the Describe step with the task pre-typed and ready to generate.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": true,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "prompt",
+          "type": "string",
+          "description": "Plain-language task description to seed the Describe step (e.g. \"a bot that answers HR policy questions\"). Ignored if `instructions` is also given."
+        },
+        {
+          "name": "instructions",
+          "type": "string",
+          "description": "Full system-prompt instructions for the chatbot. When given, the wizard opens straight on the Design step instead of Describe."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "Chatbot display name."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "Short chatbot description shown in the library/list."
+        },
+        {
+          "name": "icon",
+          "type": "string",
+          "description": "Font Awesome icon class (e.g. \"fa-light fa-robot\") or a DiceBear avatar URL."
+        },
+        {
+          "name": "skillIds",
+          "type": "string[]",
+          "description": "IDs of skills (from the shared Skills Catalogue) to pre-select for the chatbot."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "valuguru",
+    "mode": "window"
+  },
+  {
+    "key": "ValuGuru.open",
+    "service": "ValuGuru",
+    "action": "open",
+    "fn": "open",
+    "method": "open",
+    "toolName": "service__ValuGuru__open",
+    "serviceTitle": "Valu Guru",
+    "serviceDescription": "Valu Social's Valu Guru app (`valuguru`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the Valu Guru app on a chat with the built-in Valu Guru assistant, without sending anything. Resumes the most recent built-in-assistant conversation, or lands on the empty new-chat screen when there is none. Custom chatbot conversations are never resumed, and nothing is created on the server — a session appears only once a message is sent.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "newChat",
+          "type": "boolean",
+          "description": "When true, always lands on the empty new-chat screen instead of resuming the most recent Valu Guru conversation."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "valuguru",
+    "mode": "window"
+  },
+  {
+    "key": "ValuGuru.open-agent",
+    "service": "ValuGuru",
+    "action": "open-agent",
+    "fn": "open_agent",
+    "method": "openAgent",
+    "toolName": "service__ValuGuru__open_agent",
+    "serviceTitle": "Valu Guru",
+    "serviceDescription": "Valu Social's Valu Guru app (`valuguru`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the Valu Guru app and navigates to a specific agent chat by ID.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "agentId",
+          "type": "string",
+          "description": "The agent ID to open."
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "valuguru",
+    "mode": "window"
+  },
+  {
+    "key": "ValuGuru.open-chat",
+    "service": "ValuGuru",
+    "action": "open-chat",
+    "fn": "open_chat",
+    "method": "openChat",
+    "toolName": "service__ValuGuru__open_chat",
+    "serviceTitle": "Valu Guru",
+    "serviceDescription": "Valu Social's Valu Guru app (`valuguru`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the Valu Guru app and navigates to a specific chat session by ID.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "chatId",
+          "type": "string",
+          "description": "The chat session ID to open."
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "valuguru",
+    "mode": "window"
+  },
+  {
+    "key": "ValuGuru.open-chatbot",
+    "service": "ValuGuru",
+    "action": "open-chatbot",
+    "fn": "open_chatbot",
+    "method": "openChatbot",
+    "toolName": "service__ValuGuru__open_chatbot",
+    "serviceTitle": "Valu Guru",
+    "serviceDescription": "Valu Social's Valu Guru app (`valuguru`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the Valu Guru app on a library chatbot's detail page. Unlike open-chat, the target is not personal — any user in the network can view it (used e.g. by the bot badge on shared chatbot replies).",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "chatbotId",
+          "type": "string",
+          "description": "The library chatbot ID whose detail page to open."
+        }
+      ],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "valuguru",
+    "mode": "window"
+  },
+  {
+    "key": "ValuGuru.show-agents",
+    "service": "ValuGuru",
+    "action": "show-agents",
+    "fn": "show_agents",
+    "method": "showAgents",
+    "toolName": "service__ValuGuru__show_agents",
+    "serviceTitle": "Valu Guru",
+    "serviceDescription": "Valu Social's Valu Guru app (`valuguru`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the Valu Guru app and switches to the Agents tab in the left panel.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": [
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "valuguru",
+    "mode": "window"
+  },
+  {
+    "key": "ValuGuru.start-session",
+    "service": "ValuGuru",
+    "action": "start-session",
+    "fn": "start_session",
+    "method": "startSession",
+    "toolName": "service__ValuGuru__start_session",
+    "serviceTitle": "Valu Guru",
+    "serviceDescription": "Valu Social's Valu Guru app (`valuguru`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Opens the Valu Guru app and starts a brand-new conversation session with an initial message. Always creates a new session regardless of existing ones.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "valuguru:write"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "message",
+          "type": "string",
+          "description": "The initial user message to send in the new session."
+        }
+      ],
+      "optional": [
+        {
+          "name": "chatbotId",
+          "type": "string",
+          "description": "Chatbot ID to start the session with. Accepts a personal \"my chatbots\" id, a published LIBRARY chatbot id (auto-added to \"my chatbots\" if not already there), or 'default'. Defaults to the default Valu Guru chatbot ('default')."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "valuguru",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "ValuPuzzles.start-puzzle",
+    "service": "ValuPuzzles",
+    "action": "start-puzzle",
+    "fn": "start_puzzle",
+    "method": "startPuzzle",
+    "toolName": "service__ValuPuzzles__start_puzzle",
+    "serviceTitle": "Valu Puzzles",
+    "serviceDescription": "Valu Social's Valu Puzzles app (`puzzles`): the intents it declares, as functions.",
+    "source": "src/Configs/Application_Manifests.js",
+    "description": "Open Valu Puzzles and launch a specific puzzle, optionally with a score-to-beat challenge from another user.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "apps:intent"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "puzzleId",
+          "type": "string",
+          "description": "Which puzzle to start. One of: \"sliding\" (Sliding Puzzle), \"memory\" (Memory Match), \"sudoku\" (Mini Sudoku), \"wordscramble\" (Word Scramble)."
+        }
+      ],
+      "optional": [
+        {
+          "name": "scoreToBeat",
+          "type": "number",
+          "description": "Target score (0–999) the recipient should try to beat. Shown as a challenge banner above the puzzle; if the player exceeds it the result screen reads \"Beat <challengerName>!\"."
+        },
+        {
+          "name": "challengerName",
+          "type": "string",
+          "description": "Display name of the user who issued the challenge. Shown on the challenge banner alongside the target score."
+        },
+        {
+          "name": "route",
+          "type": "string",
+          "description": "Open the app at this route of its own (valu-routing.md)."
+        },
+        {
+          "name": "pushToHistory",
+          "type": "boolean",
+          "description": "Whether opening the app is a new entry in the browser history."
+        }
+      ]
+    },
+    "sdkParams": [
+      "route",
+      "pushToHistory"
+    ],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "application",
+    "to": "puzzles",
+    "mode": "embedded-served"
+  }
+];
+
+/** Every Valu Social application an intent may name, and whether Valu Social
+ * frames it (an intent to a frame is `apps:intent`): how `valu.Apps.send`
+ * and the scanner scope an app id no descriptor names. */
+export const APPLICATION_TARGETS = {
+  "__launcher": {
+    "frame": false
+  },
+  "ai": {
+    "frame": true
+  },
+  "ai-fellowship": {
+    "frame": true
+  },
+  "auth": {
+    "frame": false
+  },
+  "board": {
+    "frame": false
+  },
+  "cart": {
+    "frame": false
+  },
+  "chabad-ai": {
+    "frame": true
+  },
+  "chabad-on-call": {
+    "frame": true
+  },
+  "chazak": {
+    "frame": true
+  },
+  "chinuch-ai-beta": {
+    "frame": true
+  },
+  "chinuchoffice": {
+    "frame": true
+  },
+  "ckids": {
+    "frame": true
+  },
+  "cms": {
+    "frame": false
+  },
+  "community": {
+    "frame": false
+  },
+  "component-showcase": {
+    "frame": false
+  },
+  "contacts": {
+    "frame": false
+  },
+  "content-studio": {
+    "frame": true
+  },
+  "cteen": {
+    "frame": true
+  },
+  "cyp": {
+    "frame": true
+  },
+  "dashboard": {
+    "frame": false
+  },
+  "debug3d": {
+    "frame": false
+  },
+  "dev": {
+    "frame": false
+  },
+  "dock-lab": {
+    "frame": false
+  },
+  "events": {
+    "frame": false
+  },
+  "games": {
+    "frame": true
+  },
+  "groups": {
+    "frame": false
+  },
+  "hebrew-desk": {
+    "frame": true
+  },
+  "home": {
+    "frame": true
+  },
+  "hubs": {
+    "frame": false
+  },
+  "iframe_2048": {
+    "frame": true
+  },
+  "iframe_demo_app": {
+    "frame": true
+  },
+  "iframe_development_status": {
+    "frame": true
+  },
+  "iframe_llm_debug": {
+    "frame": true
+  },
+  "iframe_network_board_valu": {
+    "frame": true
+  },
+  "intent-playground": {
+    "frame": false
+  },
+  "invitation": {
+    "frame": false
+  },
+  "iranian-desk": {
+    "frame": true
+  },
+  "jnet": {
+    "frame": true
+  },
+  "keren-hashluchim": {
+    "frame": true
+  },
+  "kinus": {
+    "frame": true
+  },
+  "kitchen": {
+    "frame": true
+  },
+  "kitchen-of-kindness": {
+    "frame": true
+  },
+  "living-with-the-rebbe": {
+    "frame": true
+  },
+  "local-ai-fellowship": {
+    "frame": true
+  },
+  "merchant": {
+    "frame": false
+  },
+  "merkos-shlichus": {
+    "frame": true
+  },
+  "metaverse": {
+    "frame": false
+  },
+  "mitzvah-society": {
+    "frame": true
+  },
+  "moshiach-office": {
+    "frame": true
+  },
+  "my-invitations": {
+    "frame": false
+  },
+  "myshliach": {
+    "frame": true
+  },
+  "networks": {
+    "frame": false
+  },
+  "news-feed": {
+    "frame": false
+  },
+  "one-mitzvah": {
+    "frame": true
+  },
+  "pan-kloli": {
+    "frame": true
+  },
+  "preview": {
+    "frame": false
+  },
+  "profile": {
+    "frame": false
+  },
+  "puzzles": {
+    "frame": true
+  },
+  "report-issue": {
+    "frame": false
+  },
+  "resource": {
+    "frame": false
+  },
+  "rooms": {
+    "frame": false
+  },
+  "settings": {
+    "frame": false
+  },
+  "shluchim-refuah": {
+    "frame": true
+  },
+  "spanish-desk": {
+    "frame": true
+  },
+  "special-projects": {
+    "frame": true
+  },
+  "staging-chinuchoffice": {
+    "frame": true
+  },
+  "staging-content-studio": {
+    "frame": true
+  },
+  "staging-kitchen": {
+    "frame": true
+  },
+  "test": {
+    "frame": false
+  },
+  "test-ai-fellowship": {
+    "frame": true
+  },
+  "textchat": {
+    "frame": false
+  },
+  "ufaratzta-circle": {
+    "frame": true
+  },
+  "user-card": {
+    "frame": false
+  },
+  "valu_docs": {
+    "frame": true
+  },
+  "valuguru": {
+    "frame": false
+  },
+  "verus_crypto_dashboard": {
+    "frame": true
+  },
+  "verus_showcase": {
+    "frame": true
+  },
+  "videochat": {
+    "frame": false
+  },
+  "videochat-settings": {
+    "frame": false
+  },
+  "workspace": {
+    "frame": false
+  },
+  "yaldei-shluchei": {
+    "frame": true
+  }
+};
+
+/** Application intents with no function, and why: Valu Social's own, or no scope. */
+export const UNTYPED_APPLICATION_INTENTS = [
+  {
+    "name": "auth.logout",
+    "why": "signs the user out of Valu Social"
+  },
+  {
+    "name": "hubs.agent-enter-room",
+    "why": "the Valu Guru agent's own body in Metaverse 2D"
+  },
+  {
+    "name": "hubs.agent-people",
+    "why": "the Valu Guru agent's own body in Metaverse 2D"
+  },
+  {
+    "name": "hubs.agent-walk-to",
+    "why": "the Valu Guru agent's own body in Metaverse 2D"
+  },
+  {
+    "name": "hubs.agent-say",
+    "why": "the Valu Guru agent's own body in Metaverse 2D"
+  },
+  {
+    "name": "hubs.agent-status",
+    "why": "the Valu Guru agent's own body in Metaverse 2D"
+  },
+  {
+    "name": "hubs.agent-leave",
+    "why": "the Valu Guru agent's own body in Metaverse 2D"
+  },
+  {
+    "name": "iframe_llm_debug.open-session",
+    "why": "LLM Debug: Valu's own debugging screens"
+  },
+  {
+    "name": "iframe_llm_debug.open-agent",
+    "why": "LLM Debug: Valu's own debugging screens"
+  },
+  {
+    "name": "iframe_llm_debug.open-run",
+    "why": "LLM Debug: Valu's own debugging screens"
+  },
+  {
+    "name": "staging-content-studio.open-create",
+    "why": "the staging copy of Content Studio"
+  },
+  {
+    "name": "staging-content-studio.open-edit",
+    "why": "the staging copy of Content Studio"
+  },
+  {
+    "name": "staging-content-studio.open-search",
+    "why": "the staging copy of Content Studio"
+  },
+  {
+    "name": "staging-content-studio.navigate",
+    "why": "the staging copy of Content Studio"
+  },
+  {
+    "name": "merchant.open-moderation",
+    "why": "no scope in BridgeScopes.js: Valu Social refuses it once permissions are enforced"
+  },
+  {
+    "name": "valuguru.show-chatbots",
+    "why": "no scope in BridgeScopes.js: Valu Social refuses it once permissions are enforced"
   }
 ];
 

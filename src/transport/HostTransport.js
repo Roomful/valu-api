@@ -376,7 +376,10 @@ export class HostTransport extends Transport {
    * skipped (one warning per page); `window` opens Valu Social in a tab, when
    * the app gave a way to (`openIntentWindow`); everything else is sent to the
    * host as the intent it is (`api:service-intent`), which serves the Commerce
-   * and identity ones and answers `not_available` for the rest. Never rejects.
+   * and identity ones and answers `not_available` for the rest. An APPLICATION
+   * intent (`valu.Chats.openChannel()`) that opens no window answers
+   * `not_available` here: the host serves no app intent, so asking it would
+   * only add a round trip. Never rejects.
    */
   async #callIntent(descriptor, params, options = {}) {
     const input = params && typeof params === 'object' ? params : {};
@@ -387,17 +390,26 @@ export class HostTransport extends Transport {
       }
       return skippedIntentAck();
     }
+    const to = descriptor.to ?? descriptor.service;
     if (descriptor.mode === 'window' && this.#openIntentWindow) {
       try {
-        const opened = await this.#openIntentWindow(descriptor, input, { app: this.applicationId ?? null });
+        // The `/-i/<id>/<action>` route takes an app id as well as a service id.
+        const opened = await this.#openIntentWindow({ ...descriptor, service: to }, input, { app: this.applicationId ?? null });
         return opened ? openedIntentAck() : popupBlockedAck(descriptor.key);
       } catch (error) {
         return errorAck(ERROR_CODES.UNSUPPORTED, error?.code ?? 'error', error?.message);
       }
     }
+    if (descriptor.target === 'application') {
+      return errorAck(
+        ERROR_CODES.UNSUPPORTED,
+        HOST_ERRORS.NOT_AVAILABLE,
+        `${descriptor.key} runs only inside Valu Social: the app's own address has no ${to} to send it to.`,
+      );
+    }
     try {
       const reply = await this.request(MSG.SERVICE_INTENT, {
-        applicationId: descriptor.service, action: descriptor.action, params: input,
+        applicationId: to, action: descriptor.action, params: input,
       }, undefined, { timeoutMs: options?.timeoutMs });
       return intentAck(reply);
     } catch (error) {

@@ -13,6 +13,10 @@ export interface ScopeFinding {
   line: number;
   /** The helper the call was read through (`commerce`), when it was. */
   via?: string;
+  /** On every `bridge` finding: the kind the runtime counter records the same call under. */
+  message?: 'run-intent' | 'service-intent-other' | 'pointer-run' | 'run-console' | 'run-command' | 'direct';
+  /** On every `bridge` finding: the counter's name for it (`textchat.open-channel`, `api:ready`). */
+  name?: string;
 }
 
 export interface UnresolvedCall {
@@ -113,3 +117,8 @@ export const SENDS_TO_OTHERS: readonly string[];
 export const VALU_ORIGINS: ReadonlyArray<{ origin: string; path?: string; why: string }>;
 export function isValuUrl(url: string, opts?: { siteOrigin?: string }): boolean;
 export function hostOf(url: string): string | null;
+
+/** The typed call (`valu.Users.current()`) that replaces an old bridge call, or null when none does. Kinds: `pointer-run`, `run-console`, `run-intent`, `service-intent-other`, `run-command`, `direct`. */
+export function bridgeReplacement(kind: string, name: string): string | null;
+/** Every old bridge call and its typed replacement, keyed `"<kind> <name>"`. */
+export const BRIDGE_REPLACEMENTS: Readonly<Record<string, string>>;

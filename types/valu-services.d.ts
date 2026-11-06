@@ -318,6 +318,33 @@ export interface CMSResourceUploadParams {
 }
 
 /**
+ * CMS.pick-resource — Opens a file picker over the Network Resources of the current network so a network admin can choose ONE file, and waits for the choice. The popup opens over whatever is on screen and does not open Files. BLOCKS until the user picks or cancels. Returns the picked resource `{id, title, contentType, thumbnailUrl}` or `null` when the user cancels or closes the popup. Refused (an error, and no popup) for anyone who is not an admin of the network, for an unknown source, and for a folderId outside the requested sources. The returned resource is always inside the requested sources.
+ */
+export type CMSPickResourceResult = any;
+
+/**
+ * CMS.pick-resource — Opens a file picker over the Network Resources of the current network so a network admin can choose ONE file, and waits for the choice. The popup opens over whatever is on screen and does not open Files. BLOCKS until the user picks or cancels. Returns the picked resource `{id, title, contentType, thumbnailUrl}` or `null` when the user cancels or closes the popup. Refused (an error, and no popup) for anyone who is not an admin of the network, for an unknown source, and for a folderId outside the requested sources. The returned resource is always inside the requested sources.
+ */
+export interface CMSPickResourceParams {
+  /**
+   * Where files may be picked from. Only "networkResources" (the public files of the network, `networkPublic:{networkId}`) is supported. Nothing outside these sources is shown or reachable.
+   */
+  sources: string[];
+  /**
+   * File types that can be picked: a family ("image"), a family wildcard ("image/*") or an exact type ("image/png"). Other files are shown disabled. Omit to allow any file.
+   */
+  accept?: string[];
+  /**
+   * Folder to open in. Must be a folder inside the requested sources, otherwise the call is refused.
+   */
+  folderId?: string;
+  /**
+   * Popup title. Defaults to "Choose a file".
+   */
+  title?: string;
+}
+
+/**
  * Community.get-channels — The community's channels, each stamped with rootChannelId.
  */
 export type CommunityGetChannelsResult = {communityId: string, channels: Record<string, any>[]};
@@ -661,6 +688,29 @@ export interface GroupsListGroupsParams {
 }
 
 /**
+ * Groups.open — Opens the groups view and navigates to a specific group.
+ */
+export type GroupsOpenResult = any;
+
+/**
+ * Groups.open — Opens the groups view and navigates to a specific group.
+ */
+export interface GroupsOpenParams {
+  /**
+   * The unique identifier of the group to open.
+   */
+  groupId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
  * Http.get — The response, with the body parsed per responseType.
  */
 export type HttpGetResult = {ok: boolean, status: number, statusText: string, headers: Record<string, any>, body: any, bodyType: string, latency: number};
@@ -788,6 +838,75 @@ export interface ProfileGetUserCredentialsParams {
    * Optional claim status filter (e.g. "Verified And Persisted"). Omit to return credentials of all statuses the caller may see.
    */
   status?: string;
+}
+
+/**
+ * Profile.open-profile-with-mode — Opens the profile view for a user and optionally navigates to a specific mode such as the marketplace.
+ */
+export type ProfileOpenProfileWithModeResult = any;
+
+/**
+ * Profile.open-profile-with-mode — Opens the profile view for a user and optionally navigates to a specific mode such as the marketplace.
+ */
+export interface ProfileOpenProfileWithModeParams {
+  /**
+   * The unique identifier of the user whose profile to open. Defaults to the current user.
+   */
+  userId?: string;
+  /**
+   * The identifier of the marketplace offer to display.
+   */
+  offerId?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Profile.show-current-user — Opens the profile view for the currently signed-in user.
+ */
+export type ProfileShowCurrentUserResult = any;
+
+/**
+ * Profile.show-current-user — Opens the profile view for the currently signed-in user.
+ */
+export interface ProfileShowCurrentUserParams {
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Profile.show-user — Shows the profile view for a specific user, or the current user if no userId is provided.
+ */
+export type ProfileShowUserResult = any;
+
+/**
+ * Profile.show-user — Shows the profile view for a specific user, or the current user if no userId is provided.
+ */
+export interface ProfileShowUserParams {
+  /**
+   * The unique identifier of the user whose profile to open. Defaults to the current user.
+   */
+  userId?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
 }
 
 /**
@@ -1239,6 +1358,75 @@ export interface RoomsSearchRoomsParams {
 }
 
 /**
+ * Rooms.invite-to-room — Opens the room invitation dialog for a specific room.
+ */
+export type RoomsInviteToRoomResult = any;
+
+/**
+ * Rooms.invite-to-room — Opens the room invitation dialog for a specific room.
+ */
+export interface RoomsInviteToRoomParams {
+  /**
+   * The unique identifier of the room to invite users to.
+   */
+  roomId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Rooms.open — Opens the Rooms app on a chosen list. With no parameter the app simply opens on whatever it was last showing.
+ */
+export type RoomsOpenResult = any;
+
+/**
+ * Rooms.open — Opens the Rooms app on a chosen list. With no parameter the app simply opens on whatever it was last showing.
+ */
+export interface RoomsOpenParams {
+  /**
+   * Which list to show. Defaults to the currently visible one.
+   */
+  tab?: {"value":"browse","label":"Browse"} | {"value":"discover","label":"Discover"} | {"value":"my-rooms","label":"My Rooms"};
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Rooms.show-room — Opens the Rooms app on a specific room's detail view — info, members and settings.
+ */
+export type RoomsShowRoomResult = any;
+
+/**
+ * Rooms.show-room — Opens the Rooms app on a specific room's detail view — info, members and settings.
+ */
+export interface RoomsShowRoomParams {
+  /**
+   * The unique identifier of the room to show.
+   */
+  roomId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
  * TextChat.get-channel-history — A page of a channel's messages.
  */
 export type TextChatGetChannelHistoryResult = {channelId: string, messages: Record<string, any>[], hasPrevious: boolean, hasNext: boolean};
@@ -1548,6 +1736,47 @@ export interface VerusWalletTransferParams {
 }
 
 /**
+ * AiGuru.get-applications — Returns a list of all registered applications with their id, slug, icon, and title.
+ */
+export type AppsListResult = any;
+
+/**
+ * AiGuru.get-applications — Returns a list of all registered applications with their id, slug, icon, and title.
+ */
+export interface AppsListParams {
+}
+
+/**
+ * AiGuru.has-application — Checks whether an application with the given ID exists in the registry.
+ */
+export type AppsHasResult = any;
+
+/**
+ * AiGuru.has-application — Checks whether an application with the given ID exists in the registry.
+ */
+export interface AppsHasParams {
+  /**
+   * The unique identifier of the application to check.
+   */
+  applicationId: string;
+}
+
+/**
+ * AiGuru.is-application-loaded — Checks whether an application with the given ID is currently loaded (open) in the dock.
+ */
+export type AppsIsLoadedResult = any;
+
+/**
+ * AiGuru.is-application-loaded — Checks whether an application with the given ID is currently loaded (open) in the dock.
+ */
+export interface AppsIsLoadedParams {
+  /**
+   * The unique identifier of the application to check.
+   */
+  applicationId: string;
+}
+
+/**
  * Application.close_all — Every open application was closed.
  */
 export type ApplicationCloseAllResult = void;
@@ -1589,6 +1818,343 @@ export type ApplicationGetIdentityTokenResult = {token: string};
  * Application.get-identity-token — Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.
  */
 export interface ApplicationGetIdentityTokenParams {
+}
+
+/**
+ * Calendar.open-calendar — Opens the calendar view, optionally filtered by a specific source type (all, room, group, user, or community event).
+ */
+export type CalendarOpenCalendarResult = any;
+
+/**
+ * Calendar.open-calendar — Opens the calendar view, optionally filtered by a specific source type (all, room, group, user, or community event).
+ */
+export interface CalendarOpenCalendarParams {
+  /**
+   * The source type for the calendar filter. Must be one of: all, room, group, user, community. Use "all" to show meetings from every source type.
+   */
+  source: string;
+  /**
+   * The unique identifier of the room, group, or user.
+   */
+  id?: string;
+  /**
+   * The display name of the room, group, or user.
+   */
+  fullName?: string;
+  /**
+   * The unique identifier of the community (used when source is community).
+   */
+  communityId?: string;
+  /**
+   * The display name of the community.
+   */
+  communityFullName?: string;
+  /**
+   * The unique identifier of the community event.
+   */
+  eventId?: string;
+  /**
+   * The display name of the community event.
+   */
+  eventFullName?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Calls.connect-to-meeting — Connects to a specific meeting by room, prop, group, or user and manages video chat and presentation settings.
+ */
+export type CallsConnectToMeetingResult = any;
+
+/**
+ * Calls.connect-to-meeting — Connects to a specific meeting by room, prop, group, or user and manages video chat and presentation settings.
+ */
+export interface CallsConnectToMeetingParams {
+  /**
+   * The unique identifier of the room to connect to.
+   */
+  roomId?: string;
+  /**
+   * The unique identifier of the prop to connect to.
+   */
+  propId?: string;
+  /**
+   * The unique identifier of the group to connect to.
+   */
+  groupId?: string;
+  /**
+   * The unique identifier of the user to connect to.
+   */
+  userId?: string;
+  /**
+   * If true, view shared screens or presenter content without joining the video chat.
+   */
+  withLocalTracks?: boolean;
+  /**
+   * If true, automatically join the video chat after connecting.
+   */
+  autoConnectToVideochat?: boolean;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Calls.leave-meeting — Leaves the current call only when it is the given prop's call (roomId + propId); otherwise does nothing. Returns {left: boolean}. Used by Metaverse 2D video chat zones.
+ */
+export type CallsLeaveMeetingResult = any;
+
+/**
+ * Calls.leave-meeting — Leaves the current call only when it is the given prop's call (roomId + propId); otherwise does nothing. Returns {left: boolean}. Used by Metaverse 2D video chat zones.
+ */
+export interface CallsLeaveMeetingParams {
+  /**
+   * The room of the prop whose call to leave.
+   */
+  roomId: string;
+  /**
+   * The prop whose call to leave; any other call is left as it is.
+   */
+  propId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Calls.open-source-picker — Opens the "Open Videochat from" source picker (Rooms, Groups, Contacts, Textchats) as the inline full-view list. Selecting an item starts a video chat with that source.
+ */
+export type CallsOpenSourcePickerResult = any;
+
+/**
+ * Calls.open-source-picker — Opens the "Open Videochat from" source picker (Rooms, Groups, Contacts, Textchats) as the inline full-view list. Selecting an item starts a video chat with that source.
+ */
+export interface CallsOpenSourcePickerParams {
+  /**
+   * If true, render the picker as a standalone window with no back button (e.g. when launched from the native app, where there is no video chat to return to).
+   */
+  standalone?: boolean;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Chats.close-channel — Closes the currently open channel and returns to the channel list. Mirrors the toolbar back button used on mobile/narrow layouts.
+ */
+export type ChatsCloseChannelResult = any;
+
+/**
+ * Chats.close-channel — Closes the currently open channel and returns to the channel list. Mirrors the toolbar back button used on mobile/narrow layouts.
+ */
+export interface ChatsCloseChannelParams {
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Chats.get-ui-state — Read-only. Returns a snapshot of what the chat is currently showing — the channels list, an open channel, or both side by side (wide layout) — plus the in-app back action. Lets non-web clients (e.g. the Android device back button) mirror the toolbar back-button navigation. Changes nothing. Returns { view: "list" | "channel" | "list-and-channel", isWide, activeChannelId, openThreadId, threadTakeover, canNavigateBack, backAction: "close-thread" | "close-channel" | null }.
+ */
+export type ChatsGetUiStateResult = any;
+
+/**
+ * Chats.get-ui-state — Read-only. Returns a snapshot of what the chat is currently showing — the channels list, an open channel, or both side by side (wide layout) — plus the in-app back action. Lets non-web clients (e.g. the Android device back button) mirror the toolbar back-button navigation. Changes nothing. Returns { view: "list" | "channel" | "list-and-channel", isWide, activeChannelId, openThreadId, threadTakeover, canNavigateBack, backAction: "close-thread" | "close-channel" | null }.
+ */
+export interface ChatsGetUiStateParams {
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Chats.open-channel — Opens a text chat session based on channel, user, group, room, or prop.
+ */
+export type ChatsOpenChannelResult = any;
+
+/**
+ * Chats.open-channel — Opens a text chat session based on channel, user, group, room, or prop.
+ */
+export interface ChatsOpenChannelParams {
+  /**
+   * The unique identifier of the text channel to open.
+   */
+  channelId?: string;
+  /**
+   * The unique identifier of the user for a direct chat.
+   */
+  userId?: string;
+  /**
+   * The unique identifier of the group to open a group chat.
+   */
+  groupId?: string;
+  /**
+   * The unique identifier of the room to open a room chat.
+   */
+  roomId?: string;
+  /**
+   * The unique identifier of the prop to open a prop-specific chat.
+   */
+  propId?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Chats.open-room-ai-chat — Opens an AI‑powered chat session scoped to a specific room.
+ */
+export type ChatsOpenRoomAiChatResult = any;
+
+/**
+ * Chats.open-room-ai-chat — Opens an AI‑powered chat session scoped to a specific room.
+ */
+export interface ChatsOpenRoomAiChatParams {
+  /**
+   * The unique identifier of the room in which to start the AI chat.
+   */
+  roomId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Chats.options — Sets the text‑chat view layout (e.g. wide or narrow mode).
+ */
+export type ChatsOptionsResult = any;
+
+/**
+ * Chats.options — Sets the text‑chat view layout (e.g. wide or narrow mode).
+ */
+export interface ChatsOptionsParams {
+  /**
+   * Whether to enable wide‑mode layout in the chat view.
+   */
+  isWide: boolean;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Chats.send-message — Sends a rich text message to a text-chat channel on behalf of an initiator (e.g. an AI agent or automated service). Silent — does NOT open or change the visible chat. Use channelId when you know it; otherwise provide userId for a direct message.
+ */
+export type ChatsSendMessageResult = any;
+
+/**
+ * Chats.send-message — Sends a rich text message to a text-chat channel on behalf of an initiator (e.g. an AI agent or automated service). Silent — does NOT open or change the visible chat. Use channelId when you know it; otherwise provide userId for a direct message.
+ */
+export interface ChatsSendMessageParams {
+  /**
+   * The message body to send.
+   */
+  text: string;
+  /**
+   * Target channel ID. Takes precedence over userId.
+   */
+  channelId?: string;
+  /**
+   * Target user ID for a direct message. Ignored if channelId is provided.
+   */
+  userId?: string;
+  /**
+   * Optional interactive buttons to attach to the message as a rich card.
+   */
+  buttons?: Record<string, any>[];
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Chats.share-card — Shares one or more entities into a chat as rich, interactive cards — Rooms, Groups, Communities, Meetings, or Contacts — instead of plain links. Pass "id" for a single card or "ids" for several in one message. All cards in one call must be the SAME cardType (mixed types need separate calls). Posts into the currently open channel by default; pass channelId to target a specific channel.
+ */
+export type ChatsShareCardResult = any;
+
+/**
+ * Chats.share-card — Shares one or more entities into a chat as rich, interactive cards — Rooms, Groups, Communities, Meetings, or Contacts — instead of plain links. Pass "id" for a single card or "ids" for several in one message. All cards in one call must be the SAME cardType (mixed types need separate calls). Posts into the currently open channel by default; pass channelId to target a specific channel.
+ */
+export interface ChatsShareCardParams {
+  /**
+   * The entity type to share: "room", "group", "community", "meeting", or "contact". Applies to every id in this call.
+   */
+  cardType: string;
+  /**
+   * A single entity id to share (room/group/community id, user id for a contact, or — for meetings — the occurrence id from list-events; a one-off meeting id also works). Use this OR "ids".
+   */
+  id?: string;
+  /**
+   * Several entity ids to share as multiple cards in one message — all of the given cardType (for meetings, occurrence ids from list-events). Use this OR "id".
+   */
+  ids?: string[];
+  /**
+   * Target channel id. Defaults to the currently active channel.
+   */
+  channelId?: string;
+  /**
+   * The network the entities belong to. Defaults to the active network.
+   */
+  networkId?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
 }
 
 /**
@@ -1723,7 +2289,7 @@ export interface CommerceCreateDiscountCodeParams {
 export type CommerceCreateProductResult = {product: Record<string, any>};
 
 /**
- * Commerce.create-product — Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, so the seller confirms it separately — in the publish dialog an app opens with publish-product, or in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
+ * Commerce.create-product — Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Files). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, so the seller confirms it separately — in the publish dialog an app opens with publish-product, or in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
  */
 export interface CommerceCreateProductParams {
   /**
@@ -1751,7 +2317,7 @@ export interface CommerceCreateProductParams {
    */
   tags?: any[];
   /**
-   * the cover: a resource id in the seller's own Media, e.g. one you generated
+   * the cover: a resource id in the seller's own Files, e.g. one you generated
    */
   imageResourceId?: string;
   /**
@@ -1930,12 +2496,12 @@ export interface CommerceGetProductParams {
 }
 
 /**
- * Commerce.get-purchase-contents — One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is "folder" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.
+ * Commerce.get-purchase-contents — One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Files, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is "folder" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.
  */
 export type CommerceGetPurchaseContentsResult = any;
 
 /**
- * Commerce.get-purchase-contents — One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is "folder" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.
+ * Commerce.get-purchase-contents — One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Files, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is "folder" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.
  */
 export interface CommerceGetPurchaseContentsParams {
   /**
@@ -2063,12 +2629,12 @@ export interface CommerceListPromotionsParams {
 }
 
 /**
- * Commerce.list-purchases — What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.
+ * Commerce.list-purchases — What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Files; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.
  */
 export type CommerceListPurchasesResult = any;
 
 /**
- * Commerce.list-purchases — What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.
+ * Commerce.list-purchases — What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Files; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.
  */
 export interface CommerceListPurchasesParams {
   /**
@@ -2165,12 +2731,12 @@ export interface CommerceOpenProductsParams {
 }
 
 /**
- * Commerce.open-purchase-in-media — Open a purchase where it lives, in Media's Purchased section — the Orders tab's "Show in Media". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Media docks beside your app. Returns `{success: true}`, or `{success: false, code: "not_owned"}` without opening anything.
+ * Commerce.open-purchase-in-media — Open a purchase where it lives, in the Purchased section of Files — the Orders tab's "Show in Files". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Files docks beside your app. Returns `{success: true}`, or `{success: false, code: "not_owned"}` without opening anything.
  */
 export type CommerceOpenPurchaseInMediaResult = any;
 
 /**
- * Commerce.open-purchase-in-media — Open a purchase where it lives, in Media's Purchased section — the Orders tab's "Show in Media". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Media docks beside your app. Returns `{success: true}`, or `{success: false, code: "not_owned"}` without opening anything.
+ * Commerce.open-purchase-in-media — Open a purchase where it lives, in the Purchased section of Files — the Orders tab's "Show in Files". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Files docks beside your app. Returns `{success: true}`, or `{success: false, code: "not_owned"}` without opening anything.
  */
 export interface CommerceOpenPurchaseInMediaParams {
   /**
@@ -2416,12 +2982,12 @@ export interface CommerceSetVolumeTierParams {
 }
 
 /**
- * Commerce.subscribe-events — Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: "commerce", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Media; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.
+ * Commerce.subscribe-events — Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: "commerce", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Files; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.
  */
 export type CommerceSubscribeEventsResult = any;
 
 /**
- * Commerce.subscribe-events — Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: "commerce", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Media; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.
+ * Commerce.subscribe-events — Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: "commerce", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Files; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.
  */
 export interface CommerceSubscribeEventsParams {
   /**
@@ -2564,13 +3130,172 @@ export interface CommerceUpdateProductParams {
    */
   tags?: any[];
   /**
-   * the cover: a resource id in the seller's own Media
+   * the cover: a resource id in the seller's own Files
    */
   imageResourceId?: string;
   /**
    * the WHOLE new content: resource ids ("res_1"), named files ({resourceId, title}), folders ({folder: "Unit 1", items: […]}) or other products ({productId}) for a bundle
    */
   items?: any[];
+}
+
+/**
+ * Contacts.show-user-connections — Open the connections view for the specified user
+ */
+export type ContactsShowUserConnectionsResult = any;
+
+/**
+ * Contacts.show-user-connections — Open the connections view for the specified user
+ */
+export interface ContactsShowUserConnectionsParams {
+  /**
+   * The unique identifier of the user to display
+   */
+  userId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ContentStudio.navigate — Navigate to a specific route within Content Studio
+ */
+export type ContentStudioNavigateResult = any;
+
+/**
+ * ContentStudio.navigate — Navigate to a specific route within Content Studio
+ */
+export interface ContentStudioNavigateParams {
+  /**
+   * The route path to navigate to within Content Studio
+   */
+  route: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ContentStudio.open-create — Open the content upload page with an optional upload destination
+ */
+export type ContentStudioOpenCreateResult = any;
+
+/**
+ * ContentStudio.open-create — Open the content upload page with an optional upload destination
+ */
+export interface ContentStudioOpenCreateParams {
+  /**
+   * ID of the room to upload to
+   */
+  roomId?: string;
+  /**
+   * ID of the community to upload to
+   */
+  communityId?: string;
+  /**
+   * ID of the channel to upload to
+   */
+  channelId?: string;
+  /**
+   * ID of the group to upload to
+   */
+  groupId?: string;
+  /**
+   * Label to apply to the content
+   */
+  label?: string;
+  /**
+   * Department associated with the content
+   */
+  department?: string;
+  /**
+   * Theme to apply to the upload page
+   */
+  theme?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ContentStudio.open-edit — Open the edit page for a specific content item
+ */
+export type ContentStudioOpenEditResult = any;
+
+/**
+ * ContentStudio.open-edit — Open the edit page for a specific content item
+ */
+export interface ContentStudioOpenEditParams {
+  /**
+   * ID of the content item to edit
+   */
+  contentItemId: string;
+  /**
+   * ID of the room context
+   */
+  roomId?: string;
+  /**
+   * ID of the community context
+   */
+  communityId?: string;
+  /**
+   * ID of the channel context
+   */
+  channelId?: string;
+  /**
+   * ID of the group context
+   */
+  groupId?: string;
+  /**
+   * Label to apply to the content
+   */
+  label?: string;
+  /**
+   * Department associated with the content
+   */
+  department?: string;
+  /**
+   * Theme to apply to the edit page
+   */
+  theme?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ContentStudio.open-search — Open the search page
+ */
+export type ContentStudioOpenSearchResult = any;
+
+/**
+ * ContentStudio.open-search — Open the search page
+ */
+export interface ContentStudioOpenSearchParams {
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
 }
 
 /**
@@ -2636,6 +3361,602 @@ export interface DataProviderPickSingleParams {
 }
 
 /**
+ * Files.preview-resource — Open a resource (file) in the CMS preview viewer by its resource ID
+ */
+export type FilesPreviewResourceResult = any;
+
+/**
+ * Files.preview-resource — Open a resource (file) in the CMS preview viewer by its resource ID
+ */
+export interface FilesPreviewResourceParams {
+  /**
+   * The unique identifier of the resource to preview
+   */
+  resourceId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Files.show-application-storage — Open an application's storage folder in the CMS — the files that app has stored under the current user, shown at Applications › <app>. Provide the application id (e.g. "valuguru"). The app must declare `storage: true` in its manifest.
+ */
+export type FilesShowApplicationStorageResult = any;
+
+/**
+ * Files.show-application-storage — Open an application's storage folder in the CMS — the files that app has stored under the current user, shown at Applications › <app>. Provide the application id (e.g. "valuguru"). The app must declare `storage: true` in its manifest.
+ */
+export interface FilesShowApplicationStorageParams {
+  /**
+   * The id of the application whose storage folder to open (e.g. "valuguru").
+   */
+  applicationId: string;
+  /**
+   * A resource inside that storage folder to open in the Edit side panel after navigating.
+   */
+  resourceId?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Files.show-chat-channel — Open and display the specified chat channel
+ */
+export type FilesShowChatChannelResult = any;
+
+/**
+ * Files.show-chat-channel — Open and display the specified chat channel
+ */
+export interface FilesShowChatChannelParams {
+  /**
+   * The unique identifier of the chat channel to display
+   */
+  channelId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Files.show-community-channel — Open and display the specified community channel
+ */
+export type FilesShowCommunityChannelResult = any;
+
+/**
+ * Files.show-community-channel — Open and display the specified community channel
+ */
+export interface FilesShowCommunityChannelParams {
+  /**
+   * The unique identifier of the community
+   */
+  communityId: string;
+  /**
+   * The unique identifier of the channel within the community
+   */
+  communityChannelId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Files.show-folder — Navigate to and open a specific folder in the CMS by its folder ID
+ */
+export type FilesShowFolderResult = any;
+
+/**
+ * Files.show-folder — Navigate to and open a specific folder in the CMS by its folder ID
+ */
+export interface FilesShowFolderParams {
+  /**
+   * The unique identifier of the folder to open
+   */
+  folderId: string;
+  /**
+   * A resource inside that folder to open in the Edit side panel after navigating.
+   */
+  resourceId?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Files.show-my-files — Navigate to the user's own files in the CMS (the "My Files" view). Use this when the user asks about their files, uploads, or personal content — do not use show-folder for this.
+ */
+export type FilesShowMyFilesResult = any;
+
+/**
+ * Files.show-my-files — Navigate to the user's own files in the CMS (the "My Files" view). Use this when the user asks about their files, uploads, or personal content — do not use show-folder for this.
+ */
+export interface FilesShowMyFilesParams {
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Files.show-resource — Reveal a resource in the CMS file browser by its resource ID — navigates to the folder holding it (or to its section root when it is not in a folder), selects it and opens its Edit side panel. Use this when you only have a resource id and want to show the user where that file lives; use preview-resource instead to just view its contents.
+ */
+export type FilesShowResourceResult = any;
+
+/**
+ * Files.show-resource — Reveal a resource in the CMS file browser by its resource ID — navigates to the folder holding it (or to its section root when it is not in a folder), selects it and opens its Edit side panel. Use this when you only have a resource id and want to show the user where that file lives; use preview-resource instead to just view its contents.
+ */
+export interface FilesShowResourceParams {
+  /**
+   * The unique identifier of the resource to reveal
+   */
+  resourceId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * MerchantConsole.open-product — Open one of the seller's own products for editing.
+ */
+export type MerchantConsoleOpenProductResult = any;
+
+/**
+ * MerchantConsole.open-product — Open one of the seller's own products for editing.
+ */
+export interface MerchantConsoleOpenProductParams {
+  /**
+   * the product to open
+   */
+  productId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * MerchantConsole.open-products — Open the seller's product list. With `popup` it is drawn over the calling app instead of docking the console.
+ */
+export type MerchantConsoleOpenProductsResult = any;
+
+/**
+ * MerchantConsole.open-products — Open the seller's product list. With `popup` it is drawn over the calling app instead of docking the console.
+ */
+export interface MerchantConsoleOpenProductsParams {
+  /**
+   * true draws the product list over the pane of the app that asked instead of docking the console, so the app the seller came from stays visible behind it. Products is the only tab with a popup form; any other section docks the console as usual. Where the caller is not on screen the popup falls back to a window over the whole page.
+   */
+  popup?: boolean;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * MerchantConsole.open-section — Open the Merchant Console on one of its tabs. The tab becomes part of the address, so the place it opens on can be linked to and comes back on a reload. Home is the setup checklist until the store can sell, then the overview. Promotions, Analytics and Store need a store; Moderation is for network admins. Bundles opens Products filtered to bundles; the old names overview and api-access still work (Home, Store).
+ */
+export type MerchantConsoleOpenSectionResult = any;
+
+/**
+ * MerchantConsole.open-section — Open the Merchant Console on one of its tabs. The tab becomes part of the address, so the place it opens on can be linked to and comes back on a reload. Home is the setup checklist until the store can sell, then the overview. Promotions, Analytics and Store need a store; Moderation is for network admins. Bundles opens Products filtered to bundles; the old names overview and api-access still work (Home, Store).
+ */
+export interface MerchantConsoleOpenSectionParams {
+  /**
+   * Which tab to open: home, products, bundles, promotions, analytics, store or moderation.
+   */
+  section: {"value":"home","label":"Home"} | {"value":"products","label":"Products"} | {"value":"bundles","label":"Bundles (Products, filtered)"} | {"value":"promotions","label":"Promotions"} | {"value":"analytics","label":"Analytics"} | {"value":"store","label":"Store"} | {"value":"moderation","label":"Moderation"};
+  /**
+   * true draws the product list over the pane of the app that asked instead of docking the console, so the app the seller came from stays visible behind it. Products is the only tab with a popup form; any other section docks the console as usual. Where the caller is not on screen the popup falls back to a window over the whole page.
+   */
+  popup?: boolean;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Metaverse.open-room — Open a specific room in the ValuVerse 3D environment. Both networkId and roomId are required. Use the networkId provided in context.
+ */
+export type MetaverseOpenRoomResult = any;
+
+/**
+ * Metaverse.open-room — Open a specific room in the ValuVerse 3D environment. Both networkId and roomId are required. Use the networkId provided in context.
+ */
+export interface MetaverseOpenRoomParams {
+  /**
+   * The network the room belongs to. Use the networkId from context.
+   */
+  networkId: string;
+  /**
+   * The ID of the room to open.
+   */
+  roomId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Metaverse.preview-prop — Navigate the camera to a specific prop in a room, opening the Metaverse view. networkId, roomId, and propId are all required. Only call this when the user explicitly asks to show, open, navigate to, or view a prop. Do not call this automatically when listing or describing props.
+ */
+export type MetaversePreviewPropResult = any;
+
+/**
+ * Metaverse.preview-prop — Navigate the camera to a specific prop in a room, opening the Metaverse view. networkId, roomId, and propId are all required. Only call this when the user explicitly asks to show, open, navigate to, or view a prop. Do not call this automatically when listing or describing props.
+ */
+export interface MetaversePreviewPropParams {
+  /**
+   * The network the room belongs to. Use the networkId from context.
+   */
+  networkId: string;
+  /**
+   * The ID of the room containing the prop.
+   */
+  roomId: string;
+  /**
+   * The ID of the prop to navigate to.
+   */
+  propId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Metaverse.set-route — initiate the opening of the Metaverse 3d application with spsific route
+ */
+export type MetaverseSetRouteResult = any;
+
+/**
+ * Metaverse.set-route — initiate the opening of the Metaverse 3d application with spsific route
+ */
+export interface MetaverseSetRouteParams {
+  /**
+   * The route to set. Defines the current view or action in the application. If not provided, the default application state will open.
+   */
+  route: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Metaverse2D.enter-room — Opens the Metaverse 2D app on a room and joins that room's public hub, as picking the room there does (Rooms → Room Info → Go in 2D, the user card → Go in 2D).
+ */
+export type Metaverse2DEnterRoomResult = any;
+
+/**
+ * Metaverse2D.enter-room — Opens the Metaverse 2D app on a room and joins that room's public hub, as picking the room there does (Rooms → Room Info → Go in 2D, the user card → Go in 2D).
+ */
+export interface Metaverse2DEnterRoomParams {
+  /**
+   * The room to enter. Metaverse 2D checks that the user may join it.
+   */
+  roomId: string;
+  /**
+   * A hub of that room to switch to once its public hub is joined, when it is still there and has room (the user card's location).
+   */
+  hubId?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Metaverse2D.find-people — Counts the people in each hub of some rooms in this network (default: the room on the map and its linked rooms, at most 9). Needs you to be in a hub. Use it to choose where the agent goes.
+ */
+export type Metaverse2DFindPeopleResult = any;
+
+/**
+ * Metaverse2D.find-people — Counts the people in each hub of some rooms in this network (default: the room on the map and its linked rooms, at most 9). Needs you to be in a hub. Use it to choose where the agent goes.
+ */
+export interface Metaverse2DFindPeopleParams {
+  /**
+   * The rooms to look into.
+   */
+  roomIds?: string[];
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Metaverse2D.open — Opens the Metaverse 2D app (the 2D room maps and their hubs), optionally preselecting a room. Joining a hub stays a user action.
+ */
+export type Metaverse2DOpenResult = any;
+
+/**
+ * Metaverse2D.open — Opens the Metaverse 2D app (the 2D room maps and their hubs), optionally preselecting a room. Joining a hub stays a user action.
+ */
+export interface Metaverse2DOpenParams {
+  /**
+   * Room to preselect in the room picker.
+   */
+  roomId?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * MyCart.add-to-cart — Add a product to the cart and open it. The item is credited to the app that asks — the platform knows which one, so there is no app to name — or to My Cart itself when the asker is not an app. The server re-checks that the product can be bought in this network before accepting it.
+ */
+export type MyCartAddToCartResult = any;
+
+/**
+ * MyCart.add-to-cart — Add a product to the cart and open it. The item is credited to the app that asks — the platform knows which one, so there is no app to name — or to My Cart itself when the asker is not an app. The server re-checks that the product can be bought in this network before accepting it.
+ */
+export interface MyCartAddToCartParams {
+  /**
+   * the product to add
+   */
+  productId: string;
+  /**
+   * how many, at least 1
+   */
+  qty?: number;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * MyCart.open-cart — Open the cart. Pass an app id to show only that app's items and check them out on their own, and `popup` to draw it over the calling app instead of docking My Cart.
+ */
+export type MyCartOpenCartResult = any;
+
+/**
+ * MyCart.open-cart — Open the cart. Pass an app id to show only that app's items and check them out on their own, and `popup` to draw it over the calling app instead of docking My Cart.
+ */
+export interface MyCartOpenCartParams {
+  /**
+   * show only the items added from this app
+   */
+  appId?: string;
+  /**
+   * true draws this over the pane of the app that asked instead of docking My Cart, so the app the buyer came from stays visible and usable behind it. Where the caller is not on screen the popup falls back to a window over the whole page.
+   */
+  popup?: boolean;
+  /**
+   * a discount code to type into the cart and apply, as if the buyer had typed it; they see whether it applies and can remove it. Paying is still their own press of Pay.
+   */
+  promoCode?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * MyCart.open-order — Open one order and show its receipt.
+ */
+export type MyCartOpenOrderResult = any;
+
+/**
+ * MyCart.open-order — Open one order and show its receipt.
+ */
+export interface MyCartOpenOrderParams {
+  /**
+   * the order to show
+   */
+  orderId: string;
+  /**
+   * true draws this over the pane of the app that asked instead of docking My Cart, so the app the buyer came from stays visible and usable behind it. Where the caller is not on screen the popup falls back to a window over the whole page.
+   */
+  popup?: boolean;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * MyCart.open-orders — Open the order history — every purchase made across Valu apps, with its receipt. With `popup` it is drawn over the calling app instead of docking My Cart.
+ */
+export type MyCartOpenOrdersResult = any;
+
+/**
+ * MyCart.open-orders — Open the order history — every purchase made across Valu apps, with its receipt. With `popup` it is drawn over the calling app instead of docking My Cart.
+ */
+export interface MyCartOpenOrdersParams {
+  /**
+   * true draws this over the pane of the app that asked instead of docking My Cart, so the app the buyer came from stays visible and usable behind it. Where the caller is not on screen the popup falls back to a window over the whole page.
+   */
+  popup?: boolean;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * MyCart.open-product — Open a product's page — what it is, what it is made of, what makes up its price, and whether this buyer can buy it.
+ */
+export type MyCartOpenProductResult = any;
+
+/**
+ * MyCart.open-product — Open a product's page — what it is, what it is made of, what makes up its price, and whether this buyer can buy it.
+ */
+export interface MyCartOpenProductParams {
+  /**
+   * the product to show
+   */
+  productId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * MyCart.open-purchased — Open what the user OWNS — every product they bought or got free, with its files, how far through them they are, and their rating. With `productId`, that product opened and shown. Orders (open-orders) are the receipts only.
+ */
+export type MyCartOpenPurchasedResult = any;
+
+/**
+ * MyCart.open-purchased — Open what the user OWNS — every product they bought or got free, with its files, how far through them they are, and their rating. With `productId`, that product opened and shown. Orders (open-orders) are the receipts only.
+ */
+export interface MyCartOpenPurchasedParams {
+  /**
+   * a product the user owns, to open and show
+   */
+  productId?: string;
+  /**
+   * true draws this over the pane of the app that asked instead of docking My Cart, so the app the buyer came from stays visible and usable behind it. Where the caller is not on screen the popup falls back to a window over the whole page.
+   */
+  popup?: boolean;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * MyCart.open-section — Open My Cart on one of its tabs. The tab becomes part of the address, so the place it opens on can be linked to and comes back on a reload.
+ */
+export type MyCartOpenSectionResult = any;
+
+/**
+ * MyCart.open-section — Open My Cart on one of its tabs. The tab becomes part of the address, so the place it opens on can be linked to and comes back on a reload.
+ */
+export interface MyCartOpenSectionParams {
+  /**
+   * Which tab to open: discover, cart, purchased (what the user owns) or orders (receipts).
+   */
+  section: {"value":"discover","label":"Discover"} | {"value":"cart","label":"Cart"} | {"value":"purchased","label":"Purchased"} | {"value":"orders","label":"Orders"};
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ResourcesViewer.preview — Opens the resource viewer to preview a specific resource.
+ */
+export type ResourcesViewerPreviewResult = any;
+
+/**
+ * ResourcesViewer.preview — Opens the resource viewer to preview a specific resource.
+ */
+export interface ResourcesViewerPreviewParams {
+  /**
+   * The unique identifier of the resource to preview.
+   */
+  resourceId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
  * RoomPoints.create-room-point — Opens the point editor for a NEW point and BLOCKS until the user saves or cancels. Needs a pose to save the point at: pass camera (the live 3D camera pose) or a point to copy the pose from — the web layer cannot read the camera itself. Resolves {status: "ok", point, persisted, savePreview} once the point is written, or {status: "cancelled"} / {status: "error", message}.
  */
 export type RoomPointsCreateRoomPointResult = any;
@@ -2676,6 +3997,25 @@ export interface RoomPointsCreateRoomPointParams {
    * Network the room belongs to. Defaults to the current network.
    */
   networkId?: string;
+}
+
+/**
+ * RoomPoints.delete-room-point — Deletes one saved point by id. Returns {status: "ok"}. The point parallax preview resource is cleaned up by the 3D scene, not here.
+ */
+export type RoomPointsDeleteRoomPointResult = any;
+
+/**
+ * RoomPoints.delete-room-point — Deletes one saved point by id. Returns {status: "ok"}. The point parallax preview resource is cleaned up by the 3D scene, not here.
+ */
+export interface RoomPointsDeleteRoomPointParams {
+  /**
+   * The room the point belongs to.
+   */
+  roomId: string;
+  /**
+   * Id of the point to delete.
+   */
+  pointId: string;
 }
 
 /**
@@ -2723,6 +4063,588 @@ export interface RoomPointsEditRoomPointParams {
    * Network the room belongs to. Defaults to the current network.
    */
   networkId?: string;
+}
+
+/**
+ * RoomPoints.list-room-points — Returns every saved GoTo point of a room, in server order: {status: "ok", points}. Each point carries id, name, position {x,y,z}, rotation {x,y,z,w} (EULER DEGREES, w is always 0 — NOT a quaternion), cameraMode (0 = do not change, 1 = fly, 2 = third person) and the server timestamps. A room with no saved points returns an empty list — the "Home" point Unity shows in that case exists only in its memory.
+ */
+export type RoomPointsListRoomPointsResult = any;
+
+/**
+ * RoomPoints.list-room-points — Returns every saved GoTo point of a room, in server order: {status: "ok", points}. Each point carries id, name, position {x,y,z}, rotation {x,y,z,w} (EULER DEGREES, w is always 0 — NOT a quaternion), cameraMode (0 = do not change, 1 = fly, 2 = third person) and the server timestamps. A room with no saved points returns an empty list — the "Home" point Unity shows in that case exists only in its memory.
+ */
+export interface RoomPointsListRoomPointsParams {
+  /**
+   * The room whose points to list.
+   */
+  roomId: string;
+  /**
+   * Network the room belongs to. Defaults to the current network.
+   */
+  networkId?: string;
+}
+
+/**
+ * RoomPoints.save-room-point — Writes a point WITHOUT opening any UI: creates it when point.id is empty or missing, otherwise overwrites the saved point with that id. An update REPLACES the whole point, so send a complete one (read it with list-room-points first) — fields left out are not kept. Returns {status: "ok", point} with the server copy, whose id is the one to keep after a create.
+ */
+export type RoomPointsSaveRoomPointResult = any;
+
+/**
+ * RoomPoints.save-room-point — Writes a point WITHOUT opening any UI: creates it when point.id is empty or missing, otherwise overwrites the saved point with that id. An update REPLACES the whole point, so send a complete one (read it with list-room-points first) — fields left out are not kept. Returns {status: "ok", point} with the server copy, whose id is the one to keep after a create.
+ */
+export interface RoomPointsSaveRoomPointParams {
+  /**
+   * The room the point belongs to.
+   */
+  roomId: string;
+  /**
+   * The complete point: {id?, name, position {x,y,z}, rotation {x,y,z,w} in EULER DEGREES, cameraMode}.
+   */
+  point: Record<string, any>;
+}
+
+/**
+ * RoomZones.assign-zone — Gives a zone to a particular user. Requires the caller to OWN the room (manage rights) or be a network admin; anything less is refused. Bypasses the zone's audience, the room's per-user limit and the cooldown by design — this is how offices are handed out. Returns {status: "ok"}.
+ */
+export type RoomZonesAssignZoneResult = any;
+
+/**
+ * RoomZones.assign-zone — Gives a zone to a particular user. Requires the caller to OWN the room (manage rights) or be a network admin; anything less is refused. Bypasses the zone's audience, the room's per-user limit and the cooldown by design — this is how offices are handed out. Returns {status: "ok"}.
+ */
+export interface RoomZonesAssignZoneParams {
+  /**
+   * The room the zone belongs to.
+   */
+  roomId: string;
+  /**
+   * The zone to assign.
+   */
+  zoneId: string;
+  /**
+   * Who gets it.
+   */
+  userId: string;
+}
+
+/**
+ * RoomZones.claim-zone — Claims a zone for the SIGNED-IN user. Returns {status: "ok", claim} when it worked, or {status: "refused", reason, message} when it did not — "taken", "limit", "not-listed", "not-claimable", "no-access" or "cooldown". A user who may not write prop invitations at all gets {status: "refused", reason: "needs-request"}: they must ask a room owner to assign it instead. Never claims on behalf of somebody else — use assign-zone for that.
+ */
+export type RoomZonesClaimZoneResult = any;
+
+/**
+ * RoomZones.claim-zone — Claims a zone for the SIGNED-IN user. Returns {status: "ok", claim} when it worked, or {status: "refused", reason, message} when it did not — "taken", "limit", "not-listed", "not-claimable", "no-access" or "cooldown". A user who may not write prop invitations at all gets {status: "refused", reason: "needs-request"}: they must ask a room owner to assign it instead. Never claims on behalf of somebody else — use assign-zone for that.
+ */
+export interface RoomZonesClaimZoneParams {
+  /**
+   * The room the zone belongs to.
+   */
+  roomId: string;
+  /**
+   * The zone to claim (its prop id, as list-room-zones returns it).
+   */
+  zoneId: string;
+  /**
+   * What to call the space, shown instead of the claimant's name.
+   */
+  displayName?: string;
+  /**
+   * A one-line status shown next to the space, e.g. "in focus until 4".
+   */
+  status?: string;
+  /**
+   * Who may come in: "open" (default), "knock" or "closed". Shown, not yet enforced.
+   */
+  doorPolicy?: string;
+}
+
+/**
+ * RoomZones.list-room-zones — Every zone of a room: {status: "ok", zones}. Each zone carries id (the prop id), title, its box in room metres (x, z, rotY in degrees, width, depth, height, floorOffset), the two capabilities (call, claim) and its claim policy (settings.audience is "members" or "listed"). A room with no zones returns an empty list.
+ */
+export type RoomZonesListRoomZonesResult = any;
+
+/**
+ * RoomZones.list-room-zones — Every zone of a room: {status: "ok", zones}. Each zone carries id (the prop id), title, its box in room metres (x, z, rotY in degrees, width, depth, height, floorOffset), the two capabilities (call, claim) and its claim policy (settings.audience is "members" or "listed"). A room with no zones returns an empty list.
+ */
+export interface RoomZonesListRoomZonesParams {
+  /**
+   * The room whose zones to list.
+   */
+  roomId: string;
+  /**
+   * Only the zones that can be claimed (the "spaces"). Default false.
+   */
+  claimableOnly?: boolean;
+}
+
+/**
+ * RoomZones.release-zone — Releases the signed-in user's own claim on a zone: {status: "ok"}. Starts a one-minute cooldown before the same user may claim that zone again. Releasing a zone somebody else holds is not possible here — a room owner uses assign-zone or the Spaces app.
+ */
+export type RoomZonesReleaseZoneResult = any;
+
+/**
+ * RoomZones.release-zone — Releases the signed-in user's own claim on a zone: {status: "ok"}. Starts a one-minute cooldown before the same user may claim that zone again. Releasing a zone somebody else holds is not possible here — a room owner uses assign-zone or the Spaces app.
+ */
+export interface RoomZonesReleaseZoneParams {
+  /**
+   * The room the zone belongs to.
+   */
+  roomId: string;
+  /**
+   * The zone to release.
+   */
+  zoneId: string;
+}
+
+/**
+ * RoomZones.zone-occupancy — Who holds the room's claimable zones right now: {status: "ok", occupancy} keyed by zone id, each {claim, conflicts, stale}. `claim` is null when the zone is free, else {userId, claimedAt, source, doorPolicy, displayName, status}. `stale` means the occupant no longer has access to the room, so the zone is effectively free. `conflicts` are losing claims a moderator should clear. This reads the server every time — there is no push for prop invitations.
+ */
+export type RoomZonesZoneOccupancyResult = any;
+
+/**
+ * RoomZones.zone-occupancy — Who holds the room's claimable zones right now: {status: "ok", occupancy} keyed by zone id, each {claim, conflicts, stale}. `claim` is null when the zone is free, else {userId, claimedAt, source, doorPolicy, displayName, status}. `stale` means the occupant no longer has access to the room, so the zone is effectively free. `conflicts` are losing claims a moderator should clear. This reads the server every time — there is no push for prop invitations.
+ */
+export interface RoomZonesZoneOccupancyParams {
+  /**
+   * The room to read.
+   */
+  roomId: string;
+}
+
+/**
+ * Social.create-channel — Opens the community view and starts channel creation in a specific community context.
+ */
+export type SocialCreateChannelResult = any;
+
+/**
+ * Social.create-channel — Opens the community view and starts channel creation in a specific community context.
+ */
+export interface SocialCreateChannelParams {
+  /**
+   * Community data object.
+   */
+  community: Record<string, any>;
+  /**
+   * The content directory identifier for the new channel.
+   */
+  contentDirectoryId?: string;
+  /**
+   * Root channel of the community.
+   */
+  rootChannel?: Record<string, any>;
+  /**
+   * The sub-channel identifier to navigate to.
+   */
+  subChannelId?: string;
+  /**
+   * The creation mode for the channel.
+   */
+  mode?: string;
+  /**
+   * Display title for the content directory.
+   */
+  contentDirectoryTitle?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Social.create-post — Open view and open post editor
+ */
+export type SocialCreatePostResult = any;
+
+/**
+ * Social.create-post — Open view and open post editor
+ */
+export interface SocialCreatePostParams {
+  /**
+   * Resource id for post attachment
+   */
+  resourceId: string;
+  /**
+   * Root chanel of community
+   */
+  rootChannel: Record<string, any>;
+  /**
+   * Community data
+   */
+  community: Record<string, any>;
+  /**
+   * Full path to channel or subchannel
+   */
+  path: string;
+  /**
+   * Pre-fills the post title in the editor. Optional; the editor opens with this title instead of blank.
+   */
+  title?: string;
+  /**
+   * Pre-fills the post body (Markdown) in the editor. Optional; the editor opens with this body instead of blank.
+   */
+  body?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Social.open-community — Opens the community view and navigates to a community by its ID. Use when you only have a communityId and no specific channel to target — the app will land on the first available channel.
+ */
+export type SocialOpenCommunityResult = any;
+
+/**
+ * Social.open-community — Opens the community view and navigates to a community by its ID. Use when you only have a communityId and no specific channel to target — the app will land on the first available channel.
+ */
+export interface SocialOpenCommunityParams {
+  /**
+   * The community id.
+   */
+  communityId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Social.show-channel — Opens the community view and navigates to a specific channel. Use communityId from AI context. For a root channel: pass its id as rootChannelId, omit subChannelId. For a sub-channel: the sub-channel object in AI context has a rootChannelId field — pass that as rootChannelId, and the sub-channel id as subChannelId.
+ */
+export type SocialShowChannelResult = any;
+
+/**
+ * Social.show-channel — Opens the community view and navigates to a specific channel. Use communityId from AI context. For a root channel: pass its id as rootChannelId, omit subChannelId. For a sub-channel: the sub-channel object in AI context has a rootChannelId field — pass that as rootChannelId, and the sub-channel id as subChannelId.
+ */
+export interface SocialShowChannelParams {
+  /**
+   * The community id from AI context.
+   */
+  communityId: string;
+  /**
+   * The top-level root channel id. Never a sub-channel id.
+   */
+  rootChannelId: string;
+  /**
+   * The sub-channel id to navigate into. Omit when navigating to the root channel itself.
+   */
+  subChannelId?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * Social.show-post — Opens the community view and navigates to a specific post. Use communityId from AI context. For a post in a root channel: pass the channel id as rootChannelId, omit subChannelId. For a post in a sub-channel: pass the sub-channel's rootChannelId as rootChannelId, and the sub-channel id as subChannelId. Pass the post id as messageId.
+ */
+export type SocialShowPostResult = any;
+
+/**
+ * Social.show-post — Opens the community view and navigates to a specific post. Use communityId from AI context. For a post in a root channel: pass the channel id as rootChannelId, omit subChannelId. For a post in a sub-channel: pass the sub-channel's rootChannelId as rootChannelId, and the sub-channel id as subChannelId. Pass the post id as messageId.
+ */
+export interface SocialShowPostParams {
+  /**
+   * The community id from AI context.
+   */
+  communityId: string;
+  /**
+   * The top-level root channel id. Never a sub-channel id.
+   */
+  rootChannelId: string;
+  /**
+   * The post id from AI context.
+   */
+  messageId: string;
+  /**
+   * The sub-channel id containing the post. Omit when the post is in the root channel itself.
+   */
+  subChannelId?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * UserCard.show — Shows the contextual profile card for a user.
+ */
+export type UserCardShowResult = any;
+
+/**
+ * UserCard.show — Shows the contextual profile card for a user.
+ */
+export interface UserCardShowParams {
+  /**
+   * The unique identifier of the user whose card to show.
+   */
+  userId: string;
+  /**
+   * Viewport rect {left, top, right, bottom, width, height} of the tapped avatar, used to position the card in web. Ignored by native hosts, which anchor the card their own way. Omitted, the card is centred.
+   */
+  anchor?: Record<string, any>;
+  /**
+   * The application the card is opened from, and so the view a native host should present it above (e.g. "textchat"). Absent when the caller could not name one — present over the topmost view in that case.
+   */
+  hostApplicationId?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ValuGames.open — Open the Valu Games app.
+ */
+export type ValuGamesOpenResult = any;
+
+/**
+ * ValuGames.open — Open the Valu Games app.
+ */
+export interface ValuGamesOpenParams {
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ValuGuru.create-chatbot — Opens the Valu Guru app on the new-chatbot creation wizard, optionally pre-filled. Pass `instructions` to land on the Design step fully filled in, or just `prompt` to land on the Describe step with the task pre-typed and ready to generate.
+ */
+export type ValuGuruCreateChatbotResult = any;
+
+/**
+ * ValuGuru.create-chatbot — Opens the Valu Guru app on the new-chatbot creation wizard, optionally pre-filled. Pass `instructions` to land on the Design step fully filled in, or just `prompt` to land on the Describe step with the task pre-typed and ready to generate.
+ */
+export interface ValuGuruCreateChatbotParams {
+  /**
+   * Plain-language task description to seed the Describe step (e.g. "a bot that answers HR policy questions"). Ignored if `instructions` is also given.
+   */
+  prompt?: string;
+  /**
+   * Full system-prompt instructions for the chatbot. When given, the wizard opens straight on the Design step instead of Describe.
+   */
+  instructions?: string;
+  /**
+   * Chatbot display name.
+   */
+  name?: string;
+  /**
+   * Short chatbot description shown in the library/list.
+   */
+  description?: string;
+  /**
+   * Font Awesome icon class (e.g. "fa-light fa-robot") or a DiceBear avatar URL.
+   */
+  icon?: string;
+  /**
+   * IDs of skills (from the shared Skills Catalogue) to pre-select for the chatbot.
+   */
+  skillIds?: string[];
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ValuGuru.open — Opens the Valu Guru app on a chat with the built-in Valu Guru assistant, without sending anything. Resumes the most recent built-in-assistant conversation, or lands on the empty new-chat screen when there is none. Custom chatbot conversations are never resumed, and nothing is created on the server — a session appears only once a message is sent.
+ */
+export type ValuGuruOpenResult = any;
+
+/**
+ * ValuGuru.open — Opens the Valu Guru app on a chat with the built-in Valu Guru assistant, without sending anything. Resumes the most recent built-in-assistant conversation, or lands on the empty new-chat screen when there is none. Custom chatbot conversations are never resumed, and nothing is created on the server — a session appears only once a message is sent.
+ */
+export interface ValuGuruOpenParams {
+  /**
+   * When true, always lands on the empty new-chat screen instead of resuming the most recent Valu Guru conversation.
+   */
+  newChat?: boolean;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ValuGuru.open-agent — Opens the Valu Guru app and navigates to a specific agent chat by ID.
+ */
+export type ValuGuruOpenAgentResult = any;
+
+/**
+ * ValuGuru.open-agent — Opens the Valu Guru app and navigates to a specific agent chat by ID.
+ */
+export interface ValuGuruOpenAgentParams {
+  /**
+   * The agent ID to open.
+   */
+  agentId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ValuGuru.open-chat — Opens the Valu Guru app and navigates to a specific chat session by ID.
+ */
+export type ValuGuruOpenChatResult = any;
+
+/**
+ * ValuGuru.open-chat — Opens the Valu Guru app and navigates to a specific chat session by ID.
+ */
+export interface ValuGuruOpenChatParams {
+  /**
+   * The chat session ID to open.
+   */
+  chatId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ValuGuru.open-chatbot — Opens the Valu Guru app on a library chatbot's detail page. Unlike open-chat, the target is not personal — any user in the network can view it (used e.g. by the bot badge on shared chatbot replies).
+ */
+export type ValuGuruOpenChatbotResult = any;
+
+/**
+ * ValuGuru.open-chatbot — Opens the Valu Guru app on a library chatbot's detail page. Unlike open-chat, the target is not personal — any user in the network can view it (used e.g. by the bot badge on shared chatbot replies).
+ */
+export interface ValuGuruOpenChatbotParams {
+  /**
+   * The library chatbot ID whose detail page to open.
+   */
+  chatbotId: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ValuGuru.show-agents — Opens the Valu Guru app and switches to the Agents tab in the left panel.
+ */
+export type ValuGuruShowAgentsResult = any;
+
+/**
+ * ValuGuru.show-agents — Opens the Valu Guru app and switches to the Agents tab in the left panel.
+ */
+export interface ValuGuruShowAgentsParams {
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ValuGuru.start-session — Opens the Valu Guru app and starts a brand-new conversation session with an initial message. Always creates a new session regardless of existing ones.
+ */
+export type ValuGuruStartSessionResult = any;
+
+/**
+ * ValuGuru.start-session — Opens the Valu Guru app and starts a brand-new conversation session with an initial message. Always creates a new session regardless of existing ones.
+ */
+export interface ValuGuruStartSessionParams {
+  /**
+   * The initial user message to send in the new session.
+   */
+  message: string;
+  /**
+   * Chatbot ID to start the session with. Accepts a personal "my chatbots" id, a published LIBRARY chatbot id (auto-added to "my chatbots" if not already there), or 'default'. Defaults to the default Valu Guru chatbot ('default').
+   */
+  chatbotId?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
+}
+
+/**
+ * ValuPuzzles.start-puzzle — Open Valu Puzzles and launch a specific puzzle, optionally with a score-to-beat challenge from another user.
+ */
+export type ValuPuzzlesStartPuzzleResult = any;
+
+/**
+ * ValuPuzzles.start-puzzle — Open Valu Puzzles and launch a specific puzzle, optionally with a score-to-beat challenge from another user.
+ */
+export interface ValuPuzzlesStartPuzzleParams {
+  /**
+   * Which puzzle to start. One of: "sliding" (Sliding Puzzle), "memory" (Memory Match), "sudoku" (Mini Sudoku), "wordscramble" (Word Scramble).
+   */
+  puzzleId: string;
+  /**
+   * Target score (0–999) the recipient should try to beat. Shown as a challenge banner above the puzzle; if the player exceeds it the result screen reads "Beat <challengerName>!".
+   */
+  scoreToBeat?: number;
+  /**
+   * Display name of the user who issued the challenge. Shown on the challenge banner alongside the target score.
+   */
+  challengerName?: string;
+  /**
+   * Open the app at this route of its own (valu-routing.md).
+   */
+  route?: string;
+  /**
+   * Whether opening the app is a new entry in the browser history.
+   */
+  pushToHistory?: boolean;
 }
 
 /** Every service, with each SERVICE function as a method. */
@@ -2807,6 +4729,14 @@ export interface ValuServices {
      * @scope cms:write
      */
     resourceUpload(params: CMSResourceUploadParams): Promise<ValuAck<CMSResourceUploadResult>>;
+    /**
+     * Opens a file picker over the Network Resources of the current network so a network admin can choose ONE file, and waits for the choice. The popup opens over whatever is on screen and does not open Files. BLOCKS until the user picks or cancels. Returns the picked resource `{id, title, contentType, thumbnailUrl}` or `null` when the user cancels or closes the popup. Refused (an error, and no popup) for anyone who is not an admin of the network, for an unknown source, and for a folderId outside the requested sources. The returned resource is always inside the requested sources.
+     * @channel intent
+     * @scope cms:read
+     * @mode embedded-only
+     * @intent service `CMS` `pick-resource`
+     */
+    pickResource(params: CMSPickResourceParams): Promise<ValuAck<CMSPickResourceResult>>;
   };
   /**
    * Community service for browsing communities, listing channels, and loading posts within channels.
@@ -2905,6 +4835,14 @@ export interface ValuServices {
      * @scope groups:read
      */
     listGroups(params?: GroupsListGroupsParams): Promise<ValuAck<GroupsListGroupsResult>>;
+    /**
+     * Opens the groups view and navigates to a specific group.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `groups` `open`
+     */
+    open(params: GroupsOpenParams): Promise<ValuAck<GroupsOpenResult>>;
   };
   /**
    * Generic HTTP utility: reachability ping, GET, and POST against any URL. Requests are sent without user credentials (cookies are stripped); responses include status, headers, and body. Timeouts are capped server-side.
@@ -2956,6 +4894,30 @@ export interface ValuServices {
      * @scope profile:read
      */
     getUserCredentials(params: ProfileGetUserCredentialsParams): Promise<ValuAck<ProfileGetUserCredentialsResult>>;
+    /**
+     * Opens the profile view for a user and optionally navigates to a specific mode such as the marketplace.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `profile` `open-profile-with-mode`
+     */
+    openProfileWithMode(params?: ProfileOpenProfileWithModeParams): Promise<ValuAck<ProfileOpenProfileWithModeResult>>;
+    /**
+     * Opens the profile view for the currently signed-in user.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `profile` `show-current-user`
+     */
+    showCurrentUser(params?: ProfileShowCurrentUserParams): Promise<ValuAck<ProfileShowCurrentUserResult>>;
+    /**
+     * Shows the profile view for a specific user, or the current user if no userId is provided.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `profile` `show-user`
+     */
+    showUser(params?: ProfileShowUserParams): Promise<ValuAck<ProfileShowUserResult>>;
   };
   /**
    * Low-level resource service for generating URLs (thumbnails, public links, direct downloads) for resources.
@@ -3086,6 +5048,30 @@ export interface ValuServices {
      * @scope rooms:read
      */
     searchRooms(params?: RoomsSearchRoomsParams): Promise<ValuAck<RoomsSearchRoomsResult>>;
+    /**
+     * Opens the room invitation dialog for a specific room.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `rooms` `invite-to-room`
+     */
+    inviteToRoom(params: RoomsInviteToRoomParams): Promise<ValuAck<RoomsInviteToRoomResult>>;
+    /**
+     * Opens the Rooms app on a chosen list. With no parameter the app simply opens on whatever it was last showing.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `rooms` `open`
+     */
+    open(params?: RoomsOpenParams): Promise<ValuAck<RoomsOpenResult>>;
+    /**
+     * Opens the Rooms app on a specific room's detail view — info, members and settings.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `rooms` `show-room`
+     */
+    showRoom(params: RoomsShowRoomParams): Promise<ValuAck<RoomsShowRoomResult>>;
   };
   /**
    * Headless text-chat I/O for non-UI callers (agents, sub-agents, scripts). Read channel history and send messages without opening the TextChat application or changing the active channel. Encryption and decryption are handled automatically.
@@ -3198,6 +5184,47 @@ export interface ValuServices {
     transfer(params: VerusWalletTransferParams): Promise<ValuAck<VerusWalletTransferResult>>;
   };
   /**
+   * Any Valu Social app, by its id: open one, send it an intent, and ask which apps there are and which are open.
+   */
+  Apps: {
+    /**
+     * Returns a list of all registered applications with their id, slug, icon, and title.
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-served
+     * @intent service `AiGuru` `get-applications`
+     */
+    list(): Promise<ValuAck<AppsListResult>>;
+    /**
+     * Checks whether an application with the given ID exists in the registry.
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-served
+     * @intent service `AiGuru` `has-application`
+     */
+    has(params: string | AppsHasParams): Promise<ValuAck<AppsHasResult>>;
+    /**
+     * Checks whether an application with the given ID is currently loaded (open) in the dock.
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-served
+     * @intent service `AiGuru` `is-application-loaded`
+     */
+    isLoaded(params: string | AppsIsLoadedParams): Promise<ValuAck<AppsIsLoadedResult>>;
+    /**
+     * Open any Valu Social app by its id, at a route of its own. Inside Valu Social it opens beside the app; at the app's own address, in a Valu Social tab (call it from a click).
+     * @scope ui:open
+     * @mode window
+     */
+    open(appId: string, options?: { route?: string; pushToHistory?: boolean }): Promise<ValuAck<any>>;
+    /**
+     * Send an intent to any app by id, a framed or Developer Portal app included. Scoped when it runs: the app intent's own scope, or \`apps:intent\` for an app that is itself a frame. Inside Valu Social only; at the app's own address it answers \`not_available\`, unless the intent is one that opens a window.
+     * @scope apps:intent (a framed app), or the intent's own
+     * @mode embedded-served
+     */
+    send(appId: string, action: string, params?: Record<string, any>): Promise<ValuAck<any>>;
+  };
+  /**
    * Issues short-lived signed identity JWTs for iFrame (mini-app) applications. Allows an embedded application to obtain a signed token proving the current user's identity to the mini-app's own backend.
    */
   Application: {
@@ -3206,6 +5233,7 @@ export interface ValuServices {
      * @channel intent
      * @scope ui:open
      * @mode embedded-only
+     * @intent service `Application` `close_all`
      */
     closeAll(): Promise<ValuAck<ApplicationCloseAllResult>>;
     /**
@@ -3213,6 +5241,7 @@ export interface ValuServices {
      * @channel intent
      * @scope ui:open
      * @mode embedded-only
+     * @intent service `Application` `close-application`
      */
     closeApplication(): Promise<ValuAck<ApplicationCloseApplicationResult>>;
     /**
@@ -3220,6 +5249,7 @@ export interface ValuServices {
      * @channel intent
      * @scope ui:open
      * @mode embedded-only
+     * @intent service `Application` `expand-application`
      */
     expandApplication(): Promise<ValuAck<ApplicationExpandApplicationResult>>;
     /**
@@ -3227,8 +5257,112 @@ export interface ValuServices {
      * @channel intent
      * @scope application:identity
      * @mode both
+     * @intent service `Application` `get-identity-token`
      */
     getIdentityToken(): Promise<ValuAck<ApplicationGetIdentityTokenResult>>;
+  };
+  /**
+   * Valu Social's Calendar app (`events`): the intents it declares, as functions.
+   */
+  Calendar: {
+    /**
+     * Opens the calendar view, optionally filtered by a specific source type (all, room, group, user, or community event).
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `events` `open-calendar`
+     */
+    openCalendar(params: CalendarOpenCalendarParams): Promise<ValuAck<CalendarOpenCalendarResult>>;
+  };
+  /**
+   * Valu Social's Calls app (`videochat`): the intents it declares, as functions.
+   */
+  Calls: {
+    /**
+     * Connects to a specific meeting by room, prop, group, or user and manages video chat and presentation settings.
+     * @channel intent
+     * @scope videochat:write
+     * @mode embedded-served
+     * @intent application `videochat` `connect-to-meeting`
+     */
+    connectToMeeting(params?: CallsConnectToMeetingParams): Promise<ValuAck<CallsConnectToMeetingResult>>;
+    /**
+     * Leaves the current call only when it is the given prop's call (roomId + propId); otherwise does nothing. Returns {left: boolean}. Used by Metaverse 2D video chat zones.
+     * @channel intent
+     * @scope videochat:write
+     * @mode embedded-served
+     * @intent application `videochat` `leave-meeting`
+     */
+    leaveMeeting(params: CallsLeaveMeetingParams): Promise<ValuAck<CallsLeaveMeetingResult>>;
+    /**
+     * Opens the "Open Videochat from" source picker (Rooms, Groups, Contacts, Textchats) as the inline full-view list. Selecting an item starts a video chat with that source.
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-only
+     * @intent application `videochat` `open-source-picker`
+     */
+    openSourcePicker(params?: CallsOpenSourcePickerParams): Promise<ValuAck<CallsOpenSourcePickerResult>>;
+  };
+  /**
+   * Valu Social's Chats app (`textchat`): the intents it declares, as functions.
+   */
+  Chats: {
+    /**
+     * Closes the currently open channel and returns to the channel list. Mirrors the toolbar back button used on mobile/narrow layouts.
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-only
+     * @intent application `textchat` `close-channel`
+     */
+    closeChannel(params?: ChatsCloseChannelParams): Promise<ValuAck<ChatsCloseChannelResult>>;
+    /**
+     * Read-only. Returns a snapshot of what the chat is currently showing — the channels list, an open channel, or both side by side (wide layout) — plus the in-app back action. Lets non-web clients (e.g. the Android device back button) mirror the toolbar back-button navigation. Changes nothing. Returns { view: "list" | "channel" | "list-and-channel", isWide, activeChannelId, openThreadId, threadTakeover, canNavigateBack, backAction: "close-thread" | "close-channel" | null }.
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-only
+     * @intent application `textchat` `get-ui-state`
+     */
+    getUiState(params?: ChatsGetUiStateParams): Promise<ValuAck<ChatsGetUiStateResult>>;
+    /**
+     * Opens a text chat session based on channel, user, group, room, or prop.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `textchat` `open-channel`
+     */
+    openChannel(params?: ChatsOpenChannelParams): Promise<ValuAck<ChatsOpenChannelResult>>;
+    /**
+     * Opens an AI‑powered chat session scoped to a specific room.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `textchat` `open-room-ai-chat`
+     */
+    openRoomAiChat(params: ChatsOpenRoomAiChatParams): Promise<ValuAck<ChatsOpenRoomAiChatResult>>;
+    /**
+     * Sets the text‑chat view layout (e.g. wide or narrow mode).
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-only
+     * @intent application `textchat` `options`
+     */
+    options(params: ChatsOptionsParams): Promise<ValuAck<ChatsOptionsResult>>;
+    /**
+     * Sends a rich text message to a text-chat channel on behalf of an initiator (e.g. an AI agent or automated service). Silent — does NOT open or change the visible chat. Use channelId when you know it; otherwise provide userId for a direct message.
+     * @channel intent
+     * @scope textchat:write
+     * @mode embedded-served
+     * @intent application `textchat` `send-message`
+     */
+    sendMessage(params: ChatsSendMessageParams): Promise<ValuAck<ChatsSendMessageResult>>;
+    /**
+     * Shares one or more entities into a chat as rich, interactive cards — Rooms, Groups, Communities, Meetings, or Contacts — instead of plain links. Pass "id" for a single card or "ids" for several in one message. All cards in one call must be the SAME cardType (mixed types need separate calls). Posts into the currently open channel by default; pass channelId to target a specific channel.
+     * @channel intent
+     * @scope textchat:write
+     * @mode embedded-served
+     * @intent application `textchat` `share-card`
+     */
+    shareCard(params: ChatsShareCardParams): Promise<ValuAck<ChatsShareCardResult>>;
   };
   /**
    * Products, the cart, orders and the seller's own store, shared across apps. An app shows the network's products and adds them to the one cart the user pays for with a single QR scan, and it can run the signed-in seller's store: products, publishing, promotions and analytics. Prices, totals and payouts are decided server-side. Paying is never an action here: `checkout` hands the buyer to My Cart, where they press Pay and scan the code themselves, and answers with what they did. A write that costs the user money, gives goods away, cannot be undone or speaks for them in public waits for their yes in a dialog the platform draws.
@@ -3239,6 +5373,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:write
      * @mode both
+     * @intent service `Commerce` `add-to-cart`
      */
     addToCart(params: CommerceAddToCartParams): Promise<ValuAck<CommerceAddToCartResult>>;
     /**
@@ -3246,6 +5381,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode embedded-served
+     * @intent service `Commerce` `archive-product`
      */
     archiveProduct(params: CommerceArchiveProductParams): Promise<ValuAck<CommerceArchiveProductResult>>;
     /**
@@ -3253,6 +5389,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:read
      * @mode both
+     * @intent service `Commerce` `check-entitlements`
      */
     checkEntitlements(params: CommerceCheckEntitlementsParams): Promise<ValuAck<CommerceCheckEntitlementsResult>>;
     /**
@@ -3260,6 +5397,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:write
      * @mode window
+     * @intent service `Commerce` `checkout`
      */
     checkout(params?: CommerceCheckoutParams): Promise<ValuAck<CommerceCheckoutResult>>;
     /**
@@ -3267,6 +5405,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:write
      * @mode both
+     * @intent service `Commerce` `clear-cart`
      */
     clearCart(): Promise<ValuAck<CommerceClearCartResult>>;
     /**
@@ -3274,13 +5413,15 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode embedded-served
+     * @intent service `Commerce` `create-discount-code`
      */
     createDiscountCode(params: CommerceCreateDiscountCodeParams): Promise<ValuAck<CommerceCreateDiscountCodeResult>>;
     /**
-     * Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Media). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, so the seller confirms it separately — in the publish dialog an app opens with publish-product, or in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
+     * Create a product for the seller, as a DRAFT. Two ways in. With no params it opens the platform's own 'list something for sale' form in a modal and BLOCKS until the seller creates a product or cancels. With a `title` it creates the draft directly from the fields given — name, description, price, category, tags, cover and content — without a form: use this when you already have the resource ids (a generated cover, files found in Files). Either way returns `{success: true, product}` (or `{success: false, product: null, code}`; `cancelled` when the seller backed out of the form), and the product is already in the seller's catalogue. It is NEVER published here: publishing decides money and networks, so the seller confirms it separately — in the publish dialog an app opens with publish-product, or in the Merchant Console. Opening a store first (a verified Verus identity) is handled inside.
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `create-product`
      */
     createProduct(params?: CommerceCreateProductParams): Promise<ValuAck<CommerceCreateProductResult>>;
     /**
@@ -3288,6 +5429,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `create-store`
      */
     createStore(params?: CommerceCreateStoreParams): Promise<ValuAck<CommerceCreateStoreResult>>;
     /**
@@ -3295,6 +5437,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `delete-discount-code`
      */
     deleteDiscountCode(params: CommerceDeleteDiscountCodeParams): Promise<ValuAck<CommerceDeleteDiscountCodeResult>>;
     /**
@@ -3302,6 +5445,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode embedded-served
+     * @intent service `Commerce` `delete-product`
      */
     deleteProduct(params: CommerceDeleteProductParams): Promise<ValuAck<CommerceDeleteProductResult>>;
     /**
@@ -3309,6 +5453,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `end-sale`
      */
     endSale(params: CommerceEndSaleParams): Promise<ValuAck<CommerceEndSaleResult>>;
     /**
@@ -3316,6 +5461,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `get-analytics`
      */
     getAnalytics(params?: CommerceGetAnalyticsParams): Promise<ValuAck<CommerceGetAnalyticsResult>>;
     /**
@@ -3323,6 +5469,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:read
      * @mode both
+     * @intent service `Commerce` `get-cart`
      */
     getCart(): Promise<ValuAck<CommerceGetCartResult>>;
     /**
@@ -3330,6 +5477,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:read
      * @mode both
+     * @intent service `Commerce` `get-display`
      */
     getDisplay(): Promise<ValuAck<CommerceGetDisplayResult>>;
     /**
@@ -3337,6 +5485,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `get-my-product`
      */
     getMyProduct(params: CommerceGetMyProductParams): Promise<ValuAck<CommerceGetMyProductResult>>;
     /**
@@ -3344,6 +5493,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `get-my-store`
      */
     getMyStore(): Promise<ValuAck<CommerceGetMyStoreResult>>;
     /**
@@ -3351,6 +5501,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:read
      * @mode both
+     * @intent service `Commerce` `get-order`
      */
     getOrder(params: CommerceGetOrderParams): Promise<ValuAck<CommerceGetOrderResult>>;
     /**
@@ -3358,13 +5509,15 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:read
      * @mode both
+     * @intent service `Commerce` `get-product`
      */
     getProduct(params: CommerceGetProductParams): Promise<ValuAck<CommerceGetProductResult>>;
     /**
-     * One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Media, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is "folder" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.
+     * One purchase opened up: the version the user BOUGHT (frozen at purchase, not the product as it is now), as a tree to draw. Returns `{productId, title, deletedBySeller, contents, progress}`; contents nodes are `{type: "folder", title, items}`, `{type: "file", resourceId, title, kind, contentType, fileSize, deliveredResourceId, seen}` and `{type: "product", productId, title}` (a product inside a bundle — open it with its own get-purchase-contents). `deliveredResourceId` is the buyer's own copy in Files, null until delivered. `seen` is true once the user has opened that file (draw a green check — bought products are often lessons); a file whose `kind` is "folder" has no `seen`. `progress` is `{openedFiles, totalFiles, complete}` (a bundle counts its parts; `complete` once every file is opened), null when unknown. Refused with code `not_owned` when the user does not own the product — the server decides.
      * @channel intent
      * @scope commerce:read
      * @mode both
+     * @intent service `Commerce` `get-purchase-contents`
      */
     getPurchaseContents(params: CommerceGetPurchaseContentsParams): Promise<ValuAck<CommerceGetPurchaseContentsResult>>;
     /**
@@ -3372,6 +5525,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:read
      * @mode both
+     * @intent service `Commerce` `list-categories`
      */
     listCategories(): Promise<ValuAck<CommerceListCategoriesResult>>;
     /**
@@ -3379,6 +5533,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `list-my-products`
      */
     listMyProducts(params?: CommerceListMyProductsParams): Promise<ValuAck<CommerceListMyProductsResult>>;
     /**
@@ -3386,6 +5541,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `list-network-access`
      */
     listNetworkAccess(): Promise<ValuAck<CommerceListNetworkAccessResult>>;
     /**
@@ -3393,6 +5549,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:read
      * @mode both
+     * @intent service `Commerce` `list-orders`
      */
     listOrders(params?: CommerceListOrdersParams): Promise<ValuAck<CommerceListOrdersResult>>;
     /**
@@ -3400,6 +5557,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:read
      * @mode both
+     * @intent service `Commerce` `list-products`
      */
     listProducts(params?: CommerceListProductsParams): Promise<ValuAck<CommerceListProductsResult>>;
     /**
@@ -3407,13 +5565,15 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `list-promotions`
      */
     listPromotions(): Promise<ValuAck<CommerceListPromotionsResult>>;
     /**
-     * What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Media; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.
+     * What the signed-in user OWNS — every product they bought, wherever they bought it, as My Cart's Orders tab lists it. Returns `{purchases: [{productId, title, coverResourceId, purchasedAt, orderId, boughtInAppId, isBundlePart, delivered, deletedBySeller, progress}]}`. `delivered` is true once the buyer's own copy is in their Files; `isBundlePart` marks a product that came inside a bundle; a purchase the seller deleted is still theirs. `progress` is `{openedFiles, totalFiles, complete}` — how many of its files the user has opened (a bundle counts its parts); `complete` marks a purchase read to the end. Null when unknown.
      * @channel intent
      * @scope commerce:read
      * @mode both
+     * @intent service `Commerce` `list-purchases`
      */
     listPurchases(params?: CommerceListPurchasesParams): Promise<ValuAck<CommerceListPurchasesResult>>;
     /**
@@ -3421,6 +5581,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `list-seller-products`
      */
     listSellerProducts(params?: CommerceListSellerProductsParams): Promise<ValuAck<CommerceListSellerProductsResult>>;
     /**
@@ -3428,6 +5589,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:write
      * @mode embedded-served
+     * @intent service `Commerce` `mark-purchase-file-seen`
      */
     markPurchaseFileSeen(params: CommerceMarkPurchaseFileSeenParams): Promise<ValuAck<CommerceMarkPurchaseFileSeenResult>>;
     /**
@@ -3435,6 +5597,7 @@ export interface ValuServices {
      * @channel intent
      * @scope ui:open
      * @mode window
+     * @intent service `Commerce` `open-cart`
      */
     openCart(params?: CommerceOpenCartParams): Promise<ValuAck<CommerceOpenCartResult>>;
     /**
@@ -3442,6 +5605,7 @@ export interface ValuServices {
      * @channel intent
      * @scope ui:open
      * @mode window
+     * @intent service `Commerce` `open-order`
      */
     openOrder(params: CommerceOpenOrderParams): Promise<ValuAck<CommerceOpenOrderResult>>;
     /**
@@ -3449,13 +5613,15 @@ export interface ValuServices {
      * @channel intent
      * @scope ui:open
      * @mode window
+     * @intent service `Commerce` `open-products`
      */
     openProducts(params?: CommerceOpenProductsParams): Promise<ValuAck<CommerceOpenProductsResult>>;
     /**
-     * Open a purchase where it lives, in Media's Purchased section — the Orders tab's "Show in Media". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Media docks beside your app. Returns `{success: true}`, or `{success: false, code: "not_owned"}` without opening anything.
+     * Open a purchase where it lives, in the Purchased section of Files — the Orders tab's "Show in Files". The buyer's delivered folder when there is one, otherwise a read-only view of the version they bought. Without `productId`, the whole Purchased section. Files docks beside your app. Returns `{success: true}`, or `{success: false, code: "not_owned"}` without opening anything.
      * @channel intent
      * @scope ui:open
      * @mode window
+     * @intent service `Commerce` `open-purchase-in-media`
      */
     openPurchaseInMedia(params?: CommerceOpenPurchaseInMediaParams): Promise<ValuAck<CommerceOpenPurchaseInMediaResult>>;
     /**
@@ -3463,6 +5629,7 @@ export interface ValuServices {
      * @channel intent
      * @scope ui:open
      * @mode window
+     * @intent service `Commerce` `open-purchases`
      */
     openPurchases(params?: CommerceOpenPurchasesParams): Promise<ValuAck<CommerceOpenPurchasesResult>>;
     /**
@@ -3470,6 +5637,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:read
      * @mode both
+     * @intent service `Commerce` `preview-promo`
      */
     previewPromo(params: CommercePreviewPromoParams): Promise<ValuAck<CommercePreviewPromoResult>>;
     /**
@@ -3477,6 +5645,7 @@ export interface ValuServices {
      * @channel intent
      * @scope ui:open
      * @mode window
+     * @intent service `Commerce` `preview-purchase`
      */
     previewPurchase(params: CommercePreviewPurchaseParams): Promise<ValuAck<CommercePreviewPurchaseResult>>;
     /**
@@ -3484,6 +5653,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode embedded-served
+     * @intent service `Commerce` `publish-product`
      */
     publishProduct(params: CommercePublishProductParams): Promise<ValuAck<CommercePublishProductResult>>;
     /**
@@ -3491,6 +5661,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `quote-bundle`
      */
     quoteBundle(params: CommerceQuoteBundleParams): Promise<ValuAck<CommerceQuoteBundleResult>>;
     /**
@@ -3498,6 +5669,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:write
      * @mode embedded-served
+     * @intent service `Commerce` `rate-product`
      */
     rateProduct(params: CommerceRateProductParams): Promise<ValuAck<CommerceRateProductResult>>;
     /**
@@ -3505,6 +5677,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:write
      * @mode both
+     * @intent service `Commerce` `remove-from-cart`
      */
     removeFromCart(params: CommerceRemoveFromCartParams): Promise<ValuAck<CommerceRemoveFromCartResult>>;
     /**
@@ -3512,6 +5685,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `remove-volume-tier`
      */
     removeVolumeTier(params: CommerceRemoveVolumeTierParams): Promise<ValuAck<CommerceRemoveVolumeTierResult>>;
     /**
@@ -3519,6 +5693,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `request-network-access`
      */
     requestNetworkAccess(params: CommerceRequestNetworkAccessParams): Promise<ValuAck<CommerceRequestNetworkAccessResult>>;
     /**
@@ -3526,6 +5701,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode embedded-served
+     * @intent service `Commerce` `set-donation-tiers`
      */
     setDonationTiers(params: CommerceSetDonationTiersParams): Promise<ValuAck<CommerceSetDonationTiersResult>>;
     /**
@@ -3533,6 +5709,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode embedded-served
+     * @intent service `Commerce` `set-sale`
      */
     setSale(params: CommerceSetSaleParams): Promise<ValuAck<CommerceSetSaleResult>>;
     /**
@@ -3540,13 +5717,15 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode embedded-served
+     * @intent service `Commerce` `set-volume-tier`
      */
     setVolumeTier(params: CommerceSetVolumeTierParams): Promise<ValuAck<CommerceSetVolumeTierResult>>;
     /**
-     * Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: "commerce", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Media; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.
+     * Be told when commerce changes instead of polling. Name the events you want; the answer is `{success: true, events}`, your app's whole set now: each call REPLACES the previous one, and an empty list stops them all. An unknown name is refused with `validation_failed` and nothing changes; a caller that is not an embedded app is refused with `unsupported`. Each event arrives as a host push, `api:trigger` with `{action: "commerce", data: {event, …}}` (the SDK emits `ValuApi.ON_COMMERCE` with that `data`). The events and their data: `cart-updated {count}` — the cart changed; `count` is what the cart badge shows (saved-for-later excluded), never which items: re-read with get-cart. `order-updated {orderId, status}` — an order holding at least one of YOUR app's items changed: pending_payment, paid, failed, expired, cancelled or deleted. Orders without your items are never sent to you. `delivery-updated {orderId, status}` — that order's files: delivered (they are in the buyer's Files; re-read with list-purchases), unavailable or failed. `catalogue-updated {productId, change}` — the shelf of this network changed: change is added, updated or removed; productId null means re-read the whole shelf with list-products. `seller-product-updated {productId, change}` — one of the signed-in seller's own products: created, updated, content-updated, published, unlisted, archived, deleted, broken, sale-started, sale-ended, blocked or unblocked; re-read with list-seller-products. `seller-store-updated {change, networkId?}` — their store: created, updated, donation-updated or network-access-updated (networkId names the network when there is one). `seller-promotions-updated {change}` — a promotion changed: sale, tier or code. An event says WHAT changed, never the new state: treat it as a hint to re-read with the matching intent, never as data, and expect to miss one now and then (a missed event is a stale screen until the next read). Subscriptions last until unsubscribe-events, until your app's frame closes or until it reloads — moving the app to another dock reloads its frame — so subscribe again every time your app starts, after api:ready.
      * @channel intent
      * @scope commerce:read
      * @mode both
+     * @intent service `Commerce` `subscribe-events`
      */
     subscribeEvents(params: CommerceSubscribeEventsParams): Promise<ValuAck<CommerceSubscribeEventsResult>>;
     /**
@@ -3554,6 +5733,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode embedded-served
+     * @intent service `Commerce` `unlist-product`
      */
     unlistProduct(params: CommerceUnlistProductParams): Promise<ValuAck<CommerceUnlistProductResult>>;
     /**
@@ -3561,6 +5741,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:read
      * @mode both
+     * @intent service `Commerce` `unsubscribe-events`
      */
     unsubscribeEvents(params?: CommerceUnsubscribeEventsParams): Promise<ValuAck<CommerceUnsubscribeEventsResult>>;
     /**
@@ -3568,6 +5749,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:write
      * @mode both
+     * @intent service `Commerce` `update-cart-item`
      */
     updateCartItem(params: CommerceUpdateCartItemParams): Promise<ValuAck<CommerceUpdateCartItemResult>>;
     /**
@@ -3575,6 +5757,7 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode embedded-served
+     * @intent service `Commerce` `update-discount-code`
      */
     updateDiscountCode(params: CommerceUpdateDiscountCodeParams): Promise<ValuAck<CommerceUpdateDiscountCodeResult>>;
     /**
@@ -3582,8 +5765,59 @@ export interface ValuServices {
      * @channel intent
      * @scope commerce:sell
      * @mode both
+     * @intent service `Commerce` `update-product`
      */
     updateProduct(params: CommerceUpdateProductParams): Promise<ValuAck<CommerceUpdateProductResult>>;
+  };
+  /**
+   * Valu Social's Contacts app (`contacts`): the intents it declares, as functions.
+   */
+  Contacts: {
+    /**
+     * Open the connections view for the specified user
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `contacts` `show-user-connections`
+     */
+    showUserConnections(params: ContactsShowUserConnectionsParams): Promise<ValuAck<ContactsShowUserConnectionsResult>>;
+  };
+  /**
+   * Valu Social's Content Studio app (`content-studio`): the intents it declares, as functions.
+   */
+  ContentStudio: {
+    /**
+     * Navigate to a specific route within Content Studio
+     * @channel intent
+     * @scope apps:intent
+     * @mode embedded-served
+     * @intent application `content-studio` `navigate`
+     */
+    navigate(params: ContentStudioNavigateParams): Promise<ValuAck<ContentStudioNavigateResult>>;
+    /**
+     * Open the content upload page with an optional upload destination
+     * @channel intent
+     * @scope apps:intent
+     * @mode embedded-served
+     * @intent application `content-studio` `open-create`
+     */
+    openCreate(params?: ContentStudioOpenCreateParams): Promise<ValuAck<ContentStudioOpenCreateResult>>;
+    /**
+     * Open the edit page for a specific content item
+     * @channel intent
+     * @scope apps:intent
+     * @mode embedded-served
+     * @intent application `content-studio` `open-edit`
+     */
+    openEdit(params: ContentStudioOpenEditParams): Promise<ValuAck<ContentStudioOpenEditResult>>;
+    /**
+     * Open the search page
+     * @channel intent
+     * @scope apps:intent
+     * @mode embedded-served
+     * @intent application `content-studio` `open-search`
+     */
+    openSearch(params?: ContentStudioOpenSearchParams): Promise<ValuAck<ContentStudioOpenSearchResult>>;
   };
   /**
    * Picker service for selecting items from data providers (rooms, contacts, etc.) via modal or inline overlay.
@@ -3594,6 +5828,7 @@ export interface ValuServices {
      * @channel intent
      * @scope ui:open
      * @mode embedded-only
+     * @intent service `DataProvider` `pick-multiple`
      */
     pickMultiple(params: DataProviderPickMultipleParams): Promise<ValuAck<DataProviderPickMultipleResult>>;
     /**
@@ -3601,8 +5836,231 @@ export interface ValuServices {
      * @channel intent
      * @scope ui:open
      * @mode embedded-only
+     * @intent service `DataProvider` `pick-single`
      */
     pickSingle(params: DataProviderPickSingleParams): Promise<ValuAck<DataProviderPickSingleResult>>;
+  };
+  /**
+   * Valu Social's Files app (`cms`): the intents it declares, as functions.
+   */
+  Files: {
+    /**
+     * Open a resource (file) in the CMS preview viewer by its resource ID
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `cms` `preview-resource`
+     */
+    previewResource(params: FilesPreviewResourceParams): Promise<ValuAck<FilesPreviewResourceResult>>;
+    /**
+     * Open an application's storage folder in the CMS — the files that app has stored under the current user, shown at Applications › <app>. Provide the application id (e.g. "valuguru"). The app must declare `storage: true` in its manifest.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `cms` `show-application-storage`
+     */
+    showApplicationStorage(params: FilesShowApplicationStorageParams): Promise<ValuAck<FilesShowApplicationStorageResult>>;
+    /**
+     * Open and display the specified chat channel
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `cms` `show-chat-channel`
+     */
+    showChatChannel(params: FilesShowChatChannelParams): Promise<ValuAck<FilesShowChatChannelResult>>;
+    /**
+     * Open and display the specified community channel
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `cms` `show-community-channel`
+     */
+    showCommunityChannel(params: FilesShowCommunityChannelParams): Promise<ValuAck<FilesShowCommunityChannelResult>>;
+    /**
+     * Navigate to and open a specific folder in the CMS by its folder ID
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `cms` `show-folder`
+     */
+    showFolder(params: FilesShowFolderParams): Promise<ValuAck<FilesShowFolderResult>>;
+    /**
+     * Navigate to the user's own files in the CMS (the "My Files" view). Use this when the user asks about their files, uploads, or personal content — do not use show-folder for this.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `cms` `show-my-files`
+     */
+    showMyFiles(params?: FilesShowMyFilesParams): Promise<ValuAck<FilesShowMyFilesResult>>;
+    /**
+     * Reveal a resource in the CMS file browser by its resource ID — navigates to the folder holding it (or to its section root when it is not in a folder), selects it and opens its Edit side panel. Use this when you only have a resource id and want to show the user where that file lives; use preview-resource instead to just view its contents.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `cms` `show-resource`
+     */
+    showResource(params: FilesShowResourceParams): Promise<ValuAck<FilesShowResourceResult>>;
+  };
+  /**
+   * Valu Social's Merchant Console app (`merchant`): the intents it declares, as functions.
+   */
+  MerchantConsole: {
+    /**
+     * Open one of the seller's own products for editing.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `merchant` `open-product`
+     */
+    openProduct(params: MerchantConsoleOpenProductParams): Promise<ValuAck<MerchantConsoleOpenProductResult>>;
+    /**
+     * Open the seller's product list. With `popup` it is drawn over the calling app instead of docking the console.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `merchant` `open-products`
+     */
+    openProducts(params?: MerchantConsoleOpenProductsParams): Promise<ValuAck<MerchantConsoleOpenProductsResult>>;
+    /**
+     * Open the Merchant Console on one of its tabs. The tab becomes part of the address, so the place it opens on can be linked to and comes back on a reload. Home is the setup checklist until the store can sell, then the overview. Promotions, Analytics and Store need a store; Moderation is for network admins. Bundles opens Products filtered to bundles; the old names overview and api-access still work (Home, Store).
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `merchant` `open-section`
+     */
+    openSection(params: MerchantConsoleOpenSectionParams): Promise<ValuAck<MerchantConsoleOpenSectionResult>>;
+  };
+  /**
+   * Valu Social's Metaverse app (`metaverse`): the intents it declares, as functions.
+   */
+  Metaverse: {
+    /**
+     * Open a specific room in the ValuVerse 3D environment. Both networkId and roomId are required. Use the networkId provided in context.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `metaverse` `open-room`
+     */
+    openRoom(params: MetaverseOpenRoomParams): Promise<ValuAck<MetaverseOpenRoomResult>>;
+    /**
+     * Navigate the camera to a specific prop in a room, opening the Metaverse view. networkId, roomId, and propId are all required. Only call this when the user explicitly asks to show, open, navigate to, or view a prop. Do not call this automatically when listing or describing props.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `metaverse` `preview-prop`
+     */
+    previewProp(params: MetaversePreviewPropParams): Promise<ValuAck<MetaversePreviewPropResult>>;
+    /**
+     * initiate the opening of the Metaverse 3d application with spsific route
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-only
+     * @intent application `metaverse` `set-route`
+     */
+    setRoute(params: MetaverseSetRouteParams): Promise<ValuAck<MetaverseSetRouteResult>>;
+  };
+  /**
+   * Valu Social's Metaverse 2D app (`hubs`): the intents it declares, as functions.
+   */
+  Metaverse2D: {
+    /**
+     * Opens the Metaverse 2D app on a room and joins that room's public hub, as picking the room there does (Rooms → Room Info → Go in 2D, the user card → Go in 2D).
+     * @channel intent
+     * @scope hubs:write
+     * @mode embedded-served
+     * @intent application `hubs` `enter-room`
+     */
+    enterRoom(params: Metaverse2DEnterRoomParams): Promise<ValuAck<Metaverse2DEnterRoomResult>>;
+    /**
+     * Counts the people in each hub of some rooms in this network (default: the room on the map and its linked rooms, at most 9). Needs you to be in a hub. Use it to choose where the agent goes.
+     * @channel intent
+     * @scope hubs:read
+     * @mode embedded-served
+     * @intent application `hubs` `find-people`
+     */
+    findPeople(params?: Metaverse2DFindPeopleParams): Promise<ValuAck<Metaverse2DFindPeopleResult>>;
+    /**
+     * Opens the Metaverse 2D app (the 2D room maps and their hubs), optionally preselecting a room. Joining a hub stays a user action.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `hubs` `open`
+     */
+    open(params?: Metaverse2DOpenParams): Promise<ValuAck<Metaverse2DOpenResult>>;
+  };
+  /**
+   * Valu Social's My Cart app (`cart`): the intents it declares, as functions.
+   */
+  MyCart: {
+    /**
+     * Add a product to the cart and open it. The item is credited to the app that asks — the platform knows which one, so there is no app to name — or to My Cart itself when the asker is not an app. The server re-checks that the product can be bought in this network before accepting it.
+     * @channel intent
+     * @scope commerce:write
+     * @mode embedded-served
+     * @intent application `cart` `add-to-cart`
+     */
+    addToCart(params: MyCartAddToCartParams): Promise<ValuAck<MyCartAddToCartResult>>;
+    /**
+     * Open the cart. Pass an app id to show only that app's items and check them out on their own, and `popup` to draw it over the calling app instead of docking My Cart.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `cart` `open-cart`
+     */
+    openCart(params?: MyCartOpenCartParams): Promise<ValuAck<MyCartOpenCartResult>>;
+    /**
+     * Open one order and show its receipt.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `cart` `open-order`
+     */
+    openOrder(params: MyCartOpenOrderParams): Promise<ValuAck<MyCartOpenOrderResult>>;
+    /**
+     * Open the order history — every purchase made across Valu apps, with its receipt. With `popup` it is drawn over the calling app instead of docking My Cart.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `cart` `open-orders`
+     */
+    openOrders(params?: MyCartOpenOrdersParams): Promise<ValuAck<MyCartOpenOrdersResult>>;
+    /**
+     * Open a product's page — what it is, what it is made of, what makes up its price, and whether this buyer can buy it.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `cart` `open-product`
+     */
+    openProduct(params: MyCartOpenProductParams): Promise<ValuAck<MyCartOpenProductResult>>;
+    /**
+     * Open what the user OWNS — every product they bought or got free, with its files, how far through them they are, and their rating. With `productId`, that product opened and shown. Orders (open-orders) are the receipts only.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `cart` `open-purchased`
+     */
+    openPurchased(params?: MyCartOpenPurchasedParams): Promise<ValuAck<MyCartOpenPurchasedResult>>;
+    /**
+     * Open My Cart on one of its tabs. The tab becomes part of the address, so the place it opens on can be linked to and comes back on a reload.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `cart` `open-section`
+     */
+    openSection(params: MyCartOpenSectionParams): Promise<ValuAck<MyCartOpenSectionResult>>;
+  };
+  /**
+   * Valu Social's Resources Viewer app (`preview`): the intents it declares, as functions.
+   */
+  ResourcesViewer: {
+    /**
+     * Opens the resource viewer to preview a specific resource.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `preview` `preview`
+     */
+    preview(params: ResourcesViewerPreviewParams): Promise<ValuAck<ResourcesViewerPreviewResult>>;
   };
   /**
    * GoTo points of a room (server name "cameraPosition"): list them, save or delete one directly, or open the point editor and let the user do it. Editing points requires the room's edit permission. Position and rotation are metres and EULER DEGREES in the room's own space — they cannot be computed from outside the 3D scene, so prefer create-point / edit-point (which receive the live camera pose from Unity) over save-point unless you are re-using a pose you already read.
@@ -3613,15 +6071,231 @@ export interface ValuServices {
      * @channel intent
      * @scope rooms:write
      * @mode embedded-served
+     * @intent service `RoomPoints` `create-room-point`
      */
     createRoomPoint(params: RoomPointsCreateRoomPointParams): Promise<ValuAck<RoomPointsCreateRoomPointResult>>;
+    /**
+     * Deletes one saved point by id. Returns {status: "ok"}. The point parallax preview resource is cleaned up by the 3D scene, not here.
+     * @channel intent
+     * @scope rooms:write
+     * @mode embedded-served
+     * @intent service `RoomPoints` `delete-room-point`
+     */
+    deleteRoomPoint(params: RoomPointsDeleteRoomPointParams): Promise<ValuAck<RoomPointsDeleteRoomPointResult>>;
     /**
      * Opens the point editor for an EXISTING point and BLOCKS until the user saves, deletes or cancels. Resolves {status: "ok", point, persisted, savePreview}, {status: "deleted", point: {id}, persisted}, {status: "cancelled"} or {status: "error", message}. A point whose id is empty is treated as a create.
      * @channel intent
      * @scope rooms:write
      * @mode embedded-served
+     * @intent service `RoomPoints` `edit-room-point`
      */
     editRoomPoint(params: RoomPointsEditRoomPointParams): Promise<ValuAck<RoomPointsEditRoomPointResult>>;
+    /**
+     * Returns every saved GoTo point of a room, in server order: {status: "ok", points}. Each point carries id, name, position {x,y,z}, rotation {x,y,z,w} (EULER DEGREES, w is always 0 — NOT a quaternion), cameraMode (0 = do not change, 1 = fly, 2 = third person) and the server timestamps. A room with no saved points returns an empty list — the "Home" point Unity shows in that case exists only in its memory.
+     * @channel intent
+     * @scope rooms:read
+     * @mode embedded-served
+     * @intent service `RoomPoints` `list-room-points`
+     */
+    listRoomPoints(params: RoomPointsListRoomPointsParams): Promise<ValuAck<RoomPointsListRoomPointsResult>>;
+    /**
+     * Writes a point WITHOUT opening any UI: creates it when point.id is empty or missing, otherwise overwrites the saved point with that id. An update REPLACES the whole point, so send a complete one (read it with list-room-points first) — fields left out are not kept. Returns {status: "ok", point} with the server copy, whose id is the one to keep after a create.
+     * @channel intent
+     * @scope rooms:write
+     * @mode embedded-served
+     * @intent service `RoomPoints` `save-room-point`
+     */
+    saveRoomPoint(params: RoomPointsSaveRoomPointParams): Promise<ValuAck<RoomPointsSaveRoomPointResult>>;
+  };
+  /**
+   * Zones of a room and the claims on them (docs/superpowers/specs/2026-10-16-room-claiming-zones-design.md). A zone is an invisible box in a room: it can join its video call when someone walks in, it can be claimed as somebody's personal space, or both. A CLAIM IS A PROP INVITATION on the master server — there is no other store — so the occupant also gets edit rights on the zone prop. The server does not enforce exclusivity: the earliest claim wins and the loser is withdrawn, so always read the occupancy back rather than assuming a claim held.
+   */
+  RoomZones: {
+    /**
+     * Gives a zone to a particular user. Requires the caller to OWN the room (manage rights) or be a network admin; anything less is refused. Bypasses the zone's audience, the room's per-user limit and the cooldown by design — this is how offices are handed out. Returns {status: "ok"}.
+     * @channel intent
+     * @scope rooms:write
+     * @mode embedded-served
+     * @intent service `RoomZones` `assign-zone`
+     */
+    assignZone(params: RoomZonesAssignZoneParams): Promise<ValuAck<RoomZonesAssignZoneResult>>;
+    /**
+     * Claims a zone for the SIGNED-IN user. Returns {status: "ok", claim} when it worked, or {status: "refused", reason, message} when it did not — "taken", "limit", "not-listed", "not-claimable", "no-access" or "cooldown". A user who may not write prop invitations at all gets {status: "refused", reason: "needs-request"}: they must ask a room owner to assign it instead. Never claims on behalf of somebody else — use assign-zone for that.
+     * @channel intent
+     * @scope rooms:write
+     * @mode embedded-served
+     * @intent service `RoomZones` `claim-zone`
+     */
+    claimZone(params: RoomZonesClaimZoneParams): Promise<ValuAck<RoomZonesClaimZoneResult>>;
+    /**
+     * Every zone of a room: {status: "ok", zones}. Each zone carries id (the prop id), title, its box in room metres (x, z, rotY in degrees, width, depth, height, floorOffset), the two capabilities (call, claim) and its claim policy (settings.audience is "members" or "listed"). A room with no zones returns an empty list.
+     * @channel intent
+     * @scope rooms:read
+     * @mode embedded-served
+     * @intent service `RoomZones` `list-room-zones`
+     */
+    listRoomZones(params: RoomZonesListRoomZonesParams): Promise<ValuAck<RoomZonesListRoomZonesResult>>;
+    /**
+     * Releases the signed-in user's own claim on a zone: {status: "ok"}. Starts a one-minute cooldown before the same user may claim that zone again. Releasing a zone somebody else holds is not possible here — a room owner uses assign-zone or the Spaces app.
+     * @channel intent
+     * @scope rooms:write
+     * @mode embedded-served
+     * @intent service `RoomZones` `release-zone`
+     */
+    releaseZone(params: RoomZonesReleaseZoneParams): Promise<ValuAck<RoomZonesReleaseZoneResult>>;
+    /**
+     * Who holds the room's claimable zones right now: {status: "ok", occupancy} keyed by zone id, each {claim, conflicts, stale}. `claim` is null when the zone is free, else {userId, claimedAt, source, doorPolicy, displayName, status}. `stale` means the occupant no longer has access to the room, so the zone is effectively free. `conflicts` are losing claims a moderator should clear. This reads the server every time — there is no push for prop invitations.
+     * @channel intent
+     * @scope rooms:read
+     * @mode embedded-served
+     * @intent service `RoomZones` `zone-occupancy`
+     */
+    zoneOccupancy(params: RoomZonesZoneOccupancyParams): Promise<ValuAck<RoomZonesZoneOccupancyResult>>;
+  };
+  /**
+   * Valu Social's Social app (`community`): the intents it declares, as functions.
+   */
+  Social: {
+    /**
+     * Opens the community view and starts channel creation in a specific community context.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `community` `create-channel`
+     */
+    createChannel(params: SocialCreateChannelParams): Promise<ValuAck<SocialCreateChannelResult>>;
+    /**
+     * Open view and open post editor
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `community` `create-post`
+     */
+    createPost(params: SocialCreatePostParams): Promise<ValuAck<SocialCreatePostResult>>;
+    /**
+     * Opens the community view and navigates to a community by its ID. Use when you only have a communityId and no specific channel to target — the app will land on the first available channel.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `community` `open-community`
+     */
+    openCommunity(params: SocialOpenCommunityParams): Promise<ValuAck<SocialOpenCommunityResult>>;
+    /**
+     * Opens the community view and navigates to a specific channel. Use communityId from AI context. For a root channel: pass its id as rootChannelId, omit subChannelId. For a sub-channel: the sub-channel object in AI context has a rootChannelId field — pass that as rootChannelId, and the sub-channel id as subChannelId.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `community` `show-channel`
+     */
+    showChannel(params: SocialShowChannelParams): Promise<ValuAck<SocialShowChannelResult>>;
+    /**
+     * Opens the community view and navigates to a specific post. Use communityId from AI context. For a post in a root channel: pass the channel id as rootChannelId, omit subChannelId. For a post in a sub-channel: pass the sub-channel's rootChannelId as rootChannelId, and the sub-channel id as subChannelId. Pass the post id as messageId.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `community` `show-post`
+     */
+    showPost(params: SocialShowPostParams): Promise<ValuAck<SocialShowPostResult>>;
+  };
+  /**
+   * Valu Social's User Card app (`user-card`): the intents it declares, as functions.
+   */
+  UserCard: {
+    /**
+     * Shows the contextual profile card for a user.
+     * @channel intent
+     * @scope ui:open
+     * @mode embedded-only
+     * @intent application `user-card` `show`
+     */
+    show(params: UserCardShowParams): Promise<ValuAck<UserCardShowResult>>;
+  };
+  /**
+   * Valu Social's Valu Games app (`games`): the intents it declares, as functions.
+   */
+  ValuGames: {
+    /**
+     * Open the Valu Games app.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `games` `open`
+     */
+    open(params?: ValuGamesOpenParams): Promise<ValuAck<ValuGamesOpenResult>>;
+  };
+  /**
+   * Valu Social's Valu Guru app (`valuguru`): the intents it declares, as functions.
+   */
+  ValuGuru: {
+    /**
+     * Opens the Valu Guru app on the new-chatbot creation wizard, optionally pre-filled. Pass `instructions` to land on the Design step fully filled in, or just `prompt` to land on the Describe step with the task pre-typed and ready to generate.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `valuguru` `create-chatbot`
+     */
+    createChatbot(params?: ValuGuruCreateChatbotParams): Promise<ValuAck<ValuGuruCreateChatbotResult>>;
+    /**
+     * Opens the Valu Guru app on a chat with the built-in Valu Guru assistant, without sending anything. Resumes the most recent built-in-assistant conversation, or lands on the empty new-chat screen when there is none. Custom chatbot conversations are never resumed, and nothing is created on the server — a session appears only once a message is sent.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `valuguru` `open`
+     */
+    open(params?: ValuGuruOpenParams): Promise<ValuAck<ValuGuruOpenResult>>;
+    /**
+     * Opens the Valu Guru app and navigates to a specific agent chat by ID.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `valuguru` `open-agent`
+     */
+    openAgent(params: ValuGuruOpenAgentParams): Promise<ValuAck<ValuGuruOpenAgentResult>>;
+    /**
+     * Opens the Valu Guru app and navigates to a specific chat session by ID.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `valuguru` `open-chat`
+     */
+    openChat(params: ValuGuruOpenChatParams): Promise<ValuAck<ValuGuruOpenChatResult>>;
+    /**
+     * Opens the Valu Guru app on a library chatbot's detail page. Unlike open-chat, the target is not personal — any user in the network can view it (used e.g. by the bot badge on shared chatbot replies).
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `valuguru` `open-chatbot`
+     */
+    openChatbot(params: ValuGuruOpenChatbotParams): Promise<ValuAck<ValuGuruOpenChatbotResult>>;
+    /**
+     * Opens the Valu Guru app and switches to the Agents tab in the left panel.
+     * @channel intent
+     * @scope ui:open
+     * @mode window
+     * @intent application `valuguru` `show-agents`
+     */
+    showAgents(params?: ValuGuruShowAgentsParams): Promise<ValuAck<ValuGuruShowAgentsResult>>;
+    /**
+     * Opens the Valu Guru app and starts a brand-new conversation session with an initial message. Always creates a new session regardless of existing ones.
+     * @channel intent
+     * @scope valuguru:write
+     * @mode embedded-served
+     * @intent application `valuguru` `start-session`
+     */
+    startSession(params: ValuGuruStartSessionParams): Promise<ValuAck<ValuGuruStartSessionResult>>;
+  };
+  /**
+   * Valu Social's Valu Puzzles app (`puzzles`): the intents it declares, as functions.
+   */
+  ValuPuzzles: {
+    /**
+     * Open Valu Puzzles and launch a specific puzzle, optionally with a score-to-beat challenge from another user.
+     * @channel intent
+     * @scope apps:intent
+     * @mode embedded-served
+     * @intent application `puzzles` `start-puzzle`
+     */
+    startPuzzle(params: ValuPuzzlesStartPuzzleParams): Promise<ValuAck<ValuPuzzlesStartPuzzleResult>>;
   };
 }
 

@@ -614,6 +614,12 @@ declare module '@arkeytyp/valu-api' {
         channel: ServiceChannel;
         /** Typed intents only: what happens at the app's own address. */
         mode?: IntentMode;
+        /** Typed intents only: whether the intent goes to a Valu Social app or to a service. */
+        target?: 'application' | 'service';
+        /** Typed intents only: the app id (`textchat`) or service id (`Commerce`) the intent is addressed to. */
+        to?: string;
+        /** The params a caller may pass in order instead of as an object (`valu.Apps.isLoaded('textchat')`). */
+        positional?: string[];
         mutates: boolean;
         cache: { mode: CacheMode; ttlMs?: number; key?: string | null };
         returns: { type: string; description: string };
@@ -1079,6 +1085,19 @@ declare module '@arkeytyp/valu-api' {
         addEventListener(event: string, callback: (data: any) => void): void;
         /** Pass the handler: a call without one clears every listener of the event, `onCommerceEvent`'s too. */
         removeEventListener(event: string, callback: (data: any) => void): void;
+        /**
+         * The app's own route inside Valu Social (typed app intents, 2026-11-06): `push` adds a
+         * history entry, `replace` does not. Over `api:call` when Valu Social answers intents,
+         * else the older `api:run-command`. Embedded only: at the app's own address the app owns
+         * its address, and these answer `{data: {success: true, skipped: true}}` with one warning.
+         * Resolve an ack; never reject.
+         */
+        readonly route: {
+            push(path: string): Promise<ValuAck<any>>;
+            replace(path: string): Promise<ValuAck<any>>;
+        };
+        /** Listen for Valu Social moving the app's route (`on_route`). Returns the way to stop. */
+        onRoute(handler: (route: any) => void): () => void;
         /** Fail what is waiting, drop the caches, remove the host iframe or the window listener. */
         close(): Promise<void>;
     };
@@ -1100,8 +1119,10 @@ declare module '@arkeytyp/valu-api' {
     export interface ValuApiReadyInfo {
         /** The embedded protocol's own version, `1` (not the host protocol's): a client calls only on the one it speaks. */
         protocol: number;
-        /** Valu Social answers `api:call`. */
-        calls: true;
+        /** Valu Social answers service functions over `api:call` (false: a frame server with no services). */
+        calls: boolean;
+        /** Valu Social answers typed intents over `api:call` (`intent: {target, id}`); absent from an older one. */
+        intents?: true;
         user: ValuUser | null;
         network: ValuNetwork | null;
     }
@@ -1111,7 +1132,7 @@ declare module '@arkeytyp/valu-api' {
          * `await connectValuServices({ socket: webSocketService, userId, applicationId: app.slug, cache: null })`.
          * `applicationId` is the app's slug as the host resolver names it (its storage shelf is
          * addressed by it), never the launch intent's id or the `<workspace>/<slug>` address. */
-        services: Pick<ValuServiceApi, 'call'>;
+        services?: Pick<ValuServiceApi, 'call'> | null;
         /** State Valu Social holds, for the `app-state` functions (`Developer.*`,
          * `VerusWallet.get-balance`) and the others that read it; every call carries it.
          * Without it the `app-state` functions answer 501 `not_available`. */
@@ -1120,7 +1141,17 @@ declare module '@arkeytyp/valu-api' {
         log?: (level: 'warn' | 'error', message: string) => void;
         /** The app's permission gate (`createFrameGate(...).permit`); a refusal is answered as the host
          * answers it. Without one nothing is gated (Valu Social's own apps). */
-        gate?: (scope: string) => Promise<PermissionVerdict>;
+        gate?: (scope: string | null) => Promise<PermissionVerdict>;
+        /**
+         * Runs an intent the app sent over `api:call`, as the older bridge would, with the frame's
+         * own `Application` looked up per call: `application` → `run(new Intent(id, action, params))`,
+         * `service` → `callService(new Intent(id, action, params))`, `route` → move the app's route
+         * (`push` / `replace`, `params.path`; `id` is `null`). Without it intents answer 501 and
+         * `readyInfo` does not say `intents`.
+         */
+        intents?: ((target: 'application' | 'service' | 'route', id: string | null, action: string, params: object) => Promise<unknown>) | null;
+        /** Whether Valu Social frames `appId`, for an app no descriptor names (`valu.Apps.send`). */
+        toFrame?: (appId: string) => boolean;
     }
 
     export type PermissionMode = 'off' | 'report' | 'enforce';
@@ -1185,6 +1216,8 @@ declare module '@arkeytyp/valu-api' {
          * leak guard. Never rejects.
          */
         handle(message: unknown): Promise<ValuAck>;
+        /** Whether this server answers intents (`intents` was given). */
+        readonly intents: boolean;
     }
 
     /** What Valu Social answers its framed apps' `api:call` with: valu-api's own functions
@@ -1400,6 +1433,11 @@ declare module '@arkeytyp/valu-api' {
     export const WHY_MAX: number;
     export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>>;
     export function describeScope(scope: string): string | null;
+
+    /** The typed call (`valu.Users.current()`) that replaces an old bridge call, or null when none does. Kinds: `pointer-run`, `run-console`, `run-intent`, `service-intent-other`, `run-command`, `direct`. */
+    export function bridgeReplacement(kind: string, name: string): string | null;
+    /** Every old bridge call and its typed replacement, keyed `"<kind> <name>"`. */
+    export const BRIDGE_REPLACEMENTS: Readonly<Record<string, string>>;
 
 }
 

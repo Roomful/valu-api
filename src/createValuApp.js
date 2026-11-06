@@ -59,7 +59,7 @@ import { createValuServices } from './services/api.js';
 import { ERROR_CODES } from './Errors.js';
 import { CONNECTION_STATE, HOST_ERRORS, MSG } from './host/protocol.js';
 import { DEFAULT_SIGN_IN_ORIGINS, isHostPath, isOrigin } from './host/origins.js';
-import { intentWindowUrl } from './services/intents.js';
+import { intentWindowUrl, skippedIntentAck } from './services/intents.js';
 
 const DEFAULT_HOST_ORIGIN = 'https://valuguru.texpo.io';
 /** Where on the host origin the host page is; the consent page is `consent.html` beside it. */
@@ -235,6 +235,8 @@ class ValuApp {
   /** The popups this app opened whose flow has not ended: `close()` closes them. */
   #popups = new Set();
   #closed = false;
+  /** Dedicated: `valu.route.*` warned once already. */
+  #routeWarned = false;
 
   /**
    * @param {object} parts
@@ -286,6 +288,16 @@ class ValuApp {
       requestConsent: (scopes) => this.#requestConsent(scopes),
       on: (name, handler) => this.#authChanges.on(name, handler),
     });
+    // The app's own route inside Valu Social. At its own address the app owns its address: nothing to move.
+    const routeTo = (command) => (path) => {
+      if (this.#embedded) return this.#embedded.routeCommand(command, path);
+      if (!this.#routeWarned) {
+        this.#routeWarned = true;
+        console.warn(`[valu-api] valu.route.${command} moves the app's route inside Valu Social; at the app's own address there is nothing to move.`);
+      }
+      return Promise.resolve(skippedIntentAck());
+    };
+    this.route = Object.freeze({ push: routeTo('push'), replace: routeTo('replace') });
     const readConnection = () => ({ state: this.#connectionState(), lastError: this.#lastError() });
     this.connection = Object.freeze({
       get state() { return readConnection().state; },
@@ -342,6 +354,13 @@ class ValuApp {
     if (typeof handler !== 'function') throw new TypeError('onCommerceEvent needs a handler function');
     this.#bridge.addEventListener(ValuApi.ON_COMMERCE, handler);
     return () => { this.#bridge.removeEventListener(ValuApi.ON_COMMERCE, handler); };
+  }
+
+  /** Listen for Valu Social moving the app's route (`ValuApi.ON_ROUTE`, an `api:trigger`). Returns the way to stop. */
+  onRoute(handler) {
+    if (typeof handler !== 'function') throw new TypeError('onRoute needs a handler function');
+    this.#bridge.addEventListener(ValuApi.ON_ROUTE, handler);
+    return () => { this.#bridge.removeEventListener(ValuApi.ON_ROUTE, handler); };
   }
 
   addEventListener = (...parameters) => this.#bridge.addEventListener(...parameters);

@@ -14,3 +14,4 @@ export {
   detectEgress, EGRESS_RULES, EGRESS_RULES_VERSION, TELEMETRY_PACKAGES, ONWARD_PATHS, SENDS_TO_OTHERS,
 } from './detectEgress.js';
 export { VALU_ORIGINS, isValuUrl, hostOf } from './valuOrigins.js';
+export { BRIDGE_REPLACEMENTS, bridgeReplacement } from '../bridge/replacements.js';

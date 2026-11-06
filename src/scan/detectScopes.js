@@ -11,6 +11,9 @@
 // documents, and which keep their names through minification):
 //
 //   valu.Rooms.searchMyRooms(…)   valu.data.Users.current()   Rooms.getRoom(…)
+//   valu.Chats.openChannel(…)     (an app intent: its scope is the bridge's for that intent)
+//   valu.Apps.open('events')   valu.Apps.send('textchat', 'open-channel', …)   (a literal app id and
+//                                 action; a dynamic one is listed in `unresolved`)
 //   valu.call('Rooms.search-my-rooms', …)   valu.invoke('Users.current')
 //   new Intent('Commerce', 'get-cart')       (catalogue function, then Commerce/identity intents)
 //   auth.signIn({ scopes: [...] })   auth.requestConsent([...])      → "asked"
@@ -37,6 +40,7 @@ import { SERVICE_DESCRIPTORS, INTENT_DESCRIPTORS, findDescriptor } from '../serv
 import { scopeOfIntent } from '../host/Permissions.js';
 import { scopeOfApiCommand, scopeOfAppIntent, scopeOfServiceIntent } from '../host/BridgeScopes.js';
 import { SCOPE_PATTERN } from './permissionsFile.js';
+import { APPS, appIntentDescriptor } from '../services/apps.js';
 
 /** At most this many findings are kept for one call name, and this many in all. */
 export const FINDINGS_PER_CALL = 3;
@@ -77,6 +81,7 @@ const CODE_PATTERNS = {
   intentAny: /\bnew\s+Intent\s*\(/g,
   getApiDynamic: /\bgetApi\s*\(\s*(?!['"`])/g,
   computed: new RegExp(String.raw`${VALU}(?:${DOT}[\w$]+)*\s*(?:\?\.)?\[`, 'g'),
+  valuRoute: new RegExp(String.raw`${VALU}${DOT}(pushRoute|replaceRoute)\s*\(`, 'g'),
   askedDynamic: /(?:\brequestConsent\s*\(\s*(?![[\s)])|\bsignIn\s*\(\s*\{[^}]*?\bscopes\s*:\s*(?![[\s]))/g,
 };
 
@@ -87,6 +92,9 @@ const LITERAL_PATTERNS = {
   intent: new RegExp(String.raw`\bIntent\s*\(\s*${lit(1)}\s*,\s*${lit(3)}`, 'g'),
   getApi: new RegExp(String.raw`\bgetApi\s*\(\s*${lit(1)}\s*\)(\s*\.\s*run\s*\(\s*(?:${lit(4)})?)?`, 'g'),
   console: new RegExp(String.raw`\brunConsoleCommand\s*\(\s*(?:${lit(1)})?`, 'g'),
+  // `window.parent.postMessage(`, `parent?.postMessage(`, `top.`, `opener.`: a message to the
+  // window that embeds or opened this one. Never `worker.postMessage(` or `x.parent.postMessage(`.
+  postMessage: /(?<![\w$.])(?:window\s*(?:\?\.|\.)\s*)?(?:parent|top|opener)\s*(?:\?\.|\.)\s*postMessage\s*(?:\?\.\s*)?\(/g,
   asked: /(?:\brequestConsent\s*\(\s*|\bsignIn\s*\(\s*\{[^}]*?\bscopes\s*:\s*)\[([^\]]*)\]/g,
 };
 
@@ -275,8 +283,10 @@ function lineOf(starts, offset) {
 }
 
 /**
- * @typedef {{scope: string|null, call: string, kind: 'function'|'intent'|'asked'|'bridge', file: string, line: number, via?: string}} Finding
+ * @typedef {{scope: string|null, call: string, kind: 'function'|'intent'|'asked'|'bridge', file: string, line: number, via?: string, message?: string, name?: string}} Finding
  *   `via`: the helper the call was read through (`commerce`), when it was.
+ *   `message`, `name`: on every `bridge` finding, the kind and name the runtime
+ *   counter records the same call under (`run-intent` `textchat.open-channel`).
  * @typedef {{file: string, line: number, text: string}} Unresolved
  * @typedef {{scopes: string[], findings: Finding[], bridge: Finding[], unresolved: Unresolved[], truncated: boolean}} ScopeScan
  */
@@ -403,6 +413,63 @@ function lexFile(path, original) {
   };
 }
 
+/**
+ * The counter's kind for a `new Intent(…)` at `offset` (the `new`): `service-intent-other` when
+ * it is the argument of `callService(`, otherwise `run-intent` (`sendIntent`, or not seen).
+ */
+function intentMessage(code, offset) {
+  return /\bcallService\s*\(\s*$/.test(code.slice(Math.max(0, offset - 40), offset)) ? 'service-intent-other' : 'run-intent';
+}
+
+/** The counter's name for a console command: its first word, and its second unless that is a flag. */
+function consoleName(command) {
+  const [api, fn] = command.trim().split(/\s+/);
+  return [api, fn && !fn.startsWith('-') ? fn : ''].filter(Boolean).join('.');
+}
+
+/** The text of the call whose `(` is at `open`, up to its matching `)` (strings skipped). */
+function callText(text, open) {
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    const c = text[i];
+    if (c === "'" || c === '"' || c === '`') {
+      for (i++; i < text.length && text[i] !== c && text[i] !== '\n'; i++) if (text[i] === '\\') i++;
+    } else if (c === '(') depth++;
+    else if (c === ')' && --depth === 0) return text.slice(open, i + 1);
+  }
+  return text.slice(open);
+}
+
+/** The old bridge's messages an app sends to its parent (`api:ready` is the host's, never an app's). */
+const DIRECT_NAME = /(?:^|[{,\s])(['"`]?)name\1\s*:\s*(['"`])(api:(?:run-intent|service-intent|create-pointer))\2/;
+
+/**
+ * The top level of the object literal that is the first argument of the call whose text (from
+ * its `(`) is `text`, nested objects, arrays and calls blanked; null when that argument is not one.
+ */
+function firstObjectArg(text) {
+  let i = 1;
+  while (i < text.length && /\s/.test(text[i])) i++;
+  if (text[i] !== '{') return null;
+  let depth = 0;
+  let out = '';
+  for (; i < text.length; i++) {
+    const c = text[i];
+    if (c === "'" || c === '"' || c === '`') {
+      const start = i;
+      for (i++; i < text.length && text[i] !== c && text[i] !== '\n'; i++) if (text[i] === '\\') i++;
+      if (depth === 1) out += text.slice(start, i + 1);
+      continue;
+    }
+    if (c === '{' || c === '[' || c === '(') {
+      if (++depth === 1) out += c;
+    } else if (c === '}' || c === ']' || c === ')') {
+      if (--depth === 0) return out + c;
+    } else if (depth === 1) out += c;
+  }
+  return null;
+}
+
 /** One file's raw findings, before de-duplication and the caps. */
 function scanFile(lexed) {
   const { path, literal, code, inLiteral, starts, originalLines, headers } = lexed;
@@ -421,11 +488,11 @@ function scanFile(lexed) {
    * whose parameters carry them; unreadable otherwise. The helper's own line
    * stays listed as unreadable until a call site of it is read.
    */
-  const dynamic = (kind, open, wanted) => {
+  const dynamic = (kind, open, wanted, message) => {
     const header = enclosingHeader(headers, open);
     const slots = header ? helperSlots(header, readArgs(lexed, open), wanted) : null;
     if (!slots) return unread(open);
-    const helper = { name: header.name, kind, slots, file: path, offset: open, header };
+    const helper = { name: header.name, kind, slots, file: path, offset: open, header, message };
     helpers.push(helper);
     return unread(open, helper);
   };
@@ -439,10 +506,28 @@ function scanFile(lexed) {
   // module (`import * as Http from './http'`), not valu-api.
   const destructured = destructuredServices(code);
   for (const m of matches(CODE_PATTERNS.member, code)) {
+    const before = code.slice(0, m.index).trimEnd();
+    const onValu = before.endsWith('.') || destructured.has(m[1]);
+    // `valu.Apps.open(appId)`, `valu.Apps.send(appId, action)`: the app is the caller's to name, so its
+    // scope is read from the literal app id and action; one decided at run time cannot be read.
+    if (m[1] === APPS && (m[2] === 'open' || m[2] === 'send') && onValu) {
+      const open = m.index + m[0].lastIndexOf('(');
+      const [appArg, actionArg] = readArgs(lexed, open);
+      const appId = appArg?.literal ?? null;
+      const action = m[2] === 'open' ? 'open' : (actionArg?.literal ?? null);
+      if (appId === null || action === null) {
+        unread(open);
+        continue;
+      }
+      const descriptor = appIntentDescriptor(appId, action);
+      const call = `${appId}.${action}`;
+      if (descriptor) findings.push({ scope: descriptor.scopes[0], call, kind: 'intent', file: path, line: at(m.index) });
+      else bridge.push({ scope: null, call, kind: 'bridge', file: path, line: at(m.index), message: 'run-intent', name: call });
+      continue;
+    }
     const descriptor = BY_MEMBER.get(m[1])?.get(m[2]);
     if (!descriptor) continue;
-    const before = code.slice(0, m.index).trimEnd();
-    if (before.endsWith('.') || destructured.has(m[1])) fn(descriptor, 'function', m.index);
+    if (onValu) fn(descriptor, 'function', m.index);
   }
 
   for (const m of literalMatches(LITERAL_PATTERNS.byName)) {
@@ -456,7 +541,10 @@ function scanFile(lexed) {
     const [service, action] = [m[2], m[4]];
     if (service.includes('${') || action.includes('${')) continue; // a template with an expression: decided at run time
     intentsRead.add(m.index);
-    const descriptor = findDescriptor(`${service}.${action}`);
+    // `new Intent('rooms', 'show-room')` names the app's id, not the function's
+    // (`Rooms.show-room`, folded onto the Rooms service): read below, by the bridge's tables.
+    const found = findDescriptor(`${service}.${action}`);
+    const descriptor = found?.target === 'application' ? undefined : found;
     // The host's intents are named `Commerce` / `Application`; a lower-case
     // name reaches the same intent, so it needs the same scope.
     const scope = descriptor
@@ -469,20 +557,22 @@ function scanFile(lexed) {
     // Not the host's: an intent of Valu Social's older bridge, a service's or
     // an application's. Its scope is what Valu Social will check it against.
     const bridged = scopeOfServiceIntent(service, action) ?? scopeOfAppIntent(service, action);
-    if (bridged) findings.push({ scope: bridged, call: `${service}.${action}`, kind: 'bridge', file: path, line: at(m.index) });
-    else bridge.push({ scope: null, call: `${service}.${action}`, kind: 'bridge', file: path, line: at(m.index) });
+    const call = `${service}.${action}`;
+    const message = intentMessage(code, code.lastIndexOf('new', m.index));
+    const finding = { scope: bridged, call, kind: 'bridge', file: path, line: at(m.index), message, name: call };
+    (bridged ? findings : bridge).push(finding);
   }
   for (const m of matches(CODE_PATTERNS.intentAny, code)) {
     // `new Intent(` whose two names were not both literals.
-    if (!intentsRead.has(m.index + m[0].indexOf('Intent'))) dynamic('intent', m.index + m[0].length - 1, 2);
+    if (!intentsRead.has(m.index + m[0].indexOf('Intent'))) dynamic('intent', m.index + m[0].length - 1, 2, intentMessage(code, m.index));
   }
 
   for (const m of literalMatches(LITERAL_PATTERNS.getApi)) {
     const api = m[2];
-    if (!m[3]) bridge.push({ scope: null, call: api, kind: 'bridge', file: path, line: at(m.index) });
+    if (!m[3]) bridge.push({ scope: null, call: api, kind: 'bridge', file: path, line: at(m.index), message: 'pointer-run', name: api });
     else if (m[4]) {
       const scope = scopeOfApiCommand(api, m[5]);
-      const finding = { scope, call: `${api}.${m[5]}`, kind: 'bridge', file: path, line: at(m.index) };
+      const finding = { scope, call: `${api}.${m[5]}`, kind: 'bridge', file: path, line: at(m.index), message: 'pointer-run', name: `${api}.${m[5]}` };
       (scope ? findings : bridge).push(finding);
     }
     else unread(m.index);
@@ -490,8 +580,20 @@ function scanFile(lexed) {
   for (const m of matches(CODE_PATTERNS.getApiDynamic, code)) unread(m.index);
 
   for (const m of literalMatches(LITERAL_PATTERNS.console)) {
-    if (m[1]) bridge.push({ scope: null, call: `console:${m[2]}`, kind: 'bridge', file: path, line: at(m.index) });
+    if (m[1]) bridge.push({ scope: null, call: `console:${m[2]}`, kind: 'bridge', file: path, line: at(m.index), message: 'run-console', name: consoleName(m[2]) });
     else unread(m.index);
+  }
+
+  for (const m of matches(CODE_PATTERNS.valuRoute, code)) {
+    bridge.push({ scope: null, call: m[1], kind: 'bridge', file: path, line: at(m.index), message: 'run-command', name: m[1] });
+  }
+
+  // `window.parent.postMessage({name: 'api:run-intent', message}, '*')`: the bridge spoken to
+  // directly, in its own wire format (`{name, message}`).
+  for (const m of literalMatches(LITERAL_PATTERNS.postMessage)) {
+    const object = firstObjectArg(callText(literal, m.index + m[0].length - 1));
+    const name = object && DIRECT_NAME.exec(object)?.[3];
+    if (name) bridge.push({ scope: null, call: `postMessage ${name}`, kind: 'bridge', file: path, line: at(m.index), message: 'direct', name });
   }
 
   for (const m of literalMatches(LITERAL_PATTERNS.asked)) {
@@ -512,14 +614,14 @@ function scanFile(lexed) {
  * The finding for an intent named at a call site: a catalogue function's scope,
  * the host's own intents', or the older bridge's; a bridge call with no scope.
  */
-function intentFinding(service, action, file, line, via) {
+function intentFinding(service, action, file, line, via, message = 'run-intent') {
   const descriptor = findDescriptor(`${service}.${action}`);
   const scope = descriptor
     ? descriptor.scopes[0]
     : scopeOfIntent(INTENT_SERVICES[service.toLowerCase()] ?? service, action);
   if (scope) return { scope, call: `${service}.${action}`, kind: 'intent', file, line, via };
   const bridged = scopeOfServiceIntent(service, action) ?? scopeOfAppIntent(service, action);
-  return { scope: bridged, call: `${service}.${action}`, kind: 'bridge', file, line, via };
+  return { scope: bridged, call: `${service}.${action}`, kind: 'bridge', file, line, via, message, name: `${service}.${action}` };
 }
 
 /**
@@ -598,7 +700,7 @@ function followHelpers(lexedFiles, scanned) {
             else unresolved.push({ file: path, line, text: (originalLines[line - 1] ?? '').trim().slice(0, LINE_TEXT_MAX) });
             continue;
           }
-          const found = intentFinding(names[0], names[1], path, line, helper.name);
+          const found = intentFinding(names[0], names[1], path, line, helper.name, helper.message);
           (found.scope ? findings : bridge).push(found);
         }
       }

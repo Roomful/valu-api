@@ -72,3 +72,13 @@ test('a subpath outside the map is refused', () => {
     assert.match(run.stderr, /ERR_PACKAGE_PATH_NOT_EXPORTED/, specifier);
   }
 });
+
+test('the bridge replacement table is exported from the root and from the scan entry', async () => {
+  const root = await import('../src/ValuApi.js');
+  const scan = await import('../src/scan/index.js');
+  for (const mod of [root, scan]) {
+    assert.equal(typeof mod.bridgeReplacement, 'function');
+    assert.equal(mod.bridgeReplacement('pointer-run', 'users.current'), 'valu.Users.current()');
+    assert.ok(Object.isFrozen(mod.BRIDGE_REPLACEMENTS));
+  }
+});

@@ -43,8 +43,9 @@ test('every service function is on the tree, under its service', () => {
   }
 
   const methods = SERVICE_FUNCTIONS.length;
+  // A service's namespace also holds the app intents folded onto it (`valu.Rooms.showRoom`): those are intents.
   const onTree = ValuServiceApi.services()
-    .reduce((n, service) => n + Object.keys(valu[service]).length, 0);
+    .reduce((n, service) => n + Object.values(valu[service]).filter((m) => m.descriptor?.channel !== 'intent').length, 0);
   assert.equal(onTree, methods, 'the tree is the catalogue, not a subset of it');
   assert.equal(methods, 65);
 });
@@ -56,8 +57,11 @@ test('the typed intents are on the tree, as intents; the untyped application-ser
     const [service, action] = [key.slice(0, key.indexOf('.')), key.slice(key.indexOf('.') + 1)];
     const typed = INTENT_FUNCTIONS.find((d) => d.key === key);
     if (typed) {
-      assert.equal(typeof valu[service]?.[camel(action)], 'function', key);
-      assert.equal(valu[service][camel(action)].descriptor.channel, 'intent', key);
+      // On its own namespace, or on the one it is named onto (`AiGuru.is-application-loaded` is `valu.Apps.isLoaded`).
+      assert.equal(typeof valu[typed.service]?.[typed.method], 'function', key);
+      assert.equal(valu[typed.service][typed.method].descriptor.channel, 'intent', key);
+      assert.equal(typed.target, 'service', key);
+      assert.equal(typed.to, service, key);
     } else {
       assert.equal(valu[service]?.[camel(action)], undefined, key);
       assert.equal(findDescriptor(key), undefined, key);
@@ -71,7 +75,54 @@ test('the typed intents are on the tree, as intents; the untyped application-ser
   assert.equal(valu.Commerce.openCart.descriptor.mode, 'window');
   assert.equal(valu.Application.expandApplication.descriptor.mode, 'embedded-only');
   assert.equal(valu.AiGuru, undefined, 'the AI chat history is not an app\'s');
-  assert.equal(INTENT_FUNCTIONS.length, 58);
+  // 70 service intents (2026-11-06: + CMS.pickResource, the five RoomZones, the three RoomPoints the socket
+  // could answer, the three valu.Apps reads) and 62 application intents.
+  assert.equal(INTENT_FUNCTIONS.filter((d) => d.target === 'service').length, 70);
+  assert.equal(INTENT_FUNCTIONS.filter((d) => d.target === 'application').length, 62);
+  assert.equal(INTENT_FUNCTIONS.length, 132);
+});
+
+test('every application intent an app may send is a function, on its app\'s namespace or a service of the same name', () => {
+  const { valu } = headless();
+  assert.equal(valu.Chats.openChannel.descriptor.to, 'textchat');
+  assert.equal(valu.Chats.openChannel.descriptor.target, 'application');
+  assert.equal(valu.Chats.openChannel.descriptor.mode, 'window');
+  assert.equal(valu.Chats.getUiState.descriptor.mode, 'embedded-only');
+  assert.equal(valu.MyCart.openCart.descriptor.to, 'cart');
+  assert.equal(valu.Metaverse2D.open.descriptor.to, 'hubs');
+  assert.equal(valu.ContentStudio.openCreate.descriptor.scopes[0], 'apps:intent');
+  assert.equal(valu.ContentStudio.openCreate.descriptor.mode, 'embedded-served');
+  // Folded onto the service of the same name, beside its functions.
+  assert.equal(valu.Rooms.showRoom.descriptor.to, 'rooms');
+  assert.equal(typeof valu.Rooms.searchMyRooms, 'function');
+  assert.equal(valu.Groups.open.descriptor.to, 'groups');
+  assert.equal(valu.Profile.showUser.descriptor.to, 'profile');
+  // Valu Social's own are not functions; neither is an intent with no scope.
+  assert.equal(valu.Auth, undefined);
+  assert.equal(valu.LlmDebug, undefined);
+  assert.equal(valu.Metaverse2D.agentSay, undefined);
+  assert.equal(valu.MerchantConsole.openModeration, undefined);
+  // Every one takes route and pushToHistory too.
+  const optional = valu.Calendar.openCalendar.descriptor.params.optional.map((p) => p.name);
+  assert.ok(optional.includes('route') && optional.includes('pushToHistory'));
+});
+
+test('valu.Apps: the three reads take an app id in order, and open/send take theirs', async () => {
+  const { valu } = headless();
+  for (const name of ['isLoaded', 'list', 'has', 'open', 'send']) assert.equal(typeof valu.Apps[name], 'function', name);
+  assert.equal(valu.Apps.isLoaded.descriptor.to, 'AiGuru');
+  assert.equal(valu.Apps.isLoaded.descriptor.action, 'is-application-loaded');
+  assert.equal(valu.Apps.isLoaded.descriptor.mode, 'embedded-served');
+  // A socket client has nowhere to send an intent: 501, whichever way it is called.
+  for (const ack of [
+    await valu.Apps.isLoaded('textchat'),
+    await valu.Apps.isLoaded({ applicationId: 'textchat' }),
+    await valu.Apps.open('textchat'),
+    await valu.Apps.send('ws-app', 'refresh', { a: 1 }),
+  ]) assert.equal(ack.error.code, 501);
+  // An intent no app may send is refused before anything else.
+  assert.equal((await valu.Apps.send('auth', 'logout')).error.code, 404);
+  await assert.rejects(() => valu.data.Apps.send('auth', 'logout'));
 });
 
 test('a method is the string call with the name already resolved', async () => {

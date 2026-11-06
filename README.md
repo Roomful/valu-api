@@ -57,27 +57,32 @@ Everything is on the object `createValuApp()` returns, in both modes:
 | What | How |
 |---|---|
 | **Service functions**: users, rooms, communities, chat, resources, events, CMS, storage … | `valu.data.Networks.getCurrentNetwork()`, `valu.data.CMS.resourceSearch({ communityId, channelId })` |
-| **Valu Social's intents as functions**: Commerce, the identity token, expand/close, the pickers | `valu.data.Commerce.getCart()`, `valu.Commerce.openCart()`, `valu.data.Application.getIdentityToken()` |
+| **Valu Social's intents as functions**: Commerce, the identity token, expand/close, the pickers | `valu.data.Commerce.getCart()`, `valu.Commerce.openCart()`, `valu.data.Application.getIdentityToken()`, `valu.CMS.pickResource({ sources })` |
+| **Other apps' intents as functions**: open a chat, a room, a profile, Calendar, My Cart … | `valu.Chats.openChannel({ userId })`, `valu.Rooms.showRoom({ roomId })`, `valu.Calendar.openCalendar({ source })`, `valu.MyCart.openCart()`: the app's title is the namespace, the action the method. Every one also takes `route` |
+| **Any app, by id** | `valu.Apps.open(appId, { route })`, `valu.Apps.send(appId, action, params)` (a framed or Developer Portal app too), `valu.Apps.isLoaded(appId)`, `valu.Apps.list()`, `valu.Apps.has(appId)` |
+| **Your app's own route inside Valu Social** | `valu.route.push(path)`, `valu.route.replace(path)`, `valu.onRoute(handler)` |
 | **A call by name** (an LLM tool call, a string from config) | `valu.call('Rooms.searchMyRooms', params)` (envelope) or `valu.invoke(...)` (payload) |
-| **Any intent by name**: open another app, or a service intent this version has no function for | `valu.sendIntent(new Intent('textchat', 'open-channel', { userId }))` (an app), `valu.callService(new Intent(service, action, params))` (a service) |
 | **The user and the network** | `valu.auth.state` (`{signedIn, user, network}`), `valu.auth.on('change', handler)`, `valu.network` |
 | **Commerce events** | `valu.onCommerceEvent(handler)`, after subscribing (see [Commerce Events](#commerce-events)) |
-| **The older bridge**: API pointers, console, routes, lifecycle | `valu.bridge` is the `ValuApi` below. Inside Valu Social only. |
+| **Lifecycle** | `valu.bridge.setApplication(app)` (see [Handling Application Lifecycle](#handling-application-lifecycle)) |
 
-Write function names as literals (`valu.data.Users.current()`, `new Intent('Commerce', 'get-cart')`): the permission check reads your source for them (see [Permissions](#permissions)).
+Write function names and app ids as literals (`valu.data.Users.current()`, `valu.Apps.open('events')`): the permission check reads your source for them (see [Permissions](#permissions)).
+
+An intent at the app's own address does what its mode says (each function's line in [docs/service-api.md](docs/service-api.md) names it): one that opens a window opens Valu Social in a tab (call it from a click), one that means something only beside Valu Social's own screens is skipped, and the rest answer `not_available`. Inside Valu Social every one runs.
+
+> **Being retired.** `valu.sendIntent(new Intent(...))`, `valu.callService(new Intent(...))`, API pointers (`getApi(...).run(...)`), console commands (`runConsoleCommand`) and `bridge.pushRoute` / `replaceRoute` are Valu Social's older bridge. They still work, but Valu Social will close that bridge to apps: use the functions above, which keep working when it does.
 
 ### Example: Open a Text Channel for the Current User
 
 ```javascript
-import { createValuApp, Intent } from '@arkeytyp/valu-api';
+import { createValuApp } from '@arkeytyp/valu-api';
 
 const valu = await createValuApp();
 const { user } = await valu.data.Users.current();
 
-// Opening another app is Valu Social's job, so this works inside Valu Social only.
-if (valu.mode === 'embedded') {
-  await valu.sendIntent(new Intent('textchat', 'open-channel', { userId: user.id }));
-}
+// Inside Valu Social the chat opens beside the app; at the app's own address, in a Valu Social tab.
+// Call it from a click: a browser opens a tab only from one.
+openChatButton.onclick = () => valu.Chats.openChannel({ userId: user.id });
 ```
 
 ### Example: An Identity Token for Your Backend
@@ -124,36 +129,28 @@ The full tier table and how the file is enforced: [docs/connecting.md](docs/conn
 Your app can sell through Valu Social's shared cart, show the user what they bought, and run the signed-in seller's store — its products, promotions and sales numbers.
 All of it is the **`Commerce` service**, which the Valu Social application serves.
 Call it as typed functions on the app object: `valu.data.Commerce.listProducts(...)`, `valu.Commerce.addToCart(...)`, `valu.Commerce.openCart()`. They work in both modes; the windows (`openCart`, `checkout` …) open Valu Social in a tab when the app runs at its own address.
-The examples below use the older form, `valu.callService(new Intent('Commerce', action, params))`, which still works and answers `{success: false, code, error}` on a refusal; a typed function answers the envelope (`{error: {code, message}}`) instead, like every other function.
+A refusal comes back in the envelope every function answers: `{error: {code, message, description}}`, where `message` is the refusal's own name (`out_of_stock`, `cancelled`); `valu.data.Commerce.*` throws it instead. (The older form, `valu.callService(new Intent('Commerce', action, params))`, still works and answers `{success: false, code, error}`; it is being retired with the rest of the older bridge.)
 
 ### Example: Sell a Product
 
 ```javascript
-import { Intent } from "@arkeytyp/valu-api";
+const { products } = await valu.data.Commerce.listProducts({ query: 'starter', sort: 'popular' });
 
-const { products } = await valu.callService(
-  new Intent('Commerce', 'list-products', { query: 'starter', sort: 'popular' })
-);
-
-const added = await valu.callService(
-  new Intent('Commerce', 'add-to-cart', { productId: products[0].id, qty: 1 })
-);
-if (added.success === false) {
-  console.warn(added.code, added.error); // e.g. not_available_in_network, out_of_stock
+const added = await valu.Commerce.addToCart({ productId: products[0].id, qty: 1 });
+if (added.error) {
+  console.warn(added.error.message, added.error.description); // e.g. not_available_in_network, out_of_stock
 }
 
 // Unlock what the user owns: entitlements are the receipt your app can trust.
-const { entitlements } = await valu.callService(
-  new Intent('Commerce', 'check-entitlements', { productIds: [products[0].id] })
-);
+const { entitlements } = await valu.data.Commerce.checkEntitlements({ productIds: [products[0].id] });
 if (entitlements[products[0].id]) unlockPurchase();
 ```
 
-- **A refusal is an answer, not an exception:** `{success: false, code, error}`. Branch on `code`.
+- **A refusal is an answer, not an exception:** `{error: {message}}` names it. Branch on `message`.
 - **Some calls ask the user first.** Anything that costs them money, gives goods away, cannot be undone or speaks for them in public — publishing a product, starting a sale, creating a discount code, rating a product — opens a platform dialog over your app, and the call resolves when they answer. If they close it you get `code: 'cancelled'` and nothing was written: do not ask again on your own. While another dialog from your app is open the call is refused `busy`, and where the platform cannot draw one, `unsupported`. Your app cannot draw, reach or click that dialog.
 - **Cart writes touch your app's own rows only.** `update-cart-item` and `remove-from-cart` refuse another app's row with `not_yours`, and `clear-cart` removes only yours (saved-for-later included). Reading the cart (`get-cart`) shows everything in it, from every app.
 - **The seller is a person, not a store.** Buyers see the store's owner: show `get-my-store`'s `sellerName`, and draw the avatar from `sellerUserId`.
-- **The list of actions moves without this package.** The Valu Social application's manifest is the authority: an action it adds works through `callService` as it is, with no new version of this package. [docs/api-pointers.md](docs/api-pointers.md) lists the Commerce intents with their params as of the last manifest sync.
+- **Every action is a function** on `valu.Commerce`, with its params and its scope: [docs/service-api.md](docs/service-api.md#commerce).
 
 ### Paying: Always in My Cart
 
@@ -161,17 +158,15 @@ if (entitlements[products[0].id]) unlockPurchase();
 To let the buyer pay for what your app put in the cart, hand them to My Cart with `Commerce.checkout`:
 
 ```javascript
-const result = await valu.callService(
-  new Intent('Commerce', 'checkout', { promoCode: 'SPRING' })
-);
+const { data: result, error } = await valu.Commerce.checkout({ promoCode: 'SPRING' });
 
-if (result.success === false) {
+if (error) {
   // A refusal, and nothing opened. 'empty': none of your items is selected in the cart.
-  showRefusal(result.code);
+  showRefusal(error.message);
 } else if (result.outcome === 'paid') {
   unlockPurchase();                    // a free order counts as paid
 } else if (result.outcome === 'pending') {
-  waitForPayment(result.orderId);      // follow it with get-order or the order-updated event
+  waitForPayment(result.orderId);      // follow it with getOrder or the order-updated event
 }
 // 'cancelled' — the order will not be paid (cancelled, expired or failed: `status` says
 //               which), and its items are back in the cart
@@ -192,17 +187,13 @@ Your app can react when the cart, an order, the network's shelf or the seller's 
 Events are **opt-in**: listen with `valu.onCommerceEvent(handler)`, then subscribe to the events you want with `Commerce.subscribe-events`.
 
 ```javascript
-import { Intent } from "@arkeytyp/valu-api";
-
 valu.onCommerceEvent(({ event, ...data }) => {
   if (event === 'order-updated') refreshOrder(data.orderId);
   if (event === 'catalogue-updated') refreshShelf();
 });
 
 // After every start and every sign-in (a sign-out or reload ends the subscription):
-await valu.callService(new Intent('Commerce', 'subscribe-events', {
-  events: ['catalogue-updated', 'order-updated'],
-}));
+await valu.Commerce.subscribeEvents({ events: ['catalogue-updated', 'order-updated'] });
 ```
 
 | Event | Data | When |
@@ -218,7 +209,7 @@ await valu.callService(new Intent('Commerce', 'subscribe-events', {
 - **An event says what changed, never the new state.** Re-read with the matching intent (`get-cart`, `list-products`, …). A missed event costs a stale screen, never a wrong charge.
 - **`subscribe-events` replaces your set** — send the full list each time; `events: []` stops them all, as does `unsubscribe-events` with no `events`. It answers `{success: true, events}`, your whole set now. An unknown name is refused `validation_failed` and nothing changes; a caller that is neither an embedded app nor a dedicated one (`createValuApp`), with no frame to post to, is refused `unsupported`.
 - **Subscribe every time your app starts.** A subscription lasts until `unsubscribe-events`, or until your frame closes or reloads — and moving the app to another dock reloads it.
-- **A dedicated app subscribes the same way**, and nothing arrives without it: `valu.onCommerceEvent(handler)` only listens, `valu.callService(new Intent('Commerce', 'subscribe-events', { events }))` subscribes (`commerce:read`, which needs the user's consent). The host holds the subscription for the signed-in session, so a sign-out, a reload or a revoked consent ends it: subscribe after every start and every sign-in ([docs/connecting.md](docs/connecting.md#what-the-host-serves)).
+- **A dedicated app subscribes the same way**, and nothing arrives without it: `valu.onCommerceEvent(handler)` only listens, `valu.Commerce.subscribeEvents({ events })` subscribes (`commerce:read`, which needs the user's consent). The host holds the subscription for the signed-in session, so a sign-out, a reload or a revoked consent ends it: subscribe after every start and every sign-in ([docs/connecting.md](docs/connecting.md#what-the-host-serves)).
 - If your app extends `ValuApplication`, `onCommerceEvent(event)` receives the same events, after the listeners.
 
 ### Without the Package
@@ -312,6 +303,8 @@ valu.bridge.setApplication(new MyApp());
 
 ## Using the System API
 
+> **Being retired.** API pointers and console commands are Valu Social's older bridge, which it will close to apps. What apps use them for is a function now: `network.id` is `valu.Networks.getCurrentNetwork()`, `app.isApplicationLoaded` is `valu.Apps.isLoaded(appId)`, `app.open` is `valu.Apps.open(appId)`. Do not start new code on them.
+>
 > **Inside Valu Social only.** API pointers and console commands belong to the Valu Social application. At the app's own address the host answers them `not_available`, and the permission check refuses every console command. For data, use the service functions above; the examples below take `valuApi = valu.bridge`.
 
 The **System API** allows your iframe app to interact directly with the Valu Social platform and its internal applications.
@@ -401,6 +394,8 @@ console.log(reply);
 |---------|---------------|-----------------|
 | `npm install @arkeytyp/valu-api@1` (or an old lockfile) | Version 1 has no `createValuApp` | `npm install @arkeytyp/valu-api@^2` |
 | `new ValuApi()` + `getApi('users')` in a new app | Works only inside Valu Social; a top-level page gets nothing | `const valu = await createValuApp()` |
+| `valu.sendIntent(new Intent('textchat', 'open-channel', …))` | The older bridge, being retired; the check cannot read a name hidden in a helper | `valu.Chats.openChannel({ userId })` |
+| Polling `getApi('app').run('isApplicationLoaded', id)` | An API pointer, being retired | `valu.Apps.isLoaded(appId)` |
 | Calling `valu.auth.signIn()` after an `await` | The browser blocks a popup that is not opened in the click's own turn | Call it first thing in the click handler |
 | Treating `consent_required` as a failure | At the app's own address a consent scope needs the user's yes once | Call from a click (the dialog opens itself), or `valu.auth.requestConsent([scope])` from a click |
 | A scope missing from `valu-permissions.json` | Undeclared scopes are refused `permission_not_declared` in both modes | Add the scope with a `why` |
@@ -493,13 +488,9 @@ intents bridge (`ValuApi.callService`) runs intents by name, not functions.
 **What the Valu Social application serves itself is not a socket function** —
 Commerce, opening a dock or another app, expanding a pane, showing a picker. An
 app still calls the common ones as typed functions on the `createValuApp()`
-object (`valu.Commerce.getCart()`, `valu.Application.expandApplication()`;
-see [Calling Valu](#calling-valu)), which send the intent underneath; anything
-else it asks for by name, over the bridge:
-
-```javascript
-await valu.callService(new Intent('AiGuru', 'open', { applicationId }));
-```
+object (`valu.Commerce.getCart()`, `valu.Application.expandApplication()`,
+`valu.Chats.openChannel({ userId })`, `valu.Apps.open(appId)`; see
+[Calling Valu](#calling-valu)), which send the intent underneath.
 
 - [docs/socket-functions.md](docs/socket-functions.md) — every function, the
   feature it provides and what it needs. **Start here.** (generated)

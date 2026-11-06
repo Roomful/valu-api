@@ -1,20 +1,26 @@
 // ===========================================================================
-// Snapshot the app's SERVICE_MANIFESTS into this package.
+// Snapshot the app's SERVICE_MANIFESTS and PREDEFINED_APPLICATIONS into this
+// package.
 //
 //   node scripts/sync-manifests.mjs --from ../valusocial-web
 //
 // The manifest is the single source of truth for what a service declares
-// (description, params, permissions, availability). It lives in the app repo,
-// which this package must NOT depend on at build time — so we vendor a plain
-// JSON snapshot here and generate everything else from that. Re-run this
-// whenever the app adds or changes an intent, then `npm run build`.
+// (description, params, permissions, availability), and the application
+// manifests are the same for what each Valu Social app's intents take (the
+// typed app intents, `valu.Chats.openChannel(...)`). Both live in the app
+// repo, which this package must NOT depend on at build time — so we vendor
+// plain JSON snapshots here and generate everything else from them. Re-run
+// this whenever the app adds or changes an intent, then `npm run build`.
+// Take them from valusocial-web's `develop`, the branch that deploys.
 // ===========================================================================
 import { writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve, join } from 'node:path';
 
 const MANIFEST_PATH = 'src/Configs/Service_Manifests.js';
+const APPLICATIONS_PATH = 'src/Configs/Application_Manifests.js';
 const OUT = new URL('../manifests/service-manifests.snapshot.json', import.meta.url);
+const APPLICATIONS_OUT = new URL('../manifests/application-manifests.snapshot.json', import.meta.url);
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -23,6 +29,7 @@ function arg(name, fallback) {
 
 const appRepo = arg('--from', '../valusocial-web');
 const manifestFile = resolve(process.cwd(), join(appRepo, MANIFEST_PATH));
+const applicationsFile = resolve(process.cwd(), join(appRepo, APPLICATIONS_PATH));
 
 const { SERVICE_MANIFESTS } = await import(pathToFileURL(manifestFile).href);
 
@@ -66,3 +73,43 @@ writeFileSync(
 );
 
 console.log(`Snapshot written: ${services.length} services, ${intents} intents`);
+
+// --- the applications ------------------------------------------------------
+// Only what the typed app intents are generated from: each app's id, title,
+// whether Valu Social frames it (an intent to a frame is `apps:intent`, the
+// frame decides for itself what it does), and its intents. Apps that declare
+// none are kept too, so a reader sees every id an intent may name.
+const { PREDEFINED_APPLICATIONS } = await import(pathToFileURL(applicationsFile).href);
+
+if (!Array.isArray(PREDEFINED_APPLICATIONS) || PREDEFINED_APPLICATIONS.length === 0) {
+  throw new Error(`No PREDEFINED_APPLICATIONS exported from ${applicationsFile}`);
+}
+
+const applications = [...PREDEFINED_APPLICATIONS]
+  .sort((a, b) => a.id.localeCompare(b.id))
+  .map((app) => ({
+    id: app.id,
+    title: app.title,
+    iframe: Boolean(app.iframe),
+    intents: (app.intents ?? []).map((intent) => ({
+      action: intent.action,
+      description: intent.description ?? '',
+      availability: [...(intent.availability ?? [])],
+      permissions: [...(intent.permissions ?? [])],
+      ...(intent.internal === true ? { internal: true } : {}),
+      params: {
+        required: (intent.params?.required ?? []).map(normalizeParam),
+        optional: (intent.params?.optional ?? []).map(normalizeParam),
+      },
+    })),
+  }));
+
+const appIntents = applications.reduce((n, a) => n + a.intents.length, 0);
+
+writeFileSync(
+  APPLICATIONS_OUT,
+  `${JSON.stringify({ sourceFile: APPLICATIONS_PATH, applications }, null, 2)}\n`,
+  'utf8',
+);
+
+console.log(`Snapshot written: ${applications.length} applications, ${appIntents} application intents`);
