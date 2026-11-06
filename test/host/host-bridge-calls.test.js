@@ -1893,9 +1893,14 @@ const VERSION_CONFIG = { config: { hostOrigin: HOST_ORIGIN, signInOrigins: [], v
 const waitMs = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 test('the version the hello names is told to Valu Guru once per page load, under the app\'s ws: key', async () => {
-  const guru = guruWithGrants([], { [OP_CLIENT_VERSION]: () => ({ ok: true }) });
+  const guru = guruWithGrants([], { [OP_CLIENT_VERSION]: () => ({ ok: true }), 'valuguru.commerce.catalog.search': { products: [] } });
   const env = await ready({ guru, open: false, ...VERSION_CONFIG });
   await env.open({ client: '2.1.0' });
+  await waitMs(5);
+  // No Guru client of its own: the report waits for the app's first call to make one.
+  assert.equal(env.made.guru.length, 0);
+  intent(env, 'Commerce', 'list-products', {}, 8);
+  await until(() => replyTo(env, 8));
   await waitMs(5);
   await until(() => env.guru.ops(OP_CLIENT_VERSION).length >= 1);
   assert.deepEqual(env.guru.ops(OP_CLIENT_VERSION).map((r) => r.params), [{ appKey: `ws:${APP.address}`, version: '2.1.0', count: 1 }]);
@@ -1926,9 +1931,12 @@ test('a client that names no plain version, or a signed-out user, reports nothin
 });
 
 test('a Guru that refuses the report (an older server) changes nothing for the app', async () => {
-  const guru = guruWithGrants();
+  const guru = guruWithGrants([], { 'valuguru.commerce.catalog.search': { products: [] } });
   const env = await ready({ guru, open: false, ...VERSION_CONFIG });
   await env.open({ client: '2.1.0' });
+  await waitMs(5);
+  intent(env, 'Commerce', 'list-products', {}, 8);
+  await until(() => replyTo(env, 8));
   await waitMs(5);
   await until(() => env.guru.ops(OP_CLIENT_VERSION).length >= 1);
   assert.equal(env.guru.ops(OP_CLIENT_VERSION).length, 1, 'asked, refused unknown_op, dropped');

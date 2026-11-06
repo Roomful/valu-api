@@ -398,6 +398,8 @@ export class HostBridge {
   #versionsReported = new Set();
   /** A report is waiting for its delay. */
   #versionReportArmed = false;
+  /** A report found no Guru client yet; the first one made sends it. */
+  #versionReportPending = false;
 
   /**
    * @param {object} options
@@ -782,6 +784,10 @@ export class HostBridge {
     }
     this.#guru = guru;
     this.#grants = grants;
+    if (this.#versionReportPending) {
+      this.#versionReportPending = false;
+      this.#reportClientVersion();
+    }
     return guru;
   }
 
@@ -824,8 +830,10 @@ export class HostBridge {
    * `versionReportDelayMs` from now, over this session's Guru client: once per
    * page load per (app, version), and only signed in (Guru knows nobody else). A
    * report that finds the user signed out is not spent; the next sign-in
-   * (`pushAuth`) arms it again. Fire and forget: a failure is dropped, and it
-   * never throws.
+   * (`pushAuth`) arms it again. It never opens a Guru connection of its own: with
+   * no client yet it waits for the first one the app's own work makes
+   * (`#guruFor`), so a page that never talks to Guru costs Guru nothing. Fire and
+   * forget: a failure is dropped, and it never throws.
    */
   #reportClientVersion() {
     if (this.#versionReportArmed || !this.#ready || !this.#clientVersion) return;
@@ -839,10 +847,9 @@ export class HostBridge {
       const key = `${address}@${version}`;
       if (this.#stopped || !this.#session.signedIn || typeof address !== 'string' || !address || !version) return;
       if (this.#versionsReported.has(key)) return;
-      let guru;
-      try {
-        guru = this.#guruFor();
-      } catch {
+      const guru = this.#guru;
+      if (!guru) {
+        this.#versionReportPending = true;
         return;
       }
       this.#versionsReported.add(key);
