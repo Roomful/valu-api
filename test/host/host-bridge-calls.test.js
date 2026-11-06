@@ -23,7 +23,7 @@ import * as Permissions from '../../src/host/Permissions.js';
 import { GrantsStore } from '../../src/host/GrantsStore.js';
 import { GuruClient, GuruError } from '../../src/host/GuruClient.js';
 import { createValuServices } from '../../src/services/api.js';
-import { defaultMakeGrants, defaultMakeGuru } from '../../src/host/HostBridge.js';
+import { OP_CLIENT_VERSION, defaultMakeGrants, defaultMakeGuru } from '../../src/host/HostBridge.js';
 import { MSG, POPUP_MSG } from '../../src/host/protocol.js';
 import {
   APP, APP_ORIGIN, HOST_ORIGIN, OTHER_ORIGIN, SESSION, codedError, deferred, fakeAuth, fakeResolver, settle, setup,
@@ -1882,4 +1882,57 @@ test('a signed-out app\'s unserved intent is not counted', async () => {
   await settle();
   assert.equal(env.guru.ops(MISS).length, 0);
   assert.equal(env.made.guru.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// The client's valu-api version, told to Valu Guru
+// ---------------------------------------------------------------------------
+
+/** Real timers, a short delay: the report waits `versionReportDelayMs` after api:ready. */
+const VERSION_CONFIG = { config: { hostOrigin: HOST_ORIGIN, signInOrigins: [], versionReportDelayMs: 1 } };
+const waitMs = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+test('the version the hello names is told to Valu Guru once per page load, under the app\'s ws: key', async () => {
+  const guru = guruWithGrants([], { [OP_CLIENT_VERSION]: () => ({ ok: true }) });
+  const env = await ready({ guru, open: false, ...VERSION_CONFIG });
+  await env.open({ client: '2.1.0' });
+  await waitMs(5);
+  await until(() => env.guru.ops(OP_CLIENT_VERSION).length >= 1);
+  assert.deepEqual(env.guru.ops(OP_CLIENT_VERSION).map((r) => r.params), [{ appKey: `ws:${APP.address}`, version: '2.1.0', count: 1 }]);
+
+  // The same version again (a second hello): not told twice. A new one is.
+  env.hello({ client: '2.1.0' });
+  await settle();
+  await waitMs(5);
+  assert.equal(env.guru.ops(OP_CLIENT_VERSION).length, 1);
+  env.hello({ client: '2.2.0-beta.1' });
+  await settle();
+  await waitMs(5);
+  await until(() => env.guru.ops(OP_CLIENT_VERSION).length >= 2);
+  assert.equal(env.guru.ops(OP_CLIENT_VERSION)[1].params.version, '2.2.0-beta.1');
+});
+
+test('a client that names no plain version, or a signed-out user, reports nothing and makes no Guru client', async () => {
+  const named = await ready({ open: false, ...VERSION_CONFIG });
+  await named.open({ client: 'test' });
+  await waitMs(5);
+  assert.equal(named.made.guru.length, 0);
+
+  const signedOut = await ready({ open: false, session: null, ...VERSION_CONFIG });
+  await signedOut.open({ client: '2.1.0' });
+  await waitMs(5);
+  await settle();
+  assert.equal(signedOut.made.guru.length, 0);
+});
+
+test('a Guru that refuses the report (an older server) changes nothing for the app', async () => {
+  const guru = guruWithGrants();
+  const env = await ready({ guru, open: false, ...VERSION_CONFIG });
+  await env.open({ client: '2.1.0' });
+  await waitMs(5);
+  await until(() => env.guru.ops(OP_CLIENT_VERSION).length >= 1);
+  assert.equal(env.guru.ops(OP_CLIENT_VERSION).length, 1, 'asked, refused unknown_op, dropped');
+  ask(env, 'Users', 'current', {}, 9);
+  await until(() => replyTo(env, 9));
+  assert.ok(replyTo(env, 9));
 });

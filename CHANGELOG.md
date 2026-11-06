@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Which valu-api an app runs, reported at runtime.** Inside Valu Social
+  (embedded mode) every message the app posts — `api:call` and the older bridge
+  messages alike (`api:run-intent`, `api:service-intent`, `api:create-pointer`,
+  `api:run`, `api:run-console`, `api:run-command`) — now carries `client`, this
+  package's version (`src/version.js`). Additive: a Valu Social that does not
+  know the key ignores it, and no protocol version moved. At its own address the
+  host already got the version in `host:hello`; it now tells Valu Guru
+  (`valuguru.apps.versions.use {appKey: 'ws:<address>', version, count: 1}`) over
+  its own Guru client, once per page load per (app, version), a few seconds
+  after `api:ready` (`versionReportDelayMs`, default 5 s) and only while the user
+  is signed in. A `client` that is not a plain version is not reported; a Guru
+  that does not know the op drops it. The Developer Portal uses the counts to
+  tell a developer whose app runs an older valu-api, and the superAdmins which
+  apps run what.
+
 ## 2.0.0 — 2026-11-06
 
 The first version 2 on npm (`npm install @arkeytyp/valu-api@^2`). Until now it

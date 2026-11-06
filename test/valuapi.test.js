@@ -14,6 +14,7 @@ import { Intent } from '../src/Intent.js';
 import { PostMessageTransport } from '../src/transport/PostMessageTransport.js';
 import { ServiceClient } from '../src/services/ServiceClient.js';
 import { FakeWindow } from './helpers/fakes.js';
+import { VERSION } from '../src/version.js';
 
 const setup = (transportOptions = {}) => {
   const target = new FakeWindow();
@@ -176,6 +177,7 @@ test('pointer.run posts api:run and resolves the application result', async () =
     functionName: 'current',
     params: { id: 'u-1' },
     requestId: posted.message.requestId,
+    client: VERSION,
   });
 
   target.deliver({ name: 'api:run-completed', message: { id: 'u-1' }, requestId: posted.message.requestId });
@@ -210,6 +212,7 @@ test('sendIntent posts api:run-intent and resolves the reply', async () => {
     action: 'open',
     params: { roomId: '1234' },
     requestId: posted.message.requestId,
+    client: VERSION,
   });
 
   // The application answers api:run-intent with api:run-completed. It used to be
@@ -232,6 +235,7 @@ test('callService posts api:service-intent and resolves the raw result', async (
     action: 'resource-upload',
     params: { name: 'a.png' },
     requestId: posted.message.requestId,
+    client: VERSION,
   });
 
   target.deliver({ name: 'api:run-console-completed', message: { id: 'r-1' }, requestId: posted.message.requestId });
@@ -259,12 +263,22 @@ test('pushRoute and replaceRoute post api:run-command with no requestId', () => 
   api.pushRoute('/a');
   assert.deepEqual(target.lastPost(), {
     name: 'api:run-command',
-    message: { command: 'pushRoute', data: '/a' },
+    message: { command: 'pushRoute', data: '/a', client: VERSION },
     origin: 'https://valu.test',
   });
 
   api.replaceRoute('/b');
-  assert.deepEqual(target.lastPost().message, { command: 'replaceRoute', data: '/b' });
+  assert.deepEqual(target.lastPost().message, { command: 'replaceRoute', data: '/b', client: VERSION });
+});
+
+test('every message the bridge posts names the client version; one that names its own keeps it', () => {
+  const win = new FakeWindow();
+  const bridge = new PostMessageTransport({ target: win });
+  win.ready();
+  bridge.notify('api:run-command', { command: 'pushRoute', data: '/x' });
+  bridge.notify('api:run-command', { command: 'pushRoute', data: '/y', client: '9.9.9' });
+  assert.deepEqual(win.posted.map((post) => post.message.client), [VERSION, '9.9.9']);
+  assert.match(VERSION, /^\d+\.\d+\.\d+/);
 });
 
 test('posting before api:ready rejects with a message that says why', async () => {

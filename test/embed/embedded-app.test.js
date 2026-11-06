@@ -18,6 +18,7 @@ import { DEFAULT_SIGN_IN_ORIGINS } from '../../src/host/Host.js';
 import { Intent } from '../../src/Intent.js';
 import { EMBEDDED_PROTOCOL_VERSION, MSG, toParent } from '../../src/host/protocol.js';
 import { findDescriptor } from '../../src/services/descriptors.js';
+import { VERSION } from '../../src/version.js';
 import { FakeWindowPair, fakeClock, fakeDocumentFor } from '../helpers/hostFakes.js';
 
 const VALU_SOCIAL = 'https://live.valuverse.io';
@@ -136,21 +137,25 @@ test('a service function goes to Valu Social as api:call once api:ready says val
   const [post] = h.calls();
   assert.equal(post.targetOrigin, VALU_SOCIAL, 'to the parent\'s origin, never a wildcard');
   assert.deepEqual(post.message, {
-    service: 'Users', action: 'current', params: {}, requestId: post.message.requestId, timeoutMs: 30_000,
+    service: 'Users', action: 'current', params: {}, requestId: post.message.requestId, timeoutMs: 30_000, client: VERSION,
   });
   assert.equal(typeof post.message.requestId, 'number');
 });
 
-test('the api:call is byte-identical to what HostTransport posts for the same call', async (t) => {
+// The one difference: the bridge stamps `client` (the package version) on every
+// message it posts, so Valu Social can count which valu-api each app runs. The
+// host learns it from `host:hello` instead.
+test('the api:call is byte-identical to what HostTransport posts for the same call, plus the client version', async (t) => {
   const h = await setup(t);
   h.ready();
   await h.valu.Rooms.searchMyRooms({ filter: 'all' }, { timeoutMs: 12_000 });
-  const embedded = h.calls()[0].message;
+  const { client, ...embedded } = h.calls()[0].message;
   const dedicated = await hostTransportCall('Rooms.search-my-rooms', { filter: 'all' }, { timeoutMs: 12_000, attempt: 1 });
 
+  assert.equal(client, VERSION);
   assert.deepEqual(Object.keys(embedded), Object.keys(dedicated), 'the same keys in the same order');
   assert.deepEqual({ ...embedded, requestId: 0 }, { ...dedicated, requestId: 0 });
-  assert.deepEqual(Object.keys(embedded), ['service', 'action', 'params', 'requestId', 'timeoutMs']);
+  assert.deepEqual(Object.keys(h.calls()[0].message), ['service', 'action', 'params', 'requestId', 'timeoutMs', 'client']);
 });
 
 test('a call made before api:ready is held for it, and posted when it comes', async (t) => {
