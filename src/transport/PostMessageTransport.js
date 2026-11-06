@@ -30,9 +30,17 @@
 //   - and, when `hostOrigins` is given, its origin is one of those. There is no
 //     default list: the SDK cannot know where an application is hosted.
 // Nothing about what is POSTED changed: same envelope, same `target`.
+//
+// One field was added to what is posted, and nothing else: every message
+// carries `client`, the version of this package (src/version.js), so Valu
+// Social can tell which apps run which valu-api (the owner's ask, 2026-11-06:
+// show a developer whose app is behind, and the superAdmins the overview). It
+// is additive: a Valu Social that does not know the key ignores it, and no
+// protocol version moved. A message that names its own `client` keeps it.
 // ===========================================================================
 import { Transport } from './Transport.js';
 import { nextId } from '../Utils.js';
+import { VERSION } from '../version.js';
 
 
 /**
@@ -126,7 +134,10 @@ export class PostMessageTransport extends Transport {
     if (!this.#peer.source) {
       throw new Error(`Cannot post "${name}": the Valu Social application has not sent api:ready yet`);
     }
-    this.#peer.source.postMessage({ name, message }, this.#peer.origin);
+    const stamped = message && typeof message === 'object' && !Array.isArray(message) && !('client' in message)
+      ? { ...message, client: VERSION }
+      : message;
+    this.#peer.source.postMessage({ name, message: stamped }, this.#peer.origin);
   }
 
   #defer(requestId) {

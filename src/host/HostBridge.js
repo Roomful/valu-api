@@ -170,6 +170,9 @@ import {
  * @property {number} [resolveTimeoutMs] How long the resolver may take before the
  *   hello is answered `resolve_unavailable`. Default 4 s: with `readyWaitMs` it
  *   keeps hello to `api:ready` under the client's 10 s.
+ * @property {number} [versionReportDelayMs] How long after `api:ready` (or a sign-in)
+ *   the app's valu-api version is reported to Valu Guru. Default 5 s: the report
+ *   never competes with the app's own start.
  */
 
 /** The sign-in origins a dev build accepts besides `config.signInOrigins`: the Valu Social dev server. */
@@ -186,6 +189,7 @@ const DEFAULT_CONFIG = Object.freeze({
   restoreTimeoutMs: 5_000,
   readyWaitMs: 5_000,
   resolveTimeoutMs: 4_000,
+  versionReportDelayMs: 5_000,
 });
 
 /** The longest a timer can be: `setTimeout` fires a longer one at once. */
@@ -233,6 +237,7 @@ function normalizeConfig(config) {
     restoreTimeoutMs: positive(given.restoreTimeoutMs, DEFAULT_CONFIG.restoreTimeoutMs),
     readyWaitMs: positive(given.readyWaitMs, DEFAULT_CONFIG.readyWaitMs),
     resolveTimeoutMs: positive(given.resolveTimeoutMs, DEFAULT_CONFIG.resolveTimeoutMs),
+    versionReportDelayMs: positive(given.versionReportDelayMs, DEFAULT_CONFIG.versionReportDelayMs),
   });
 }
 
@@ -241,6 +246,20 @@ const CLAIM_RE = /^([\w-][\w.-]*)\/([\w-][\w.-]*)$/;
 
 /** A request id the way a client writes it: a number, else none (a reply to nobody names no id). */
 const idOf = (requestId) => (typeof requestId === 'number' && Number.isFinite(requestId) ? requestId : undefined);
+
+/**
+ * Which valu-api the app at its own address runs (the owner's ask, 2026-11-06):
+ * the client names its version in `host:hello` (`client`, src/version.js), and
+ * the host tells Valu Guru, once per page load per (app, version), so the
+ * Developer Portal can show a developer whose app is behind, and the
+ * superAdmins which apps run what. It is the client's word, and it decides
+ * nothing. A `client` that is not a plain version (`'test'`, a fork's name) is
+ * not reported.
+ */
+export const OP_CLIENT_VERSION = 'valuguru.apps.versions.use';
+const CLIENT_VERSION_RE = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
+const clientVersionOf = (message) => (typeof message?.client === 'string' && message.client.length <= 64
+  && CLIENT_VERSION_RE.test(message.client) ? message.client : null);
 
 /** The one Commerce event the host answers with a count it reads itself, and the frame and op for it. */
 const CART_EVENT = 'cart-updated';
@@ -373,6 +392,14 @@ export class HostBridge {
   #exposed = null;
   /** What `answerCall` and `answerIntent` are lent: this bridge's state, read through functions. */
   #seams;
+  /** The valu-api version the bound app's hello named, or null (none, or not a plain version). */
+  #clientVersion = null;
+  /** `<address>@<version>` already told to Valu Guru on this page load. */
+  #versionsReported = new Set();
+  /** A report is waiting for its delay. */
+  #versionReportArmed = false;
+  /** A report found no Guru client yet; the first one made sends it. */
+  #versionReportPending = false;
 
   /**
    * @param {object} options
@@ -568,6 +595,8 @@ export class HostBridge {
       action: 'auth',
       data: { signedIn: this.#session.signedIn, ...this.#session.identity(), ...(text(reason) ? { reason } : {}) },
     });
+    // A sign-in is when a version that could not be reported signed out can be.
+    if (this.#session.signedIn) this.#reportClientVersion();
   }
 
   /**
@@ -755,6 +784,10 @@ export class HostBridge {
     }
     this.#guru = guru;
     this.#grants = grants;
+    if (this.#versionReportPending) {
+      this.#versionReportPending = false;
+      this.#reportClientVersion();
+    }
     return guru;
   }
 
@@ -790,6 +823,41 @@ export class HostBridge {
   async #declarationFor() {
     const store = this.#declarationsFor();
     return store ? store.get() : { mode: PERMISSION_MODES.OFF, scopes: null };
+  }
+
+  /**
+   * Tell Valu Guru the valu-api version the bound app runs (`OP_CLIENT_VERSION`),
+   * `versionReportDelayMs` from now, over this session's Guru client: once per
+   * page load per (app, version), and only signed in (Guru knows nobody else). A
+   * report that finds the user signed out is not spent; the next sign-in
+   * (`pushAuth`) arms it again. It never opens a Guru connection of its own: with
+   * no client yet it waits for the first one the app's own work makes
+   * (`#guruFor`), so a page that never talks to Guru costs Guru nothing. Fire and
+   * forget: a failure is dropped, and it never throws.
+   */
+  #reportClientVersion() {
+    if (this.#versionReportArmed || !this.#ready || !this.#clientVersion) return;
+    if (this.#versionsReported.has(`${this.#bound?.app?.address}@${this.#clientVersion}`)) return;
+    this.#versionReportArmed = true;
+    const timer = setTimeout(() => {
+      this.#timers.delete(timer);
+      this.#versionReportArmed = false;
+      const address = this.#bound?.app?.address;
+      const version = this.#clientVersion;
+      const key = `${address}@${version}`;
+      if (this.#stopped || !this.#session.signedIn || typeof address !== 'string' || !address || !version) return;
+      if (this.#versionsReported.has(key)) return;
+      const guru = this.#guru;
+      if (!guru) {
+        this.#versionReportPending = true;
+        return;
+      }
+      this.#versionsReported.add(key);
+      try {
+        Promise.resolve(guru.request(OP_CLIENT_VERSION, { appKey: `ws:${address}`, version, count: 1 })).catch(() => {});
+      } catch { /* a guru that throws at once is the same as one that fails later */ }
+    }, this.#config.versionReportDelayMs);
+    this.#timers.add(timer);
   }
 
   /** The network the master is in now; what a Guru request is addressed to. */
@@ -981,7 +1049,11 @@ export class HostBridge {
     }
 
     if (this.#bound) {
-      if (this.#ready) this.#sendReady();
+      this.#clientVersion = clientVersionOf(message) ?? this.#clientVersion;
+      if (this.#ready) {
+        this.#sendReady();
+        this.#reportClientVersion();
+      }
       return;
     }
     await this.#bind(origin, message);
@@ -1018,10 +1090,12 @@ export class HostBridge {
     }
 
     this.#bound = { origin, app };
+    this.#clientVersion = clientVersionOf(message);
     await this.#restoreSession(app);
     if (this.#stopped) return;
     this.#ready = true;
     this.#sendReady();
+    this.#reportClientVersion();
     // What became of the stored session before api:ready that api:ready itself does not say: why the
     // user is signed out after all (the master refused it), or that it could not be reached yet.
     const { signedIn, lastError } = this.#session;
