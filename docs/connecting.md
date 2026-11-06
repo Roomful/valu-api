@@ -479,12 +479,36 @@ reads it. Write them this way; `valu.callService(new Intent('Commerce', 'get-car
 still works, but the check cannot read a name hidden in a helper, and the mode
 rule below is the typed function's.
 
-Underneath they are still the intents they always were: the transport sends
-`api:service-intent` to whoever frames or hosts the app. The reply comes back
-in the ack envelope, so a refused intent reads like a refused function
+**Every application intent too** (2026-11-06): what an app may ask Chats,
+Calendar, My Cart, Files and the other Valu Social apps is a function on a
+namespace named by the app's title (`valu.Chats.openChannel({ userId })`,
+`valu.Calendar.openCalendar({ source })`, `valu.MyCart.openCart()`), or on the
+service of the same name (`valu.Rooms.showRoom({ roomId })`,
+`valu.Groups.open({ groupId })`, `valu.Profile.showUser({ userId })`). Each
+takes `route` and `pushToHistory` besides its own params. Its scope is the one
+Valu Social's bridge gives the same intent. Two more take the app's id from the
+caller: `valu.Apps.open(appId, { route })` and
+`valu.Apps.send(appId, action, params)` (a framed or Developer Portal app
+included, `apps:intent`); the permission check reads a literal id and lists a
+dynamic one. `valu.Apps.isLoaded(appId)`, `valu.Apps.list()` and
+`valu.Apps.has(appId)` say which apps there are and which are open. And the
+app's own route: `valu.route.push(path)`, `valu.route.replace(path)`,
+`valu.onRoute(handler)`. Left out: Valu Social's own intents (sign-out, LLM
+Debug, the staging Content Studio, Metaverse 2D's `agent-*`) and any intent
+with no scope; [service-api.md](service-api.md) lists them.
+
+Underneath they are still the intents they always were. Inside Valu Social each
+is an `api:call` with `intent: {target, id}` (the app or service it goes to)
+when Valu Social's `api:ready` says `valuApi.intents`, answered by valu-api's
+frame server through the same permission gate as a function; from an older
+Valu Social, the older bridge as before (`api:run-intent` to an app,
+`api:service-intent` to a service). At the app's own address a service intent
+goes to the host. The reply comes back in the ack envelope, so a refused intent
+reads like a refused function
 (`{error: {status: true, code: 403, message: 'consent_required', scope}}`),
 and a `consent_required` from a click goes through the same consent window.
-An intent is never retried.
+An intent is held for `api:ready` and bounded by its timeout like a call, and
+never retried.
 
 **What happens at the app's own address** depends on the function's mode
 (`descriptor.mode`; the generated types say it):
@@ -494,7 +518,15 @@ An intent is never retried.
 | `both` | the Commerce data functions (reads, cart, seller) and `Application.getIdentityToken` | served by the host, as inside Valu Social |
 | `window` | `Commerce.openCart`, `openOrder`, `openProducts`, `openPurchases`, `openPurchaseInMedia`, `previewPurchase`, `checkout` | **opens Valu Social in a tab**, on the sign-in origin, showing that window; one named tab, reused. Call these from a click, or the browser blocks the tab and the answer is `501 popup_blocked`. The answer is `{data: {success: true, opened: 'tab'}}` at once; what the user does there reaches the app through the Commerce events it subscribed to. `popup` is forced off there (the window is the tab's main app); inside Valu Social it keeps its meaning |
 | `embedded-only` | `Application.expandApplication`, `closeApplication`, `closeAll`, `DataProvider.pickSingle`, `pickMultiple` | nothing to do: `{data: {success: true, skipped: true, reason: 'embedded_only'}}`, and one `console.warn` per page. Hide such a control when `valu.mode === 'dedicated'` |
-| `embedded-served` | the seller's publish and pricing functions (`publishProduct`, `setSale`, …), `rateProduct`, the room-point editor | only Valu Social runs them today: `501 not_available` there, as before |
+| `embedded-served` | the seller's publish and pricing functions (`publishProduct`, `setSale`, …), `rateProduct`, the room-point editor, the `valu.Apps` reads, every app intent that opens no window (`Chats.sendMessage`, `ContentStudio.*`) and `valu.Apps.send` | only Valu Social runs them: `501 not_available` there, at once (an app intent never reaches the host) |
+
+The application intents that open a window are `window` (`Chats.openChannel`,
+`Calendar.openCalendar`, `Apps.open` …): the tab opens Valu Social's
+`/-i/<app id>/<action>` route. Reviewed 2026-11-06 and set `embedded-only`
+because a fresh tab gives them nothing to act on: `Chats.getUiState`,
+`closeChannel`, `options`, `UserCard.show`, `Calls.openSourcePicker`,
+`Metaverse.setRoute`, and `CMS.pickResource` (a picker). `valu.route.push` /
+`replace` are skipped there too: at its own address the app owns its address.
 
 A socket client (`createValuServices({ socket })`) cannot send an intent at all
 and answers `501`: only an app Valu Social frames or hosts has somewhere to send it.

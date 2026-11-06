@@ -1,15 +1,18 @@
 # Typed app intents over `api:call` — design
 
-Status: draft for Pavlo's review, 2026-11-03.
+Status: decided (Pavlo, 2026-11-03 and 11-06); built on `feat/typed-app-intents`
+(valu-api, valusocial-web), 2026-11-06.
 
 ## 1. Why
 
-Valu Social will close the **intents bridge** to framed apps: the postMessage
-messages `api:run-intent`, `api:service-intent`, `api:create-pointer` / `api:run`
-(API pointers) and `api:run-console`. Only `api:call` stays. The reason is
-safety: the bridge lets any framed page drive Valu Social by name, and only
-`api:call` goes through one checked path (valu-api's frame server and the
-permission gate).
+Valu Social will close the **intents bridge** to framed apps off the legacy
+list: the postMessage messages `api:run-intent`, `api:service-intent` to an
+intent outside valu-api's catalogue, `api:create-pointer` / `api:run` (API
+pointers), `api:run-console` and `api:run-command`
+(`2026-11-03-legacy-bridge-exceptions-design.md` §5.4). `api:call` stays, and so
+does `api:service-intent` to a catalogue intent. The reason is safety: the bridge
+lets any framed page drive Valu Social by name, and only `api:call` goes through
+one checked path (valu-api's frame server and the permission gate).
 
 **Not now.** This work *prepares* for closing it. Nothing is refused, and every
 app that uses the bridge keeps working. Pavlo, 2026-11-03.
@@ -18,12 +21,20 @@ Before the bridge can close, everything an app does with it today must be a
 **valu-api function** carried over `api:call`, and the docs must explain only
 that. Today it is not:
 
-| Call | Goes over | After the bridge closes |
+| Call | Goes over | After the bridge closes (app off the legacy list) |
 |---|---|---|
 | `valu.sendIntent(new Intent('textchat', 'open-channel', …))` (an app intent) | `api:run-intent` | breaks |
-| `valu.callService(new Intent(…))` | `api:service-intent` | breaks |
-| the typed intents of 2026-10-30 (`valu.Commerce.getCart()`, `valu.Application.expandApplication()`) | `api:service-intent` (`EmbeddedTransport.#callIntent`) | breaks |
+| `valu.callService(new Intent(…))` to an intent outside the catalogue | `api:service-intent` | breaks |
+| `valu.callService(new Intent(…))` to a catalogue intent | `api:service-intent` | works (legacy-bridge §5.4) |
+| the typed intents of 2026-10-30 (`valu.Commerce.getCart()`, `valu.Application.expandApplication()`) | `api:service-intent` (`EmbeddedTransport.#callIntent`) | works: they are catalogue intents (legacy-bridge §5.4) |
+| routes (`bridge.pushRoute`) | `api:run-command` | breaks |
 | service functions (`valu.Users.current()`) | `api:call` | works |
+
+So the typed SERVICE intents do not break when the bridge closes. The reason to
+carry them over `api:call` too is one checked path for everything an app asks
+(the frame server, the gate, the leak guard, the timeouts), and the app intents
+and routes, whose bridge messages (`api:run-intent`, `api:run-command`) do
+close.
 
 And **the 77 application intents** (open a chat, a room, a profile, Calendar,
 Media …) have no function at all: they are reachable only by name through
@@ -87,6 +98,30 @@ both teaching the bridge.
    - `embedded-served`: answers `501 not_available`;
    - `both`: served by the host.
 4. **The bridge is not closed now.** This prepares for it.
+
+### Decided 2026-11-06 (Pavlo)
+
+5. §10.1: **yes**. `valu.Apps.open(appId, { route? })` and
+   `valu.Apps.send(appId, action, params)`, scoped at run time by
+   `scopeOfAppIntent(..., { toFrame })`; the scanner reads a literal `appId` and
+   flags a dynamic one.
+6. §10.2: **yes**. `valu.route.push(path)`, `valu.route.replace(path)`,
+   `valu.onRoute(handler)`, over `api:call`.
+7. **`valu.Apps.isLoaded(appId)`, `valu.Apps.list()`, `valu.Apps.has(appId)`**,
+   from the live counts (one app polls the `app.isApplicationLoaded` API pointer
+   about 76 times a minute): typed functions backed by the declared service
+   intents `AiGuru.is-application-loaded`, `AiGuru.get-applications`,
+   `AiGuru.has-application`, which were `no-rpc` and so untyped. Served inside
+   Valu Social; at the app's own address `embedded-served` → `not_available`
+   (the host has no dock to read, so it cannot answer honestly). Builder's
+   call: they take the scope the matching API pointer commands already have,
+   `ui:open` (BridgeScopes `SERVICE_INTENT_SCOPE`), which also makes
+   `api:service-intent AiGuru.is-application-loaded` scoped on the bridge.
+8. §8's builder items are done in this work: the `INTENT_MODE_OVERRIDES`
+   review, `CMS.pickResource` (`embedded-only`), and `RoomZones.*` /
+   `RoomPoints.*` (all scoped, so all typed; the three `not-ported` RoomPoints
+   ones too, as intents, until a socket port replaces them).
+9. Out of scope: M8–M10, `valu.theme`, publish guards.
 
 ## 5. Design
 
@@ -230,6 +265,26 @@ serve). For the new app intents:
 descriptors, `valu.Chats.openChannel(...)` maps to its scope with no scanner
 change. A test pins one app intent per namespace kind: own, folded, and window.
 
+### 5.7 As built (2026-11-06)
+
+- Descriptors: `target` and `to` (the app or service id) on every intent
+  descriptor; `positional` on the `valu.Apps` reads. One `INTENT_DESCRIPTORS`
+  array; `APPLICATION_TARGETS` (every app id and whether it is a frame) and
+  `UNTYPED_APPLICATION_INTENTS` beside it.
+- Wire: `api:call {intent: {target, id}, action, params, requestId, timeoutMs}`;
+  a route is `intent: {target: 'route'}`, action `push` | `replace`,
+  `params: {path}`, never gated. `valu.Apps.open/send` to an app the catalogue
+  names use that app's descriptor (params checked); otherwise a descriptor made
+  at call time (`src/services/apps.js`), which the frame server scopes again with
+  Valu Social's `toFrame`. An unscoped one is refused before it is sent.
+- Counts: 62 app intents exposed (of 78 declared); left out: 14 by decision 1
+  and `merchant.open-moderation`, `valuguru.show-chatbots` (no scope; the latter
+  is new since 11-03). 70 typed service intents.
+- `INTENT_MODE_OVERRIDES` for app intents (all `ui:open` → `embedded-only`):
+  `Chats.get-ui-state`, `Chats.close-channel`, `Chats.options`, `UserCard.show`,
+  `Calls.open-source-picker`, `Metaverse.set-route`. Every other `ui:open` app
+  intent stays `window`.
+
 ## 6. Rollout
 
 1. valu-api: §5.1–5.4, plus `createFrameServer`'s `intents` (§5.5), then a
@@ -296,7 +351,7 @@ change. A test pins one app intent per namespace kind: own, folded, and window.
   sample): `valu.Chats.openChannel(...)` opens the chat inside Valu Social, and
   opens a Valu Social tab at the app's own address.
 
-## 10. Open: Pavlo's answers needed
+## 10. Answered (2026-11-06: yes to both; §4 decisions 5–6)
 
 1. **Opening any app by id, and intents to other framed apps.** `api:run-intent`
    also carries:

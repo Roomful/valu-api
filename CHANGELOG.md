@@ -4,6 +4,44 @@
 
 ### Added
 
+- **Typed app intents.** Every intent an app may send to Valu Social's own apps
+  is a function on the `createValuApp()` object, on a namespace named by the
+  app's title, or on the service of the same name: `valu.Chats.openChannel({ userId })`,
+  `valu.Calendar.openCalendar({ source })`, `valu.MyCart.openCart()`,
+  `valu.Rooms.showRoom({ roomId })` — 62 of them, generated from a new snapshot
+  of valusocial-web's `PREDEFINED_APPLICATIONS`
+  (`manifests/application-manifests.snapshot.json`, `npm run sync:manifests`).
+  Each carries the scope Valu Social's bridge gives the same intent, takes
+  `route` and `pushToHistory` too, and has a mode for the app's own address
+  (`docs/connecting.md`, "Typed intents"). Valu Social's own intents (sign-out,
+  LLM Debug, the staging Content Studio, Metaverse 2D's `agent-*`) and the two
+  with no scope (`merchant.open-moderation`, `valuguru.show-chatbots`) are not
+  functions; `docs/service-api.md` lists them.
+- **`valu.Apps`**: `open(appId, { route })` and `send(appId, action, params)`
+  for any app by id, a framed or Developer Portal one included (scoped when they
+  run; the permission scanner reads a literal id and lists a dynamic one), and
+  `isLoaded(appId)`, `list()`, `has(appId)` (the `AiGuru.is-application-loaded`
+  / `get-applications` / `has-application` intents, now scoped `ui:open` as the
+  matching API pointer commands are; inside Valu Social only).
+- **`valu.route.push(path)`, `valu.route.replace(path)`, `valu.onRoute(handler)`**:
+  the app's own route inside Valu Social, without `valu.bridge`.
+- **More service intents typed**: `valu.CMS.pickResource(...)` (embedded only),
+  `valu.RoomZones.*`, and the `RoomPoints` reads and writes the socket could
+  answer (`listRoomPoints`, `saveRoomPoint`, `deleteRoomPoint`).
+- **Intents over `api:call`.** Inside Valu Social a typed intent (old and new)
+  and a route are an `api:call` with `intent: {target, id}` when Valu Social's
+  `api:ready` says `valuApi.intents: true`; with an older Valu Social they keep
+  going over the older bridge (`api:run-intent` to an app, `api:service-intent`
+  to a service, `api:run-command`). Either way the call is held for `api:ready`
+  and bounded by its timeout. At the app's own address an app intent that
+  opens no window answers `not_available` without asking the host.
+- **`createFrameServer({ intents, toFrame })`**, Valu Social's half: it answers
+  those calls through the same checks and permission gate as a function
+  (catalogue → `intents` given → params → gate with the bridge's scope → one
+  bounded attempt → leak guard, which lets only `Application.get-identity-token`'s
+  own token through). `services` is optional now (functions then answer 501),
+  and `readyInfo` says `calls` and `intents` separately.
+
 - **Which valu-api an app runs, reported at runtime.** Inside Valu Social
   (embedded mode) every message the app posts — `api:call` and the older bridge
   messages alike (`api:run-intent`, `api:service-intent`, `api:create-pointer`,
@@ -18,6 +56,15 @@
   that does not know the op drops it. The Developer Portal uses the counts to
   tell a developer whose app runs an older valu-api, and the superAdmins which
   apps run what.
+
+### Changed
+
+- `scopeOfServiceIntent` skips the application-intent descriptors, so a name
+  folded onto a service (`Rooms.show-room`) stays unscoped as a service intent:
+  the bridge's gating does not move.
+- The README and `docs/service-api.md` teach intents as functions;
+  `sendIntent`, `callService`, API pointers and console commands are marked as
+  being retired (Valu Social will close that bridge to apps).
 
 ## 2.0.0 — 2026-11-06
 
