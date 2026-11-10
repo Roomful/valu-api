@@ -11,12 +11,15 @@ One entry point covers both: `createValuApp()`.
 ## Installation
 
 ```bash
-npm install @arkeytyp/valu-api@^2
+npm install github:Roomful/valu-api#b0c67e0
 ```
 
+Version 2 is not on npm yet: `npm install @arkeytyp/valu-api` still installs `1.1.3`,
+which has no `createValuApp` and none of what follows. Until 2.1.0 is published,
+install from GitHub as above.
+
 A page with no build step imports the same version as an ES module:
-`https://cdn.jsdelivr.net/npm/@arkeytyp/valu-api@2/src/ValuApi.js`.
-Version 1 (`1.1.3` and older) has no `createValuApp` and none of what follows.
+`https://cdn.jsdelivr.net/gh/Roomful/valu-api@b0c67e0/src/ValuApi.js`.
 
 ## Quick Start
 
@@ -392,7 +395,7 @@ console.log(reply);
 
 | Mistake | Why it's wrong | Correct approach |
 |---------|---------------|-----------------|
-| `npm install @arkeytyp/valu-api@1` (or an old lockfile) | Version 1 has no `createValuApp` | `npm install @arkeytyp/valu-api@^2` |
+| `npm install @arkeytyp/valu-api` (or an old lockfile) | npm still has `1.1.3`, which has no `createValuApp` | `npm install github:Roomful/valu-api#b0c67e0` |
 | `new ValuApi()` + `getApi('users')` in a new app | Works only inside Valu Social; a top-level page gets nothing | `const valu = await createValuApp()` |
 | `valu.sendIntent(new Intent('textchat', 'open-channel', …))` | The older bridge, being retired; the check cannot read a name hidden in a helper | `valu.Chats.openChannel({ userId })` |
 | Polling `getApi('app').run('isApplicationLoaded', id)` | An API pointer, being retired | `valu.Apps.isLoaded(appId)` |
