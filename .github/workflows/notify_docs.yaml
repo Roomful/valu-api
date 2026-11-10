@@ -2,7 +2,8 @@ name: Notify Docs Update
 on:
   push:
     branches: [main]
-    paths: [README.md, valu-routing.md]
+    # The three files valu-docs copies (scripts/sync-valu-api-docs.mjs there).
+    paths: [README.md, valu-routing.md, docs/service-api.md]
 
 jobs:
   notify:
