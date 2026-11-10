@@ -471,6 +471,28 @@ export interface DeveloperListApplicationsParams {
 }
 
 /**
+ * Developer.list-application-apis — The REST APIs the network's published applications declare: address, gatewayUrl, documentUrl, scopes, callers.
+ */
+export type DeveloperListApplicationApisResult = {success: boolean, networkId: string, apis: Record<string, any>[]};
+
+/**
+ * Developer.list-application-apis — Lists every application published in the current network that declares a REST API in its manifest. Returns {success, networkId, apis}; each api carries applicationId, address (the gateway path and token audience), title, description, gatewayUrl (where callers send requests, through the Valu Guru gateway), documentUrl (its OpenAPI document, read through the gateway), scopes, callers, availability, userContext, docsUrl and routable. Read-only: it describes the APIs, it calls none of them.
+ */
+export interface DeveloperListApplicationApisParams {
+}
+
+/**
+ * Developer.list-my-application-apis — The REST APIs of the applications the caller develops or tests, unreleased drafts included, with devId, version and live.
+ */
+export type DeveloperListMyApplicationApisResult = {success: boolean, apis: Record<string, any>[]};
+
+/**
+ * Developer.list-my-application-apis — Lists the REST APIs of the applications the current user develops or tests, unreleased drafts included — what list-application-apis does not show. Returns {success, apis}; each api carries the same fields as list-application-apis plus devId, version (the version that describes the API: the released one when it declares an API, otherwise the newest that does) and live (true when that version is the released one). Read-only.
+ */
+export interface DeveloperListMyApplicationApisParams {
+}
+
+/**
  * Events.create-meeting — The meeting (or recurring series) that was created.
  */
 export type EventsCreateMeetingResult = {meetingId: string, meeting: Record<string, any>};
@@ -4783,6 +4805,22 @@ export interface ValuServices {
      * @scope developer:read
      */
     listApplications(): Promise<ValuAck<DeveloperListApplicationsResult>>;
+    /**
+     * Lists every application published in the current network that declares a REST API in its manifest. Returns {success, networkId, apis}; each api carries applicationId, address (the gateway path and token audience), title, description, gatewayUrl (where callers send requests, through the Valu Guru gateway), documentUrl (its OpenAPI document, read through the gateway), scopes, callers, availability, userContext, docsUrl and routable. Read-only: it describes the APIs, it calls none of them.
+     * @channel intent
+     * @scope developer:read
+     * @mode embedded-served
+     * @intent service `Developer` `list-application-apis`
+     */
+    listApplicationApis(): Promise<ValuAck<DeveloperListApplicationApisResult>>;
+    /**
+     * Lists the REST APIs of the applications the current user develops or tests, unreleased drafts included — what list-application-apis does not show. Returns {success, apis}; each api carries the same fields as list-application-apis plus devId, version (the version that describes the API: the released one when it declares an API, otherwise the newest that does) and live (true when that version is the released one). Read-only.
+     * @channel intent
+     * @scope developer:read
+     * @mode embedded-served
+     * @intent service `Developer` `list-my-application-apis`
+     */
+    listMyApplicationApis(): Promise<ValuAck<DeveloperListMyApplicationApisResult>>;
   };
   /**
    * Calendar service for listing, creating, and editing meetings.

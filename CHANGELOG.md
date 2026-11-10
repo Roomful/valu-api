@@ -4,6 +4,10 @@
 
 ### Added
 
+- **`valu.Developer.listApplicationApis()` and `valu.Developer.listMyApplicationApis()`**:
+  the REST APIs the network's published apps declare, and the caller's own
+  (drafts included), as typed intents (`developer:read`, inside Valu Social
+  only). They were reachable only over the older bridge.
 - The scanner names old calls the way Valu counts them, and sees direct postMessage bridge use.
   Every `bridge` finding carries `message` and `name`; `call` is unchanged.
 - **Old bridge → typed function table.** `BRIDGE_REPLACEMENTS` / `bridgeReplacement(kind, name)`

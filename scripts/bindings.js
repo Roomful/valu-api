@@ -346,13 +346,18 @@ export const INTENT_FUNCTION_SERVICES = ['Commerce', 'Application', 'DataProvide
  * picker (`valu.CMS.pickResource(...)`); the three `AiGuru` reads are what an
  * app polls the `app.isApplicationLoaded` API pointer for today, and they are
  * functions on `valu.Apps` ({@link INTENT_FUNCTION_NAMES}). `AiGuru.open` /
- * `close` and the histories stay off the tree: legacy-only, or no scope.
+ * `close` and the histories stay off the tree: legacy-only, or no scope. The
+ * two `Developer` reads (2026-11-10) list the network's published REST APIs
+ * and the caller's own, from Valu Social's Developer Portal store: Valu Docs'
+ * REST APIs page called them over the older bridge for want of a function.
  */
 export const INTENT_FUNCTION_KEYS = [
   'CMS.pick-resource',
   'AiGuru.is-application-loaded',
   'AiGuru.get-applications',
   'AiGuru.has-application',
+  'Developer.list-application-apis',
+  'Developer.list-my-application-apis',
 ];
 
 /**

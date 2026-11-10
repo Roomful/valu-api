@@ -7632,6 +7632,84 @@ export const INTENT_DESCRIPTORS = [
     "mode": "embedded-only"
   },
   {
+    "key": "Developer.list-application-apis",
+    "service": "Developer",
+    "action": "list-application-apis",
+    "fn": "list_application_apis",
+    "method": "listApplicationApis",
+    "toolName": "service__Developer__list_application_apis",
+    "serviceTitle": "Developer Service",
+    "serviceDescription": "Developer Portal service for creating and listing the current user's applications.",
+    "source": "src/Applications/DeveloperPortal/Services/DeveloperService.js",
+    "description": "Lists every application published in the current network that declares a REST API in its manifest. Returns {success, networkId, apis}; each api carries applicationId, address (the gateway path and token audience), title, description, gatewayUrl (where callers send requests, through the Valu Guru gateway), documentUrl (its OpenAPI document, read through the gateway), scopes, callers, availability, userContext, docsUrl and routable. Read-only: it describes the APIs, it calls none of them.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "developer:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{success: boolean, networkId: string, apis: object[]}",
+      "description": "The REST APIs the network's published applications declare: address, gatewayUrl, documentUrl, scopes, callers."
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "Developer",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "Developer.list-my-application-apis",
+    "service": "Developer",
+    "action": "list-my-application-apis",
+    "fn": "list_my_application_apis",
+    "method": "listMyApplicationApis",
+    "toolName": "service__Developer__list_my_application_apis",
+    "serviceTitle": "Developer Service",
+    "serviceDescription": "Developer Portal service for creating and listing the current user's applications.",
+    "source": "src/Applications/DeveloperPortal/Services/DeveloperService.js",
+    "description": "Lists the REST APIs of the applications the current user develops or tests, unreleased drafts included — what list-application-apis does not show. Returns {success, apis}; each api carries the same fields as list-application-apis plus devId, version (the version that describes the API: the released one when it declares an API, otherwise the newest that does) and live (true when that version is the released one). Read-only.",
+    "availability": [
+      "ai",
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "developer:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{success: boolean, apis: object[]}",
+      "description": "The REST APIs of the applications the caller develops or tests, unreleased drafts included, with devId, version and live."
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "Developer",
+    "mode": "embedded-served"
+  },
+  {
     "key": "Files.preview-resource",
     "service": "Files",
     "action": "preview-resource",

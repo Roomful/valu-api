@@ -75,11 +75,15 @@ test('the typed intents are on the tree, as intents; the untyped application-ser
   assert.equal(valu.Commerce.openCart.descriptor.mode, 'window');
   assert.equal(valu.Application.expandApplication.descriptor.mode, 'embedded-only');
   assert.equal(valu.AiGuru, undefined, 'the AI chat history is not an app\'s');
-  // 70 service intents (2026-11-06: + CMS.pickResource, the five RoomZones, the three RoomPoints the socket
-  // could answer, the three valu.Apps reads) and 62 application intents.
-  assert.equal(INTENT_FUNCTIONS.filter((d) => d.target === 'service').length, 70);
+  // The two Developer REST API reads share the namespace with its service functions.
+  assert.equal(valu.Developer.listApplicationApis.descriptor.channel, 'intent');
+  assert.equal(valu.Developer.listMyApplicationApis.descriptor.mode, 'embedded-served');
+  assert.equal(valu.Developer.listApplications.descriptor.channel, 'app-state');
+  // 72 service intents (2026-11-06: + CMS.pickResource, the five RoomZones, the three RoomPoints the socket
+  // could answer, the three valu.Apps reads; 2026-11-10: + the two Developer REST API reads) and 62 application intents.
+  assert.equal(INTENT_FUNCTIONS.filter((d) => d.target === 'service').length, 72);
   assert.equal(INTENT_FUNCTIONS.filter((d) => d.target === 'application').length, 62);
-  assert.equal(INTENT_FUNCTIONS.length, 132);
+  assert.equal(INTENT_FUNCTIONS.length, 134);
 });
 
 test('every application intent an app may send is a function, on its app\'s namespace or a service of the same name', () => {

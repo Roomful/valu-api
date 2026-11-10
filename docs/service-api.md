@@ -23,9 +23,9 @@ is the same call with the envelope taken off: it returns the payload and throws
 `ValuServiceError`. `valu.call('Users.current')` takes the name as a string,
 which is what an LLM tool call has.
 
-**Intents are functions too.** 132 of the functions below are intents
+**Intents are functions too.** 134 of the functions below are intents
 that Valu Social serves (`createValuApp()` only: a socket client has nowhere to send
-one): 70 of its services' (`valu.Commerce.getCart()`, `valu.CMS.pickResource()`) and
+one): 72 of its services' (`valu.Commerce.getCart()`, `valu.CMS.pickResource()`) and
 62 of its apps' — every intent an app may send to Chats, Calendar, My Cart
 and the rest, on a namespace named by the app's title
 (`valu.Chats.openChannel({ userId })`, `valu.MyCart.openCart()`), or on the
@@ -145,6 +145,12 @@ Developer Portal service for creating and listing the current user's application
 - `valu.Developer.listApplications()` → `{applications: object[]}`
   Lists the current user's applications in the Developer Portal. Returns each application's appId, devId, name, slug, url, description, createdAt timestamp, and a ready-made `tag` — a chat entity tag of the form @[application:<appId>|<Name>]. To give the user a clickable link that opens an application inside the platform, paste its `tag` value verbatim into your reply (do NOT link the raw URL).
   <sub>application state — no RPC exists</sub>
+- `valu.Developer.listApplicationApis()` → `{success: boolean, networkId: string, apis: object[]}`
+  Lists every application published in the current network that declares a REST API in its manifest. Returns {success, networkId, apis}; each api carries applicationId, address (the gateway path and token audience), title, description, gatewayUrl (where callers send requests, through the Valu Guru gateway), documentUrl (its OpenAPI document, read through the gateway), scopes, callers, availability, userContext, docsUrl and routable. Read-only: it describes the APIs, it calls none of them.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
+- `valu.Developer.listMyApplicationApis()` → `{success: boolean, apis: object[]}`
+  Lists the REST APIs of the applications the current user develops or tests, unreleased drafts included — what list-application-apis does not show. Returns {success, apis}; each api carries the same fields as list-application-apis plus devId, version (the version that describes the API: the released one when it declares an API, otherwise the newest that does) and live (true when that version is the released one). Read-only.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 
 **Writes**
 

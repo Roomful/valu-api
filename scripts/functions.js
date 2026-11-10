@@ -118,6 +118,8 @@ export const RETURNS = {
   // --- Developer -----------------------------------------------------------
   'Developer.create-application': { type: '{appId: string, devId: string, name: string, slug: string, url: string}', description: 'The application that was registered in the Developer Portal.' },
   'Developer.list-applications': { type: '{applications: object[]}', description: 'The caller\'s own Developer Portal applications.' },
+  'Developer.list-application-apis': { type: '{success: boolean, networkId: string, apis: object[]}', description: 'The REST APIs the network\'s published applications declare: address, gatewayUrl, documentUrl, scopes, callers.' },
+  'Developer.list-my-application-apis': { type: '{success: boolean, apis: object[]}', description: 'The REST APIs of the applications the caller develops or tests, unreleased drafts included, with devId, version and live.' },
 
   // --- Events --------------------------------------------------------------
   'Events.list-events': { type: '{events: object[]}', description: 'Meeting occurrences in the computed window, earliest first.' },
