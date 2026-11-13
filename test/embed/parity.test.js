@@ -15,9 +15,9 @@
 // embedded app needs no permissions. For those, the host's refusal is checked
 // and the embedded answer is held to what a socket of its own answers.
 //
-// `Date` is frozen for each case: some functions stamp the wall clock into what
+// Both clocks are frozen for each case: some functions stamp the wall clock into what
 // they send (`updated`, `fileDate`), and two runs a millisecond apart are not
-// a difference between the modes.
+// a difference between the modes. HTTP functions measure latency with performance.now.
 // ===========================================================================
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -67,6 +67,7 @@ for (const testCase of CASES) {
 
   test(`dedicated and embedded answer alike: ${title}`, async (t) => {
     t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-06-15T12:34:56.789Z') });
+    t.mock.method(globalThis.performance, 'now', () => 0);
     const dedicated = await run(makeHostAppServices, testCase);
     const embedded = await run(makeEmbeddedServices, testCase);
 
