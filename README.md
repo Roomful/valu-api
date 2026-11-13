@@ -391,6 +391,34 @@ const reply = await valuApi.runConsoleCommand(
 console.log(reply);
 ```
 
+## Light and dark themes
+
+`valu.theme` keeps an embedded app in sync with Valu. Use a host that advertises theme
+support; an older host returns `not_available` from `toggle()`.
+
+```javascript
+await valu.ready;
+const applyScheme = scheme => {
+  document.documentElement.dataset.theme = scheme;
+  document.documentElement.style.colorScheme = scheme;
+};
+applyScheme(valu.theme.scheme);
+const unsubscribe = valu.theme.on('change', applyScheme);
+// Call unsubscribe when the component unmounts.
+
+// An accessible theme button's click handler:
+async function toggleTheme() {
+  try { await valu.theme.toggle(); }
+  catch (error) { showThemeError(error.code); }
+}
+```
+
+Inside Valu, `toggle()` changes the platform theme and needs `ui:open` in the app's
+`valu-permissions.json`. At the app's own address it changes the theme for that page;
+until the user chooses, it follows `prefers-color-scheme`. Embedded apps should not
+persist a competing theme preference. Use the system preference for the first paint,
+then apply the host's setting after `valu.ready`.
+
 ## Common Mistakes
 
 | Mistake | Why it's wrong | Correct approach |

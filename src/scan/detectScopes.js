@@ -81,6 +81,7 @@ const CODE_PATTERNS = {
   intentAny: /\bnew\s+Intent\s*\(/g,
   getApiDynamic: /\bgetApi\s*\(\s*(?!['"`])/g,
   computed: new RegExp(String.raw`${VALU}(?:${DOT}[\w$]+)*\s*(?:\?\.)?\[`, 'g'),
+  themeToggle: new RegExp(String.raw`${VALU}${DOT}theme${DOT}toggle\s*\(`, 'g'),
   valuRoute: new RegExp(String.raw`${VALU}${DOT}(pushRoute|replaceRoute)\s*\(`, 'g'),
   askedDynamic: /(?:\brequestConsent\s*\(\s*(?![[\s)])|\bsignIn\s*\(\s*\{[^}]*?\bscopes\s*:\s*(?![[\s]))/g,
 };
@@ -500,6 +501,10 @@ function scanFile(lexed) {
     findings.push({ scope: descriptor.scopes[0], call: descriptor.key, kind, file: path, line: at(offset) });
   /** Literal-text matches that start in code, not inside a string. */
   const literalMatches = (pattern) => [...matches(pattern, literal)].filter((m) => !inLiteral[m.index]);
+
+  for (const m of matches(CODE_PATTERNS.themeToggle, code)) {
+    findings.push({scope: 'ui:open', call: 'theme.toggle', kind: 'function', file: path, line: at(m.index)});
+  }
 
   // `x.Rooms.getRoom(` — or a bare `Rooms.getRoom(` when this file took
   // `Rooms` out of an object by name. A bare name otherwise is the app's own

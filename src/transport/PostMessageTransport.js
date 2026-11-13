@@ -52,6 +52,7 @@ const REPLY_MESSAGES = new Set([
   'api:run-console-completed',
   'api:pointer-created',
   'api:call-completed',
+  'api:theme-completed',
 ]);
 
 export class PostMessageTransport extends Transport {
@@ -115,6 +116,12 @@ export class PostMessageTransport extends Transport {
       throw error;
     }
     return deferred;
+  }
+
+  cancelRequest(requestId, error) {
+    const pending = this.#pending.get(requestId);
+    this.#pending.delete(requestId);
+    pending?.reject(error);
   }
 
   notify(name, message) {
@@ -187,6 +194,9 @@ export class PostMessageTransport extends Transport {
     }
 
     switch (name) {
+      case 'api:color-scheme':
+        this.events.emit(Transport.TRIGGER, {action: 'color-scheme', data: message});
+        break;
       case 'api:trigger':
         this.events.emit(Transport.TRIGGER, message);
         break;

@@ -1036,6 +1036,12 @@ declare module '@arkeytyp/valu-api' {
          * `host_unreachable` when none came within `readyTimeoutMs`, `closed` on `close()`. */
         readonly ready: Promise<void>;
         readonly auth: ValuAuth;
+        readonly theme: {
+            readonly scheme: 'light' | 'dark';
+            on(event: 'change', handler: (scheme: 'light' | 'dark') => void): () => void;
+            /** Embedded: changes Valu's theme (ui:open). Dedicated: a local choice for this page. */
+            toggle(): Promise<'light' | 'dark'>;
+        };
         /** The network the host runs in (embedded: Valu Social's), or `null`. A shared object: do not mutate it. */
         readonly network: ValuNetwork | null;
         readonly connection: ValuConnection;

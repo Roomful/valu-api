@@ -50,6 +50,7 @@
 // `valu.data.X.y()` and the by-name calls (`valu.call(name, params)`,
 // `valu.invoke(...)`) all get it.
 // ===========================================================================
+import {createTheme} from './Theme.js';
 import { ValuApi } from './ValuApi.js';
 import { Transport } from './transport/Transport.js';
 import { HostTransport } from './transport/HostTransport.js';
@@ -235,6 +236,7 @@ class ValuApp {
   /** The popups this app opened whose flow has not ended: `close()` closes them. */
   #popups = new Set();
   #closed = false;
+  #theme;
   /** Dedicated: `valu.route.*` warned once already. */
   #routeWarned = false;
 
@@ -274,6 +276,8 @@ class ValuApp {
         embedded.subscribe(EmbeddedTransport.UNREACHABLE, () => this.#onEmbeddedUnreachable()),
       );
     }
+    this.#theme = createTheme({mode, transport, win, ready: this.#ready, setTimer, clearTimer});
+    this.theme = this.#theme.api;
     // The consent retry is under the client in both modes, so `valu.X.y()`, `valu.data` and the
     // by-name calls get it alike (inside Valu Social nothing asks for consent, and it never fires).
     this.#services = createValuServices({
@@ -373,6 +377,7 @@ class ValuApp {
   async close() {
     if (this.#closed) return;
     this.#closed = true;
+    this.#theme.close();
     for (const win of this.#popups) closeQuietly(win);
     this.#popups.clear();
     this.#signIn?.fail(closedError());
@@ -767,6 +772,13 @@ export async function createValuApp({
   });
   // A failed handshake leaves nothing behind (HostTransport takes its iframe,
   // listener and timers away), so the app is simply dropped.
-  if (dedicated) await transport.open();
+  if (dedicated) {
+    try { await transport.open(); }
+    catch (error) {
+      // A failed handshake also releases the theme's media-query listener.
+      await app.close().catch(() => {});
+      throw error;
+    }
+  }
   return app;
 }

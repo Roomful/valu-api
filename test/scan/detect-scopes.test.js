@@ -353,3 +353,10 @@ test('direct detection needs the parent window and the name form', () => {
 test('postMessage of something else is not bridge use', () => {
   assert.deepEqual(scan("window.parent.postMessage({type: 'resize', h: 3}, '*');").bridge, []);
 });
+
+
+test('theme switching needs ui:open; reads and text examples do not', () => {
+  assert.equal(only(scan('await valu.theme.toggle();')).scope, 'ui:open');
+  assert.equal(only(scan('await valu?.theme?.toggle();')).call, 'theme.toggle');
+  assert.deepEqual(scan('valu.theme.scheme; valu.theme.on("change", handler); "valu.theme.toggle()"; // valu.theme.toggle()').findings, []);
+});
