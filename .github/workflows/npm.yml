@@ -151,8 +151,17 @@ jobs:
         if: steps.decide.outputs.publish == 'true'
         run: npm publish --access public
 
+      # A release of this name may exist already -- somebody cut one by hand
+      # while the publish was broken -- and that is not a reason to end a
+      # successful publish red.
       - name: Tag it
         if: steps.decide.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ steps.version.outputs.version }}" --target "$GITHUB_SHA" --title "${{ steps.version.outputs.version }}" --generate-notes
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "$VERSION" > /dev/null 2>&1; then
+            echo "A GitHub release named $VERSION exists already: left as it is."
+          else
+            gh release create "$VERSION" --target "$GITHUB_SHA" --title "$VERSION" --generate-notes
+          fi
