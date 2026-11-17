@@ -112,16 +112,20 @@ jobs:
               status=$(curl -sS -o exchange.json -w '%{http_code}' -X POST \
                 -H "Authorization: Bearer $id_token" \
                 "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/$package")
-              if [ "$status" = "200" ]; then
+              # A granted exchange answers 201, not 200.
+              case "$status" in
+              2*)
                 oidc=yes
-                echo "Trusted Publishing: npm accepted this workflow's OIDC token."
-              else
+                echo "Trusted Publishing: npm accepted this workflow's OIDC token, HTTP $status."
+                ;;
+              *)
                 said=$(node -p "try { JSON.parse(require('fs').readFileSync('exchange.json', 'utf8')).message || '(no message)' } catch { '(no message)' }")
                 echo "Trusted Publishing: npm refused the token exchange, HTTP $status: $said"
                 echo "Register this workflow at npmjs.com -> @arkeytyp/valu-api -> Settings ->"
                 echo "Trusted Publisher -> GitHub Actions: organization Roomful, repository"
                 echo "valu-api, workflow npm.yml, environment empty."
-              fi
+                ;;
+              esac
               rm -f exchange.json
             fi
           else
