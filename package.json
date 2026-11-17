@@ -51,7 +51,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Roomful/valu-api.git"
+    "url": "git+https://github.com/Roomful/valu-api.git"
   },
   "devDependencies": {
     "typescript": "5.9.3"
