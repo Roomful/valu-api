@@ -293,7 +293,7 @@ longer here.)
 
 ## Do we need a release?
 
-*Released 2026-11-06 as `2.0.0` on npm; see CHANGELOG.md. What follows is the case as it was made.*
+*Version 2 reached npm as `2.1.0` on 2026-11-17 (the `2.0.0` publish of 2026-11-06 was refused by npm); see CHANGELOG.md. What follows is the case as it was made.*
 
 **No — and yes.** Nothing is blocked on one, and one should still happen.
 
