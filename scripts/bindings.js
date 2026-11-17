@@ -74,6 +74,12 @@ export const APPLICATION_ONLY_GROUPS = [
       'AiGuru.has-application',
       'AiGuru.get-applications',
       'AiGuru.is-application-loaded',
+      'AiGuru.get-loaded-applications',
+      // The header a platform app draws for itself: drawn with Valu Social's own font.
+      'AiGuru.get-application-header',
+      // A user's avatar as a signed URL, through Valu Social's REST session and
+      // its URL cache; the Roomful socket has no RPC for it.
+      'Users.get-icon',
       // Application lifecycle — the frame asking the app about the frame.
       'Application.get-identity-token',
       'Application.close_all',
@@ -350,14 +356,20 @@ export const INTENT_FUNCTION_SERVICES = ['Commerce', 'Application', 'DataProvide
  * two `Developer` reads (2026-11-10) list the network's published REST APIs
  * and the caller's own, from Valu Social's Developer Portal store: Valu Docs'
  * REST APIs page called them over the older bridge for want of a function.
+ * The two further dock reads and `Users.get-icon` (2026-11-17) type the last
+ * API pointers apps still used the older bridge for: `app.getLoadedApplications`,
+ * `app.getApplicationHeader` and `users.getIcon`.
  */
 export const INTENT_FUNCTION_KEYS = [
   'CMS.pick-resource',
   'AiGuru.is-application-loaded',
   'AiGuru.get-applications',
   'AiGuru.has-application',
+  'AiGuru.get-loaded-applications',
+  'AiGuru.get-application-header',
   'Developer.list-application-apis',
   'Developer.list-my-application-apis',
+  'Users.get-icon',
 ];
 
 /**
@@ -370,6 +382,8 @@ export const INTENT_FUNCTION_NAMES = {
   'AiGuru.is-application-loaded': { service: 'Apps', method: 'isLoaded', positional: ['applicationId'] },
   'AiGuru.get-applications': { service: 'Apps', method: 'list' },
   'AiGuru.has-application': { service: 'Apps', method: 'has', positional: ['applicationId'] },
+  'AiGuru.get-loaded-applications': { service: 'Apps', method: 'loaded' },
+  'AiGuru.get-application-header': { service: 'Apps', method: 'getHeader', positional: ['applicationId'] },
 };
 
 /**
@@ -394,6 +408,10 @@ export const INTENT_MODE_OVERRIDES = {
   'AiGuru.get-applications': 'embedded-served',
   'AiGuru.has-application': 'embedded-served',
   'AiGuru.is-application-loaded': 'embedded-served',
+  'AiGuru.get-loaded-applications': 'embedded-served',
+  'AiGuru.get-application-header': 'embedded-served',
+  // Through Valu Social's REST session and URL cache; the host has neither yet.
+  'Users.get-icon': 'embedded-served',
   // --- the application intents (reviewed 2026-11-06). Every `ui:open` one
   // derives `window`: Valu Social's `/-i/<app>/<action>` route opens it in a
   // tab. These open nothing there, so they mean something only inside Valu

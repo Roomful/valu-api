@@ -16,5 +16,12 @@ export { BRIDGE_REPLACEMENTS };
  */
 export function bridgeReplacement(kind, name) {
   const key = `${kind} ${name}`;
-  return Object.hasOwn(BRIDGE_REPLACEMENTS, key) ? BRIDGE_REPLACEMENTS[key] : null;
+  if (Object.hasOwn(BRIDGE_REPLACEMENTS, key)) return BRIDGE_REPLACEMENTS[key];
+  // `sendIntent(new Intent('<app>'))` opens any app, declared or not: the
+  // counter names it `<app>.open`, and `valu.Apps.open` opens any app by id.
+  const opened = kind === 'run-intent' && OPEN_INTENT.exec(String(name));
+  return opened ? `valu.Apps.open('${opened[1]}')` : null;
 }
+
+/** `<app>.open`, the app id a bare identifier (what the counter reports). */
+const OPEN_INTENT = /^([A-Za-z0-9_-]+)\.open$/;

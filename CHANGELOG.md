@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.2.0 — 2026-11-17
+
+### Added
+
+- **The last pointer calls apps made over the older bridge are typed.**
+  `valu.Apps.loaded()` answers `{applicationIds}` — the apps open in the dock
+  (was `app.getLoadedApplications`); `valu.Apps.getHeader(applicationId)`
+  answers `{title, icon}` or `null` — the app's name and its icon drawn by the
+  host (was `app.getApplicationHeader`); `valu.Users.getIcon({userId, size?})`
+  answers `{url}` — a user's avatar URL (was `users.getIcon`, which answered a
+  bare string). All three are served by Valu Social itself
+  (`embedded-served`), with `aiguru:read` / `users:read` scopes.
+- **`bridgeReplacement()` covers the rest.** `app.close` names
+  `valu.Application.closeApplication()` (similar, not the same: it closes the
+  calling app), `ux.colorScheme` / `ux.toggleColorScheme` name
+  `valu.theme.scheme` / `valu.theme.toggle()`, and any `<app>.open` run-intent
+  names `valu.Apps.open('<app>')`.
+
+### Fixed
+
+- `valu.Apps.isLoaded()`, `valu.Apps.has()` and `valu.Apps.list()` answer from
+  a framed app. Valu Social never handled those intents, so each one came back
+  "not supported"; it needs the Valu Social release that ships with this
+  version.
+
 ## 2.1.0 — 2026-11-17
 
 ### Added

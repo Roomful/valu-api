@@ -26,7 +26,7 @@ test('the catalogue matches the parity target', () => {
     declared: 64,
     sdkDeclared: 1,
     serviceFunctions: 65,
-    applicationOnly: 78,
+    applicationOnly: 81,
     remaining: 33,
     serverOnly: 7,
   });
@@ -42,8 +42,8 @@ test('every descriptor in the catalogue is a function this package can run', () 
   assert.equal(isServiceFunction('Users.teleport'), false);
 });
 
-test('the 78 application-served intents are declared by the app and absent here', () => {
-  assert.equal(APPLICATION_ONLY_INTENTS.length, 78);
+test('the 81 application-served intents are declared by the app and absent here', () => {
+  assert.equal(APPLICATION_ONLY_INTENTS.length, 81);
   assert.deepEqual([...APPLICATION_ONLY_INTENTS].sort(), [...APPLICATION_ONLY].sort());
   for (const key of APPLICATION_ONLY_INTENTS) {
     // Not a service function: nothing here runs it. The typed ones
@@ -116,7 +116,7 @@ test('every manifest intent is either a function here or explicitly excluded', a
       assert.ok(findDescriptor(key) || excluded.has(key), `${key} is neither implemented nor excluded`);
     }
   }
-  assert.equal(declared, 142, "the app's manifest declares 142 intents");
+  assert.equal(declared, 145, "the app's manifest declares 145 intents");
 });
 
 test('an SDK-declared function is a service function with its provenance on it', () => {

@@ -1270,10 +1270,13 @@ const bridgeReplacements = {};
   const byKey = new Map([...descriptors, ...intentDescriptors].map((d) => [d.key, d]));
   const set = (kind, name, value) => { bridgeReplacements[`${kind} ${name}`] = value; };
   for (const f of API_POINTER_FUNCTIONS) {
-    // The pointer closes whichever app it is told to, which no typed function does.
-    if (f.module === 'app' && f.fn === 'close') continue;
     let value;
-    if (f.module === 'app' && f.fn === 'open') value = 'valu.Apps.open(appId)';
+    // A replacement that is not a catalogue function (`valu.theme.scheme`), or
+    // one nearer than the declared twin: `app.close` names any id, and no typed
+    // function closes another app, but an app closing ITSELF is what it is
+    // used for, and `valu.Application.closeApplication()` does that.
+    if (f.typed) value = f.typed;
+    else if (f.module === 'app' && f.fn === 'open') value = 'valu.Apps.open(appId)';
     else if (f.sdk) {
       const d = byKey.get(f.sdk);
       if (!d) throw new Error(`apiPointers.js: ${f.module}.${f.fn} names ${f.sdk}, which is not in the catalogue`);

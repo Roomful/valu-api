@@ -80,10 +80,32 @@ test('the typed intents are on the tree, as intents; the untyped application-ser
   assert.equal(valu.Developer.listMyApplicationApis.descriptor.mode, 'embedded-served');
   assert.equal(valu.Developer.listApplications.descriptor.channel, 'app-state');
   // 72 service intents (2026-11-06: + CMS.pickResource, the five RoomZones, the three RoomPoints the socket
-  // could answer, the three valu.Apps reads; 2026-11-10: + the two Developer REST API reads) and 62 application intents.
-  assert.equal(INTENT_FUNCTIONS.filter((d) => d.target === 'service').length, 72);
+  // could answer, the three valu.Apps reads; 2026-11-10: + the two Developer REST API reads; 2026-11-17: + valu.Apps.loaded,
+  // valu.Apps.getHeader and valu.Users.getIcon) and 62 application intents.
+  assert.equal(INTENT_FUNCTIONS.filter((d) => d.target === 'service').length, 75);
   assert.equal(INTENT_FUNCTIONS.filter((d) => d.target === 'application').length, 62);
-  assert.equal(INTENT_FUNCTIONS.length, 134);
+  assert.equal(INTENT_FUNCTIONS.length, 137);
+});
+
+test('the last API pointers apps used the older bridge for are typed (2026-11-17)', () => {
+  const { valu } = headless();
+  const cases = [
+    [valu.Apps.loaded, 'AiGuru', 'get-loaded-applications', 'aiguru:read'],
+    [valu.Apps.getHeader, 'AiGuru', 'get-application-header', 'aiguru:read'],
+    [valu.Users.getIcon, 'Users', 'get-icon', 'users:read'],
+  ];
+  for (const [fn, to, action, scope] of cases) {
+    assert.equal(typeof fn, 'function', `${to}.${action}`);
+    const d = fn.descriptor;
+    assert.equal(d.channel, 'intent');
+    assert.equal(d.target, 'service');
+    assert.equal(d.to, to);
+    assert.equal(d.action, action);
+    assert.equal(d.mode, 'embedded-served', 'only Valu Social answers it today');
+    assert.deepEqual(d.scopes, [scope]);
+  }
+  assert.deepEqual(valu.Apps.getHeader.descriptor.positional, ['applicationId']);
+  assert.deepEqual(valu.Users.getIcon.descriptor.params.required.map((p) => p.name), ['userId']);
 });
 
 test('every application intent an app may send is a function, on its app\'s namespace or a service of the same name', () => {

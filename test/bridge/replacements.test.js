@@ -14,8 +14,15 @@ test('pointer calls map to typed functions, aliases included', () => {
   assert.equal(bridgeReplacement('pointer-run', 'app.isApplicationLoaded'), 'valu.Apps.isLoaded(applicationId)');
   assert.equal(bridgeReplacement('pointer-run', 'app.getApplications'), 'valu.Apps.list()');
   assert.equal(bridgeReplacement('pointer-run', 'app.open'), 'valu.Apps.open(appId)');
-  assert.equal(bridgeReplacement('pointer-run', 'app.close'), null);
-  assert.equal(bridgeReplacement('pointer-run', 'app.getApplicationHeader'), null);
+  // An app closing ITSELF is what `app.close` is used for; no typed function closes another app.
+  assert.equal(bridgeReplacement('pointer-run', 'app.close'), 'valu.Application.closeApplication() (similar, not the same)');
+  assert.equal(bridgeReplacement('pointer-run', 'app.getApplicationHeader'), 'valu.Apps.getHeader(applicationId)');
+  assert.equal(bridgeReplacement('pointer-run', 'app.getLoadedApplications'), 'valu.Apps.loaded()');
+  assert.equal(bridgeReplacement('pointer-run', 'users.getIcon'), 'valu.Users.getIcon({...})');
+  assert.equal(bridgeReplacement('run-console', 'users.getIcon'), 'valu.Users.getIcon({...})');
+  // The theme is not a service function: it is `valu.theme`, kept current by the SDK.
+  assert.equal(bridgeReplacement('pointer-run', 'ux.colorScheme'), 'valu.theme.scheme');
+  assert.equal(bridgeReplacement('pointer-run', 'ux.toggleColorScheme'), 'valu.theme.toggle()');
   assert.equal(bridgeReplacement('pointer-run', 'u.current'), 'valu.Users.current()'); // alias 'u'
 });
 
@@ -31,6 +38,12 @@ test('console, intents, routes, direct', () => {
   // `api:ready` is the host's message to the frame, never an app's: no entry.
   assert.equal(bridgeReplacement('direct', 'api:ready'), null);
   assert.equal(bridgeReplacement('run-intent', 'nope.nothing'), null);
+  // `sendIntent(new Intent('<app>'))` opens any app, declared or not.
+  assert.equal(bridgeReplacement('run-intent', 'kinus.open'), "valu.Apps.open('kinus')");
+  assert.equal(bridgeReplacement('run-intent', 'hebrew-calendar.open'), "valu.Apps.open('hebrew-calendar')");
+  // Only the intent form: a pointer or a service called `open` is something else.
+  assert.equal(bridgeReplacement('service-intent-other', 'kinus.open'), null);
+  assert.equal(bridgeReplacement('run-intent', 'a b.open'), null);
   assert.equal(bridgeReplacement('run-intent', 'toString'), null);
 });
 
@@ -51,6 +64,11 @@ test('an alias two modules share has no entry; canonical names do', () => {
 test('every valu.* value names a function the package has', () => {
   for (const [key, value] of Object.entries(BRIDGE_REPLACEMENTS)) {
     if (key.startsWith('direct ') || value.startsWith('valu.route.')) continue;
+    // `valu.theme` is the app object's own, checked in its own test below.
+    if (value.startsWith('valu.theme.')) {
+      assert.ok(['valu.theme.scheme', 'valu.theme.toggle()'].includes(value), `${key}: ${value}`);
+      continue;
+    }
     const m = /^valu\.(\w+)\.(\w+)\(/.exec(value);
     assert.ok(m, `${key}: ${value}`);
     assert.ok(hasFunction(m[1], m[2]), `${key}: ${value} has no function`);

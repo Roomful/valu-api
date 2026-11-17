@@ -24,7 +24,11 @@
 //            null    no declared intent: the pointer is the only way
 // ===========================================================================
 
-/** @typedef {{fn: string, arg: string, does: string, sdk: string|null, via: 'same'|'close'|null, note?: string}} PointerFn */
+/** @typedef {{fn: string, arg: string, does: string, sdk: string|null, via: 'same'|'close'|null, note?: string, typed?: string}} PointerFn */
+/**
+ * `typed` names a replacement the SDK has that is not a catalogue function
+ * (`valu.theme.scheme`): the replacement table takes it as written.
+ */
 
 /** @type {{module: string, file: string, aliases: string[], summary: string, functions: PointerFn[]}[]} */
 export const API_POINTER_MODULES = [
@@ -35,7 +39,7 @@ export const API_POINTER_MODULES = [
     summary: 'The application dock: what is installed, what is open, and how a pane behaves.',
     functions: [
       { fn: 'open', arg: 'applicationId', does: 'Open an application in the dock.', sdk: 'AiGuru.open', via: 'same' },
-      { fn: 'close', arg: 'applicationId', does: 'Close an open application.', sdk: 'AiGuru.close', via: 'same', note: 'The declared `Application.close-application` closes the CALLER; this closes whichever id you name.' },
+      { fn: 'close', arg: 'applicationId', does: 'Close an open application.', sdk: 'AiGuru.close', via: 'same', typed: 'valu.Application.closeApplication() (similar, not the same)', note: 'The declared `Application.close-application` closes the CALLER; this closes whichever id you name. An app closing ITSELF, which is what apps use it for, calls `valu.Application.closeApplication()`.' },
       { fn: 'expand', arg: 'applicationId', does: 'Expand an application pane.', sdk: 'Application.expand-application', via: 'close', note: 'The declared intent expands the caller and takes no id.' },
       { fn: 'hasApplication', arg: 'applicationId', does: 'Whether the dock knows this application at all.', sdk: 'AiGuru.has-application', via: 'same' },
       { fn: 'isApplicationLoaded', arg: 'applicationId', does: 'Whether it is loaded right now — a different question.', sdk: 'AiGuru.is-application-loaded', via: 'same' },
@@ -45,7 +49,8 @@ export const API_POINTER_MODULES = [
       { fn: 'getApplicationVersions', arg: 'applicationId', does: 'The versions of a Development Testing entry this person may run, newest first. Empty for every other kind of application.', sdk: null, via: null },
       { fn: 'selectApplicationVersion', arg: '{applicationId, tag}', does: 'Run another version of an application under test. False when the app is not under test or the version is out of reach.', sdk: null, via: null, note: 'The reachability check stays in the app\'s DeveloperPortalStore, so a caller cannot reach a build its user has no claim to. A successful switch republishes the registry.' },
       { fn: 'getMobileConfig', arg: '()', does: "The session's account, network and dock composition, the document's own origin, the resolved default and auth applications, and the `/.mobile/` index url.", sdk: null, via: null, note: 'The index url is built from the document origin, replacing the host a native shell used to carry. userId and networkId are the cache key for a resolved registry.' },
-      { fn: 'getApplicationHeader', arg: 'applicationId', does: "An application's title and a glyph already drawn with the platform font, for a page on another origin that cannot draw a Font Awesome class.", sdk: null, via: null },
+      { fn: 'getApplicationHeader', arg: 'applicationId', does: "An application's title and a glyph already drawn with the platform font, for a page on another origin that cannot draw a Font Awesome class.", sdk: 'AiGuru.get-application-header', via: 'same' },
+      { fn: 'getLoadedApplications', arg: '()', does: 'The ids of the applications open right now, the caller included: what decides whether an app header offers Expand.', sdk: 'AiGuru.get-loaded-applications', via: 'same' },
       { fn: 'getSetting', arg: 'key', does: 'Read one platform setting by key.', sdk: null, via: null },
       { fn: 'navigate', arg: '{path}', does: 'Navigate the Valu Social router.', sdk: null, via: null, note: '`api.pushRoute(path)` / `api.replaceRoute(path)` do this over `api:run-command`, which is a bridge command rather than a declared intent.' },
       { fn: 'run', arg: '{applicationId, action, params}', does: 'Run an intent against another application.', sdk: null, via: null, note: '`api.sendIntent(intent)` is the typed form, over `api:run-intent`.' },
@@ -65,7 +70,7 @@ export const API_POINTER_MODULES = [
       { fn: 'current', arg: '()', does: 'The signed-in user.', sdk: 'Users.current', via: 'same', note: "The pointer returns the store's `baseUser`; the SDK resolves the socket's own id through `social:getUsersSimpleInfo`, because headless there is no store." },
       { fn: 'get', arg: 'userId', does: 'One user model by id.', sdk: 'Users.get', via: 'same', note: 'Same RPC (`social:getUsersSimpleInfo`). The pointer takes a bare string; the SDK takes `{userId}`.' },
       { fn: 'getMany', arg: 'userIds', does: 'Several user models in one call.', sdk: null, via: null, note: 'The RPC accepts a list of ids; the declared `Users.get` only asks for one. A batch read is a Phase 3 candidate.' },
-      { fn: 'getIcon', arg: '{userId, size}', does: "A user's avatar URL at a size, from the app's URL cache.", sdk: null, via: null },
+      { fn: 'getIcon', arg: '{userId, size}', does: "A user's avatar URL at a size, from the app's URL cache.", sdk: 'Users.get-icon', via: 'same', note: 'The typed function answers `{url}`; the pointer answered the bare string.' },
       { fn: 'getExtended', arg: 'userId', does: 'The extended profile (`social:getUserProfileInfo`).', sdk: null, via: null },
       { fn: 'getLocator', arg: 'userId', does: "Where the user is — the locator record (`social:getUserLocator`).", sdk: null, via: null },
       { fn: 'requestFriendship', arg: 'userId', does: 'Send a connection request.', sdk: 'Users.send-connection-request', via: 'same' },
@@ -142,8 +147,8 @@ export const API_POINTER_MODULES = [
     aliases: [],
     summary: 'Theme and layout of the surface your iframe is drawn on.',
     functions: [
-      { fn: 'colorScheme', arg: '()', does: "The app's current colour scheme, so an embedded page can match it.", sdk: null, via: null },
-      { fn: 'toggleColorScheme', arg: '()', does: 'Toggle light/dark.', sdk: null, via: null },
+      { fn: 'colorScheme', arg: '()', does: "The app's current colour scheme, so an embedded page can match it.", sdk: null, via: null, typed: 'valu.theme.scheme', note: "`valu.theme.scheme` is Valu Social's scheme, kept current; `valu.theme.on('change', handler)` follows it." },
+      { fn: 'toggleColorScheme', arg: '()', does: 'Toggle light/dark.', sdk: null, via: null, typed: 'valu.theme.toggle()' },
       { fn: 'triggerResize', arg: 'data', does: 'Ask the app to re-measure and resize the frame.', sdk: null, via: null, note: 'Nothing in the declared surface resizes a frame; an embedded page that grows has no other way to say so.' },
     ],
   },

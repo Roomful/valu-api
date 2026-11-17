@@ -82,6 +82,32 @@
           }
         },
         {
+          "action": "get-loaded-applications",
+          "description": "Returns the ids of the applications open in the dock right now, the caller included. One call answers what an app used to ask isApplicationLoaded once per registered application.",
+          "availability": [],
+          "permissions": [],
+          "params": {
+            "required": [],
+            "optional": []
+          }
+        },
+        {
+          "action": "get-application-header",
+          "description": "Returns an application's title and its icon already drawn with the platform font ({kind: 'glyph', mask, width, height} or {kind: 'image', light, dark}, or null), so a page on another origin can show the platform's own name and icon in its header. Null when the application is unknown.",
+          "availability": [],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "applicationId",
+                "type": "string",
+                "description": "The application whose header to describe."
+              }
+            ],
+            "optional": []
+          }
+        },
+        {
           "action": "get-chat-history",
           "description": "Returns the in-memory message history for a chat session. Omit chatId to get the currently active session.",
           "availability": [
@@ -3794,6 +3820,30 @@
               }
             ],
             "optional": []
+          }
+        },
+        {
+          "action": "get-icon",
+          "description": "Returns a user's avatar as a signed image URL at the requested size ({url}), or an empty url when the user has no avatar. The URL expires, so ask again rather than storing it.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "The user whose avatar to return."
+              }
+            ],
+            "optional": [
+              {
+                "name": "size",
+                "type": "number",
+                "description": "The edge of the square image in pixels. Defaults to 256."
+              }
+            ]
           }
         },
         {

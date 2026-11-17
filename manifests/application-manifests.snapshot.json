@@ -8,6 +8,12 @@
       "intents": []
     },
     {
+      "id": "activity-monitor",
+      "title": "Activity Monitor",
+      "iframe": false,
+      "intents": []
+    },
+    {
       "id": "ai",
       "title": "AI",
       "iframe": true,

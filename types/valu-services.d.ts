@@ -1712,6 +1712,25 @@ export interface UsersSendConnectionRequestParams {
 }
 
 /**
+ * Users.get-icon — The user's avatar as a signed image URL at the size asked for; empty when they have none. It expires: ask again rather than storing it.
+ */
+export type UsersGetIconResult = {url: string};
+
+/**
+ * Users.get-icon — Returns a user's avatar as a signed image URL at the requested size ({url}), or an empty url when the user has no avatar. The URL expires, so ask again rather than storing it.
+ */
+export interface UsersGetIconParams {
+  /**
+   * The user whose avatar to return.
+   */
+  userId: string;
+  /**
+   * The edge of the square image in pixels. Defaults to 256.
+   */
+  size?: number;
+}
+
+/**
  * VerusWallet.get-balance — The agent wallet's last known balance. Read from application state, never the network.
  */
 export type VerusWalletGetBalanceResult = {identityName: string, iAddress: string, balance: number|null};
@@ -1758,6 +1777,21 @@ export interface VerusWalletTransferParams {
 }
 
 /**
+ * AiGuru.get-application-header — Returns an application's title and its icon already drawn with the platform font ({kind: 'glyph', mask, width, height} or {kind: 'image', light, dark}, or null), so a page on another origin can show the platform's own name and icon in its header. Null when the application is unknown.
+ */
+export type AppsGetHeaderResult = any;
+
+/**
+ * AiGuru.get-application-header — Returns an application's title and its icon already drawn with the platform font ({kind: 'glyph', mask, width, height} or {kind: 'image', light, dark}, or null), so a page on another origin can show the platform's own name and icon in its header. Null when the application is unknown.
+ */
+export interface AppsGetHeaderParams {
+  /**
+   * The application whose header to describe.
+   */
+  applicationId: string;
+}
+
+/**
  * AiGuru.get-applications — Returns a list of all registered applications with their id, slug, icon, and title.
  */
 export type AppsListResult = any;
@@ -1766,6 +1800,17 @@ export type AppsListResult = any;
  * AiGuru.get-applications — Returns a list of all registered applications with their id, slug, icon, and title.
  */
 export interface AppsListParams {
+}
+
+/**
+ * AiGuru.get-loaded-applications — Returns the ids of the applications open in the dock right now, the caller included. One call answers what an app used to ask isApplicationLoaded once per registered application.
+ */
+export type AppsLoadedResult = any;
+
+/**
+ * AiGuru.get-loaded-applications — Returns the ids of the applications open in the dock right now, the caller included. One call answers what an app used to ask isApplicationLoaded once per registered application.
+ */
+export interface AppsLoadedParams {
 }
 
 /**
@@ -5203,6 +5248,14 @@ export interface ValuServices {
      * @scope users:write
      */
     sendConnectionRequest(params: UsersSendConnectionRequestParams): Promise<ValuAck<UsersSendConnectionRequestResult>>;
+    /**
+     * Returns a user's avatar as a signed image URL at the requested size ({url}), or an empty url when the user has no avatar. The URL expires, so ask again rather than storing it.
+     * @channel intent
+     * @scope users:read
+     * @mode embedded-served
+     * @intent service `Users` `get-icon`
+     */
+    getIcon(params: UsersGetIconParams): Promise<ValuAck<UsersGetIconResult>>;
   };
   /**
    * Executes on-chain transfers from an AI agent's attached Verus wallet identity. Every call takes an agentId — the client resolves which wallet is attached to that agent. Returns an error if the agent has no wallet attached or the wallet has not finished being provisioned on-chain.
@@ -5226,6 +5279,14 @@ export interface ValuServices {
    */
   Apps: {
     /**
+     * Returns an application's title and its icon already drawn with the platform font ({kind: 'glyph', mask, width, height} or {kind: 'image', light, dark}, or null), so a page on another origin can show the platform's own name and icon in its header. Null when the application is unknown.
+     * @channel intent
+     * @scope aiguru:read
+     * @mode embedded-served
+     * @intent service `AiGuru` `get-application-header`
+     */
+    getHeader(params: string | AppsGetHeaderParams): Promise<ValuAck<AppsGetHeaderResult>>;
+    /**
      * Returns a list of all registered applications with their id, slug, icon, and title.
      * @channel intent
      * @scope ui:open
@@ -5233,6 +5294,14 @@ export interface ValuServices {
      * @intent service `AiGuru` `get-applications`
      */
     list(): Promise<ValuAck<AppsListResult>>;
+    /**
+     * Returns the ids of the applications open in the dock right now, the caller included. One call answers what an app used to ask isApplicationLoaded once per registered application.
+     * @channel intent
+     * @scope aiguru:read
+     * @mode embedded-served
+     * @intent service `AiGuru` `get-loaded-applications`
+     */
+    loaded(): Promise<ValuAck<AppsLoadedResult>>;
     /**
      * Checks whether an application with the given ID exists in the registry.
      * @channel intent

@@ -63,6 +63,8 @@ export const RETURNS = {
   'AiGuru.has-application': { type: '{hasApplication: boolean}', description: 'Whether the dock knows this application.' },
   'AiGuru.get-applications': { type: '{applications: object[]}', description: 'Applications the dock can open.' },
   'AiGuru.is-application-loaded': { type: '{loaded: boolean}', description: 'Whether the application is loaded in the dock.' },
+  'AiGuru.get-loaded-applications': { type: '{applicationIds: string[]}', description: 'The ids of the applications open in the dock right now, the caller included.' },
+  'AiGuru.get-application-header': { type: "{title: string, icon: {kind: 'glyph', mask: string, width: number, height: number} | {kind: 'image', light: string, dark: string} | null} | null", description: "The application's title and its icon drawn with the platform font (a white-on-clear PNG to paint as a CSS mask), or theme artwork; null when the application is unknown." },
   'AiGuru.get-chat-history': { type: '{session: object, messages: object[]}', description: 'The session header and its in-memory messages.' },
   'AiGuru.get-agent-history': { type: '{agent: object, messages: object[]}', description: 'The agent header and its in-memory messages.' },
   'AiGuru.query-knowledge-base': { type: '{toolName: string, result: string}', description: 'The RAG tool that answered and its raw result text.' },
@@ -182,6 +184,7 @@ export const RETURNS = {
   // --- Users ---------------------------------------------------------------
   'Users.current': { type: '{user: object}', description: 'The authenticated user.' },
   'Users.get': { type: '{user: object}', description: 'One user\'s basic profile.' },
+  'Users.get-icon': { type: '{url: string}', description: "The user's avatar as a signed image URL at the size asked for; empty when they have none. It expires: ask again rather than storing it." },
   'Users.search-users': { type: '{users: object[]}', description: 'Matches WITHIN the caller\'s own connections.' },
   'Users.find-user': { type: '{users: object[]}', description: 'Suggested people across the network.' },
   'Users.send-connection-request': { type: 'void', description: 'The request was sent.' },

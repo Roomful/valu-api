@@ -42,7 +42,7 @@ What that costs, concretely:
 
 ## The inventory
 
-68 functions across 11 modules, vendored in
+69 functions across 11 modules, vendored in
 [`scripts/apiPointers.js`](../scripts/apiPointers.js) and re-measured against a
 real checkout by `npm run measure:api-pointers`, which exits non-zero the
 moment the app adds, renames or drops one.
@@ -50,10 +50,10 @@ moment the app adds, renames or drops one.
 | | n |
 |---|---|
 | modules | 11 |
-| functions | 68 |
-| … a declared SDK function does the same work | 15 |
+| functions | 69 |
+| … a declared SDK function does the same work | 18 |
 | … a declared function is close but not equivalent | 7 |
-| … **no declared intent: the pointer is the only way** | 46 |
+| … **no declared intent: the pointer is the only way** | 44 |
 
 So two thirds of this surface is not reachable through the service SDK at all,
 and that is the answer to "what still relies on API pointers": theming and
@@ -84,7 +84,8 @@ The application dock: what is installed, what is open, and how a pane behaves.
 | `getApplicationVersions` | `applicationId` | The versions of a Development Testing entry this person may run, newest first. Empty for every other kind of application. | — none |
 | `selectApplicationVersion` | `{applicationId, tag}` | Run another version of an application under test. False when the app is not under test or the version is out of reach. | — none |
 | `getMobileConfig` | `()` | The session's account, network and dock composition, the document's own origin, the resolved default and auth applications, and the `/.mobile/` index url. | — none |
-| `getApplicationHeader` | `applicationId` | An application's title and a glyph already drawn with the platform font, for a page on another origin that cannot draw a Font Awesome class. | — none |
+| `getApplicationHeader` | `applicationId` | An application's title and a glyph already drawn with the platform font, for a page on another origin that cannot draw a Font Awesome class. | ✅ same `AiGuru.get-application-header` |
+| `getLoadedApplications` | `()` | The ids of the applications open right now, the caller included: what decides whether an app header offers Expand. | ✅ same `AiGuru.get-loaded-applications` |
 | `getSetting` | `key` | Read one platform setting by key. | — none |
 | `navigate` | `{path}` | Navigate the Valu Social router. | — none |
 | `run` | `{applicationId, action, params}` | Run an intent against another application. | — none |
@@ -94,7 +95,7 @@ The application dock: what is installed, what is open, and how a pane behaves.
 | `overriderAppLoading` | `()` | Take over the application loading indicator. | — none |
 | `overriderPopupLoading` | `()` | Take over the popup loading indicator. | — none |
 
-- `close` — The declared `Application.close-application` closes the CALLER; this closes whichever id you name.
+- `close` — The declared `Application.close-application` closes the CALLER; this closes whichever id you name. An app closing ITSELF, which is what apps use it for, calls `valu.Application.closeApplication()`.
 - `expand` — The declared intent expands the caller and takes no id.
 - `getApplications` — A native shell reads this INSTEAD of the build-time `/.mobile/<network>.manifest.json`, which is one file per deployment and therefore carries neither dynamic kind. `applications-updated` re-announces the list whenever it is rebuilt.
 - `getApplicationGroups` — Not to be tabled caller-side: networks add their own sections, and one that DROPS `develop_testing` has opted out of showing unreleased builds.
@@ -115,7 +116,7 @@ People: identity, connections, following.
 | `current` | `()` | The signed-in user. | ✅ same `Users.current` |
 | `get` | `userId` | One user model by id. | ✅ same `Users.get` |
 | `getMany` | `userIds` | Several user models in one call. | — none |
-| `getIcon` | `{userId, size}` | A user's avatar URL at a size, from the app's URL cache. | — none |
+| `getIcon` | `{userId, size}` | A user's avatar URL at a size, from the app's URL cache. | ✅ same `Users.get-icon` |
 | `getExtended` | `userId` | The extended profile (`social:getUserProfileInfo`). | — none |
 | `getLocator` | `userId` | Where the user is — the locator record (`social:getUserLocator`). | — none |
 | `requestFriendship` | `userId` | Send a connection request. | ✅ same `Users.send-connection-request` |
@@ -130,6 +131,7 @@ People: identity, connections, following.
 - `current` — The pointer returns the store's `baseUser`; the SDK resolves the socket's own id through `social:getUsersSimpleInfo`, because headless there is no store.
 - `get` — Same RPC (`social:getUsersSimpleInfo`). The pointer takes a bare string; the SDK takes `{userId}`.
 - `getMany` — The RPC accepts a list of ids; the declared `Users.get` only asks for one. A batch read is a Phase 3 candidate.
+- `getIcon` — The typed function answers `{url}`; the pointer answered the bare string.
 - `deleteFriend` — The manifest declares the four request transitions and not the removal, so an agent can connect people and cannot disconnect them.
 - `getFollowersCount` — Same RPC (`social:searchUserFollowers`), but the declared function answers a page of users; the count is in the response the SDK discards.
 
@@ -223,6 +225,7 @@ Theme and layout of the surface your iframe is drawn on.
 | `toggleColorScheme` | `()` | Toggle light/dark. | — none |
 | `triggerResize` | `data` | Ask the app to re-measure and resize the frame. | — none |
 
+- `colorScheme` — `valu.theme.scheme` is Valu Social's scheme, kept current; `valu.theme.on('change', handler)` follows it.
 - `triggerResize` — Nothing in the declared surface resizes a frame; an embedded page that grows has no other way to say so.
 
 ### dialog (also `d`)
@@ -277,8 +280,8 @@ Whether a call is running.
 `dialog` is declared **twice**: once above, and again by
 [`src/Services/UnityDialog/UnityDialogApi.js`](https://github.com/Roomful/valusocial-web/blob/develop/src/Services/UnityDialog/UnityDialogApi.js) with the same 2 functions (`open`, `close`).
 `APIBridge.createAPi` throws on a duplicate module name, so at most one of the
-two is ever live; the tables above count the pair once. 70 registrations,
-68 distinct functions.
+two is ever live; the tables above count the pair once. 71 registrations,
+69 distinct functions.
 
 An **alias** collides silently instead — `registerAlias` just overwrites the
 entry, so the last module to register the name owns it:
@@ -297,7 +300,7 @@ Prefer the module's own name over an alias for exactly this reason.
   socket; `ValuApi.callService(intent)` sends `api:service-intent`.
 - There is no plan in Phases 1–2 to wrap them. A pointer function that deserves
   to be callable from an agent should be **declared as an intent** and
-  implemented here; the 46 above are the candidate list.
+  implemented here; the 44 above are the candidate list.
 
 ## Application intents: the other thing the bridge carries
 
@@ -321,19 +324,21 @@ instead (`valu.Chats.openChannel({ userId })`, `valu.Apps.open(appId)`,
 `valu.Apps.send(appId, action, params)`; [service-api.md](service-api.md)),
 which keep working when Valu Social closes this bridge to apps.
 
-78 intents in the manifest snapshot can ONLY be run this way, so
+81 intents in the manifest snapshot can ONLY be run this way, so
 [socket-functions.md](socket-functions.md) has no function for any of them.
 They fall into three groups, and the difference matters when you are deciding
 whether to wait for an SDK function or wire the intent now.
 
-### Only the application process can answer them — 42
+### Only the application process can answer them — 45
 
 Nothing but the application process can answer these: they open a dock or one of its screens, draw a picker or a consent dialog the user must answer before anything is written, hold an event subscription for the calling frame, or read the application's own memory. A function here would be a method that fails everywhere this library is meant to run.
 
 | intent | params | what it does |
 |---|---|---|
 | `AiGuru.close` | `{applicationId}` | Closes (unloads) an application by its ID from the dock. |
+| `AiGuru.get-application-header` | `{applicationId}` | Returns an application's title and its icon already drawn with the platform font ({kind: 'glyph', mask, width, height} or {kind: 'image', light, dark}, or null), so a page on another origin can show the platform's own name and icon in its header. Null when the application is unknown. |
 | `AiGuru.get-applications` | — | Returns a list of all registered applications with their id, slug, icon, and title. |
+| `AiGuru.get-loaded-applications` | — | Returns the ids of the applications open in the dock right now, the caller included. One call answers what an app used to ask isApplicationLoaded once per registered application. |
 | `AiGuru.has-application` | `{applicationId}` | Checks whether an application with the given ID exists in the registry. |
 | `AiGuru.is-application-loaded` | `{applicationId}` | Checks whether an application with the given ID is currently loaded (open) in the dock. |
 | `AiGuru.open` | `{applicationId}` | Opens (loads) an application by its ID into the dock. |
@@ -374,6 +379,7 @@ Nothing but the application process can answer these: they open a dock or one of
 | `RoomZones.list-room-zones` | `{roomId, claimableOnly?}` | Every zone of a room: {status: "ok", zones}. Each zone carries id (the prop id), title, its box in room metres (x, z, rotY in degrees, width, depth, height, floorOffset), the two capabilities (call, claim) and its claim policy (settings.audience is "members" or "listed"). A room with no zones returns an empty list. |
 | `RoomZones.release-zone` | `{roomId, zoneId}` | Releases the signed-in user's own claim on a zone: {status: "ok"}. Starts a one-minute cooldown before the same user may claim that zone again. Releasing a zone somebody else holds is not possible here — a room owner uses assign-zone or the Spaces app. |
 | `RoomZones.zone-occupancy` | `{roomId}` | Who holds the room's claimable zones right now: {status: "ok", occupancy} keyed by zone id, each {claim, conflicts, stale}. `claim` is null when the zone is free, else {userId, claimedAt, source, doorPolicy, displayName, status}. `stale` means the occupant no longer has access to the room, so the zone is effectively free. `conflicts` are losing claims a moderator should clear. This reads the server every time — there is no push for prop invitations. |
+| `Users.get-icon` | `{userId, size?}` | Returns a user's avatar as a signed image URL at the requested size ({url}), or an empty url when the user has no avatar. The URL expires, so ask again rather than storing it. |
 
 ### The Valu Guru server answers them, on its own socket — 33
 

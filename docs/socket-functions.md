@@ -957,6 +957,8 @@ User management service for getting current user info, looking up users by ID, s
 
 Source: `src/Services/Users/UsersService.js`
 
+*1 more `Users` intent (`get-icon`) is served by the Valu Social application, not here — ask for it by name over the bridge ([api-pointers.md](api-pointers.md)).*
+
 | function | params | returns | mode | requires | cache |
 |---|---|---|---|---|---|
 | `Users.accept-connection-request` | {userId} | `void` | write | `socket` | `none` |

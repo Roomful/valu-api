@@ -23,9 +23,9 @@ is the same call with the envelope taken off: it returns the payload and throws
 `ValuServiceError`. `valu.call('Users.current')` takes the name as a string,
 which is what an LLM tool call has.
 
-**Intents are functions too.** 134 of the functions below are intents
+**Intents are functions too.** 137 of the functions below are intents
 that Valu Social serves (`createValuApp()` only: a socket client has nowhere to send
-one): 72 of its services' (`valu.Commerce.getCart()`, `valu.CMS.pickResource()`) and
+one): 75 of its services' (`valu.Commerce.getCart()`, `valu.CMS.pickResource()`) and
 62 of its apps' — every intent an app may send to Chats, Calendar, My Cart
 and the rest, on a namespace named by the app's title
 (`valu.Chats.openChannel({ userId })`, `valu.MyCart.openCart()`), or on the
@@ -389,6 +389,9 @@ User management service for getting current user info, looking up users by ID, s
 - `valu.Users.searchUsers({ filter, query?, offset?, size? })` → `{users: object[]}`
   Search for users within existing connections (contacts, followers, or following). Use this to find a user ID when you only know their name and they are already in your network. To discover new users outside your network, use find-user instead.
   <sub>Roomful socket</sub>
+- `valu.Users.getIcon({ userId, size? })` → `{url: string}`
+  Returns a user's avatar as a signed image URL at the requested size ({url}), or an empty url when the user has no avatar. The URL expires, so ask again rather than storing it.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 
 **Writes**
 
@@ -434,9 +437,15 @@ Any Valu Social app, by its id: open one, send it an intent, and ask which apps 
 
 **Reads**
 
+- `valu.Apps.getHeader(applicationId)` → `?`
+  Returns an application's title and its icon already drawn with the platform font ({kind: 'glyph', mask, width, height} or {kind: 'image', light, dark}, or null), so a page on another origin can show the platform's own name and icon in its header. Null when the application is unknown.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the intent `AiGuru.get-application-header`</sub>
 - `valu.Apps.list()` → `?`
   Returns a list of all registered applications with their id, slug, icon, and title.
   <sub>intent · inside Valu Social only; `not_available` at the app's own address · the intent `AiGuru.get-applications`</sub>
+- `valu.Apps.loaded()` → `?`
+  Returns the ids of the applications open in the dock right now, the caller included. One call answers what an app used to ask isApplicationLoaded once per registered application.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address · the intent `AiGuru.get-loaded-applications`</sub>
 - `valu.Apps.has(applicationId)` → `?`
   Checks whether an application with the given ID exists in the registry.
   <sub>intent · inside Valu Social only; `not_available` at the app's own address · the intent `AiGuru.has-application`</sub>

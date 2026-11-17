@@ -3523,6 +3523,51 @@ export const SERVICE_DESCRIPTORS = [
  * `window`, `embedded-only`, `embedded-served`). */
 export const INTENT_DESCRIPTORS = [
   {
+    "key": "AiGuru.get-application-header",
+    "service": "Apps",
+    "action": "get-application-header",
+    "fn": "get_application_header",
+    "method": "getHeader",
+    "toolName": "service__Apps__getHeader",
+    "serviceTitle": "Apps",
+    "serviceDescription": "Any Valu Social app, by its id: open one, send it an intent, and ask which apps there are and which are open.",
+    "source": "src/Services/AiGuru/AiGuruService.js",
+    "description": "Returns an application's title and its icon already drawn with the platform font ({kind: 'glyph', mask, width, height} or {kind: 'image', light, dark}, or null), so a page on another origin can show the platform's own name and icon in its header. Null when the application is unknown.",
+    "availability": [],
+    "permissions": [],
+    "scopes": [
+      "aiguru:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [
+        {
+          "name": "applicationId",
+          "type": "string",
+          "description": "The application whose header to describe."
+        }
+      ],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "positional": [
+      "applicationId"
+    ],
+    "target": "service",
+    "to": "AiGuru",
+    "mode": "embedded-served"
+  },
+  {
     "key": "AiGuru.get-applications",
     "service": "Apps",
     "action": "get-applications",
@@ -3537,6 +3582,42 @@ export const INTENT_DESCRIPTORS = [
     "permissions": [],
     "scopes": [
       "ui:open"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "unknown",
+      "description": ""
+    },
+    "params": {
+      "required": [],
+      "optional": []
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "AiGuru",
+    "mode": "embedded-served"
+  },
+  {
+    "key": "AiGuru.get-loaded-applications",
+    "service": "Apps",
+    "action": "get-loaded-applications",
+    "fn": "get_loaded_applications",
+    "method": "loaded",
+    "toolName": "service__Apps__loaded",
+    "serviceTitle": "Apps",
+    "serviceDescription": "Any Valu Social app, by its id: open one, send it an intent, and ask which apps there are and which are open.",
+    "source": "src/Services/AiGuru/AiGuruService.js",
+    "description": "Returns the ids of the applications open in the dock right now, the caller included. One call answers what an app used to ask isApplicationLoaded once per registered application.",
+    "availability": [],
+    "permissions": [],
+    "scopes": [
+      "aiguru:read"
     ],
     "mutates": false,
     "cache": {
@@ -10657,6 +10738,56 @@ export const INTENT_DESCRIPTORS = [
     "mode": "embedded-only"
   },
   {
+    "key": "Users.get-icon",
+    "service": "Users",
+    "action": "get-icon",
+    "fn": "get_icon",
+    "method": "getIcon",
+    "toolName": "service__Users__get_icon",
+    "serviceTitle": "Users Service",
+    "serviceDescription": "User management service for getting current user info, looking up users by ID, searching contacts/followers/following, and managing connection requests.",
+    "source": "src/Services/Users/UsersService.js",
+    "description": "Returns a user's avatar as a signed image URL at the requested size ({url}), or an empty url when the user has no avatar. The URL expires, so ask again rather than storing it.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "users:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{url: string}",
+      "description": "The user's avatar as a signed image URL at the size asked for; empty when they have none. It expires: ask again rather than storing it."
+    },
+    "params": {
+      "required": [
+        {
+          "name": "userId",
+          "type": "string",
+          "description": "The user whose avatar to return."
+        }
+      ],
+      "optional": [
+        {
+          "name": "size",
+          "type": "number",
+          "description": "The edge of the square image in pixels. Defaults to 256."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "Users",
+    "mode": "embedded-served"
+  },
+  {
     "key": "ValuGames.open",
     "service": "ValuGames",
     "action": "open",
@@ -11214,6 +11345,9 @@ export const APPLICATION_TARGETS = {
   "__launcher": {
     "frame": false
   },
+  "activity-monitor": {
+    "frame": false
+  },
   "ai": {
     "frame": true
   },
@@ -11534,8 +11668,10 @@ export const UNTYPED_APPLICATION_INTENTS = [
 export const APPLICATION_ONLY_INTENTS = [
   "AiGuru.close",
   "AiGuru.get-agent-history",
+  "AiGuru.get-application-header",
   "AiGuru.get-applications",
   "AiGuru.get-chat-history",
+  "AiGuru.get-loaded-applications",
   "AiGuru.has-application",
   "AiGuru.is-application-loaded",
   "AiGuru.open",
@@ -11609,15 +11745,18 @@ export const APPLICATION_ONLY_INTENTS = [
   "RoomZones.claim-zone",
   "RoomZones.list-room-zones",
   "RoomZones.release-zone",
-  "RoomZones.zone-occupancy"
+  "RoomZones.zone-occupancy",
+  "Users.get-icon"
 ];
 
 /** @type {Record<string, 'no-rpc'|'valu-guru'|'not-ported'>} */
 export const APPLICATION_INTENT_REASON = {
   "AiGuru.close": "no-rpc",
   "AiGuru.get-agent-history": "valu-guru",
+  "AiGuru.get-application-header": "no-rpc",
   "AiGuru.get-applications": "no-rpc",
   "AiGuru.get-chat-history": "valu-guru",
+  "AiGuru.get-loaded-applications": "no-rpc",
   "AiGuru.has-application": "no-rpc",
   "AiGuru.is-application-loaded": "no-rpc",
   "AiGuru.open": "no-rpc",
@@ -11691,7 +11830,8 @@ export const APPLICATION_INTENT_REASON = {
   "RoomZones.claim-zone": "no-rpc",
   "RoomZones.list-room-zones": "no-rpc",
   "RoomZones.release-zone": "no-rpc",
-  "RoomZones.zone-occupancy": "no-rpc"
+  "RoomZones.zone-occupancy": "no-rpc",
+  "Users.get-icon": "no-rpc"
 };
 
 /** Server tools that implement no declared intent. */

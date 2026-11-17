@@ -12,7 +12,7 @@ without `npm run check:generated` failing.
 | — of them declared by the application's manifest | 64 |
 | — of them declared by this package (scripts/extensions.js) | 1 |
 | implemented in this package | **65** |
-| declared intents excluded (only the application can serve them) | **78** |
+| declared intents excluded (only the application can serve them) | **81** |
 | server tools with no declared intent | **7** |
 
 ## Channels
@@ -99,7 +99,7 @@ and the one a caller has to satisfy before the call can work.
 
 ## Declared, and deliberately not here
 
-78 intents in the application's manifest get no descriptor, no method
+81 intents in the application's manifest get no descriptor, no method
 and no tool definition, for one of three reasons.
 
 They are not unreachable. An iframe application asks for any intent **by name**
@@ -107,12 +107,14 @@ over the postMessage bridge, and the application's own registry (not this
 snapshot) is the authority for what those names are:
 [api-pointers.md](api-pointers.md).
 
-### Only the application process can answer them — 42
+### Only the application process can answer them — 45
 
 Nothing but the application process can answer these: they open a dock or one of its screens, draw a picker or a consent dialog the user must answer before anything is written, hold an event subscription for the calling frame, or read the application's own memory. A function here would be a method that fails everywhere this library is meant to run.
 
 - `AiGuru.close` — Closes (unloads) an application by its ID from the dock.
+- `AiGuru.get-application-header` — Returns an application's title and its icon already drawn with the platform font ({kind: 'glyph', mask, width, height} or {kind: 'image', light, dark}, or null), so a page on another origin can show the platform's own name and icon in its header. Null when the application is unknown.
 - `AiGuru.get-applications` — Returns a list of all registered applications with their id, slug, icon, and title.
+- `AiGuru.get-loaded-applications` — Returns the ids of the applications open in the dock right now, the caller included. One call answers what an app used to ask isApplicationLoaded once per registered application.
 - `AiGuru.has-application` — Checks whether an application with the given ID exists in the registry.
 - `AiGuru.is-application-loaded` — Checks whether an application with the given ID is currently loaded (open) in the dock.
 - `AiGuru.open` — Opens (loads) an application by its ID into the dock.
@@ -153,6 +155,7 @@ Nothing but the application process can answer these: they open a dock or one of
 - `RoomZones.list-room-zones` — Every zone of a room: {status: "ok", zones}. Each zone carries id (the prop id), title, its box in room metres (x, z, rotY in degrees, width, depth, height, floorOffset), the two capabilities (call, claim) and its claim policy (settings.audience is "members" or "listed"). A room with no zones returns an empty list.
 - `RoomZones.release-zone` — Releases the signed-in user's own claim on a zone: {status: "ok"}. Starts a one-minute cooldown before the same user may claim that zone again. Releasing a zone somebody else holds is not possible here — a room owner uses assign-zone or the Spaces app.
 - `RoomZones.zone-occupancy` — Who holds the room's claimable zones right now: {status: "ok", occupancy} keyed by zone id, each {claim, conflicts, stale}. `claim` is null when the zone is free, else {userId, claimedAt, source, doorPolicy, displayName, status}. `stale` means the occupant no longer has access to the room, so the zone is effectively free. `conflicts` are losing claims a moderator should clear. This reads the server every time — there is no push for prop invitations.
+- `Users.get-icon` — Returns a user's avatar as a signed image URL at the requested size ({url}), or an empty url when the user has no avatar. The URL expires, so ask again rather than storing it.
 
 ### The Valu Guru server answers them, on its own socket — 33
 
