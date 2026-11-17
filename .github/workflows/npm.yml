@@ -128,14 +128,27 @@ jobs:
             echo "No OIDC token: this job is missing the id-token: write permission."
           fi
 
+          # A set secret is not a working one: the NPM_TOKEN this published
+          # with until 2.0.0 was still set long after npm stopped accepting
+          # it. Ask npm who the token is, rather than that it is there.
+          token=no
           if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "An NPM_TOKEN secret is set, and is the fallback."
+            status=$(curl -sS -o whoami.json -w '%{http_code}' \
+              -H "Authorization: Bearer $NODE_AUTH_TOKEN" \
+              https://registry.npmjs.org/-/whoami)
+            if [ "$status" = "200" ]; then
+              token=yes
+              echo "NPM_TOKEN: npm knows it as $(node -p "JSON.parse(require('fs').readFileSync('whoami.json', 'utf8')).username || '(no username)'"). Whether it may write this package is not checked here."
+            else
+              echo "NPM_TOKEN is set, but npm rejects it, HTTP $status: it has expired, been revoked, or never had access."
+            fi
+            rm -f whoami.json
           else
-            echo "No NPM_TOKEN secret is set: Trusted Publishing is the only way in."
+            echo "No NPM_TOKEN secret is set."
           fi
 
-          if [ "$oidc" = "no" ] && [ -z "${NODE_AUTH_TOKEN:-}" ] && [ "$PUBLISHING" = "true" ]; then
-            echo "::error::This run has no npm credential. Register the trusted publisher above, or set an NPM_TOKEN secret holding a granular token with write access to @arkeytyp/valu-api."
+          if [ "$oidc" = "no" ] && [ "$token" = "no" ] && [ "$PUBLISHING" = "true" ]; then
+            echo "::error::This run has no npm credential npm will accept. Register the trusted publisher above, or set NPM_TOKEN to a granular token with write access to @arkeytyp/valu-api."
             exit 1
           fi
 
