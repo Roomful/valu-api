@@ -1305,6 +1305,36 @@ export const BRIDGE_REPLACEMENTS = Object.freeze(${JSON.stringify(
   Object.fromEntries(Object.entries(bridgeReplacements).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))), null, 2)});
 `;
 
+// --- docs/migrating.md ----------------------------------------------------
+// The "Migrate to Valu API 2" page for app developers and their AI agents:
+// prose from docs/migrating.template.md, with this release's version and the
+// replacement table above filled in. valu-docs copies it to
+// docs.texpo.io/valu-api-migration on every change, so a release updates the
+// page without anyone editing it.
+const migratingMd = (() => {
+  const SIMILAR = ' (similar, not the same)';
+  const cell = (s) => String(s).replace(/\|/g, '\\|');
+  const use = (v) => {
+    if (!v.startsWith('valu')) return cell(v);
+    const similar = v.endsWith(SIMILAR);
+    return `\`${cell(similar ? v.slice(0, -SIMILAR.length) : v)}\`${similar ? SIMILAR : ''}`;
+  };
+  const sorted = Object.entries(bridgeReplacements).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const of = (kind) => sorted.filter(([k]) => k.startsWith(`${kind} `)).map(([k, v]) => [k.slice(kind.length + 1), v]);
+  const table = (rows, head) => [`| ${head} | Use instead |`, '|---|---|', ...rows.map(([k, v]) => `| \`${cell(k)}\` | ${use(v)} |`)].join('\n');
+  const sections = [
+    "### API pointers: `getApi(api)` then `.run(fn)`\n\nKey: `api.fn`. `(await valuApi.getApi('users')).run('current')` is `users.current`.\n\n"
+      + table(of('pointer-run'), 'Old call'),
+    "### Console commands: `runConsoleCommand('api fn …')`\n\nKey: the first two words, as `api.fn`. `runConsoleCommand('users current')` is `users.current`.\n\n"
+      + table(of('run-console'), 'Old command'),
+    "### Intents: `sendIntent(new Intent(app, action))` and `callService(new Intent(service, action))`\n\nKey: `target.action`. `new Intent('textchat', 'open-channel', …)` is `textchat.open-channel`. Any app opened with `new Intent('<app>')` (no action) is `valu.Apps.open('<app>')`.\n\n"
+      + table(of('run-intent'), 'Old intent'),
+    '### Routing: `pushRoute` / `replaceRoute`\n\n' + table(of('run-command'), 'Old command'),
+  ];
+  const template = readFileSync(new URL('docs/migrating.template.md', root), 'utf8');
+  return template.replaceAll('{{VERSION}}', version).replace('{{REPLACEMENT_TABLE}}', sections.join('\n\n'));
+})();
+
 // --- write or check --------------------------------------------------------
 const outputs = [
   ['src/services/catalog.generated.js', catalogJs],
@@ -1316,6 +1346,7 @@ const outputs = [
   ['docs/api-pointers.md', pointerMd],
   ['docs/parity.md', parity],
   ['docs/parity-matrix.csv', csv],
+  ['docs/migrating.md', migratingMd],
 ];
 
 let stale = 0;

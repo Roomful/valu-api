@@ -2,8 +2,10 @@ name: Notify Docs Update
 on:
   push:
     branches: [main]
-    # The three files valu-docs copies (scripts/sync-valu-api-docs.mjs there).
-    paths: [README.md, valu-routing.md, docs/service-api.md]
+    # The files valu-docs copies (scripts/sync-valu-api-docs.mjs there).
+    # docs/migrating.md is regenerated on every version bump, so a release
+    # always reaches docs.texpo.io (and its deploy installs the new release).
+    paths: [README.md, valu-routing.md, docs/service-api.md, docs/migrating.md]
 
 jobs:
   notify:

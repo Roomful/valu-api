@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`docs/migrating.md`, generated.** The "Migrate to Valu API 2" guide for app
+  developers and their AI agents (docs.texpo.io/valu-api-migration): prose from
+  `docs/migrating.template.md`, this release's version and the full
+  `BRIDGE_REPLACEMENTS` table filled in by `npm run build`. Valu Docs copies it
+  on every change, so each release updates the page.
+
 ## 2.2.0 — 2026-11-17
 
 ### Added
