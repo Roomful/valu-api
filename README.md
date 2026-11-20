@@ -14,7 +14,7 @@ One entry point covers both: `createValuApp()`.
 npm install @arkeytyp/valu-api
 ```
 
-Use 2.1.0 or newer. The 1.x releases have no `createValuApp` and none of what
+Use 2.2.0 or newer. The 1.x releases have no `createValuApp` and none of what
 follows. An app installed from a GitHub commit (`github:Roomful/valu-api#…`)
 before 2.1.0 reached npm should move to the npm release.
 
@@ -423,7 +423,7 @@ then apply the host's setting after `valu.ready`.
 
 | Mistake | Why it's wrong | Correct approach |
 |---------|---------------|-----------------|
-| An old lockfile, or a `1.x` / `github:Roomful/valu-api#…` dependency | `1.x` has no `createValuApp`, and a commit pin misses every later release | `npm install @arkeytyp/valu-api@^2.1.0` |
+| An old lockfile, or a `1.x` / `github:Roomful/valu-api#…` dependency | `1.x` has no `createValuApp`, and a commit pin misses every later release | `npm install @arkeytyp/valu-api@^2.2.0` |
 | `new ValuApi()` + `getApi('users')` in a new app | Works only inside Valu Social; a top-level page gets nothing | `const valu = await createValuApp()` |
 | `valu.sendIntent(new Intent('textchat', 'open-channel', …))` | The older bridge, being retired; the check cannot read a name hidden in a helper | `valu.Chats.openChannel({ userId })` |
 | Polling `getApi('app').run('isApplicationLoaded', id)` | An API pointer, being retired | `valu.Apps.isLoaded(appId)` |
