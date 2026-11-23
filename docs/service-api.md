@@ -23,9 +23,9 @@ is the same call with the envelope taken off: it returns the payload and throws
 `ValuServiceError`. `valu.call('Users.current')` takes the name as a string,
 which is what an LLM tool call has.
 
-**Intents are functions too.** 137 of the functions below are intents
+**Intents are functions too.** 138 of the functions below are intents
 that Valu Social serves (`createValuApp()` only: a socket client has nowhere to send
-one): 75 of its services' (`valu.Commerce.getCart()`, `valu.CMS.pickResource()`) and
+one): 76 of its services' (`valu.Commerce.getCart()`, `valu.CMS.pickResource()`) and
 62 of its apps' — every intent an app may send to Chats, Calendar, My Cart
 and the rest, on a namespace named by the app's title
 (`valu.Chats.openChannel({ userId })`, `valu.MyCart.openCart()`), or on the
@@ -104,6 +104,9 @@ Content management service for uploading, searching, and deleting resources scop
 - `valu.CMS.resourceSearch({ communityId?, channelId?, directoryId?, postId?, roomId?, propId?, limit?, query?, cursor? }?)` → `{resources: object[], hasMore: boolean, cursor: string}`
   Searches for resources within a given scope (room, prop, community, channel, directory, or post). Each returned resource has an id (and a title/name) — tag every resource you reference in your reply as @[cms-resource:id|title].
   <sub>Roomful socket</sub>
+- `valu.CMS.fileSearch({ query, types?, pageSize?, cursor?, networkId? })` → `{results: {file: object, copies: object[], moreCopies: number}[], nextCursor: string | null, truncated: boolean, locations: object, notice?: string}`
+  Searches every file the current user may see in the network — their library, rooms, communities and channels — by name, tags and content, through the Valu Guru RAG. Only files processed for AI search can be found. Returns {results: [{file, copies, moreCopies}], nextCursor, truncated, locations, notice?}: each result is one file (a CMS resource) with the copies of it the user may see, best match first; locations names the place of each result by its belonging; nextCursor (null on the last page) fetches the next page with the same query, types and network; notice is "only_indexed" when nothing was found.
+  <sub>intent · inside Valu Social only; `not_available` at the app's own address</sub>
 - `valu.CMS.pickResource({ sources, accept?, folderId?, title? })` → `?`
   Opens a file picker over the Network Resources of the current network so a network admin can choose ONE file, and waits for the choice. The popup opens over whatever is on screen and does not open Files. BLOCKS until the user picks or cancels. Returns the picked resource `{id, title, contentType, thumbnailUrl}` or `null` when the user cancels or closes the popup. Refused (an error, and no popup) for anyone who is not an admin of the network, for an unknown source, and for a folderId outside the requested sources. The returned resource is always inside the requested sources.
   <sub>intent · inside Valu Social only; skipped at the app's own address</sub>

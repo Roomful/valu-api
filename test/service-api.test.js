@@ -79,12 +79,12 @@ test('the typed intents are on the tree, as intents; the untyped application-ser
   assert.equal(valu.Developer.listApplicationApis.descriptor.channel, 'intent');
   assert.equal(valu.Developer.listMyApplicationApis.descriptor.mode, 'embedded-served');
   assert.equal(valu.Developer.listApplications.descriptor.channel, 'app-state');
-  // 72 service intents (2026-11-06: + CMS.pickResource, the five RoomZones, the three RoomPoints the socket
+  // 76 service intents (2026-11-06: + CMS.pickResource, the five RoomZones, the three RoomPoints the socket
   // could answer, the three valu.Apps reads; 2026-11-10: + the two Developer REST API reads; 2026-11-17: + valu.Apps.loaded,
-  // valu.Apps.getHeader and valu.Users.getIcon) and 62 application intents.
-  assert.equal(INTENT_FUNCTIONS.filter((d) => d.target === 'service').length, 75);
+  // valu.Apps.getHeader and valu.Users.getIcon; 2026-11-24: + valu.CMS.fileSearch) and 62 application intents.
+  assert.equal(INTENT_FUNCTIONS.filter((d) => d.target === 'service').length, 76);
   assert.equal(INTENT_FUNCTIONS.filter((d) => d.target === 'application').length, 62);
-  assert.equal(INTENT_FUNCTIONS.length, 137);
+  assert.equal(INTENT_FUNCTIONS.length, 138);
 });
 
 test('the last API pointers apps used the older bridge for are typed (2026-11-17)', () => {

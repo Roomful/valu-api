@@ -12,7 +12,7 @@ without `npm run check:generated` failing.
 | — of them declared by the application's manifest | 64 |
 | — of them declared by this package (scripts/extensions.js) | 1 |
 | implemented in this package | **65** |
-| declared intents excluded (only the application can serve them) | **81** |
+| declared intents excluded (only the application can serve them) | **82** |
 | server tools with no declared intent | **7** |
 
 ## Channels
@@ -99,7 +99,7 @@ and the one a caller has to satisfy before the call can work.
 
 ## Declared, and deliberately not here
 
-81 intents in the application's manifest get no descriptor, no method
+82 intents in the application's manifest get no descriptor, no method
 and no tool definition, for one of three reasons.
 
 They are not unreachable. An iframe application asks for any intent **by name**
@@ -107,7 +107,7 @@ over the postMessage bridge, and the application's own registry (not this
 snapshot) is the authority for what those names are:
 [api-pointers.md](api-pointers.md).
 
-### Only the application process can answer them — 45
+### Only the application process can answer them — 46
 
 Nothing but the application process can answer these: they open a dock or one of its screens, draw a picker or a consent dialog the user must answer before anything is written, hold an event subscription for the calling frame, or read the application's own memory. A function here would be a method that fails everywhere this library is meant to run.
 
@@ -122,6 +122,7 @@ Nothing but the application process can answer these: they open a dock or one of
 - `Application.close-application` — Closes the calling application (unloads it from its dock), then re-opens the default network application if nothing is left docked. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Close Application" default header action for iframe apps that render their own context menu (header: false).
 - `Application.expand-application` — Expands the calling application to fill the dock by closing every other loaded application. The target application is inferred from the intent sender — no parameters needed. Mirrors the "Expand Application" default header action for iframe apps that render their own context menu (header: false).
 - `Application.get-identity-token` — Issues a short-lived signed identity JWT for the calling mini-app. The target application is inferred from the intent sender — no parameters needed. Requires the user to be authenticated. JWT claims: sub=userId, aud=callingApplicationId, iss=platform, exp=5min.
+- `CMS.file-search` — Searches every file the current user may see in the network — their library, rooms, communities and channels — by name, tags and content, through the Valu Guru RAG. Only files processed for AI search can be found. Returns {results: [{file, copies, moreCopies}], nextCursor, truncated, locations, notice?}: each result is one file (a CMS resource) with the copies of it the user may see, best match first; locations names the place of each result by its belonging; nextCursor (null on the last page) fetches the next page with the same query, types and network; notice is "only_indexed" when nothing was found.
 - `CMS.pick-resource` — Opens a file picker over the Network Resources of the current network so a network admin can choose ONE file, and waits for the choice. The popup opens over whatever is on screen and does not open Files. BLOCKS until the user picks or cancels. Returns the picked resource `{id, title, contentType, thumbnailUrl}` or `null` when the user cancels or closes the popup. Refused (an error, and no popup) for anyone who is not an admin of the network, for an unknown source, and for a folderId outside the requested sources. The returned resource is always inside the requested sources.
 - `Commerce.archive-product` — Withdraw a product from sale for good. OPENS A PLATFORM DIALOG over your app saying it leaves every shelf and cannot be undone, and naming the products that include it — they stop selling too until each is published again without it. Archives only if the user confirms; `{success: false, code: "cancelled"}` is a normal answer. Anyone who bought it keeps it. Returns `{success: true, product, brokeBundles}` — `brokeBundles` the ids of the products that stopped selling.
 - `Commerce.checkout` — Your app's Pay button. Your app never takes a payment: this opens My Cart's own cart over your app, showing your items with `promoCode` typed in and applied, and the BUYER presses Pay and scans the code there — only My Cart creates the order. It answers when the buyer closes it: `{success: true, outcome, orderId?, status?}`. `outcome` is `paid` (a free order too: unlock it), `pending` (an order was made but is not paid yet — follow it with get-order or the order-updated event), `cancelled` (the order will not be paid: the buyer cancelled it, or it expired or failed — `status` says which — and its items are back in the cart) or `dismissed` (closed without making an order). Refused with code `empty`, and nothing opens, when none of your items is selected in the cart (add them first). With `popup: false` My Cart docks instead and it answers at once with `outcome: "opened"`, as it does where there is no popup to draw. A second checkout while one is open replaces it; the first answers at once — `dismissed`, unless an order was already made in it.

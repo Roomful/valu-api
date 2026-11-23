@@ -4,6 +4,17 @@
 
 ### Added
 
+- **`valu.CMS.fileSearch({query, types?, pageSize?, cursor?, networkId?})`.**
+  Searches every file the user may see in the network (their library, rooms,
+  communities and channels) by name, tags and content, through the Valu Guru
+  RAG, and answers `{results: [{file, copies, moreCopies}], nextCursor,
+  truncated, locations, notice?}`. Served by Valu Social itself
+  (`embedded-served`, with its Valu Guru session token): `not_available` at
+  the app's own address. Scope `cms:read`, consent tier, as
+  `valu.CMS.resourceSearch`: under the permission rule the app declares it and
+  the user is asked once. Only `CMS.file-search` was taken from the app's
+  manifest; the other intents added there since the last snapshot are not part
+  of this change.
 - **`docs/migrating.md`, generated.** The "Migrate to Valu API 2" guide for app
   developers and their AI agents (docs.texpo.io/valu-api-migration): prose from
   `docs/migrating.template.md`, this release's version and the full

@@ -577,6 +577,45 @@
           }
         },
         {
+          "action": "file-search",
+          "description": "Searches every file the current user may see in the network — their library, rooms, communities and channels — by name, tags and content, through the Valu Guru RAG. Only files processed for AI search can be found. Returns {results: [{file, copies, moreCopies}], nextCursor, truncated, locations, notice?}: each result is one file (a CMS resource) with the copies of it the user may see, best match first; locations names the place of each result by its belonging; nextCursor (null on the last page) fetches the next page with the same query, types and network; notice is \"only_indexed\" when nothing was found.",
+          "availability": [
+            "developer"
+          ],
+          "permissions": [],
+          "params": {
+            "required": [
+              {
+                "name": "query",
+                "type": "string",
+                "description": "What to look for: words of a file name, a tag, or what the file is about."
+              }
+            ],
+            "optional": [
+              {
+                "name": "types",
+                "type": "string[]",
+                "description": "Kinds of file to keep: image, video, audio, document, spreadsheet, presentation, link, other. Every kind when omitted."
+              },
+              {
+                "name": "pageSize",
+                "type": "number",
+                "description": "Files per page (copies not counted). Defaults to 30, at most 100."
+              },
+              {
+                "name": "cursor",
+                "type": "string",
+                "description": "The nextCursor of the previous page."
+              },
+              {
+                "name": "networkId",
+                "type": "string",
+                "description": "The network to search in. Defaults to the current network."
+              }
+            ]
+          }
+        },
+        {
           "action": "resource-delete",
           "description": "Deletes a resource or removes it from a prop or post.",
           "availability": [

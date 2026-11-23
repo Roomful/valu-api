@@ -133,6 +133,9 @@ export const APPLICATION_ONLY_GROUPS = [
       'RoomZones.claim-zone',
       'RoomZones.release-zone',
       'RoomZones.assign-zone',
+      // The RAG file search (2026-11-24): Valu Social asks the Valu Guru server with the
+      // user's session token; the Roomful socket has no such call.
+      'CMS.file-search',
     ],
   },
   {
@@ -362,6 +365,7 @@ export const INTENT_FUNCTION_SERVICES = ['Commerce', 'Application', 'DataProvide
  */
 export const INTENT_FUNCTION_KEYS = [
   'CMS.pick-resource',
+  'CMS.file-search',
   'AiGuru.is-application-loaded',
   'AiGuru.get-applications',
   'AiGuru.has-application',
@@ -412,6 +416,8 @@ export const INTENT_MODE_OVERRIDES = {
   'AiGuru.get-application-header': 'embedded-served',
   // Through Valu Social's REST session and URL cache; the host has neither yet.
   'Users.get-icon': 'embedded-served',
+  // Through Valu Social's Valu Guru session token; the host has none.
+  'CMS.file-search': 'embedded-served',
   // --- the application intents (reviewed 2026-11-06). Every `ui:open` one
   // derives `window`: Valu Social's `/-i/<app>/<action>` route opens it in a
   // tab. These open nothing there, so they mean something only inside Valu

@@ -90,6 +90,7 @@ export const RETURNS = {
   // --- CMS -----------------------------------------------------------------
   'CMS.resource-upload': { type: '{resolved: object[], failed: object[], placed?: string}', description: 'Resources created, and where they were placed (prop or post) when a scope was given.' },
   'CMS.resource-search': { type: '{resources: object[], hasMore: boolean, cursor: string}', description: 'A page of resources in the addressed scope.' },
+  'CMS.file-search': { type: '{results: {file: object, copies: object[], moreCopies: number}[], nextCursor: string | null, truncated: boolean, locations: object, notice?: string}', description: 'A page of the files the user may see in the network, best match first, each with the copies of it the user may see.' },
   'CMS.resource-delete': { type: 'void', description: 'The resource was deleted, or detached from the prop/post that held it.' },
 
   // --- Commerce ------------------------------------------------------------
