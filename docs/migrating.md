@@ -252,6 +252,7 @@ Key: `target.action`. `new Intent('textchat', 'open-channel', …)` is `textchat
 | `Application.close_all` | `valu.Application.closeAll()` |
 | `Application.expand-application` | `valu.Application.expandApplication()` |
 | `Application.get-identity-token` | `valu.Application.getIdentityToken()` |
+| `CMS.file-search` | `valu.CMS.fileSearch({...})` |
 | `CMS.pick-resource` | `valu.CMS.pickResource({...})` |
 | `Commerce.add-to-cart` | `valu.Commerce.addToCart({...})` |
 | `Commerce.archive-product` | `valu.Commerce.archiveProduct({...})` |

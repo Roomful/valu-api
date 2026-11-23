@@ -154,7 +154,7 @@ Content management service for uploading, searching, and deleting resources scop
 
 Source: `src/Services/CMS/CMSService.js`
 
-*1 more `CMS` intent (`pick-resource`) is served by the Valu Social application, not here — ask for it by name over the bridge ([api-pointers.md](api-pointers.md)).*
+*2 more `CMS` intents (`file-search`, `pick-resource`) are served by the Valu Social application, not here — ask for them by name over the bridge ([api-pointers.md](api-pointers.md)).*
 
 | function | params | returns | mode | requires | cache |
 |---|---|---|---|---|---|

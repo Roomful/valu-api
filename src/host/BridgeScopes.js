@@ -52,7 +52,7 @@ const SERVICE_INTENT_SCOPE = byScope({
     // `app.isApplicationLoaded` API pointer commands answer (`ui:open` there too), typed as `valu.Apps.*`.
     'AiGuru.get-applications', 'AiGuru.has-application', 'AiGuru.is-application-loaded',
   ],
-  'cms:read': ['CMS.pick-resource'],
+  'cms:read': ['CMS.pick-resource', 'CMS.file-search'],
   'rooms:read': ['RoomPoints.list-room-points', 'RoomZones.list-room-zones', 'RoomZones.zone-occupancy'],
   'rooms:write': [
     'RoomPoints.create-room-point', 'RoomPoints.edit-room-point', 'RoomPoints.save-room-point',

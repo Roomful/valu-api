@@ -318,6 +318,37 @@ export interface CMSResourceUploadParams {
 }
 
 /**
+ * CMS.file-search — A page of the files the user may see in the network, best match first, each with the copies of it the user may see.
+ */
+export type CMSFileSearchResult = {results: {file: Record<string, any>, copies: Record<string, any>[], moreCopies: number}[], nextCursor: string | null, truncated: boolean, locations: Record<string, any>, notice?: string};
+
+/**
+ * CMS.file-search — Searches every file the current user may see in the network — their library, rooms, communities and channels — by name, tags and content, through the Valu Guru RAG. Only files processed for AI search can be found. Returns {results: [{file, copies, moreCopies}], nextCursor, truncated, locations, notice?}: each result is one file (a CMS resource) with the copies of it the user may see, best match first; locations names the place of each result by its belonging; nextCursor (null on the last page) fetches the next page with the same query, types and network; notice is "only_indexed" when nothing was found.
+ */
+export interface CMSFileSearchParams {
+  /**
+   * What to look for: words of a file name, a tag, or what the file is about.
+   */
+  query: string;
+  /**
+   * Kinds of file to keep: image, video, audio, document, spreadsheet, presentation, link, other. Every kind when omitted.
+   */
+  types?: string[];
+  /**
+   * Files per page (copies not counted). Defaults to 30, at most 100.
+   */
+  pageSize?: number;
+  /**
+   * The nextCursor of the previous page.
+   */
+  cursor?: string;
+  /**
+   * The network to search in. Defaults to the current network.
+   */
+  networkId?: string;
+}
+
+/**
  * CMS.pick-resource — Opens a file picker over the Network Resources of the current network so a network admin can choose ONE file, and waits for the choice. The popup opens over whatever is on screen and does not open Files. BLOCKS until the user picks or cancels. Returns the picked resource `{id, title, contentType, thumbnailUrl}` or `null` when the user cancels or closes the popup. Refused (an error, and no popup) for anyone who is not an admin of the network, for an unknown source, and for a folderId outside the requested sources. The returned resource is always inside the requested sources.
  */
 export type CMSPickResourceResult = any;
@@ -4796,6 +4827,14 @@ export interface ValuServices {
      * @scope cms:write
      */
     resourceUpload(params: CMSResourceUploadParams): Promise<ValuAck<CMSResourceUploadResult>>;
+    /**
+     * Searches every file the current user may see in the network — their library, rooms, communities and channels — by name, tags and content, through the Valu Guru RAG. Only files processed for AI search can be found. Returns {results: [{file, copies, moreCopies}], nextCursor, truncated, locations, notice?}: each result is one file (a CMS resource) with the copies of it the user may see, best match first; locations names the place of each result by its belonging; nextCursor (null on the last page) fetches the next page with the same query, types and network; notice is "only_indexed" when nothing was found.
+     * @channel intent
+     * @scope cms:read
+     * @mode embedded-served
+     * @intent service `CMS` `file-search`
+     */
+    fileSearch(params: CMSFileSearchParams): Promise<ValuAck<CMSFileSearchResult>>;
     /**
      * Opens a file picker over the Network Resources of the current network so a network admin can choose ONE file, and waits for the choice. The popup opens over whatever is on screen and does not open Files. BLOCKS until the user picks or cancels. Returns the picked resource `{id, title, contentType, thumbnailUrl}` or `null` when the user cancels or closes the popup. Refused (an error, and no popup) for anyone who is not an admin of the network, for an unknown source, and for a folderId outside the requested sources. The returned resource is always inside the requested sources.
      * @channel intent

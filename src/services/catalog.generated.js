@@ -4627,6 +4627,71 @@ export const INTENT_DESCRIPTORS = [
     "mode": "embedded-served"
   },
   {
+    "key": "CMS.file-search",
+    "service": "CMS",
+    "action": "file-search",
+    "fn": "file_search",
+    "method": "fileSearch",
+    "toolName": "service__CMS__file_search",
+    "serviceTitle": "CMS Service",
+    "serviceDescription": "Content management service for uploading, searching, and deleting resources scoped to rooms, props, communities, channels, and directories.",
+    "source": "src/Services/CMS/CMSService.js",
+    "description": "Searches every file the current user may see in the network — their library, rooms, communities and channels — by name, tags and content, through the Valu Guru RAG. Only files processed for AI search can be found. Returns {results: [{file, copies, moreCopies}], nextCursor, truncated, locations, notice?}: each result is one file (a CMS resource) with the copies of it the user may see, best match first; locations names the place of each result by its belonging; nextCursor (null on the last page) fetches the next page with the same query, types and network; notice is \"only_indexed\" when nothing was found.",
+    "availability": [
+      "developer"
+    ],
+    "permissions": [],
+    "scopes": [
+      "cms:read"
+    ],
+    "mutates": false,
+    "cache": {
+      "mode": "none"
+    },
+    "channel": "intent",
+    "returns": {
+      "type": "{results: {file: object, copies: object[], moreCopies: number}[], nextCursor: string | null, truncated: boolean, locations: object, notice?: string}",
+      "description": "A page of the files the user may see in the network, best match first, each with the copies of it the user may see."
+    },
+    "params": {
+      "required": [
+        {
+          "name": "query",
+          "type": "string",
+          "description": "What to look for: words of a file name, a tag, or what the file is about."
+        }
+      ],
+      "optional": [
+        {
+          "name": "types",
+          "type": "string[]",
+          "description": "Kinds of file to keep: image, video, audio, document, spreadsheet, presentation, link, other. Every kind when omitted."
+        },
+        {
+          "name": "pageSize",
+          "type": "number",
+          "description": "Files per page (copies not counted). Defaults to 30, at most 100."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "description": "The nextCursor of the previous page."
+        },
+        {
+          "name": "networkId",
+          "type": "string",
+          "description": "The network to search in. Defaults to the current network."
+        }
+      ]
+    },
+    "sdkParams": [],
+    "declaredBy": "manifest",
+    "implementedBy": null,
+    "target": "service",
+    "to": "CMS",
+    "mode": "embedded-served"
+  },
+  {
     "key": "CMS.pick-resource",
     "service": "CMS",
     "action": "pick-resource",
@@ -11680,6 +11745,7 @@ export const APPLICATION_ONLY_INTENTS = [
   "Application.close-application",
   "Application.expand-application",
   "Application.get-identity-token",
+  "CMS.file-search",
   "CMS.pick-resource",
   "Commerce.add-to-cart",
   "Commerce.archive-product",
@@ -11765,6 +11831,7 @@ export const APPLICATION_INTENT_REASON = {
   "Application.close-application": "no-rpc",
   "Application.expand-application": "no-rpc",
   "Application.get-identity-token": "no-rpc",
+  "CMS.file-search": "no-rpc",
   "CMS.pick-resource": "no-rpc",
   "Commerce.add-to-cart": "valu-guru",
   "Commerce.archive-product": "no-rpc",
