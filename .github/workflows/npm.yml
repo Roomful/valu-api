@@ -182,3 +182,32 @@ jobs:
           else
             gh release create "$VERSION" --target "$GITHUB_SHA" --title "$VERSION" --generate-notes
           fi
+
+      # Valu Docs builds its Explorer from whatever @arkeytyp/valu-api npm
+      # serves at build time. notify_docs.yaml asks for that build on the same
+      # push as this publish, and it finishes first, so on a release it built
+      # with the previous version (2.3.0 went live with a 2.2.0 Explorer).
+      # Ask again once npm answers the new version as `latest` -- the registry
+      # takes a minute or two after `npm publish` to say so.
+      - name: Rebuild Valu Docs with this version
+        if: steps.decide.outputs.publish == 'true'
+        env:
+          DOCS_DISPATCH_TOKEN: ${{ secrets.DOCS_DISPATCH_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          for i in $(seq 1 30); do
+            latest=$(npm view @arkeytyp/valu-api dist-tags.latest --prefer-online 2>/dev/null || true)
+            [ "$latest" = "$VERSION" ] && break
+            echo "npm still answers latest=$latest; waiting for $VERSION"
+            sleep 20
+          done
+          if [ "$latest" != "$VERSION" ]; then
+            echo "::error::npm did not answer $VERSION as latest within 10 minutes, so Valu Docs was not rebuilt. Rerun the latest 'Deploy VitePress Docs' run in Roomful/valu-docs once it does."
+            exit 1
+          fi
+          curl --fail-with-body -sS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $DOCS_DISPATCH_TOKEN" \
+            https://api.github.com/repos/Roomful/valu-docs/dispatches \
+            -d '{"event_type":"update-valu-api-docs"}'
+          echo "Asked Valu Docs to sync and rebuild with $VERSION."
