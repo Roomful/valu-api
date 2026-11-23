@@ -20,7 +20,7 @@ This app runs inside Valu Social and talks to it through @arkeytyp/valu-api 1.x
 or raw postMessage (the "old bridge"). Migrate it to valu-api 2.
 
 Follow https://docs.texpo.io/valu-api-migration.md step by step:
-1. Install @arkeytyp/valu-api@^2.2.0 from npm.
+1. Install @arkeytyp/valu-api@^2.3.0 from npm.
 2. Read node_modules/@arkeytyp/valu-api/README.md, CHANGELOG.md and
    types/valu-api.d.ts + types/valu-services.d.ts before writing code.
 3. Run the find-old-valu-calls.mjs script from that page to list every old call.
@@ -36,7 +36,7 @@ Tell me about any call the table marks "similar, not the same" or has no replace
 ## 1. Install valu-api 2
 
 ```bash
-npm install @arkeytyp/valu-api@^2.2.0
+npm install @arkeytyp/valu-api@^2.3.0
 ```
 
 If the app was installed from a GitHub commit (`github:Roomful/valu-api#…`), replace that with the npm version.
@@ -151,7 +151,7 @@ After you deploy, Valu sees the app report valu-api 2 and stops counting old-bri
 
 ## Replacement table
 
-Generated from valu-api 2.2.0 (`BRIDGE_REPLACEMENTS`). In code, `bridgeReplacement(kind, name)` from `@arkeytyp/valu-api/src/scan/index.js` answers the same thing. Parameters written `{...}` are the old call's parameters; their exact names are in the types.
+Generated from valu-api 2.3.0 (`BRIDGE_REPLACEMENTS`). In code, `bridgeReplacement(kind, name)` from `@arkeytyp/valu-api/src/scan/index.js` answers the same thing. Parameters written `{...}` are the old call's parameters; their exact names are in the types.
 
 ### API pointers: `getApi(api)` then `.run(fn)`
 
