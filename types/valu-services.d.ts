@@ -323,13 +323,17 @@ export interface CMSResourceUploadParams {
 export type CMSFileSearchResult = {results: {file: Record<string, any>, copies: Record<string, any>[], moreCopies: number}[], nextCursor: string | null, truncated: boolean, locations: Record<string, any>, notice?: string};
 
 /**
- * CMS.file-search — Searches every file the current user may see in the network — their library, rooms, communities and channels — by name, tags and content, through the Valu Guru RAG. Only files processed for AI search can be found. Returns {results: [{file, copies, moreCopies}], nextCursor, truncated, locations, notice?}: each result is one file (a CMS resource) with the copies of it the user may see, best match first; locations names the place of each result by its belonging; nextCursor (null on the last page) fetches the next page with the same query, types and network; notice is "only_indexed" when nothing was found.
+ * CMS.file-search — Searches every file the current user may see in the current network — their library, rooms, communities and channels — by name, tags and content, through the Valu Guru RAG. A search never leaves the current network. Only files processed for AI search can be found. Returns {results: [{file, copies, moreCopies}], nextCursor, truncated, locations, notice?}: each result is one file (a CMS resource) with the copies of it the user may see, best match first; locations names the place of each result by its belonging; nextCursor (null on the last page) fetches the next page with the same query, types and network; notice is "only_indexed" when nothing was found.
  */
 export interface CMSFileSearchParams {
   /**
    * What to look for: words of a file name, a tag, or what the file is about.
    */
   query: string;
+  /**
+   * The current network: a search never leaves it, and another network is refused.
+   */
+  networkId: string;
   /**
    * Kinds of file to keep: image, video, audio, document, spreadsheet, presentation, link, other. Every kind when omitted.
    */
@@ -343,9 +347,21 @@ export interface CMSFileSearchParams {
    */
   cursor?: string;
   /**
-   * The network to search in. Defaults to the current network.
+   * Only files in this room, including files placed there as copies. Not with communityId.
    */
-  networkId?: string;
+  roomId?: string;
+  /**
+   * Only files in this prop of the room; needs roomId.
+   */
+  propId?: string;
+  /**
+   * Only files in this community, including files placed there as copies. Not with roomId.
+   */
+  communityId?: string;
+  /**
+   * Only files in this channel of the community; needs communityId.
+   */
+  channelId?: string;
 }
 
 /**
@@ -4828,7 +4844,7 @@ export interface ValuServices {
      */
     resourceUpload(params: CMSResourceUploadParams): Promise<ValuAck<CMSResourceUploadResult>>;
     /**
-     * Searches every file the current user may see in the network — their library, rooms, communities and channels — by name, tags and content, through the Valu Guru RAG. Only files processed for AI search can be found. Returns {results: [{file, copies, moreCopies}], nextCursor, truncated, locations, notice?}: each result is one file (a CMS resource) with the copies of it the user may see, best match first; locations names the place of each result by its belonging; nextCursor (null on the last page) fetches the next page with the same query, types and network; notice is "only_indexed" when nothing was found.
+     * Searches every file the current user may see in the current network — their library, rooms, communities and channels — by name, tags and content, through the Valu Guru RAG. A search never leaves the current network. Only files processed for AI search can be found. Returns {results: [{file, copies, moreCopies}], nextCursor, truncated, locations, notice?}: each result is one file (a CMS resource) with the copies of it the user may see, best match first; locations names the place of each result by its belonging; nextCursor (null on the last page) fetches the next page with the same query, types and network; notice is "only_indexed" when nothing was found.
      * @channel intent
      * @scope cms:read
      * @mode embedded-served

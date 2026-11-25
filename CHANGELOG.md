@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **`valu.CMS.fileSearch` stays in one network and can search one place.**
+  `networkId` is now required and must be the current network: networks never
+  share files, and a search never leaves the current one (another network is
+  refused). New optional `roomId` (with `propId`) or `communityId` (with
+  `channelId`) narrow the search to that room, prop, community or channel,
+  including files placed there as copies; a room and a community cannot be
+  combined. Breaking for a caller of 2.3.0 that omitted `networkId`.
+
 ## 2.3.0 — 2026-11-23
 
 ### Added
