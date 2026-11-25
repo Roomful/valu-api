@@ -4636,7 +4636,7 @@ export const INTENT_DESCRIPTORS = [
     "serviceTitle": "CMS Service",
     "serviceDescription": "Content management service for uploading, searching, and deleting resources scoped to rooms, props, communities, channels, and directories.",
     "source": "src/Services/CMS/CMSService.js",
-    "description": "Searches every file the current user may see in the network — their library, rooms, communities and channels — by name, tags and content, through the Valu Guru RAG. Only files processed for AI search can be found. Returns {results: [{file, copies, moreCopies}], nextCursor, truncated, locations, notice?}: each result is one file (a CMS resource) with the copies of it the user may see, best match first; locations names the place of each result by its belonging; nextCursor (null on the last page) fetches the next page with the same query, types and network; notice is \"only_indexed\" when nothing was found.",
+    "description": "Searches every file the current user may see in the current network — their library, rooms, communities and channels — by name, tags and content, through the Valu Guru RAG. A search never leaves the current network. Only files processed for AI search can be found. Returns {results: [{file, copies, moreCopies}], nextCursor, truncated, locations, notice?}: each result is one file (a CMS resource) with the copies of it the user may see, best match first; locations names the place of each result by its belonging; nextCursor (null on the last page) fetches the next page with the same query, types and network; notice is \"only_indexed\" when nothing was found.",
     "availability": [
       "developer"
     ],
@@ -4659,6 +4659,11 @@ export const INTENT_DESCRIPTORS = [
           "name": "query",
           "type": "string",
           "description": "What to look for: words of a file name, a tag, or what the file is about."
+        },
+        {
+          "name": "networkId",
+          "type": "string",
+          "description": "The current network: a search never leaves it, and another network is refused."
         }
       ],
       "optional": [
@@ -4678,9 +4683,24 @@ export const INTENT_DESCRIPTORS = [
           "description": "The nextCursor of the previous page."
         },
         {
-          "name": "networkId",
+          "name": "roomId",
           "type": "string",
-          "description": "The network to search in. Defaults to the current network."
+          "description": "Only files in this room, including files placed there as copies. Not with communityId."
+        },
+        {
+          "name": "propId",
+          "type": "string",
+          "description": "Only files in this prop of the room; needs roomId."
+        },
+        {
+          "name": "communityId",
+          "type": "string",
+          "description": "Only files in this community, including files placed there as copies. Not with roomId."
+        },
+        {
+          "name": "channelId",
+          "type": "string",
+          "description": "Only files in this channel of the community; needs communityId."
         }
       ]
     },
