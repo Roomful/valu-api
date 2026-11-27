@@ -4846,7 +4846,7 @@ export interface ValuServices {
     /**
      * Searches every file the current user may see in the current network — their library, rooms, communities and channels — by name, tags and content, through the Valu Guru RAG. A search never leaves the current network. Only files processed for AI search can be found. Returns {results: [{file, copies, moreCopies}], nextCursor, truncated, locations, notice?}: each result is one file (a CMS resource) with the copies of it the user may see, best match first; locations names the place of each result by its belonging; nextCursor (null on the last page) fetches the next page with the same query, types and network; notice is "only_indexed" when nothing was found.
      * @channel intent
-     * @scope cms:read
+     * @scope cms:search
      * @mode embedded-served
      * @intent service `CMS` `file-search`
      */

@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.5.0 — 2026-11-27
+
+### Changed
+
+- **`valu.CMS.fileSearch` needs its own consent, `cms:search`.** It searches,
+  silently and at any time, every file the user may see in the network — their
+  library and other people's files in rooms, communities and channels — so it
+  no longer comes with `cms:read`, which an app asks for to let the user pick a
+  file. The consent window says so: "Search every file you can see in this
+  network at any time, in your library and in rooms, communities and channels,
+  and see their names, details and where they are." `cms:read` keeps
+  `valu.CMS.pickResource` and `valu.CMS.resourceSearch`, and its sentence now
+  says what they do ("Let you pick a file to give this app, and look through
+  the files of a room, community, channel or folder the app names."). Breaking
+  for an app that calls `fileSearch` under `cms:read`: declare `cms:search` in
+  `valu-permissions.json`, and the user is asked for it like any consent scope.
+
 ## 2.4.0 — 2026-11-25
 
 ### Changed

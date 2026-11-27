@@ -26,6 +26,14 @@ test('the host\'s own intents keep their scopes, and the bridge\'s own table fil
   assert.equal(scopeOfServiceIntent('DataProvider', 'pick-single'), 'ui:open');
 });
 
+test('picking a file and searching every file the user may see are separate consents', () => {
+  assert.equal(scopeOfServiceIntent('CMS', 'pick-resource'), 'cms:read');
+  assert.equal(scopeOfServiceIntent('CMS', 'file-search'), 'cms:search');
+  assert.equal(TIER_OF['cms:search'], 'consent');
+  assert.match(SCOPE_DESCRIPTIONS['cms:search'], /every file you can see in this network/);
+  assert.match(SCOPE_DESCRIPTIONS['cms:search'], /rooms, communities and channels/);
+});
+
 test('what an app must never reach through a service intent has no scope', () => {
   for (const [service, action] of [
     ['UnityDialog', 'open'], ['Logging', 'get-logs'], ['AiGuru', 'get-chat-history'], ['WebSocket', 'send'],

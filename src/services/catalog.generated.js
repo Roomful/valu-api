@@ -4642,7 +4642,7 @@ export const INTENT_DESCRIPTORS = [
     ],
     "permissions": [],
     "scopes": [
-      "cms:read"
+      "cms:search"
     ],
     "mutates": false,
     "cache": {

@@ -52,7 +52,10 @@ const SERVICE_INTENT_SCOPE = byScope({
     // `app.isApplicationLoaded` API pointer commands answer (`ui:open` there too), typed as `valu.Apps.*`.
     'AiGuru.get-applications', 'AiGuru.has-application', 'AiGuru.is-application-loaded',
   ],
-  'cms:read': ['CMS.pick-resource', 'CMS.file-search'],
+  'cms:read': ['CMS.pick-resource'], // the user picks; only the choice comes back
+  // A silent search of every file the user may see in the network, others' included: a consent of its own,
+  // not one an app asking to let the user pick a file gets along the way (2026-11-27).
+  'cms:search': ['CMS.file-search'],
   'rooms:read': ['RoomPoints.list-room-points', 'RoomZones.list-room-zones', 'RoomZones.zone-occupancy'],
   'rooms:write': [
     'RoomPoints.create-room-point', 'RoomPoints.edit-room-point', 'RoomPoints.save-room-point',

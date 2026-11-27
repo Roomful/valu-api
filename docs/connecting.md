@@ -440,7 +440,7 @@ the host serves map to one. Each scope is in one tier:
 | tier | what it means | scopes |
 |---|---|---|
 | `basic` | any signed-in user, no asking | `users:read`, `networks:read`, `profile:read`, `resources:read`, `time:read`, `applicationstorage:read`, `applicationstorage:write`, `application:identity` (`Application.get-identity-token`) |
-| `consent` | the user's yes, once per app, kept until revoked; until then `consent_required` | `users:write`, `rooms:read`, `rooms:write`, `textchat:read`, `textchat:write`, `groups:read`, `groups:write`, `events:read`, `events:write`, `community:read`, `cbac:read`, `cms:read`, `cms:write`, `commerce:read`, `commerce:write`, `commerce:sell` |
+| `consent` | the user's yes, once per app, kept until revoked; until then `consent_required` | `users:write`, `rooms:read`, `rooms:write`, `textchat:read`, `textchat:write`, `groups:read`, `groups:write`, `events:read`, `events:write`, `community:read`, `cbac:read`, `cms:read`, `cms:search`, `cms:write`, `commerce:read`, `commerce:write`, `commerce:sell` |
 | `forbidden` | never, whatever the user says, and never asked about | `cbac:write`, `veruswallet:read` (its one function, `VerusWallet.get-balance`, needs state only Valu Social holds and answers `501`), `veruswallet:write`, `developer:read`, `developer:write` |
 | `local` | runs in the page with its own `fetch`; never reaches the host | `http:read`, `http:write` (`Http.*`; the `Time.*` and resource-URL functions also run in the page, under basic scopes) |
 

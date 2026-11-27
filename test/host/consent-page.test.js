@@ -304,7 +304,7 @@ test('a post that fails shows an error and leaves the window open', () => {
 
 const CONSENT_SCOPES = [
   'users:write', 'rooms:read', 'rooms:write', 'textchat:read', 'textchat:write', 'groups:read', 'groups:write',
-  'events:read', 'events:write', 'community:read', 'cbac:read', 'cms:read', 'cms:write',
+  'events:read', 'events:write', 'community:read', 'cbac:read', 'cms:read', 'cms:search', 'cms:write',
   'commerce:read', 'commerce:write', 'commerce:sell',
   'networks:write', 'videochat:read', 'videochat:write', 'hubs:read', 'hubs:write', 'valuguru:write',
 ];

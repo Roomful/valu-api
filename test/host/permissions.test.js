@@ -31,7 +31,7 @@ const SPEC = {
   consent: [
     'users:write', 'rooms:read', 'rooms:write', 'textchat:read', 'textchat:write',
     'groups:read', 'groups:write', 'events:read', 'events:write', 'community:read',
-    'cbac:read', 'cms:read', 'cms:write',
+    'cbac:read', 'cms:read', 'cms:search', 'cms:write',
     'commerce:read', 'commerce:write', 'commerce:sell',
     // the older Valu Social bridge (BridgeScopes.js, 2026-10-29)
     'networks:write', 'videochat:read', 'videochat:write', 'hubs:read', 'hubs:write', 'valuguru:write',
@@ -70,7 +70,7 @@ test('TIER_OF is the table of spec 4.6, and is frozen', () => {
     const actual = Object.entries(TIER_OF).filter(([, t]) => t === tier).map(([scope]) => scope);
     assert.deepEqual(actual.sort(), [...scopes].sort(), `tier ${tier}`);
   }
-  assert.equal(Object.keys(TIER_OF).length, 10 + 22 + 2 + 5);
+  assert.equal(Object.keys(TIER_OF).length, 10 + 23 + 2 + 5);
 });
 
 test('every one of the 27 descriptor scopes has a tier', () => {

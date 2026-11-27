@@ -71,6 +71,7 @@ export const TIER_OF = Object.freeze({
   'community:read': 'consent',
   'cbac:read': 'consent',
   'cms:read': 'consent',
+  'cms:search': 'consent',
   'cms:write': 'consent',
   'commerce:read': 'consent',
   'commerce:write': 'consent',
